@@ -11,7 +11,7 @@
 use crate::source::FileSource;
 
 /// Buffer a cui punta un pezzo.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Buf {
     /// Il file originale (posizioni in byte dall'inizio del file).
     Original,
@@ -20,7 +20,7 @@ pub enum Buf {
 }
 
 /// Un tratto contiguo di `len` byte che parte da `start` nel buffer `buf`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Piece {
     pub buf: Buf,
     pub start: u64,

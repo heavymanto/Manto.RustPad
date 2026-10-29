@@ -5,6 +5,7 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 ## [Unreleased]
 
 ### Added
+- **Line index that follows the edits** (`Document::build_lines`, `line_count`, `offset_of_line`, `line_at_offset`): line numbers of the *edited* document from the sparse index of the original file plus per-piece newline counts; cost depends on the number of pieces, not on the file size. 12 tests with a naive oracle, one 6 GB test.
 - **`PieceTable`** (`edit.rs`): the document as a list of pieces pointing into the original file (never copied) or a small
   buffer of additions; `insert`, `delete`, `read_range` with 64-bit offsets, canonical form (no empty pieces, contiguous
   pieces merged), errors that change nothing. Memory follows the edits, not the file size. 22 tests, with a naive

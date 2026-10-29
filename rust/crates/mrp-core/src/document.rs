@@ -3,8 +3,11 @@
 //! rinomina sopra l'originale: se qualcosa va storto (errore, annullamento, file cambiato da
 //! altri) l'originale resta com'e'.
 
-use crate::edit::{Buf, EditError, PieceTable};
+use crate::edit::{Buf, EditError, Piece, PieceTable};
+use crate::lines::{BuildOptions, Cancelled, LineIndex};
 use crate::source::FileSource;
+use memchr::memchr_iter;
+use std::collections::HashMap;
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{self, Write};
@@ -96,6 +99,65 @@ impl Drop for TempGuard {
     }
 }
 
+/// Tabella derivata dall'indice del file originale e dai pezzi, ricostruita al primo uso dopo
+/// ogni cambiamento della tabella dei pezzi: per ogni pezzo, dove inizia nel documento e
+/// quanti `\n` del documento lo precedono. Entrambi i vettori sono lunghi `pezzi + 1`.
+struct Prefix {
+    /// `doc_start[i]` = posizione nel documento dell'inizio del pezzo `i`; l'ultimo elemento
+    /// e' la fine dell'ultimo pezzo, cioe' `len()`.
+    doc_start: Vec<u64>,
+    /// `nl_before[i]` = numero di `\n` del documento prima del pezzo `i`; l'ultimo elemento
+    /// e' il totale dei `\n` del documento.
+    nl_before: Vec<u64>,
+}
+
+/// Quanti `\n` stanno nei primi `within` byte del pezzo `p` (`within <= p.len`):
+/// - pezzo `Add`: `memchr_iter` sulla fetta del buffer delle aggiunte;
+/// - pezzo `Original`: differenza di `newlines_before` agli estremi del tratto del file
+///   (il costo dipende dalle righe fra due punti dell'indice, non dalla dimensione del file).
+///
+/// `cache` ricorda solo i conteggi dei pezzi INTERI (`within == p.len`): le chiavi restano
+/// vere finche' l'indice e' valido, perche' il file originale non cambia e il buffer delle
+/// aggiunte cresce solo in coda (i byte di un pezzo non vengono mai riscritti). I conteggi
+/// parziali non si mettono in cache: la chiave non li distingue.
+fn newlines_in_piece(
+    idx: &LineIndex,
+    src: &FileSource,
+    table: &PieceTable,
+    cache: &mut HashMap<Piece, u64>,
+    p: Piece,
+    within: u64,
+) -> u64 {
+    let intero = within == p.len;
+    if intero {
+        if let Some(&n) = cache.get(&p) {
+            return n;
+        }
+    }
+    let n = match p.buf {
+        Buf::Add => match usize::try_from(within) {
+            Ok(len) => memchr_iter(b'\n', table.add_bytes(p.start, len)).count() as u64,
+            // Difensivo: il buffer delle aggiunte e' un `Vec<u8>`, quindi un pezzo `Add`
+            // piu' lungo di `usize::MAX` non puo' esistere; si risponde 0 senza panic.
+            Err(_) => 0,
+        },
+        Buf::Original => match (
+            idx.newlines_before(src, p.start + within),
+            idx.newlines_before(src, p.start),
+        ) {
+            // Il pezzo sta dentro il file e il conteggio cresce con l'offset: la differenza
+            // e' esatta e non va in underflow. Il ramo `_` e' difensivo per un indice
+            // incoerente con questo `src` (non puo' accadere con le invarianti vere).
+            (Some(dopo), Some(prima)) => dopo - prima,
+            _ => 0,
+        },
+    };
+    if intero {
+        cache.insert(p, n);
+    }
+    n
+}
+
 /// File + modifiche.
 pub struct Document {
     path: PathBuf,
@@ -105,6 +167,14 @@ pub struct Document {
     stamp: Stamp,
     /// Vero se c'e' almeno una modifica non salvata.
     dirty: bool,
+    /// Indice righe del FILE ORIGINALE (non del documento modificato): vedi `build_lines`.
+    lines: Option<LineIndex>,
+    /// Cache dei conteggi: quanti `\n` contiene ciascun pezzo. Le chiavi restano vere finche'
+    /// `lines` e' valido (file originale e buffer delle aggiunte non cambiano sotto i pezzi).
+    nl_of_piece: HashMap<Piece, u64>,
+    /// Tabella derivata dai pezzi (posizioni nel documento e `\n` cumulati), ricostruita al
+    /// primo uso dopo l'ultima modifica: vedi `ensure_prefix`.
+    prefix: Option<Prefix>,
 }
 
 impl Document {
@@ -123,6 +193,9 @@ impl Document {
             table,
             stamp,
             dirty: false,
+            lines: None,
+            nl_of_piece: HashMap::new(),
+            prefix: None,
         })
     }
 
@@ -156,6 +229,9 @@ impl Document {
         // Un inserimento vuoto non ha effetto: il documento non risulta modificato.
         if !data.is_empty() {
             self.dirty = true;
+            // Le posizioni dei pezzi nel documento sono cambiate: la tabella derivata si
+            // ricostruisce al prossimo uso (la cache dei conteggi resta: i byte no).
+            self.prefix = None;
         }
         Ok(())
     }
@@ -166,6 +242,8 @@ impl Document {
         // Una cancellazione di lunghezza zero non ha effetto: il documento non risulta modificato.
         if len > 0 {
             self.dirty = true;
+            // Come `insert`: la tabella derivata si ricostruisce al prossimo uso.
+            self.prefix = None;
         }
         Ok(())
     }
@@ -177,6 +255,167 @@ impl Document {
             None => Vec::new(),
             Some(source) => self.table.read_range(source, pos, len),
         }
+    }
+
+    /// Costruisce l'indice righe del file originale (parametri predefiniti), per `line_count`,
+    /// `offset_of_line` e `line_at_offset`. Annullabile; `progress` come in `LineIndex::build`.
+    /// Se annullato, il documento resta senza indice (`has_lines()` falso). Documento chiuso: non fa nulla, `Ok`.
+    pub fn build_lines(
+        &mut self,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<(), Cancelled> {
+        self.build_lines_with(&BuildOptions::default(), cancel, progress)
+    }
+
+    /// Come `build_lines` con parametri espliciti (serve ai test per avere molti punti su file piccoli).
+    pub fn build_lines_with(
+        &mut self,
+        opts: &BuildOptions,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<(), Cancelled> {
+        // Documento chiuso: niente sorgente, niente indice da costruire.
+        let source = match &self.source {
+            None => return Ok(()),
+            Some(source) => source,
+        };
+        // Se la costruzione e' annullata il vecchio indice (se c'era, ancora valido) resta al
+        // suo posto: lo si sostituisce, con cache e tabella derivata azzerate, solo quando la
+        // nuova costruzione e' riuscita.
+        let idx = LineIndex::build_with(source, opts, cancel, progress)?;
+        self.lines = Some(idx);
+        self.nl_of_piece.clear();
+        self.prefix = None;
+        Ok(())
+    }
+
+    /// Vero se l'indice righe e' costruito e valido. Le modifiche lo lasciano valido; un salvataggio riuscito
+    /// lo toglie (il file e' cambiato): va ricostruito con `build_lines`.
+    pub fn has_lines(&self) -> bool {
+        self.lines.is_some()
+    }
+
+    /// Numero di righe DEL DOCUMENTO modificato (stessa convenzione di `lines.rs`: `\n` piu' 1 se il documento
+    /// e' non vuoto e non finisce con `\n`). `None` se l'indice righe non e' costruito.
+    pub fn line_count(&mut self) -> Option<u64> {
+        self.ensure_prefix();
+        let prefix = self.prefix.as_ref()?;
+        // Totale dei `\n` del documento: l'ultimo elemento di `nl_before` c'e' sempre.
+        let nl_totali = *prefix.nl_before.last()?;
+        if !self.is_empty() {
+            // Il documento non finisce con `\n`: l'ultima riga non e' terminata e va contata.
+            let ultimo = self.read_range(self.len() - 1, 1);
+            if !ultimo.is_empty() && ultimo[0] != b'\n' {
+                return Some(nl_totali + 1);
+            }
+        }
+        Some(nl_totali)
+    }
+
+    /// Posizione in byte, nel documento modificato, dell'inizio della riga `line` (da 0).
+    /// `None` se manca l'indice o `line >= line_count()`.
+    pub fn offset_of_line(&mut self, line: u64) -> Option<u64> {
+        if line >= self.line_count()? {
+            return None;
+        }
+        if line == 0 {
+            return Some(0);
+        }
+        // `line_count` ha gia' ricostruito la tabella derivata: il `?` e' solo difensivo.
+        let prefix = self.prefix.as_ref()?;
+        // Pezzo che contiene il `line`-esimo `\n` del documento: l'ultimo pezzo con meno di
+        // `line` a-capo prima di se'. `nl_before[0] == 0 < line`, quindi l'indice e' un pezzo vero.
+        let i = prefix.nl_before.partition_point(|&n| n < line) - 1;
+        let p = self.table.pieces()[i];
+        // Il `\n` cercato e' il j-esimo del pezzo, con j contato da 1.
+        let j = line - prefix.nl_before[i];
+        let idx = self.lines.as_ref()?;
+        let src = self.source.as_ref()?;
+        let in_pezzo = match p.buf {
+            Buf::Add => {
+                // Posizione del j-esimo `\n` del pezzo, piu' uno: la riga inizia subito dopo.
+                let len = usize::try_from(p.len).ok()?;
+                let n = usize::try_from(j - 1).ok()?;
+                let rel = memchr_iter(b'\n', self.table.add_bytes(p.start, len)).nth(n)?;
+                rel as u64 + 1
+            }
+            Buf::Original => {
+                // Nel file originale il `\n` cercato e' il g-esimo: l'inizio della riga sta
+                // subito dopo, oppure a fine file se quel `\n` e' l'ultimo byte.
+                let g = idx.newlines_before(src, p.start)? + j;
+                let nel_file = if g < idx.line_count() {
+                    idx.offset_of_line(src, g)?
+                } else {
+                    src.len()
+                };
+                nel_file.checked_sub(p.start)?
+            }
+        };
+        Some(prefix.doc_start[i] + in_pezzo)
+    }
+
+    /// Riga del documento modificato che contiene il byte in `pos` (il `\n` finale appartiene alla riga che chiude).
+    /// `None` se manca l'indice o `pos >= len()`.
+    pub fn line_at_offset(&mut self, pos: u64) -> Option<u64> {
+        self.ensure_prefix();
+        let prefix = self.prefix.as_ref()?;
+        if pos >= self.len() {
+            return None;
+        }
+        // Pezzo che contiene `pos`: l'ultimo che inizia a posizione <= `pos` (`doc_start[0] == 0
+        // <= pos`, quindi l'indice e' sempre un pezzo vero).
+        let i = prefix.doc_start.partition_point(|&d| d <= pos) - 1;
+        let p = self.table.pieces()[i];
+        let idx = self.lines.as_ref()?;
+        let src = self.source.as_ref()?;
+        // `\n` del pezzo prima di `pos` (tratto parziale: niente cache), piu' quelli dei
+        // pezzi che precedono.
+        let nl = newlines_in_piece(
+            idx,
+            src,
+            &self.table,
+            &mut self.nl_of_piece,
+            p,
+            pos - prefix.doc_start[i],
+        );
+        Some(prefix.nl_before[i] + nl)
+    }
+
+    /// Se l'indice e' valido ma la tabella derivata manca (prima interrogazione dopo
+    /// l'apertura, dopo una modifica o dopo la costruzione dell'indice), la ricostruisce con
+    /// un giro sui pezzi. Il costo dipende dal numero di pezzi, non dalla dimensione del file.
+    fn ensure_prefix(&mut self) {
+        if self.prefix.is_some() {
+            return;
+        }
+        let Some(idx) = &self.lines else {
+            return;
+        };
+        let Some(src) = &self.source else {
+            return;
+        };
+        // La cache cresce a ogni pezzo nuovo e le voci dei pezzi cancellati restano: oltre
+        // il doppio dei pezzi attuali (piu' un margine) si svuota prima di ricostruire.
+        if self.nl_of_piece.len() > 2 * self.table.pieces().len() + 1024 {
+            self.nl_of_piece.clear();
+        }
+        let mut prefix = Prefix {
+            doc_start: Vec::with_capacity(self.table.pieces().len() + 1),
+            nl_before: Vec::with_capacity(self.table.pieces().len() + 1),
+        };
+        let mut pos = 0u64; // posizione nel documento dell'inizio del pezzo corrente
+        let mut nl = 0u64; // `\n` del documento prima del pezzo corrente
+        for p in self.table.pieces() {
+            prefix.doc_start.push(pos);
+            prefix.nl_before.push(nl);
+            nl += newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, *p, p.len);
+            pos += p.len;
+        }
+        // Un elemento in piu' dei pezzi: la fine del documento e il totale dei `\n`.
+        prefix.doc_start.push(pos);
+        prefix.nl_before.push(nl);
+        self.prefix = Some(prefix);
     }
 
     /// Salva su disco il documento com'e' ora. Se non ci sono modifiche non fa nulla (`Ok`, `progress` invariato).
@@ -332,13 +571,21 @@ impl Document {
                 self.source = Some(new_source);
                 self.stamp = stamp;
                 self.dirty = false;
+                // Il file su disco e' cambiato: l'indice del vecchio file non vale piu'.
+                self.lines = None;
+                self.nl_of_piece.clear();
+                self.prefix = None;
                 Ok(())
             }
             Err(e) => {
                 // I dati sono al sicuro su disco, ma senza sorgente il documento e' chiuso.
+                // La rinomina e' comunque riuscita: l'indice del vecchio file non vale piu'.
                 self.source = None;
                 self.table = PieceTable::new(0);
                 self.dirty = false;
+                self.lines = None;
+                self.nl_of_piece.clear();
+                self.prefix = None;
                 Err(SaveError::Io(e))
             }
         }

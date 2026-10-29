@@ -289,6 +289,29 @@ impl LineIndex {
         self.checkpoints.len()
     }
 
+    /// Quanti `\n` ci sono nei byte `[0, offset)` del file. `offset == src.len()` e' ammesso (da' il totale dei `\n`);
+    /// `None` se `offset > src.len()`. Parte dal punto memorizzato piu' vicino: il costo non dipende dalla dimensione del file.
+    pub fn newlines_before(&self, src: &FileSource, offset: u64) -> Option<u64> {
+        if offset > src.len() {
+            return None;
+        }
+        let bytes = src.bytes();
+        // Ultimo punto con posizione <= offset (le posizioni dei punti sono crescenti);
+        // il fallback (0, 0) e' solo difensivo per un indice senza punti.
+        let i = self.checkpoints.partition_point(|&(_, p)| p <= offset);
+        let (riga_punto, pos_punto) = if i == 0 {
+            (0, 0)
+        } else {
+            self.checkpoints[i - 1]
+        };
+        // Conta i `\n` in [pos_punto, offset), con `offset` escluso: la riga del punto e'
+        // gia' il numero di `\n` che precedono la sua posizione.
+        let inizio = slice_index(bytes, pos_punto);
+        let fine = slice_index(bytes, offset);
+        let conteggio = memchr_iter(b'\n', &bytes[inizio..fine]).count() as u64;
+        Some(riga_punto + conteggio)
+    }
+
     /// Posizione in byte dell'inizio della riga `line` (da 0). `None` se `line >= line_count()`.
     /// Parte dal punto memorizzato piu' vicino e cerca i `\n` nel tratto di file che segue.
     pub fn offset_of_line(&self, src: &FileSource, line: u64) -> Option<u64> {
@@ -323,19 +346,8 @@ impl LineIndex {
         if offset >= src.len() {
             return None;
         }
-        let bytes = src.bytes();
-        // Ultimo punto con posizione <= offset (le posizioni dei punti sono crescenti);
-        // anche qui il fallback (0, 0) e' solo difensivo.
-        let i = self.checkpoints.partition_point(|&(_, p)| p <= offset);
-        let (riga_punto, pos_punto) = if i == 0 {
-            (0, 0)
-        } else {
-            self.checkpoints[i - 1]
-        };
-        // Conta i `\n` in [pos_punto, offset), con `offset` escluso.
-        let inizio = slice_index(bytes, pos_punto);
-        let fine = slice_index(bytes, offset);
-        let conteggio = memchr_iter(b'\n', &bytes[inizio..fine]).count() as u64;
-        Some(riga_punto + conteggio)
+        // La riga che contiene un byte e' il numero di `\n` che lo precedono: e' esattamente
+        // `newlines_before` (che qui riceve `offset < src.len()`, quindi risponde sempre).
+        self.newlines_before(src, offset)
     }
 }
