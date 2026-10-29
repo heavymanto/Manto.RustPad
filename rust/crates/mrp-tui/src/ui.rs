@@ -66,6 +66,7 @@ fn draw_title(f: &mut Frame, app: &mut App, t: &Theme, w: u16) {
 }
 
 /// Righe 1..=h-3: il testo con il gutter dei numeri di riga; imposta anche il cursore del terminale.
+/// Senza documento (un salvataggio lo tiene nel suo thread) ridisegna le righe dell'ultimo disegno.
 fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let text_rows = (h as usize).saturating_sub(3);
     let gutter_w = app.gutter_w();
@@ -75,16 +76,21 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         ..ViewOptions::default()
     };
     let (top, hscroll) = (app.top(), app.hscroll());
-    let rows = match app.document() {
-        Some(doc) => view::rows_from(doc, top, text_rows, hscroll, cells, &opts),
-        None => Vec::new(),
+    let (rows, dal_documento) = match app.document() {
+        Some(doc) => (
+            view::rows_from(doc, top, text_rows, hscroll, cells, &opts),
+            true,
+        ),
+        None => (Vec::new(), false),
     };
     // La riga e la colonna del cursore, per il cursore del terminale.
     let cursor_row = app.cursor_row();
     let col = app.cursor_col();
     let mut xy: Option<(u16, u16)> = None;
-    for (i, row) in rows.iter().enumerate() {
-        let y = 1 + i as u16;
+    // Le righe del disegno, gia' pronte come (gutter, testo). Col documento si calcolano ora e si
+    // ricordano in `App`; senza documento si ridisegna la copia dell'ultimo disegno.
+    let mut righe: Vec<(String, String)> = Vec::new();
+    for row in &rows {
         // Il numero c'e' solo se l'indice e' pronto e la riga inizia un a-capo: la continuazione di una riga
         // tagliata non ha numero.
         let num = if row.starts_line {
@@ -104,17 +110,32 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         if row.more_right {
             replace_last(&mut text, '»');
         }
+        if xy.is_none() && row.start == cursor_row && col >= hscroll && col - hscroll < cells {
+            xy = Some((
+                gutter_w as u16 + (col - hscroll) as u16,
+                1 + righe.len() as u16,
+            ));
+        }
+        righe.push((gutter, text));
+    }
+    if dal_documento {
+        app.set_drawn_rows(&righe);
+    } else {
+        // La copia dell'ultimo disegno: mai piu' righe di quante ne stiano nello schermo di adesso.
+        righe = app.drawn_rows().to_vec();
+        righe.truncate(text_rows);
+    }
+    for (i, (gutter, text)) in righe.iter().enumerate() {
+        let y = 1 + i as u16;
         // Ogni riga arriva fino in fondo allo schermo.
+        let mut text = text.clone();
         let manca = cells.saturating_sub(text.chars().count());
         text.push_str(&" ".repeat(manca));
         let line = Line::from(vec![
-            Span::styled(gutter, t.gutter),
+            Span::styled(gutter.clone(), t.gutter),
             Span::styled(text, t.fg),
         ]);
         f.render_widget(Paragraph::new(line).style(t.screen), Rect::new(0, y, w, 1));
-        if xy.is_none() && row.start == cursor_row && col >= hscroll && col - hscroll < cells {
-            xy = Some((gutter_w as u16 + (col - hscroll) as u16, y));
-        }
     }
     // Con un dialogo aperto il cursore del terminale e' nascosto: la posizione del testo si ricorda lo stesso
     // (serve quando il dialogo si chiude), ma non si mostra sullo schermo.
@@ -126,8 +147,8 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     app.set_cursor_xy(xy);
 }
 
-/// Riga h-2: il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, se un lavoro
-/// e' in corso, `status.indexing` con la percentuale, seguito da uno spazio.
+/// Riga h-2: il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, se un
+/// lavoro e' in corso, `status.saving` o `status.indexing` con la percentuale, seguito da uno spazio.
 fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // Il messaggio si copia prima: sotto serve l'app mutabile.
     let flash = app.flash().map(|msg| msg.to_string());
@@ -151,12 +172,17 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             )
         }
     };
-    let right = match app.index_progress() {
-        Some(p) => format!(
+    // A destra il lavoro in corso: il salvataggio (quando c'e', e' quello che tiene lo schermo congelato)
+    // o l'indicizzazione.
+    let right = if let Some(p) = app.save_progress() {
+        format!("{} ", app.catalog().tf("status.saving", &[&p.to_string()]))
+    } else if let Some(p) = app.index_progress() {
+        format!(
             "{} ",
             app.catalog().tf("status.indexing", &[&p.to_string()])
-        ),
-        None => String::new(),
+        )
+    } else {
+        String::new()
     };
     let pad = (w as usize).saturating_sub(left.chars().count() + right.chars().count());
     let line = Line::from(vec![
@@ -352,7 +378,42 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind) -> ContenutoDialogo
                 cursore: Some((1, 2 + testo.chars().count())),
             }
         }
-        // I dialoghi dei compiti successivi non hanno ancora un disegno.
+        // Conferma all'uscita con modifiche non salvate: il testo e le tre scelte.
+        DialogKind::Confirm => ContenutoDialogo {
+            titolo: cat.t("confirm.title").to_string(),
+            righe: vec![
+                (cat.t("confirm.text").to_string(), t.dialog),
+                (cat.t("confirm.save").to_string(), t.dialog),
+                (cat.t("confirm.discard").to_string(), t.dialog),
+                (cat.t("confirm.cancel").to_string(), t.dialog),
+            ],
+            cursore: None,
+        },
+        // Salvataggio in corso: il nome del file, la barra di avanzamento e i tasti.
+        DialogKind::Saving => {
+            let testo = cat.tf("save.text", &[app.file_name()]);
+            let chiavi = cat.t("save.keys").to_string();
+            let titolo = cat.t("save.title").to_string();
+            // La barra occupa la larghezza della finestra meno 4 (il bordo e un margine per lato):
+            // `#` per la parte fatta, `-` per il resto.
+            let larga_contenuto = [
+                titolo.chars().count(),
+                testo.chars().count(),
+                chiavi.chars().count(),
+            ]
+            .into_iter()
+            .max()
+            .unwrap_or(0);
+            let barra_larga = (larga_contenuto + 2).saturating_sub(4);
+            let fatti = app.save_progress().unwrap_or(0) as usize * barra_larga / 100;
+            let barra = format!("{}{}", "#".repeat(fatti), "-".repeat(barra_larga - fatti));
+            ContenutoDialogo {
+                titolo,
+                righe: vec![(testo, t.dialog), (barra, t.dialog), (chiavi, t.hint)],
+                cursore: None,
+            }
+        }
+        // Il prompt di ricerca (E11) non ha ancora un disegno.
         _ => ContenutoDialogo {
             titolo: String::new(),
             righe: Vec::new(),

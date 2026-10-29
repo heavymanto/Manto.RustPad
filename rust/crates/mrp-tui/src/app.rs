@@ -6,7 +6,7 @@ use crate::theme::ThemeId;
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
-use mrp_core::{Document, FileSource, LineIndex};
+use mrp_core::{Document, FileSource, LineIndex, SaveError};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
 use std::io;
 use std::path::{Path, PathBuf};
@@ -70,6 +70,27 @@ fn ultimo_carattere(bytes: &[u8]) -> usize {
     1
 }
 
+/// Fa partire il thread che costruisce l'indice righe del file `path`: apre la SUA sorgente (il documento
+/// non si condivide mentre indicizza) e consegna l'esito sul canale. E' il meccanismo dell'apertura,
+/// riusato dopo un salvataggio riuscito (il file su disco e' cambiato).
+fn spawn_index_job(path: &Path, cancel: &Arc<AtomicBool>, progress: &Arc<AtomicU64>) -> IndexJob {
+    let (tx, rx) = mpsc::channel();
+    let path = path.to_path_buf();
+    let cancel_thread = Arc::clone(cancel);
+    let progress_thread = Arc::clone(progress);
+    std::thread::spawn(move || {
+        let esito = FileSource::open(&path).and_then(|src| {
+            LineIndex::build(&src, &cancel_thread, &progress_thread)
+                .map_err(|_| io::Error::other("indicizzazione annullata"))
+        });
+        let _ = tx.send(esito);
+    });
+    IndexJob {
+        rx,
+        progress: Arc::clone(progress),
+    }
+}
+
 /// Configurazione di partenza dell'app (i test la costruiscono a mano, il binario la ricava da argomenti e profilo).
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -124,10 +145,26 @@ struct IndexJob {
     progress: Arc<AtomicU64>,
 }
 
+/// Il salvataggio in corso: il canale col thread che tiene il documento, i byte gia' scritti e l'ordine di
+/// uscire dopo un salvataggio riuscito.
+struct SaveJob {
+    /// Il risultato del thread: il documento (torna comunque, anche con errore: non si perde mai) e l'esito
+    /// del salvataggio.
+    rx: Receiver<(Document, Result<(), SaveError>)>,
+    /// Byte di file gia' scritti, per la percentuale nella riga di stato e nella barra del dialogo.
+    progress: Arc<AtomicU64>,
+    /// Chiede al thread di annullare (lo fa Esc nel dialogo `Saving`).
+    cancel: Arc<AtomicBool>,
+    /// La lunghezza del documento quando il salvataggio e' partito: il totale della percentuale.
+    len: u64,
+    /// Vero: dopo un salvataggio riuscito l'app esce (la 'S' del dialogo di uscita).
+    quit_after: bool,
+}
+
 /// Lo stato dell'app.
 pub struct App {
-    /// Il documento aperto: `None` quando si esce (il file si rilascia) o, piu' avanti, mentre un salvataggio
-    /// lo tiene nel suo thread.
+    /// Il documento aperto: `None` quando si esce (il file si rilascia) o mentre un salvataggio lo tiene
+    /// nel suo thread.
     doc: Option<Document>,
     /// Il nome del file, per il titolo.
     file_name: String,
@@ -154,6 +191,11 @@ pub struct App {
     cancel: Arc<AtomicBool>,
     /// L'indicizzazione in corso, se c'e'.
     index_job: Option<IndexJob>,
+    /// Il salvataggio in corso, se c'e': il documento e' nel suo thread e qui non c'e'.
+    save_job: Option<SaveJob>,
+    /// Le righe di testo dell'ultimo disegno (gutter e testo, gia' pronte): le ridisegna `ui::draw`
+    /// mentre un salvataggio tiene il documento nel suo thread.
+    drawn_rows: Vec<(String, String)>,
     /// Vero quando si e' chiesto di uscire.
     quit: bool,
     /// Dove sta il cursore sullo schermo dopo l'ultimo disegno (lo scrive `ui::draw`).
@@ -170,6 +212,8 @@ pub struct App {
     settings_path: Option<PathBuf>,
     /// Il codice della lingua scelta dall'utente (`None`: l'inglese incorporato): e' la `lang` delle impostazioni.
     lang_picked: Option<String>,
+    /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
+    index: bool,
 }
 
 impl App {
@@ -194,18 +238,7 @@ impl App {
         let progress = Arc::new(AtomicU64::new(0));
         let index_job = if cfg.index {
             // Il thread apre la SUA sorgente sullo stesso file: il documento non si condivide mentre indicizza.
-            let (tx, rx) = mpsc::channel();
-            let path = doc.path().to_path_buf();
-            let cancel_thread = Arc::clone(&cancel);
-            let progress_thread = Arc::clone(&progress);
-            std::thread::spawn(move || {
-                let esito = FileSource::open(&path).and_then(|src| {
-                    LineIndex::build(&src, &cancel_thread, &progress_thread)
-                        .map_err(|_| io::Error::other("indicizzazione annullata"))
-                });
-                let _ = tx.send(esito);
-            });
-            Some(IndexJob { rx, progress })
+            Some(spawn_index_job(doc.path(), &cancel, &progress))
         } else {
             None
         };
@@ -224,6 +257,8 @@ impl App {
             theme: cfg.theme,
             cancel,
             index_job,
+            save_job: None,
+            drawn_rows: Vec::new(),
             quit: false,
             cursor_xy: None,
             dialog: None,
@@ -232,6 +267,7 @@ impl App {
             langs: cfg.langs,
             settings_path: cfg.settings_path,
             lang_picked,
+            index: cfg.index,
         })
     }
 
@@ -239,6 +275,11 @@ impl App {
     pub fn resize(&mut self, w: u16, h: u16) {
         self.w = w;
         self.h = h;
+        // Un salvataggio tiene il documento: cursore, `top` e `hscroll` restano com'erano (senza documento
+        // non si possono riaggiustare); tornato il documento li riaggiusta la fine del salvataggio.
+        if self.doc.is_none() && self.save_job.is_some() {
+            return;
+        }
         self.clamp_cursor();
         self.scroll_adjust();
     }
@@ -254,6 +295,19 @@ impl App {
         }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
+        let shift = key.modifiers.contains(KeyModifiers::SHIFT);
+        // I tasti che non continuano la scrittura chiudono il passo della storia prima di agire: i caratteri
+        // e i Backspace di seguito sono un passo solo, Enter allunga il passo corrente e poi lo chiude da
+        // solo.
+        let continua = !ctrl
+            && !alt
+            && matches!(
+                key.code,
+                KeyCode::Char(_) | KeyCode::Enter | KeyCode::Backspace
+            );
+        if !continua {
+            self.seal_history();
+        }
         match key.code {
             KeyCode::Up => self.move_up(),
             KeyCode::Down => self.move_down(),
@@ -266,29 +320,34 @@ impl App {
             KeyCode::PageUp => self.page_up(),
             KeyCode::PageDown => self.page_down(),
             KeyCode::F(1) => self.open_dialog(DialogKind::Help),
+            KeyCode::F(2) => self.start_save(false),
             KeyCode::F(4) => self.toggle_edit(),
             KeyCode::F(5) => self.open_dialog(DialogKind::Goto),
             KeyCode::F(6) => self.open_dialog(DialogKind::Theme),
             KeyCode::F(7) => self.open_dialog(DialogKind::Lang),
-            KeyCode::F(10) => self.quit_now(),
+            KeyCode::F(10) => self.quit_request(),
+            // Ctrl+Z annulla; Ctrl+Y e Ctrl+Shift+Z ripetono (col maiuscolo SHIFT arriva anche 'Z').
+            KeyCode::Char('z') | KeyCode::Char('Z') if ctrl && !shift => self.undo(),
+            KeyCode::Char('z') | KeyCode::Char('Z') if ctrl => self.redo(),
+            KeyCode::Char('y') | KeyCode::Char('Y') if ctrl => self.redo(),
+            KeyCode::Char('s') if ctrl => self.start_save(false),
             KeyCode::Char('g') if ctrl => self.open_dialog(DialogKind::Goto),
-            KeyCode::Char('q') if ctrl => self.quit_now(),
-            // Un tasto di scrittura: in lettura e' rifiutato con un suggerimento (in modifica arriva con E10).
-            KeyCode::Char(_)
-            | KeyCode::Enter
-            | KeyCode::Backspace
-            | KeyCode::Delete
-            | KeyCode::Tab
-                if !ctrl && !alt =>
-            {
-                self.refuse_write()
-            }
+            KeyCode::Char('q') if ctrl => self.quit_request(),
+            // I tasti di scrittura: un carattere (anche con SHIFT) si inserisce al cursore, Enter mette un
+            // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore
+            // (in lettura sono rifiutati con un suggerimento).
+            KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
+            KeyCode::Enter if !ctrl && !alt => self.insert_enter(),
+            KeyCode::Backspace if !ctrl && !alt => self.delete_before(),
+            KeyCode::Delete if !ctrl && !alt => self.delete_after(),
+            KeyCode::Tab if !ctrl && !alt => self.insert_tab(),
             _ => {}
         }
     }
 
-    /// Un evento del mouse (per ora solo la rotella).
+    /// Un evento del mouse (per ora solo la rotella); anche il mouse chiude il passo della storia.
     pub fn handle_mouse(&mut self, m: MouseEvent) {
+        self.seal_history();
         match m.kind {
             MouseEventKind::ScrollDown => self.wheel(true),
             MouseEventKind::ScrollUp => self.wheel(false),
@@ -303,6 +362,16 @@ impl App {
         self.doc = None;
         self.index_job = None;
         self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    /// F10 / Ctrl+Q: l'uscita. Con modifiche non salvate chiede prima (dialogo `Confirm`), senza esce
+    /// subito.
+    fn quit_request(&mut self) {
+        if self.is_modified() {
+            self.open_dialog(DialogKind::Confirm);
+        } else {
+            self.quit_now();
+        }
     }
 
     // ----- dialoghi -----
@@ -368,7 +437,28 @@ impl App {
                 KeyCode::Char(c) if !ctrl && !alt => self.goto_text.push(c),
                 _ => {}
             },
-            // I dialoghi dei compiti successivi non prendono ancora nessun tasto.
+            // Conferma all'uscita con modifiche non salvate: S salva e poi esce, D esce scartando, C o Esc
+            // annullano (maiuscole comprese).
+            DialogKind::Confirm => match key.code {
+                KeyCode::Char('s') | KeyCode::Char('S') => {
+                    self.dialog = None;
+                    self.start_save(true);
+                }
+                KeyCode::Char('d') | KeyCode::Char('D') => {
+                    self.dialog = None;
+                    self.quit_now();
+                }
+                KeyCode::Char('c') | KeyCode::Char('C') | KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
+            // Salvataggio in corso: solo Esc, che chiede al thread di annullare (il dialogo resta aperto
+            // finche' il lavoro non torna, col suo esito).
+            DialogKind::Saving if key.code == KeyCode::Esc => {
+                if let Some(job) = &self.save_job {
+                    job.cancel.store(true, Ordering::Relaxed);
+                }
+            }
+            // Il prompt di ricerca (E11) non prende ancora nessun tasto.
             _ => {}
         }
     }
@@ -529,8 +619,12 @@ impl App {
         pos
     }
 
-    /// Raccoglie i lavori in background (l'indice righe).
+    /// Raccoglie i lavori in background: prima il salvataggio (quando torna rimette il documento al suo
+    /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi l'indice righe.
     pub fn tick(&mut self) {
+        if self.save_job.is_some() {
+            self.tick_save();
+        }
         let esito = match self.index_job.as_mut() {
             Some(job) => job.rx.try_recv(),
             None => return,
@@ -555,12 +649,13 @@ impl App {
         }
     }
 
-    /// Chiama `tick` finche' non c'e' piu' un lavoro in corso o scade `timeout`. Vero se non c'e' piu' niente in corso.
+    /// Chiama `tick` finche' non c'e' piu' un lavoro in corso (salvataggio o indicizzazione) o scade
+    /// `timeout`. Vero se non c'e' piu' niente in corso.
     pub fn wait_idle(&mut self, timeout: Duration) -> bool {
         let inizio = Instant::now();
         loop {
             self.tick();
-            if self.index_job.is_none() {
+            if self.save_job.is_none() && self.index_job.is_none() {
                 return true;
             }
             if inizio.elapsed() >= timeout {
@@ -594,11 +689,20 @@ impl App {
     }
 
     pub fn is_modified(&self) -> bool {
-        self.doc.as_ref().is_some_and(|doc| doc.is_modified())
+        match self.doc.as_ref() {
+            Some(doc) => doc.is_modified(),
+            // Un salvataggio in corso tiene il documento: si salva solo se c'e' una modifica da scrivere.
+            None => self.save_job.is_some(),
+        }
     }
 
     pub fn document_len(&self) -> u64 {
-        self.doc.as_ref().map_or(0, |doc| doc.len())
+        match self.doc.as_ref() {
+            Some(doc) => doc.len(),
+            // Un salvataggio in corso tiene il documento: la lunghezza e' quella di partenza (il salvataggio
+            // non cambia il documento).
+            None => self.save_job.as_ref().map_or(0, |job| job.len),
+        }
     }
 
     /// Posizione del cursore sullo schermo (colonna, riga) dopo l'ultimo `draw`; `None` se un dialogo e' aperto o
@@ -691,6 +795,26 @@ impl App {
             return Some(0);
         }
         Some(job.progress.load(Ordering::Relaxed).saturating_mul(100) / len)
+    }
+
+    /// La percentuale del salvataggio in corso (0..=100); `None` se non c'e' un salvataggio in corso.
+    pub(crate) fn save_progress(&self) -> Option<u64> {
+        let job = self.save_job.as_ref()?;
+        if job.len == 0 {
+            return Some(0);
+        }
+        Some(job.progress.load(Ordering::Relaxed).saturating_mul(100) / job.len)
+    }
+
+    /// Le righe di testo dell'ultimo disegno (gutter e testo): le ridisegna `ui::draw` mentre un
+    /// salvataggio tiene il documento nel suo thread.
+    pub(crate) fn drawn_rows(&self) -> &[(String, String)] {
+        &self.drawn_rows
+    }
+
+    /// Ricorda le righe di testo di questo disegno (lo chiama `ui::draw`).
+    pub(crate) fn set_drawn_rows(&mut self, righe: &[(String, String)]) {
+        self.drawn_rows = righe.to_vec();
     }
 
     /// Larghezza del gutter: le cifre della lunghezza del documento piu' il separatore.
@@ -1115,11 +1239,262 @@ impl App {
             self.flash = Some(self.cat.t("flash.read_only").to_string());
         }
     }
+
+    /// Un carattere della tastiera (anche con SHIFT): si inserisce al cursore e il cursore avanza di tutti
+    /// i suoi byte UTF-8.
+    fn insert_char(&mut self, c: char) {
+        let mut buf = [0u8; 4];
+        let testo = c.encode_utf8(&mut buf);
+        self.insert_at_cursor(testo.as_bytes());
+    }
+
+    /// Enter: un a-capo. Si aggiunge al passo di storia corrente e poi lo chiude.
+    fn insert_enter(&mut self) {
+        if self.insert_at_cursor(b"\n") {
+            self.seal_history();
+        }
+    }
+
+    /// Tab: un tabulatore (le celle le calcola la visualizzazione: qui e' un byte come gli altri).
+    fn insert_tab(&mut self) {
+        self.insert_at_cursor(b"\t");
+    }
+
+    /// Inserisce `testo` al cursore (in modifica) e porta il cursore alla fine di cio' che ha scritto;
+    /// dopo ogni modifica la colonna ricordata si ricalcola e il cursore resta visibile. Vero se ha
+    /// inserito; un errore del core diventa un messaggio.
+    fn insert_at_cursor(&mut self, testo: &[u8]) -> bool {
+        if !self.edit {
+            self.refuse_write();
+            return false;
+        }
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        match doc.insert(self.cursor, testo) {
+            Ok(()) => {
+                self.cursor += testo.len() as u64;
+                self.remember_col();
+                self.scroll_adjust();
+                true
+            }
+            Err(e) => {
+                self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+                false
+            }
+        }
+    }
+
+    /// Backspace: toglie il carattere prima del cursore, intero (anche multibyte: l'a-capo e' un carattere
+    /// come gli altri e unisce le righe). Al cursore 0 non fa nulla.
+    fn delete_before(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        if self.cursor == 0 {
+            return;
+        }
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        // Il carattere precedente sta nei 4 byte prima del cursore (un carattere UTF-8 occupa al piu' 4
+        // byte; un byte non valido e' un carattere tutto suo).
+        let da = self.cursor.saturating_sub(4);
+        let buf = doc.read_range(da, self.cursor - da);
+        let n = ultimo_carattere(&buf) as u64;
+        if let Err(e) = doc.delete(self.cursor - n, n) {
+            self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+            return;
+        }
+        self.cursor -= n;
+        self.remember_col();
+        self.scroll_adjust();
+    }
+
+    /// Delete: toglie il carattere sotto il cursore, intero (anche multibyte). Alla fine del documento non
+    /// fa nulla.
+    fn delete_after(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        let len = doc.len();
+        if self.cursor >= len {
+            return;
+        }
+        // Il carattere successivo comincia al cursore: ne bastano 4 byte.
+        let restanti = (len - self.cursor).min(4);
+        let buf = doc.read_range(self.cursor, restanti);
+        let n = primo_carattere(&buf) as u64;
+        if let Err(e) = doc.delete(self.cursor, n) {
+            self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+            return;
+        }
+        self.remember_col();
+        self.scroll_adjust();
+    }
+
+    /// Ctrl+Z: annulla l'ultimo passo della storia (solo in modifica). Il cursore va a `pos +
+    /// max(delta, 0)` con `pos` restituito dal core e delta = lunghezza dopo meno lunghezza prima.
+    fn undo(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        let prima = doc.len();
+        match doc.undo() {
+            Some(pos) => {
+                let avanzo = doc.len().saturating_sub(prima);
+                self.cursor = pos + avanzo;
+                self.flash = Some(self.cat.t("flash.undo").to_string());
+                self.remember_col();
+                self.scroll_adjust();
+            }
+            None => self.flash = Some(self.cat.t("flash.nothing_to_undo").to_string()),
+        }
+    }
+
+    /// Ctrl+Y / Ctrl+Shift+Z: ripete l'ultimo passo annullato (solo in modifica); il cursore si piazza
+    /// come nell'annulla.
+    fn redo(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        let prima = doc.len();
+        match doc.redo() {
+            Some(pos) => {
+                let avanzo = doc.len().saturating_sub(prima);
+                self.cursor = pos + avanzo;
+                self.flash = Some(self.cat.t("flash.redo").to_string());
+                self.remember_col();
+                self.scroll_adjust();
+            }
+            None => self.flash = Some(self.cat.t("flash.nothing_to_redo").to_string()),
+        }
+    }
+
+    /// Chiude il passo di storia aperto: lo chiamano i tasti e il mouse che non continuano la scrittura
+    /// (frecce, Home/End, Delete, Tab, Ctrl+..., F-tasti).
+    fn seal_history(&mut self) {
+        if let Some(doc) = self.doc.as_mut() {
+            doc.seal();
+        }
+    }
+
+    // ----- salvataggio in background -----
+
+    /// F2 / Ctrl+S (e la 'S' del dialogo di uscita): il salvataggio. Il documento SI MUOVE nel thread,
+    /// che lo restituisce comunque con l'esito; finche' gira il dialogo `Saving` tiene tutti i tasti e lo
+    /// schermo ridisegna il testo dell'ultimo disegno. Senza modifiche non c'e' niente da salvare.
+    /// `quit_after`: dopo un salvataggio riuscito l'app esce.
+    fn start_save(&mut self, quit_after: bool) {
+        if !self.is_modified() {
+            self.flash = Some(self.cat.t("flash.nothing_to_save").to_string());
+            return;
+        }
+        let len = self.document_len();
+        let Some(mut doc) = self.doc.take() else {
+            return;
+        };
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        let (tx, rx) = mpsc::channel();
+        let cancel_thread = Arc::clone(&cancel);
+        let progress_thread = Arc::clone(&progress);
+        std::thread::spawn(move || {
+            let esito = doc.save(&cancel_thread, &progress_thread);
+            // Il documento torna comunque: anche con errore non si perde.
+            let _ = tx.send((doc, esito));
+        });
+        self.save_job = Some(SaveJob {
+            rx,
+            progress,
+            cancel,
+            len,
+            quit_after,
+        });
+        self.dialog = Some(DialogKind::Saving);
+    }
+
+    /// La fine del salvataggio (la chiama `tick`): il documento torna al suo posto con l'esito e il
+    /// dialogo si chiude; dopo un salvataggio riuscito l'indice righe si ricostruisce in background (il
+    /// file su disco e' cambiato) e, se era "salva ed esci", l'app esce.
+    fn tick_save(&mut self) {
+        let Some(job) = self.save_job.as_mut() else {
+            return;
+        };
+        match job.rx.try_recv() {
+            Ok((doc, esito)) => {
+                let quit_after = job.quit_after;
+                self.save_job = None;
+                // Il dialogo si chiude col lavoro: finche' girava teneva tutti i tasti.
+                self.dialog = None;
+                self.doc = Some(doc);
+                // Il cursore, `top` e `hscroll` restano com'erano (riaggiustati se serve).
+                self.scroll_adjust();
+                match esito {
+                    Ok(()) => {
+                        self.flash = Some(self.cat.tf("flash.saved", &[&self.file_name]));
+                        self.rebuild_index();
+                        // "Salva ed esci": solo un salvataggio riuscito fa uscire.
+                        if quit_after {
+                            self.quit = true;
+                        }
+                    }
+                    Err(SaveError::Cancelled) => {
+                        self.flash = Some(self.cat.t("flash.save_cancelled").to_string());
+                    }
+                    Err(SaveError::SourceChanged) => {
+                        self.flash = Some(self.cat.t("flash.source_changed").to_string());
+                    }
+                    Err(e) => {
+                        self.flash = Some(self.cat.tf("flash.save_failed", &[&e.to_string()]));
+                    }
+                }
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                // Difensivo: il thread e' terminato senza consegnare il documento, non si aspetta piu'.
+                self.save_job = None;
+                self.dialog = None;
+            }
+        }
+    }
+
+    /// Fa ripartire la costruzione dell'indice righe in background dopo un salvataggio riuscito: il file
+    /// su disco e' cambiato e l'indice del vecchio non vale piu'. Stesso meccanismo dell'apertura.
+    fn rebuild_index(&mut self) {
+        if !self.index {
+            return;
+        }
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        // Un'indicizzazione partita prima del salvataggio si ferma: indicizzerebbe il file vecchio.
+        self.cancel.store(true, Ordering::Relaxed);
+        self.cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        self.index_job = Some(spawn_index_job(doc.path(), &self.cancel, &progress));
+    }
 }
 
 impl Drop for App {
     fn drop(&mut self) {
-        // Il thread dell'indice si ferma: non serve piu' a nessuno.
+        // I thread in corso si fermano: non servono piu' a nessuno.
         self.cancel.store(true, Ordering::Relaxed);
+        if let Some(job) = &self.save_job {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
     }
 }
