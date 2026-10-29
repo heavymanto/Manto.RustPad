@@ -2,7 +2,9 @@
 
 use crate::app::{App, DialogKind};
 use crate::theme::{Theme, ThemeId};
+use mrp_core::lang::Catalog;
 use mrp_core::view::{self, ViewOptions};
+use mrp_core::Document;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
 use ratatui::style::Style;
@@ -66,7 +68,9 @@ fn draw_title(f: &mut Frame, app: &mut App, t: &Theme, w: u16) {
 }
 
 /// Righe 1..=h-3: il testo con il gutter dei numeri di riga; imposta anche il cursore del terminale.
-/// Senza documento (un salvataggio lo tiene nel suo thread) ridisegna le righe dell'ultimo disegno.
+/// La parte trovata dalla ricerca si disegna con lo stile `found` (solo le celle visibili, mai
+/// il gutter). Senza documento (un salvataggio lo tiene nel suo thread) ridisegna le righe
+/// dell'ultimo disegno.
 fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let text_rows = (h as usize).saturating_sub(3);
     let gutter_w = app.gutter_w();
@@ -136,6 +140,17 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             Span::styled(text, t.fg),
         ]);
         f.render_widget(Paragraph::new(line).style(t.screen), Rect::new(0, y, w, 1));
+        // La parte trovata dall'ultima ricerca, se questa riga la contiene: cambia solo lo
+        // stile delle celle visibili (il testo no, e il gutter mai); una occorrenza che
+        // attraversa piu' righe visuali o esce dalla finestra orizzontale si taglia qui.
+        if let (Some(doc), Some(row), Some(found)) = (app.document(), rows.get(i), app.found()) {
+            if let Some((da, fino)) = found_cells(doc, row, found, hscroll, cells, &opts) {
+                for colonna in da..fino {
+                    let x = gutter_w as u16 + (colonna - hscroll) as u16;
+                    f.buffer_mut()[(x, y)].set_style(t.found);
+                }
+            }
+        }
     }
     // Con un dialogo aperto il cursore del terminale e' nascosto: la posizione del testo si ricorda lo stesso
     // (serve quando il dialogo si chiude), ma non si mostra sullo schermo.
@@ -148,7 +163,8 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
 }
 
 /// Riga h-2: il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, se un
-/// lavoro e' in corso, `status.saving` o `status.indexing` con la percentuale, seguito da uno spazio.
+/// lavoro e' in corso, `status.saving`, `status.searching` o `status.indexing` con la percentuale, seguito
+/// da uno spazio.
 fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // Il messaggio si copia prima: sotto serve l'app mutabile.
     let flash = app.flash().map(|msg| msg.to_string());
@@ -172,10 +188,15 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             )
         }
     };
-    // A destra il lavoro in corso: il salvataggio (quando c'e', e' quello che tiene lo schermo congelato)
-    // o l'indicizzazione.
+    // A destra il lavoro in corso: il salvataggio (quando c'e', e' quello che tiene lo schermo
+    // congelato), la ricerca o l'indicizzazione.
     let right = if let Some(p) = app.save_progress() {
         format!("{} ", app.catalog().tf("status.saving", &[&p.to_string()]))
+    } else if let Some(p) = app.search_progress() {
+        format!(
+            "{} ",
+            app.catalog().tf("status.searching", &[&p.to_string()])
+        )
     } else if let Some(p) = app.index_progress() {
         format!(
             "{} ",
@@ -302,8 +323,8 @@ struct ContenutoDialogo {
     cursore: Option<(usize, usize)>,
 }
 
-/// Il contenuto di un dialogo: il titolo e le righe; per il prompt "vai a" anche dove sta il cursore (riga e
-/// colonna DENTRO il contenuto). Ogni stringa viene dal `Catalog`.
+/// Il contenuto di un dialogo: il titolo e le righe; per i prompt anche dove sta il cursore (riga e colonna
+/// DENTRO il contenuto). Ogni stringa viene dal `Catalog`.
 fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind) -> ContenutoDialogo {
     let cat = app.catalog();
     match kind {
@@ -364,20 +385,21 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind) -> ContenutoDialogo
                 cursore: None,
             }
         }
-        DialogKind::Goto => {
-            let testo = app.goto_text().to_string();
-            let righe = vec![
-                (cat.t("prompt.goto.hint").to_string(), t.hint),
-                (format!("> {}", testo), t.dialog),
-                (cat.t("prompt.keys").to_string(), t.hint),
-            ];
-            // Il cursore sta nella riga di input, dopo "> " e il testo scritto.
-            ContenutoDialogo {
-                titolo: cat.t("prompt.goto.title").to_string(),
-                righe,
-                cursore: Some((1, 2 + testo.chars().count())),
-            }
-        }
+        DialogKind::Goto => prompt_contenuto(
+            cat,
+            t,
+            "prompt.goto.title",
+            "prompt.goto.hint",
+            app.goto_text(),
+        ),
+        // Il prompt di ricerca: uguale al "vai a", cambia solo il vocabolario.
+        DialogKind::Find => prompt_contenuto(
+            cat,
+            t,
+            "prompt.find.title",
+            "prompt.find.hint",
+            app.find_text(),
+        ),
         // Conferma all'uscita con modifiche non salvate: il testo e le tre scelte.
         DialogKind::Confirm => ContenutoDialogo {
             titolo: cat.t("confirm.title").to_string(),
@@ -413,12 +435,26 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind) -> ContenutoDialogo
                 cursore: None,
             }
         }
-        // Il prompt di ricerca (E11) non ha ancora un disegno.
-        _ => ContenutoDialogo {
-            titolo: String::new(),
-            righe: Vec::new(),
-            cursore: None,
-        },
+    }
+}
+
+/// Il contenuto di un prompt ("vai a" e ricerca): il suggerimento, la riga `"> " + testo` e i
+/// tasti; il cursore del terminale sta nella riga di input, dopo "> " e il testo scritto.
+fn prompt_contenuto(
+    cat: &Catalog,
+    t: &Theme,
+    titolo: &str,
+    suggerimento: &str,
+    testo: &str,
+) -> ContenutoDialogo {
+    ContenutoDialogo {
+        titolo: cat.t(titolo).to_string(),
+        righe: vec![
+            (cat.t(suggerimento).to_string(), t.hint),
+            (format!("> {}", testo), t.dialog),
+            (cat.t("prompt.keys").to_string(), t.hint),
+        ],
+        cursore: Some((1, 2 + testo.chars().count())),
     }
 }
 
@@ -440,6 +476,34 @@ fn fmt_size(len: u64) -> String {
 /// La percentuale intera del cursore nel documento (0 se vuoto).
 fn percent(cursor: u64, len: u64) -> u64 {
     cursor.saturating_mul(100).checked_div(len).unwrap_or(0)
+}
+
+/// Le celle (colonne assolute della riga) coperte dalla parte trovata che stanno nella riga
+/// visuale `row` e nella finestra orizzontale: quelle da colorare con lo stile `found`. Le
+/// colonne si ricavano dai confini di byte dell'occorrenza con `view::col_of`.
+fn found_cells(
+    doc: &Document,
+    row: &view::Row,
+    found: (u64, u64),
+    hscroll: usize,
+    cells: usize,
+    opts: &ViewOptions,
+) -> Option<(usize, usize)> {
+    // La parte dell'occorrenza che sta nei byte di questa riga (puo' attraversarne piu' d'una
+    // o stare tutta altrove).
+    let (a, b) = (found.0.max(row.start), found.1.min(row.end));
+    if a >= b {
+        return None;
+    }
+    let ca = view::col_of(doc, row.start, a, opts);
+    let cb = view::col_of(doc, row.start, b, opts);
+    // La finestra orizzontale taglia quello che non si vede.
+    let (da, fino) = (ca.max(hscroll), cb.min(hscroll + cells));
+    if da < fino {
+        Some((da, fino))
+    } else {
+        None
+    }
 }
 
 /// Il primo carattere diventa `c` (il segno di prosecuzione a sinistra).

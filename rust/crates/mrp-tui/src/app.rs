@@ -3,6 +3,7 @@
 
 use crate::settings::Settings;
 use crate::theme::ThemeId;
+use mrp_core::docsearch::{SearchError, Snapshot};
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
@@ -91,6 +92,83 @@ fn spawn_index_job(path: &Path, cancel: &Arc<AtomicBool>, progress: &Arc<AtomicU
     }
 }
 
+/// La ricerca completa su una fotografia del documento: prima da `da` nella direzione voluta e,
+/// se non c'e' niente, dall'altra parte (in avanti si riparte dall'inizio, indietro dalla
+/// fine); il secondo esito porta l'avviso di giro completo. Un errore di lettura vale come
+/// "non trovata", l'annullamento si riporta perche' il chiamante lo dice all'utente.
+fn search_all(
+    snap: &Snapshot,
+    ago: &[u8],
+    forward: bool,
+    da: u64,
+    cancel: &AtomicBool,
+    progress: &AtomicU64,
+) -> SearchOutcome {
+    let len = snap.len();
+    // Da dove si riparte se la prima ricerca non trova niente: l'altra parte del documento.
+    let ripartenza = if forward { 0 } else { len };
+    let primo = if forward {
+        snap.find_next(ago, da, cancel, progress)
+    } else {
+        snap.find_prev(ago, da, cancel, progress)
+    };
+    match primo {
+        // Trovata senza bisogno del giro completo: nessun avviso.
+        Ok(Some(pos)) => SearchOutcome::Found(pos, false),
+        Ok(None) => {
+            // Non c'e' niente da questa parte: si riprova dall'altra.
+            let secondo = if forward {
+                snap.find_next(ago, ripartenza, cancel, progress)
+            } else {
+                snap.find_prev(ago, ripartenza, cancel, progress)
+            };
+            match secondo {
+                Ok(Some(pos)) => SearchOutcome::Found(pos, true),
+                Ok(None) => SearchOutcome::NotFound,
+                Err(SearchError::Cancelled) => SearchOutcome::Cancelled,
+                Err(SearchError::Io(_)) => SearchOutcome::NotFound,
+            }
+        }
+        Err(SearchError::Cancelled) => SearchOutcome::Cancelled,
+        Err(SearchError::Io(_)) => SearchOutcome::NotFound,
+    }
+}
+
+/// Fa partire il thread che cerca `ago` nella fotografia del documento e consegna l'esito sul
+/// canale: il meccanismo dell'indicizzazione e del salvataggio (cancel e progress condivisi).
+fn spawn_search_job(
+    snap: Snapshot,
+    ago: &str,
+    forward: bool,
+    da: u64,
+    cancel: &Arc<AtomicBool>,
+    progress: &Arc<AtomicU64>,
+) -> SearchJob {
+    let (tx, rx) = mpsc::channel();
+    let cancel_thread = Arc::clone(cancel);
+    let progress_thread = Arc::clone(progress);
+    let ago_thread = ago.as_bytes().to_vec();
+    let len = snap.len();
+    std::thread::spawn(move || {
+        let esito = search_all(
+            &snap,
+            &ago_thread,
+            forward,
+            da,
+            &cancel_thread,
+            &progress_thread,
+        );
+        let _ = tx.send(esito);
+    });
+    SearchJob {
+        rx,
+        progress: Arc::clone(progress),
+        cancel: Arc::clone(cancel),
+        len,
+        needle: ago.to_string(),
+    }
+}
+
 /// Configurazione di partenza dell'app (i test la costruiscono a mano, il binario la ricava da argomenti e profilo).
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -161,6 +239,32 @@ struct SaveJob {
     quit_after: bool,
 }
 
+/// L'esito della ricerca in background, consegnato dal thread su `tick`.
+enum SearchOutcome {
+    /// Trovata: l'inizio dell'occorrenza e se l'ha raggiunta solo dopo il giro completo del
+    /// documento.
+    Found(u64, bool),
+    /// Non trovata in nessuna delle due direzioni (un errore di lettura vale come non trovata).
+    NotFound,
+    /// Annullata con Esc mentre girava.
+    Cancelled,
+}
+
+/// La ricerca in corso: il canale col thread che cerca nella fotografia, i byte gia' esaminati
+/// e l'ago (serve per la fine dell'occorrenza trovata e per il messaggio di "non trovato").
+struct SearchJob {
+    /// Il risultato del thread.
+    rx: Receiver<SearchOutcome>,
+    /// Byte gia' esaminati, per la percentuale nella riga di stato.
+    progress: Arc<AtomicU64>,
+    /// Chiede al thread di fermarsi (lo fa Esc mentre la ricerca gira).
+    cancel: Arc<AtomicBool>,
+    /// La lunghezza della fotografia quando la ricerca e' partita: il totale della percentuale.
+    len: u64,
+    /// L'ago cercato: i byte UTF-8 del testo del prompt.
+    needle: String,
+}
+
 /// Lo stato dell'app.
 pub struct App {
     /// Il documento aperto: `None` quando si esce (il file si rilascia) o mentre un salvataggio lo tiene
@@ -183,6 +287,9 @@ pub struct App {
     edit: bool,
     /// Il messaggio transitorio della riga di stato (sparisce al primo tasto successivo).
     flash: Option<String>,
+    /// L'ultima occorrenza trovata dalla ricerca (inizio, fine esclusa): come il messaggio
+    /// transitorio, sparisce al primo tasto successivo che non sia F3 / Maiusc+F3.
+    found: Option<(u64, u64)>,
     /// Il vocabolario attivo.
     cat: Catalog,
     /// Il tema attivo.
@@ -193,6 +300,8 @@ pub struct App {
     index_job: Option<IndexJob>,
     /// Il salvataggio in corso, se c'e': il documento e' nel suo thread e qui non c'e'.
     save_job: Option<SaveJob>,
+    /// La ricerca in corso, se c'e': gira su una fotografia, il documento non si muove.
+    search_job: Option<SearchJob>,
     /// Le righe di testo dell'ultimo disegno (gutter e testo, gia' pronte): le ridisegna `ui::draw`
     /// mentre un salvataggio tiene il documento nel suo thread.
     drawn_rows: Vec<(String, String)>,
@@ -206,6 +315,10 @@ pub struct App {
     menu_index: usize,
     /// Il testo scritto nel prompt "vai a".
     goto_text: String,
+    /// Il testo scritto nel prompt di ricerca.
+    find_text: String,
+    /// L'ultimo testo cercato: F3 e Maiusc+F3 lo cercano di nuovo, senza prompt.
+    last_find: Option<String>,
     /// Le lingue disponibili: il menu di F7 e i cambi del `Catalog`.
     langs: Vec<Lang>,
     /// Dove salvare le impostazioni quando si cambia tema o lingua; `None`: non si salva niente.
@@ -253,17 +366,21 @@ impl App {
             h: 24,
             edit: false,
             flash: None,
+            found: None,
             cat,
             theme: cfg.theme,
             cancel,
             index_job,
             save_job: None,
+            search_job: None,
             drawn_rows: Vec::new(),
             quit: false,
             cursor_xy: None,
             dialog: None,
             menu_index: 0,
             goto_text: String::new(),
+            find_text: String::new(),
+            last_find: None,
             langs: cfg.langs,
             settings_path: cfg.settings_path,
             lang_picked,
@@ -288,6 +405,20 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) {
         // Il messaggio transitorio sparisce al primo tasto premuto dopo, prima di eseguirlo.
         self.flash = None;
+        // Come il messaggio transitorio, l'evidenziazione dell'ultima ricerca si azzera al
+        // primo tasto premuto dopo, prima di eseguirlo: la rimette solo la ricerca che parte
+        // con questo tasto (F3 / Maiusc+F3).
+        self.found = None;
+        // Una ricerca in corso tiene TUTTI i tasti tranne Esc, che chiede al thread di
+        // annullarla: finche' gira il documento non si tocca (la fotografia resta valida).
+        if self.search_job.is_some() {
+            if key.code == KeyCode::Esc {
+                if let Some(job) = &self.search_job {
+                    job.cancel.store(true, Ordering::Relaxed);
+                }
+            }
+            return;
+        }
         // Un dialogo aperto riceve TUTTI i tasti: il documento non si muove finche' non si chiude.
         if self.dialog.is_some() {
             self.dialog_key(key);
@@ -321,6 +452,10 @@ impl App {
             KeyCode::PageDown => self.page_down(),
             KeyCode::F(1) => self.open_dialog(DialogKind::Help),
             KeyCode::F(2) => self.start_save(false),
+            // F3 cerca la prossima occorrenza dell'ultimo testo cercato, Maiusc+F3 la
+            // precedente; senza un testo cercato si apre il prompt.
+            KeyCode::F(3) if shift => self.find_key(false),
+            KeyCode::F(3) => self.find_key(true),
             KeyCode::F(4) => self.toggle_edit(),
             KeyCode::F(5) => self.open_dialog(DialogKind::Goto),
             KeyCode::F(6) => self.open_dialog(DialogKind::Theme),
@@ -331,6 +466,8 @@ impl App {
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl => self.redo(),
             KeyCode::Char('y') | KeyCode::Char('Y') if ctrl => self.redo(),
             KeyCode::Char('s') if ctrl => self.start_save(false),
+            // Ctrl+F apre sempre il prompt di ricerca, con l'ultimo testo cercato gia' scritto.
+            KeyCode::Char('f') if ctrl => self.open_dialog(DialogKind::Find),
             KeyCode::Char('g') if ctrl => self.open_dialog(DialogKind::Goto),
             KeyCode::Char('q') if ctrl => self.quit_request(),
             // I tasti di scrittura: un carattere (anche con SHIFT) si inserisce al cursore, Enter mette un
@@ -393,6 +530,8 @@ impl App {
                     .unwrap_or(0);
             }
             DialogKind::Goto => self.goto_text.clear(),
+            // Il prompt di ricerca riparte dall'ultimo testo cercato (vuoto se non c'e').
+            DialogKind::Find => self.find_text = self.last_find.clone().unwrap_or_default(),
             _ => {}
         }
         self.dialog = Some(kind);
@@ -437,6 +576,21 @@ impl App {
                 KeyCode::Char(c) if !ctrl && !alt => self.goto_text.push(c),
                 _ => {}
             },
+            // Prompt di ricerca: gli stessi tasti del "vai a"; Enter ricorda il testo e fa
+            // partire la ricerca in avanti, Esc chiude senza toccare l'ultimo testo cercato.
+            DialogKind::Find => match key.code {
+                KeyCode::Esc => self.dialog = None,
+                KeyCode::Enter => {
+                    let testo = std::mem::take(&mut self.find_text);
+                    self.dialog = None;
+                    self.find_run(&testo);
+                }
+                KeyCode::Backspace => {
+                    self.find_text.pop();
+                }
+                KeyCode::Char(c) if !ctrl && !alt => self.find_text.push(c),
+                _ => {}
+            },
             // Conferma all'uscita con modifiche non salvate: S salva e poi esce, D esce scartando, C o Esc
             // annullano (maiuscole comprese).
             DialogKind::Confirm => match key.code {
@@ -458,7 +612,7 @@ impl App {
                     job.cancel.store(true, Ordering::Relaxed);
                 }
             }
-            // Il prompt di ricerca (E11) non prende ancora nessun tasto.
+            // Ogni altro tasto del salvataggio in corso si ignora (solo Esc fa qualcosa).
             _ => {}
         }
     }
@@ -619,12 +773,88 @@ impl App {
         pos
     }
 
+    // ----- ricerca -----
+
+    /// F3 / Maiusc+F3: con un testo cercato parte subito la ricerca (avanti o indietro); senza,
+    /// si apre il prompt (e dopo Enter si cerca in avanti).
+    fn find_key(&mut self, forward: bool) {
+        let Some(testo) = self.last_find.clone() else {
+            self.open_dialog(DialogKind::Find);
+            return;
+        };
+        self.start_search(&testo, forward);
+    }
+
+    /// Esegue il testo del prompt di ricerca (il dialogo e' gia' chiuso): vuoto, non fa niente e
+    /// non ricorda niente; altrimenti il testo diventa l'ultimo cercato e la ricerca parte in
+    /// avanti dal cursore.
+    fn find_run(&mut self, testo: &str) {
+        if testo.is_empty() {
+            return;
+        }
+        self.last_find = Some(testo.to_string());
+        self.start_search(testo, true);
+    }
+
+    /// Fa partire la ricerca in background: una fotografia del documento va nel thread con l'ago
+    /// e la direzione (in avanti dal byte dopo il cursore, indietro dal cursore stesso). Il
+    /// documento resta qui e non si modifica finche' la fotografia non torna col suo esito.
+    fn start_search(&mut self, ago: &str, forward: bool) {
+        let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
+            return;
+        };
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        let da = if forward {
+            self.cursor.saturating_add(1)
+        } else {
+            self.cursor
+        };
+        self.search_job = Some(spawn_search_job(snap, ago, forward, da, &cancel, &progress));
+    }
+
+    /// La fine della ricerca (la chiama `tick`): trovata, il cursore va all'inizio
+    /// dell'occorrenza come dopo un "vai a" (centrata se non si vedeva) e l'evidenziazione la
+    /// copre; gli esiti negativi lasciano il cursore dov'e' e dicono solo il loro messaggio.
+    fn tick_search(&mut self) {
+        let Some(job) = self.search_job.as_mut() else {
+            return;
+        };
+        match job.rx.try_recv() {
+            Ok(SearchOutcome::Found(inizio, giro_completo)) => {
+                let fine = inizio + job.needle.len() as u64;
+                self.search_job = None;
+                self.goto_move(inizio);
+                if giro_completo {
+                    self.flash = Some(self.cat.t("flash.find_wrapped").to_string());
+                }
+                self.found = Some((inizio, fine));
+            }
+            Ok(SearchOutcome::NotFound) => {
+                let ago = job.needle.clone();
+                self.search_job = None;
+                // Anche un errore di lettura vale come "non trovato": il cursore non si muove.
+                self.flash = Some(self.cat.tf("flash.not_found", &[&ago]));
+            }
+            Ok(SearchOutcome::Cancelled) => {
+                self.search_job = None;
+                self.flash = Some(self.cat.t("flash.find_cancelled").to_string());
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => {
+                // Difensivo: il thread e' terminato senza consegnare nulla, non si aspetta piu'.
+                self.search_job = None;
+            }
+        }
+    }
+
     /// Raccoglie i lavori in background: prima il salvataggio (quando torna rimette il documento al suo
-    /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi l'indice righe.
+    /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi la ricerca e l'indice righe.
     pub fn tick(&mut self) {
         if self.save_job.is_some() {
             self.tick_save();
         }
+        self.tick_search();
         let esito = match self.index_job.as_mut() {
             Some(job) => job.rx.try_recv(),
             None => return,
@@ -649,13 +879,13 @@ impl App {
         }
     }
 
-    /// Chiama `tick` finche' non c'e' piu' un lavoro in corso (salvataggio o indicizzazione) o scade
-    /// `timeout`. Vero se non c'e' piu' niente in corso.
+    /// Chiama `tick` finche' non c'e' piu' un lavoro in corso (salvataggio, ricerca o
+    /// indicizzazione) o scade `timeout`. Vero se non c'e' piu' niente in corso.
     pub fn wait_idle(&mut self, timeout: Duration) -> bool {
         let inizio = Instant::now();
         loop {
             self.tick();
-            if self.save_job.is_none() && self.index_job.is_none() {
+            if self.save_job.is_none() && self.index_job.is_none() && self.search_job.is_none() {
                 return true;
             }
             if inizio.elapsed() >= timeout {
@@ -705,11 +935,16 @@ impl App {
         }
     }
 
+    /// L'ultima occorrenza trovata (inizio, fine esclusa), finche' non si preme un altro tasto.
+    pub fn found(&self) -> Option<(u64, u64)> {
+        self.found
+    }
+
     /// Posizione del cursore sullo schermo (colonna, riga) dopo l'ultimo `draw`; `None` se un dialogo e' aperto o
     /// non si e' ancora disegnato. Nei prompt e' la posizione dentro il prompt, dopo il testo scritto.
     pub fn cursor_xy(&self) -> Option<(u16, u16)> {
         match self.dialog {
-            Some(DialogKind::Goto) => self.cursor_xy,
+            Some(DialogKind::Goto) | Some(DialogKind::Find) => self.cursor_xy,
             Some(_) => None,
             None => self.cursor_xy,
         }
@@ -787,6 +1022,11 @@ impl App {
         &self.goto_text
     }
 
+    /// Il testo scritto nel prompt di ricerca.
+    pub(crate) fn find_text(&self) -> &str {
+        &self.find_text
+    }
+
     /// La percentuale dell'indicizzazione in corso (0..=100); `None` se non c'e' un lavoro in corso.
     pub(crate) fn index_progress(&self) -> Option<u64> {
         let job = self.index_job.as_ref()?;
@@ -795,6 +1035,15 @@ impl App {
             return Some(0);
         }
         Some(job.progress.load(Ordering::Relaxed).saturating_mul(100) / len)
+    }
+
+    /// La percentuale della ricerca in corso (0..=100); `None` se non c'e' una ricerca in corso.
+    pub(crate) fn search_progress(&self) -> Option<u64> {
+        let job = self.search_job.as_ref()?;
+        if job.len == 0 {
+            return Some(0);
+        }
+        Some(job.progress.load(Ordering::Relaxed).saturating_mul(100) / job.len)
     }
 
     /// La percentuale del salvataggio in corso (0..=100); `None` se non c'e' un salvataggio in corso.
@@ -1494,6 +1743,9 @@ impl Drop for App {
         // I thread in corso si fermano: non servono piu' a nessuno.
         self.cancel.store(true, Ordering::Relaxed);
         if let Some(job) = &self.save_job {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(job) = &self.search_job {
             job.cancel.store(true, Ordering::Relaxed);
         }
     }
