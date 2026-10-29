@@ -253,7 +253,10 @@ fn every_language_file_has_exactly_the_keys_and_placeholders_of_english() {
         "viste: {viste:?}"
     );
     // sale a 7 (en, it, es, pt-BR, de, ja, zh-CN) quando arrivano le traduzioni AI di partenza
-    assert!(viste.len() >= 2, "almeno en e it (trovate: {viste:?})");
+    assert!(
+        viste.len() >= 7,
+        "en, it, es, pt-BR, de, ja, zh-CN (trovate: {viste:?})"
+    );
 }
 
 #[test]
