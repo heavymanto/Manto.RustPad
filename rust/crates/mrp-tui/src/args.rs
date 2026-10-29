@@ -1,0 +1,161 @@
+//! Gli argomenti della riga di comando del binario `mrp`: il parser (le opzioni dell'aiuto piu' quelle da
+//! sviluppatore, che nell'aiuto non compaiono), la dimensione di `--dump` e la risoluzione di tema e lingua
+//! (opzione > impostazioni > predefinito). Il file e' l'argomento che non comincia con `-` (l'ultimo se ce
+//! n'e' piu' d'uno) e si tiene cosi' com'e' dato: un percorso non deve essere UTF-8 per aprirsi. Anche il
+//! profilo (le lingue disponibili e le impostazioni) sta qui, perche' e' il mondo dentro cui gli argomenti
+//! si interpretano. I test del binario (`tests/cli.rs`) provano tutto da fuori: qui non servono test interni.
+
+use crate::settings::Settings;
+use crate::theme::ThemeId;
+use mrp_core::lang::{self, Lang};
+use std::ffi::OsString;
+use std::path::PathBuf;
+
+/// Gli argomenti letti: i valori delle opzioni restano testo, li valida chi li usa.
+#[derive(Debug, Default)]
+pub struct Args {
+    /// `--lang CODICE`: la lingua dell'interfaccia.
+    pub lang: Option<String>,
+    /// `--theme NOME`: night, debian, console o minimal.
+    pub theme: Option<String>,
+    /// `--lang-dir DIR` (sviluppatore): le lingue si cercano in DIR invece che nel posto solito.
+    pub lang_dir: Option<PathBuf>,
+    /// `--settings PERCORSO` (sviluppatore): le impostazioni stanno in PERCORSO.
+    pub settings: Option<PathBuf>,
+    /// `--dump WxH` (sviluppatore): lo schermo come testo, senza terminale.
+    pub dump: Option<String>,
+    /// `--keys LISTA` (sviluppatore): i tasti che `--dump` applica uno alla volta.
+    pub keys: Option<String>,
+    /// `-h` / `--help`.
+    pub help: bool,
+    /// Il file da aprire.
+    pub file: Option<PathBuf>,
+}
+
+/// Legge la riga di comando: `Err` con l'argomento che non va (opzione sconosciuta o senza valore). Un
+/// argomento che comincia con `-` e non e' un'opzione nota non puo' essere il file.
+pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> {
+    let mut args = Args::default();
+    let mut resto = argv.into_iter();
+    while let Some(arg) = resto.next() {
+        // quello che non comincia con '-' e' il file, cosi' com'e' (l'ultimo vince)
+        if !arg.to_string_lossy().starts_with('-') {
+            args.file = Some(PathBuf::from(arg));
+            continue;
+        }
+        // le opzioni sono testo: un byte strano non puo' matchare nessuna opzione nota
+        match arg.to_string_lossy().as_ref() {
+            "-h" | "--help" => args.help = true,
+            "--lang" => args.lang = Some(testo(&mut resto, "--lang")?),
+            "--theme" => args.theme = Some(testo(&mut resto, "--theme")?),
+            "--lang-dir" => args.lang_dir = Some(percorso(&mut resto, "--lang-dir")?),
+            "--settings" => args.settings = Some(percorso(&mut resto, "--settings")?),
+            "--dump" => args.dump = Some(testo(&mut resto, "--dump")?),
+            "--keys" => args.keys = Some(testo(&mut resto, "--keys")?),
+            _ => return Err(arg.to_string_lossy().into_owned()),
+        }
+    }
+    Ok(args)
+}
+
+/// Il valore di testo dell'opzione appena letta: `Err` se la riga finisce prima (il valore manca).
+fn testo(resto: &mut impl Iterator<Item = OsString>, opzione: &str) -> Result<String, String> {
+    match resto.next() {
+        Some(v) => Ok(v.to_string_lossy().into_owned()),
+        None => Err(opzione.to_string()),
+    }
+}
+
+/// Come `testo`, per i valori che sono percorsi (che restano `OsString`).
+fn percorso(resto: &mut impl Iterator<Item = OsString>, opzione: &str) -> Result<PathBuf, String> {
+    match resto.next() {
+        Some(v) => Ok(PathBuf::from(v)),
+        None => Err(opzione.to_string()),
+    }
+}
+
+/// La dimensione di `--dump`: `WxH` (per esempio `80x24`), W e H cifre ASCII che stanno in un `u16` e sono
+/// almeno 1.
+pub fn parse_dump(s: &str) -> Option<(u16, u16)> {
+    let (w, h) = s.split_once('x')?;
+    let (w, h) = (cifra_u16(w)?, cifra_u16(h)?);
+    (w > 0 && h > 0).then_some((w, h))
+}
+
+/// Un numero fatto di cifre ASCII che sta in un `u16`: la grammatica di `--dump` (come `parse_cifre`
+/// dell'app, ma piu' piccolo).
+fn cifra_u16(s: &str) -> Option<u16> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    s.parse().ok()
+}
+
+/// Il profilo utente visto dal binario: le lingue disponibili, le impostazioni lette e dove salvarle.
+/// `--lang-dir` e `--settings` vincono sul profilo; con `MRP_NO_PROFILE=1` il profilo non si tocca (lingue:
+/// solo l'inglese incorporato; impostazioni: niente da leggere e niente da scrivere).
+pub struct Profile {
+    /// Le lingue disponibili: il menu di F7 e la validazione di `--lang`.
+    pub langs: Vec<Lang>,
+    /// Le impostazioni lette (niente se il file manca o non si legge).
+    pub settings: Option<Settings>,
+    /// Dove l'app salva le impostazioni quando si cambia tema o lingua (niente: non si salva).
+    pub path: Option<PathBuf>,
+}
+
+/// Costruisce il profilo: vedi `Profile`.
+pub fn profile(args: &Args) -> Profile {
+    let senza_profilo = std::env::var("MRP_NO_PROFILE").ok().as_deref() == Some("1");
+    let langs = match &args.lang_dir {
+        Some(dir) => lang::registry_in(Some(dir.as_path())).0,
+        None if senza_profilo => vec![Lang::english()],
+        None => lang::registry().0,
+    };
+    let path = match &args.settings {
+        Some(p) => Some(p.clone()),
+        None if senza_profilo => None,
+        None => Settings::default_path(),
+    };
+    let settings = path.as_ref().and_then(|p| Settings::load(p));
+    Profile {
+        langs,
+        settings,
+        path,
+    }
+}
+
+/// La lingua di partenza: l'opzione `--lang` se il codice esiste fra le disponibili, altrimenti quella delle
+/// impostazioni se esiste, altrimenti `None` (l'inglese incorporato). `Err` col codice quando `--lang` nomina
+/// una lingua che non c'e' (un errore d'uso); nelle impostazioni un codice sconosciuto si ignora.
+pub fn resolve_lang(
+    args: &Args,
+    langs: &[Lang],
+    settings: &Option<Settings>,
+) -> Result<Option<Lang>, String> {
+    if let Some(code) = &args.lang {
+        return match langs.iter().find(|l| l.code == *code) {
+            Some(l) => Ok(Some(l.clone())),
+            None => Err(code.clone()),
+        };
+    }
+    let Some(code) = settings.as_ref().and_then(|s| s.lang.as_deref()) else {
+        return Ok(None);
+    };
+    Ok(langs.iter().find(|l| l.code == code).cloned())
+}
+
+/// Il tema di partenza: l'opzione `--theme` se il nome e' uno dei quattro, altrimenti quello delle
+/// impostazioni, altrimenti il predefinito. `Err` col nome quando l'opzione non si riconosce (nelle
+/// impostazioni un tema sconosciuto non puo' esserci: `Settings` lo scarta gia' leggendolo).
+pub fn resolve_theme(args: &Args, settings: &Option<Settings>) -> Result<ThemeId, String> {
+    if let Some(nome) = &args.theme {
+        return match ThemeId::parse(nome) {
+            Some(t) => Ok(t),
+            None => Err(nome.clone()),
+        };
+    }
+    Ok(settings
+        .as_ref()
+        .map(|s| s.theme)
+        .unwrap_or(ThemeId::DEFAULT))
+}
