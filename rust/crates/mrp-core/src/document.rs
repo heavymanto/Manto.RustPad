@@ -3,7 +3,7 @@
 //! rinomina sopra l'originale: se qualcosa va storto (errore, annullamento, file cambiato da
 //! altri) l'originale resta com'e'.
 
-use crate::edit::{Buf, EditError, Piece, PieceTable};
+use crate::edit::{Buf, EditError, Piece, PieceTable, Splice};
 use crate::lines::{BuildOptions, Cancelled, LineIndex};
 use crate::source::FileSource;
 use memchr::memchr_iter;
@@ -158,6 +158,22 @@ fn newlines_in_piece(
     n
 }
 
+/// Un passo della storia di annulla/ripeti: tutte le modifiche fatte fra due `seal()` (o fino
+/// a un `undo()`/`redo()`, che chiudono da soli il passo aperto). Annullarlo rimette il vettore
+/// dei pezzi esattamente com'era prima del passo. Contiene solo splices (riferimenti ai buffer
+/// dei pezzi), mai copie di dati del documento.
+struct Step {
+    /// Le modifiche del passo, in ordine di applicazione.
+    splices: Vec<Splice>,
+    /// Posizione della PRIMA modifica del passo: e' quella che `undo`/`redo` restituiscono.
+    pos: u64,
+    /// Versione della storia prima del passo (quella che l'annulla ripristina).
+    version_before: u64,
+    /// Versione della storia dopo il passo (quella che il ripeti ripristina): si conosce con
+    /// certezza alla chiusura del passo, prima vale la versione corrente.
+    version_after: u64,
+}
+
 /// File + modifiche.
 pub struct Document {
     path: PathBuf,
@@ -165,8 +181,21 @@ pub struct Document {
     source: Option<FileSource>,
     table: PieceTable,
     stamp: Stamp,
-    /// Vero se c'e' almeno una modifica non salvata.
-    dirty: bool,
+    /// Posizione nella storia (vedi `is_modified`): ogni modifica efficace prende da
+    /// `next_version` un valore nuovo, mai riusato; annulla e ripeti ripristinano quella
+    /// del passo che tolgono o rimettono.
+    version: u64,
+    /// Prossima versione da assegnare a una modifica efficace.
+    next_version: u64,
+    /// Versione dello stato "uguale al file su disco": il marcatore con cui `is_modified`
+    /// confronta la posizione corrente.
+    saved_version: u64,
+    /// Passi chiusi, da annullare (dal piu' vecchio al piu' recente: si toglie dal fondo).
+    undo: Vec<Step>,
+    /// Passo aperto: le modifiche fatte dopo l'ultima chiusura, che si annullano insieme.
+    open: Option<Step>,
+    /// Passi annullati, da ripetere (dal piu' recente al piu' vecchio: si toglie dal fondo).
+    redo: Vec<Step>,
     /// Indice righe del FILE ORIGINALE (non del documento modificato): vedi `build_lines`.
     lines: Option<LineIndex>,
     /// Cache dei conteggi: quanti `\n` contiene ciascun pezzo. Le chiavi restano vere finche'
@@ -192,7 +221,12 @@ impl Document {
             source: Some(source),
             table,
             stamp,
-            dirty: false,
+            version: 0,
+            next_version: 1,
+            saved_version: 0,
+            undo: Vec::new(),
+            open: None,
+            redo: Vec::new(),
             lines: None,
             nl_of_piece: HashMap::new(),
             prefix: None,
@@ -213,9 +247,11 @@ impl Document {
         self.len() == 0
     }
 
-    /// Vero se ci sono modifiche non salvate.
+    /// Vero se ci sono modifiche non salvate: la posizione nella storia (`version`) non e'
+    /// quella dello stato "uguale al file" (`saved_version`). Annullando fino a quello stato,
+    /// o salvando, il documento torna non modificato.
     pub fn is_modified(&self) -> bool {
-        self.dirty
+        self.version != self.saved_version
     }
 
     /// La tabella dei pezzi (sola lettura), per chi deve conoscere la struttura.
@@ -225,27 +261,45 @@ impl Document {
 
     /// Come `PieceTable::insert`. Un inserimento di `data` vuoto non segna il documento come modificato.
     pub fn insert(&mut self, pos: u64, data: &[u8]) -> Result<(), EditError> {
-        self.table.insert(pos, data)?;
-        // Un inserimento vuoto non ha effetto: il documento non risulta modificato.
-        if !data.is_empty() {
-            self.dirty = true;
-            // Le posizioni dei pezzi nel documento sono cambiate: la tabella derivata si
-            // ricostruisce al prossimo uso (la cache dei conteggi resta: i byte no).
-            self.prefix = None;
+        // Lo splice arriva solo se l'inserimento ha effetto: senza effetto (data vuoto, o
+        // errore gia' propagato dal `?`) non si registra nulla nella storia.
+        if let Some(sp) = self.table.insert_tracked(pos, data)? {
+            self.record_edit(sp, pos);
         }
         Ok(())
     }
 
     /// Come `PieceTable::delete`. Una cancellazione di `len == 0` non segna il documento come modificato.
     pub fn delete(&mut self, pos: u64, len: u64) -> Result<(), EditError> {
-        self.table.delete(pos, len)?;
-        // Una cancellazione di lunghezza zero non ha effetto: il documento non risulta modificato.
-        if len > 0 {
-            self.dirty = true;
-            // Come `insert`: la tabella derivata si ricostruisce al prossimo uso.
-            self.prefix = None;
+        // Come `insert`: lo splice c'e' solo per le cancellazioni con effetto.
+        if let Some(sp) = self.table.delete_tracked(pos, len)? {
+            self.record_edit(sp, pos);
         }
         Ok(())
+    }
+
+    /// Registra nella storia una modifica efficace (lo splice `sp`, nato a posizione `pos`):
+    /// apre il passo se manca (con la posizione della PRIMA modifica), butta via i passi da
+    /// ripetere, assegna una versione nuova e invalida la tabella derivata dell'indice.
+    fn record_edit(&mut self, sp: Splice, pos: u64) {
+        let version_before = self.version;
+        // Il passo si apre alla prima modifica del gruppo: da quel punto la sua posizione non
+        // cambia piu'. `version_after` si aggiorna quando il passo si chiude.
+        let step = self.open.get_or_insert_with(|| Step {
+            splices: Vec::new(),
+            pos,
+            version_before,
+            version_after: version_before,
+        });
+        step.splices.push(sp);
+        // Una modifica nuova butta via i passi da ripetere.
+        self.redo.clear();
+        // Versione nuova, mai riusata: le versioni degli stati buttati via non tornano.
+        self.version = self.next_version;
+        self.next_version += 1;
+        // Le posizioni dei pezzi nel documento sono cambiate: la tabella derivata si
+        // ricostruisce al prossimo uso (la cache dei conteggi resta: i byte no).
+        self.prefix = None;
     }
 
     /// Come `PieceTable::read_range` (si adatta ai limiti, mai errore). Documento chiuso: vuoto.
@@ -255,6 +309,78 @@ impl Document {
             None => Vec::new(),
             Some(source) => self.table.read_range(source, pos, len),
         }
+    }
+
+    /// Chiude il passo di storia aperto: le modifiche fatte fin qui si annullano insieme; le successive formano un
+    /// passo nuovo. Senza modifiche dopo l'ultima chiusura non fa nulla. (L'interfaccia lo chiama quando il cursore si
+    /// sposta o l'utente smette di scrivere.)
+    pub fn seal(&mut self) {
+        // La versione dopo il passo e' quella corrente: l'ultima modifica del passo e'
+        // l'ultima cosa successa.
+        if let Some(mut step) = self.open.take() {
+            step.version_after = self.version;
+            self.undo.push(step);
+        }
+    }
+
+    /// Annulla l'ultimo passo (chiudendo prima quello aperto). Restituisce la posizione della PRIMA modifica del passo,
+    /// dove l'interfaccia mette il cursore; `None` se non c'e' nulla da annullare. Nessun dato del documento viene
+    /// copiato: la storia ricorda solo pezzi.
+    pub fn undo(&mut self) -> Option<u64> {
+        // L'annulla chiude da solo il passo aperto: si annulla insieme ai passi gia' chiusi.
+        self.seal();
+        let step = self.undo.pop()?;
+        // Le modifiche si invertono in ordine inverso (l'ultima applicata e' la prima da
+        // togliere): il vettore dei pezzi torna esattamente com'era prima del passo.
+        for sp in step.splices.iter().rev() {
+            self.table.revert_splice(sp);
+        }
+        self.version = step.version_before;
+        // Come dopo una modifica: la tabella derivata si ricostruisce al prossimo uso.
+        self.prefix = None;
+        let pos = step.pos;
+        self.redo.push(step);
+        Some(pos)
+    }
+
+    /// Ripete l'ultimo passo annullato; stessa convenzione di `undo`. Una modifica nuova butta via i passi da ripetere.
+    pub fn redo(&mut self) -> Option<u64> {
+        // Anche il ripeti chiude il passo aperto (con le invarianti non possono esserci
+        // insieme un passo aperto e passi da ripetere, ma chiudere resta la cosa giusta).
+        self.seal();
+        let step = self.redo.pop()?;
+        // Qui l'ordine e' quello di applicazione.
+        for sp in &step.splices {
+            self.table.apply_splice(sp);
+        }
+        self.version = step.version_after;
+        self.prefix = None;
+        let pos = step.pos;
+        self.undo.push(step);
+        Some(pos)
+    }
+
+    /// Vero se c'e' un passo (anche aperto) da annullare.
+    pub fn can_undo(&self) -> bool {
+        self.open.is_some() || !self.undo.is_empty()
+    }
+
+    /// Vero se c'e' un passo da ripetere.
+    pub fn can_redo(&self) -> bool {
+        !self.redo.is_empty()
+    }
+
+    /// Mette un indice righe costruito dal chiamante (tipicamente in un thread, da un'altra `FileSource` aperta sullo
+    /// stesso file: `Document` non e' condivisibile mentre indicizza). Svuota le cache dell'indice. Documento chiuso:
+    /// non fa nulla.
+    pub fn install_lines(&mut self, idx: LineIndex) {
+        // Documento chiuso: senza sorgente l'indice non servirebbe a nessuna interrogazione.
+        if self.source.is_none() {
+            return;
+        }
+        self.lines = Some(idx);
+        self.nl_of_piece.clear();
+        self.prefix = None;
     }
 
     /// Costruisce l'indice righe del file originale (parametri predefiniti), per `line_count`,
@@ -436,7 +562,8 @@ impl Document {
     ///    restituisce `Io`: il documento resta com'era, modificato, e l'originale intatto;
     /// 7. a rinomina riuscita: su Unix `sync_all` della cartella (se fallisce, si ignora); si apre `path` con
     ///    `FileSource::open` (la vecchia mappatura si rilascia sostituendola), la tabella torna a un solo pezzo
-    ///    `Original` lungo quanto il nuovo file, `stamp` si rilegge, `dirty = false`.
+    ///    `Original` lungo quanto il nuovo file, `stamp` si rilegge, la storia dell'annulla/ripeti
+    ///    si svuota e lo stato attuale diventa quello del file (`saved_version` = `version`).
     ///    Se l'apertura fallisce: dati al sicuro su disco, ma il documento diventa chiuso (`source = None`,
     ///    tabella lunga 0) e si restituisce `Io`.
     ///
@@ -447,7 +574,7 @@ impl Document {
             None => return Err(SaveError::Closed),
             Some(source) => source,
         };
-        if !self.dirty {
+        if self.version == self.saved_version {
             return Ok(());
         }
         if cancel.load(Ordering::Relaxed) {
@@ -570,7 +697,12 @@ impl Document {
                 self.table = PieceTable::new(new_source.len());
                 self.source = Some(new_source);
                 self.stamp = stamp;
-                self.dirty = false;
+                // Il salvataggio e' riuscito: lo stato attuale e' quello del file e la storia
+                // non vale piu' (i pezzi `Original` puntavano al vecchio file).
+                self.undo.clear();
+                self.redo.clear();
+                self.open = None;
+                self.saved_version = self.version;
                 // Il file su disco e' cambiato: l'indice del vecchio file non vale piu'.
                 self.lines = None;
                 self.nl_of_piece.clear();
@@ -582,7 +714,11 @@ impl Document {
                 // La rinomina e' comunque riuscita: l'indice del vecchio file non vale piu'.
                 self.source = None;
                 self.table = PieceTable::new(0);
-                self.dirty = false;
+                // Anche da chiuso il salvataggio e' riuscito: storia e marcatore come sopra.
+                self.undo.clear();
+                self.redo.clear();
+                self.open = None;
+                self.saved_version = self.version;
                 self.lines = None;
                 self.nl_of_piece.clear();
                 self.prefix = None;

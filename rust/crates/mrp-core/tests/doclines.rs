@@ -474,3 +474,29 @@ fn big_file_lines_follow_the_edits_beyond_4gib() {
     assert_eq!(d.line_at_offset(d.len() - 1), Some(n));
     assert_eq!(d.offset_of_line(n + 1), None);
 }
+
+// ---------- indice costruito altrove ----------
+
+#[test]
+fn an_index_built_from_a_second_source_can_be_installed() {
+    let dir = TestDir::new();
+    let mut r = Lcg(5);
+    let mut m = texty(&mut r, 3000);
+    let p = dir.file("i.txt", &m);
+    let mut d = Document::open(&p).unwrap();
+    // come fa l'interfaccia: un thread costruisce l'indice da una SUA FileSource sullo stesso file
+    let p2 = p.clone();
+    let idx = std::thread::spawn(move || {
+        let src = FileSource::open(&p2).unwrap();
+        let (c, prog) = flags();
+        LineIndex::build_with(&src, &opts(64, 4), &c, &prog).unwrap()
+    })
+    .join()
+    .unwrap();
+    assert!(!d.has_lines());
+    d.insert(10, b"x\ny\n").unwrap(); // una modifica prima dell'installazione
+    model_insert(&mut m, 10, b"x\ny\n");
+    d.install_lines(idx);
+    assert!(d.has_lines());
+    check_all(&mut d, &m, "indice installato dopo una modifica");
+}

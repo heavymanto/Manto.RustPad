@@ -5,6 +5,7 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 ## [Unreleased]
 
 ### Added
+- **Undo / redo** (`Document::seal`, `undo`, `redo`, `can_undo`, `can_redo`, `install_lines`): the history records *pieces*, never document data, so undoing a 19 MiB delete copies nothing; `is_modified` follows the position in the history (undo back to the file = not modified); a successful save clears the history. 13 tests with a whole-copy oracle.
 - **Line index that follows the edits** (`Document::build_lines`, `line_count`, `offset_of_line`, `line_at_offset`): line numbers of the *edited* document from the sparse index of the original file plus per-piece newline counts; cost depends on the number of pieces, not on the file size. 12 tests with a naive oracle, one 6 GB test.
 - **`PieceTable`** (`edit.rs`): the document as a list of pieces pointing into the original file (never copied) or a small
   buffer of additions; `insert`, `delete`, `read_range` with 64-bit offsets, canonical form (no empty pieces, contiguous

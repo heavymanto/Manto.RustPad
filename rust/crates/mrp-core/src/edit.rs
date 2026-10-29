@@ -35,6 +35,45 @@ pub enum EditError {
     OutOfRange { pos: u64, len: u64, doc_len: u64 },
 }
 
+/// Una modifica al vettore dei pezzi, registrata per l'annulla/ripeti: al posto dei pezzi
+/// `removed`, a partire dall'indice `index` nel vettore com'era prima, ora ci sono `inserted`.
+/// Applicarla trasforma il vettore di prima in quello di adesso, invertirla fa il contrario.
+/// Contiene solo pezzi (riferimenti ai buffer), mai copie di dati del documento.
+#[derive(Debug, Clone)]
+pub struct Splice {
+    /// Indice del primo pezzo sostituito, nel vettore com'era PRIMA della modifica.
+    index: usize,
+    /// I pezzi che c'erano prima.
+    removed: Vec<Piece>,
+    /// I pezzi che ci sono dopo.
+    inserted: Vec<Piece>,
+}
+
+/// La differenza minima fra il vettore dei pezzi prima e dopo una modifica: si tolgono il
+/// prefisso e il suffisso comuni e quel che resta e' lo `Splice` che trasforma `prima` in
+/// `dopo` esattamente, pezzo per pezzo (se entrambi sono in forma canonica, lo resta anche
+/// il risultato).
+fn splice_between(prima: &[Piece], dopo: &[Piece]) -> Splice {
+    // Prefisso comune: i pezzi uguali in testa non entrano nello splice.
+    let mut pre = 0;
+    while pre < prima.len() && pre < dopo.len() && prima[pre] == dopo[pre] {
+        pre += 1;
+    }
+    // Suffisso comune, senza sconfinare nel prefisso gia' tolto.
+    let mut suf = 0;
+    while suf < prima.len() - pre
+        && suf < dopo.len() - pre
+        && prima[prima.len() - 1 - suf] == dopo[dopo.len() - 1 - suf]
+    {
+        suf += 1;
+    }
+    Splice {
+        index: pre,
+        removed: prima[pre..prima.len() - suf].to_vec(),
+        inserted: dopo[pre..dopo.len() - suf].to_vec(),
+    }
+}
+
 /// Documento = sequenza di pezzi sopra un file originale lungo `original_len` byte.
 #[derive(Debug, Clone)]
 pub struct PieceTable {
@@ -111,6 +150,16 @@ impl PieceTable {
     /// Inserisce `data` alla posizione `pos` (0..=len()). `data` vuoto = nessun effetto (ma `pos` e' comunque controllato).
     /// Errore `OutOfRange` se `pos > len()`; in caso di errore il documento resta identico.
     pub fn insert(&mut self, pos: u64, data: &[u8]) -> Result<(), EditError> {
+        self.insert_tracked(pos, data).map(|_| ())
+    }
+
+    /// Come `insert`, ma restituisce anche la modifica al vettore dei pezzi (`None` se
+    /// l'inserimento non ha effetto): serve a `Document` per registrare la storia dell'annulla.
+    pub(crate) fn insert_tracked(
+        &mut self,
+        pos: u64,
+        data: &[u8],
+    ) -> Result<Option<Splice>, EditError> {
         // Controllo PRIMA di toccare qualunque cosa: in caso di errore il documento resta identico.
         let doc_len = self.len();
         if pos > doc_len {
@@ -121,8 +170,11 @@ impl PieceTable {
             });
         }
         if data.is_empty() {
-            return Ok(());
+            return Ok(None);
         }
+        // Il vettore dei pezzi prima della modifica: confrontato con quello di dopo ne ricava
+        // lo splice da restituire (un giro in piu' sui pezzi, come tutto il resto qui).
+        let prima = self.pieces.clone();
         // I byte nuovi vanno in coda al buffer delle aggiunte...
         let start = self.add.len() as u64;
         self.add.extend_from_slice(data);
@@ -137,12 +189,22 @@ impl PieceTable {
             },
         );
         self.normalize();
-        Ok(())
+        Ok(Some(splice_between(&prima, &self.pieces)))
     }
 
     /// Cancella `len` byte a partire da `pos`. `len == 0` = nessun effetto (ma `pos <= len()` e' controllato).
     /// Errore `OutOfRange` se `pos + len > len()` (anche per overflow di u64); in caso di errore il documento resta identico.
     pub fn delete(&mut self, pos: u64, len: u64) -> Result<(), EditError> {
+        self.delete_tracked(pos, len).map(|_| ())
+    }
+
+    /// Come `delete`, ma restituisce anche la modifica al vettore dei pezzi (`None` se la
+    /// cancellazione non ha effetto): serve a `Document` per registrare la storia dell'annulla.
+    pub(crate) fn delete_tracked(
+        &mut self,
+        pos: u64,
+        len: u64,
+    ) -> Result<Option<Splice>, EditError> {
         // Controllo PRIMA di toccare qualunque cosa: in caso di errore il documento resta identico.
         let doc_len = self.len();
         let fine = match pos.checked_add(len) {
@@ -150,8 +212,10 @@ impl PieceTable {
             _ => return Err(EditError::OutOfRange { pos, len, doc_len }),
         };
         if len == 0 {
-            return Ok(());
+            return Ok(None);
         }
+        // Come in `insert_tracked`: il vettore di prima serve per ricavare lo splice.
+        let prima = self.pieces.clone();
         // Primo pezzo tolto e primo pezzo tenuto del tratto. Il secondo spezzamento non sposta
         // `i`: agisce solo su pezzi che vengono dopo quello che inizia a `pos`.
         let i = self.split_at(pos);
@@ -159,7 +223,35 @@ impl PieceTable {
         self.pieces.drain(i..j);
         // Il buffer delle aggiunte NON si accorcia: spariscono i pezzi, non i byte.
         self.normalize();
-        Ok(())
+        Ok(Some(splice_between(&prima, &self.pieces)))
+    }
+
+    /// Applica `s` al vettore dei pezzi: i pezzi `s.removed` a partire da `s.index` diventano
+    /// `s.inserted` (vettore com'era prima della modifica -> vettore com'e' adesso). Serve al ripeti.
+    pub(crate) fn apply_splice(&mut self, s: &Splice) {
+        // Difesa: uno splice che non combacia col vettore attuale non puo' arrivare con le
+        // invarianti vere (ogni splice nasce da stati realmente attraversati, in ordine); lo
+        // si ignora piuttosto che fare panic.
+        let fine = match s.index.checked_add(s.removed.len()) {
+            Some(fine) if fine <= self.pieces.len() => fine,
+            _ => return,
+        };
+        self.pieces
+            .splice(s.index..fine, s.inserted.iter().copied());
+        // La forma canonica deve valere sempre (con splice esatti lo e' gia': questo e' il ripiego).
+        self.normalize();
+    }
+
+    /// Inverte `s`: i pezzi `s.inserted` a partire da `s.index` tornano `s.removed` (vettore
+    /// com'e' adesso -> vettore com'era prima della modifica). Serve all'annulla.
+    pub(crate) fn revert_splice(&mut self, s: &Splice) {
+        // Stessa difesa di `apply_splice`.
+        let fine = match s.index.checked_add(s.inserted.len()) {
+            Some(fine) if fine <= self.pieces.len() => fine,
+            _ => return,
+        };
+        self.pieces.splice(s.index..fine, s.removed.iter().copied());
+        self.normalize();
     }
 
     /// Copia fino a `len` byte a partire da `pos` (come `FileSource::read_range`: si adatta ai limiti, mai errore).
