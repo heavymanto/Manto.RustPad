@@ -68,6 +68,19 @@ Details, method and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). One machi
 
 Each step is gated by the same benchmark suite (`bench/`) so claims stay falsifiable.
 
+## Try it (Windows)
+
+```
+cd rust
+cargo build --release -p mrp-tui
+.\install.ps1                  # optional: mrp.exe -> %USERPROFILE%\.local\bin,
+                               # languages -> %APPDATA%\mrp\lang
+mrp yourfile.txt               # F1 = help, F4 = edit, F10 = quit
+```
+
+`install.ps1` never touches your `PATH` (it only tells you if the folder is missing from it) and never touches your saved settings.
+Without installing: `cargo run --release -p mrp-tui -- yourfile.txt`.
+
 ## Repository layout
 
 | Path | Contents |
@@ -76,6 +89,7 @@ Each step is gated by the same benchmark suite (`bench/`) so claims stay falsifi
 | `docs/BENCHMARKS.md` | Measurements, method, limitations |
 | `rust/crates/mrp-core` | The core library (Rust): `FileSource`, `LineIndex`, `PieceTable`/`Document` (edit, undo, save), search, view model, languages, tests, `info` example |
 | `rust/crates/mrp-tui` | The terminal editor `mrp` (ratatui): app state machine, screen, themes, settings, command line |
+| `rust/install.ps1` | Local install on Windows: `mrp.exe` and the language files as user commands, with a self-test |
 | `bench/` | Reproducible scripts (Windows, Python 3.12, no dependencies) and raw results |
 | `CONTRIBUTING.md` | How to build, and the rules the code follows (64-bit offsets, never the whole file in memory…) |
 | `CHANGELOG.md`, `SECURITY.md` | What changed; how to report a vulnerability privately |

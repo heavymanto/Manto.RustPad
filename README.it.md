@@ -66,6 +66,19 @@ Dettagli, metodo e limiti: [docs/BENCHMARKS.md](docs/BENCHMARKS.md) (in inglese)
 
 Ogni tappa è verificata con la stessa suite di benchmark (`bench/`), così le affermazioni restano falsificabili.
 
+## Provarlo (Windows)
+
+```
+cd rust
+cargo build --release -p mrp-tui
+.\install.ps1                  # facoltativo: mrp.exe -> %USERPROFILE%\.local\bin,
+                               # lingue -> %APPDATA%\mrp\lang
+mrp tuofile.txt                # F1 = aiuto, F4 = modifica, F10 = esci
+```
+
+`install.ps1` non tocca mai il `PATH` (ti avvisa soltanto se la cartella non c'è) né le impostazioni salvate.
+Senza installare: `cargo run --release -p mrp-tui -- tuofile.txt`.
+
 ## Licenza
 
 Copyright (C) 2026 Francesco Mantovanelli.
