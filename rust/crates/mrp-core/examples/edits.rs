@@ -10,7 +10,11 @@ use std::time::Instant;
 fn main() {
     let mut a = std::env::args().skip(1);
     let path = a.next().expect("uso: edits <file> <modifiche>");
-    let n: u64 = a.next().expect("uso: edits <file> <modifiche>").parse().expect("numero");
+    let n: u64 = a
+        .next()
+        .expect("uso: edits <file> <modifiche>")
+        .parse()
+        .expect("numero");
     let mut doc = Document::open(Path::new(&path)).expect("apertura");
     let mut seme: u64 = 0x9E37_79B9_7F4A_7C15;
     let scaglione = (n / 10).max(1);
