@@ -1,13 +1,20 @@
 //! Il disegno del TUI: legge l'`App` e scrive su un `Frame` (layout in `docs/TEAM/DESIGN_TUI.md`, sezione 2).
 
-use crate::app::App;
-use crate::theme::Theme;
+use crate::app::{App, DialogKind};
+use crate::theme::{Theme, ThemeId};
 use mrp_core::view::{self, ViewOptions};
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
+use ratatui::style::Style;
 use ratatui::text::{Line, Span};
-use ratatui::widgets::{Block, Paragraph};
+use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
+
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l10`.
+const HELP_KEYS: [&str; 10] = [
+    "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
+    "help.l9", "help.l10",
+];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
 pub fn draw(f: &mut Frame, app: &mut App) {
@@ -25,6 +32,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     draw_text(f, app, &t, w, h);
     draw_status(f, app, &t, w, h);
     draw_footer(f, app, &t, w, h);
+    draw_dialog(f, app, &t, w, h);
 }
 
 /// Riga 0: `" " + nome file + (" *" se modificato)` a sinistra, `dimensione + "  " + modo + " "` a destra.
@@ -108,8 +116,12 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             xy = Some((gutter_w as u16 + (col - hscroll) as u16, y));
         }
     }
+    // Con un dialogo aperto il cursore del terminale e' nascosto: la posizione del testo si ricorda lo stesso
+    // (serve quando il dialogo si chiude), ma non si mostra sullo schermo.
     if let Some((x, y)) = xy {
-        f.set_cursor_position((x, y));
+        if app.dialog_kind().is_none() {
+            f.set_cursor_position((x, y));
+        }
     }
     app.set_cursor_xy(xy);
 }
@@ -189,6 +201,164 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         Paragraph::new(Line::from(spans)).style(t.screen),
         Rect::new(0, h - 1, w, 1),
     );
+}
+
+/// Il dialogo aperto, sopra lo schermo: prima l'ombra a velo (le celle dietro, una cella a destra e una in
+/// basso), poi la finestra centrata con bordo, titolo e contenuto. Nel prompt "vai a" il cursore del terminale
+/// va dopo il testo scritto.
+fn draw_dialog(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
+    let Some(kind) = app.dialog_kind() else {
+        return;
+    };
+    let ContenutoDialogo {
+        titolo,
+        righe,
+        cursore,
+    } = contenuto_dialogo(app, t, kind);
+    // La finestra: il contenuto piu' il bordo, al piu' larga e alta come lo schermo, centrata.
+    let larga_contenuto = righe
+        .iter()
+        .map(|(s, _)| s.chars().count())
+        .chain([titolo.chars().count()])
+        .max()
+        .unwrap_or(0);
+    let larga = (larga_contenuto + 2).min(w as usize) as u16;
+    let alta = (righe.len() + 2).min(h as usize) as u16;
+    if larga < 3 || alta < 3 {
+        // Non c'e' spazio nemmeno per il bordo e una riga: niente finestra.
+        return;
+    }
+    let (x, y) = ((w - larga) / 2, (h - alta) / 2);
+    // L'ombra si disegna prima: dopo la finestra resta visibile solo la cornice che sporge.
+    let mut velo = Style::new().fg(t.shadow_fg);
+    if let Some(bg) = t.shadow_bg {
+        velo = velo.bg(bg);
+    }
+    f.render_widget(
+        Block::default().style(velo),
+        Rect::new(x + 1, y + 1, larga, alta),
+    );
+    // La finestra copre l'ombra: si ripulisce (il testo dietro non traspare) e poi bordo e fondo del tema.
+    f.render_widget(Clear, Rect::new(x, y, larga, alta));
+    let finestra = Block::default()
+        .borders(Borders::ALL)
+        .border_style(t.border)
+        .style(t.dialog)
+        .title(Line::styled(titolo, t.title));
+    f.render_widget(finestra, Rect::new(x, y, larga, alta));
+    // Il contenuto, una finestra di una riga per voce (oltre l'altezza interna non c'e' posto).
+    for (i, (testo, stile)) in righe.iter().enumerate() {
+        if i + 2 >= alta as usize {
+            break;
+        }
+        f.render_widget(
+            Paragraph::new(Line::styled(testo.clone(), *stile)),
+            Rect::new(x + 1, y + 1 + i as u16, larga - 2, 1),
+        );
+    }
+    // Il cursore del terminale nei prompt: dopo il testo scritto (negli altri dialoghi e' nascosto, se n'e'
+    // gia' occupato `draw_text`).
+    if let Some((riga, colonna)) = cursore {
+        if riga + 2 < alta as usize {
+            let colonna = colonna.min(larga as usize - 2);
+            let xy = (x + 1 + colonna as u16, y + 1 + riga as u16);
+            f.set_cursor_position(xy);
+            app.set_cursor_xy(Some(xy));
+        }
+    }
+}
+
+/// Il contenuto di un dialogo pronto da disegnare: il titolo, le righe (testo e stile) e, per i prompt, dove sta
+/// il cursore (riga e colonna DENTRO il contenuto). Ogni stringa viene dal `Catalog`.
+struct ContenutoDialogo {
+    titolo: String,
+    righe: Vec<(String, Style)>,
+    cursore: Option<(usize, usize)>,
+}
+
+/// Il contenuto di un dialogo: il titolo e le righe; per il prompt "vai a" anche dove sta il cursore (riga e
+/// colonna DENTRO il contenuto). Ogni stringa viene dal `Catalog`.
+fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind) -> ContenutoDialogo {
+    let cat = app.catalog();
+    match kind {
+        DialogKind::Help => {
+            let mut righe: Vec<(String, Style)> = HELP_KEYS
+                .iter()
+                .map(|k| (cat.t(k).to_string(), t.dialog))
+                .collect();
+            righe.push((cat.t("help.close").to_string(), t.hint));
+            ContenutoDialogo {
+                titolo: cat.t("help.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
+        DialogKind::Theme => {
+            let selezione = app.menu_index().unwrap_or(0);
+            let righe = ThemeId::ALL
+                .iter()
+                .enumerate()
+                .map(|(i, tema)| {
+                    // Ogni voce: nome + due spazi + descrizione.
+                    let testo = format!("{}  {}", cat.t(tema.key()), cat.t(tema.blurb_key()));
+                    let stile = if i == selezione { t.selected } else { t.dialog };
+                    (testo, stile)
+                })
+                .collect();
+            ContenutoDialogo {
+                titolo: cat.t("menu.theme.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
+        DialogKind::Lang => {
+            let selezione = app.menu_index().unwrap_or(0);
+            let mut righe: Vec<(String, Style)> = app
+                .langs()
+                .iter()
+                .enumerate()
+                .map(|(i, l)| {
+                    // Ogni voce: il nome della lingua e, se AI, il marchio.
+                    let mut testo = l.name.clone();
+                    if l.ai {
+                        testo.push(' ');
+                        testo.push_str(cat.t("menu.lang.ai_tag"));
+                    }
+                    let stile = if i == selezione { t.selected } else { t.dialog };
+                    (testo, stile)
+                })
+                .collect();
+            // Se almeno una lingua e' AI, l'avviso sta sotto la lista.
+            if app.langs().iter().any(|l| l.ai) {
+                righe.push((cat.t("menu.lang.ai_warning").to_string(), t.hint));
+            }
+            ContenutoDialogo {
+                titolo: cat.t("menu.lang.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
+        DialogKind::Goto => {
+            let testo = app.goto_text().to_string();
+            let righe = vec![
+                (cat.t("prompt.goto.hint").to_string(), t.hint),
+                (format!("> {}", testo), t.dialog),
+                (cat.t("prompt.keys").to_string(), t.hint),
+            ];
+            // Il cursore sta nella riga di input, dopo "> " e il testo scritto.
+            ContenutoDialogo {
+                titolo: cat.t("prompt.goto.title").to_string(),
+                righe,
+                cursore: Some((1, 2 + testo.chars().count())),
+            }
+        }
+        // I dialoghi dei compiti successivi non hanno ancora un disegno.
+        _ => ContenutoDialogo {
+            titolo: String::new(),
+            righe: Vec::new(),
+            cursore: None,
+        },
+    }
 }
 
 /// La dimensione leggibile del titolo: `N B` sotto 1024, altrimenti due decimali in `KiB`/`MiB`/`GiB`/`TiB`.

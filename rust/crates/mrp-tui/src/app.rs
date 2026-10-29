@@ -1,6 +1,7 @@
 //! L'app del TUI: una macchina a stati testabile senza terminale (il contratto sta in `docs/TEAM/DESIGN_TUI.md`).
 //! Riceve tasti, mouse e dimensioni dello schermo; non disegna (lo fa `ui.rs`); tutta la logica di testo e' nel core.
 
+use crate::settings::Settings;
 use crate::theme::ThemeId;
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::scan::{self, Next};
@@ -29,6 +30,15 @@ fn cifre(n: u64) -> usize {
         conto += 1;
     }
     conto
+}
+
+/// Un numero intero non negativo scritto in cifre ASCII: `None` se e' vuoto, contiene altro o non ci sta in un
+/// `u64` (la grammatica del "vai a").
+fn parse_cifre(s: &str) -> Option<u64> {
+    if s.is_empty() || !s.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    s.parse().ok()
 }
 
 /// Quanti byte occupa il primo carattere di `bytes`: il piu' corto prefisso UTF-8 valido, altrimenti un solo byte
@@ -148,6 +158,18 @@ pub struct App {
     quit: bool,
     /// Dove sta il cursore sullo schermo dopo l'ultimo disegno (lo scrive `ui::draw`).
     cursor_xy: Option<(u16, u16)>,
+    /// Il dialogo aperto: tiene tutti i tasti per se' finche' non si chiude.
+    dialog: Option<DialogKind>,
+    /// La voce selezionata nel menu aperto (tema o lingua).
+    menu_index: usize,
+    /// Il testo scritto nel prompt "vai a".
+    goto_text: String,
+    /// Le lingue disponibili: il menu di F7 e i cambi del `Catalog`.
+    langs: Vec<Lang>,
+    /// Dove salvare le impostazioni quando si cambia tema o lingua; `None`: non si salva niente.
+    settings_path: Option<PathBuf>,
+    /// Il codice della lingua scelta dall'utente (`None`: l'inglese incorporato): e' la `lang` delle impostazioni.
+    lang_picked: Option<String>,
 }
 
 impl App {
@@ -159,13 +181,14 @@ impl App {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        // La lingua attiva: quella col codice richiesto fra le disponibili, altrimenti l'inglese incorporato.
-        let cat = match &cfg.lang_code {
+        // La lingua attiva: quella col codice richiesto fra le disponibili, altrimenti l'inglese incorporato. La
+        // scelta conta come "fatta dall'utente" (per le impostazioni) solo se il codice esiste davvero.
+        let (cat, lang_picked) = match &cfg.lang_code {
             Some(code) => match cfg.langs.iter().find(|l| &l.code == code) {
-                Some(l) => Catalog::with(l.clone()),
-                None => Catalog::english(),
+                Some(l) => (Catalog::with(l.clone()), Some(code.clone())),
+                None => (Catalog::english(), None),
             },
-            None => Catalog::english(),
+            None => (Catalog::english(), None),
         };
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
@@ -203,6 +226,12 @@ impl App {
             index_job,
             quit: false,
             cursor_xy: None,
+            dialog: None,
+            menu_index: 0,
+            goto_text: String::new(),
+            langs: cfg.langs,
+            settings_path: cfg.settings_path,
+            lang_picked,
         })
     }
 
@@ -218,6 +247,11 @@ impl App {
     pub fn handle_key(&mut self, key: KeyEvent) {
         // Il messaggio transitorio sparisce al primo tasto premuto dopo, prima di eseguirlo.
         self.flash = None;
+        // Un dialogo aperto riceve TUTTI i tasti: il documento non si muove finche' non si chiude.
+        if self.dialog.is_some() {
+            self.dialog_key(key);
+            return;
+        }
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         match key.code {
@@ -231,8 +265,13 @@ impl App {
             KeyCode::End => self.move_end(),
             KeyCode::PageUp => self.page_up(),
             KeyCode::PageDown => self.page_down(),
+            KeyCode::F(1) => self.open_dialog(DialogKind::Help),
             KeyCode::F(4) => self.toggle_edit(),
+            KeyCode::F(5) => self.open_dialog(DialogKind::Goto),
+            KeyCode::F(6) => self.open_dialog(DialogKind::Theme),
+            KeyCode::F(7) => self.open_dialog(DialogKind::Lang),
             KeyCode::F(10) => self.quit_now(),
+            KeyCode::Char('g') if ctrl => self.open_dialog(DialogKind::Goto),
             KeyCode::Char('q') if ctrl => self.quit_now(),
             // Un tasto di scrittura: in lettura e' rifiutato con un suggerimento (in modifica arriva con E10).
             KeyCode::Char(_)
@@ -264,6 +303,230 @@ impl App {
         self.doc = None;
         self.index_job = None;
         self.cancel.store(true, Ordering::Relaxed);
+    }
+
+    // ----- dialoghi -----
+
+    /// Apre un dialogo: l'aiuto, i menu (che partono dalla voce corrente) o il prompt "vai a" (vuoto).
+    fn open_dialog(&mut self, kind: DialogKind) {
+        match kind {
+            DialogKind::Theme => {
+                self.menu_index = ThemeId::ALL
+                    .iter()
+                    .position(|&t| t == self.theme)
+                    .unwrap_or(0);
+            }
+            DialogKind::Lang => {
+                self.menu_index = self
+                    .langs
+                    .iter()
+                    .position(|l| l.code == self.cat.code())
+                    .unwrap_or(0);
+            }
+            DialogKind::Goto => self.goto_text.clear(),
+            _ => {}
+        }
+        self.dialog = Some(kind);
+    }
+
+    /// I tasti di un dialogo aperto: valgono solo i suoi, tutto il resto si ignora.
+    fn dialog_key(&mut self, key: KeyEvent) {
+        let Some(kind) = self.dialog else {
+            return;
+        };
+        let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
+        let alt = key.modifiers.contains(KeyModifiers::ALT);
+        match kind {
+            // Aiuto: Esc, F1 e Enter chiudono.
+            DialogKind::Help => match key.code {
+                KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) => self.dialog = None,
+                _ => {}
+            },
+            // Menu (tema e lingua): le frecce scelgono (ferme agli estremi), Enter applica, Esc annulla.
+            DialogKind::Theme | DialogKind::Lang => match key.code {
+                KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
+                KeyCode::Down => {
+                    if self.menu_index + 1 < self.menu_len() {
+                        self.menu_index += 1;
+                    }
+                }
+                KeyCode::Enter => self.menu_apply(),
+                KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
+            // Prompt "vai a": i caratteri si scrivono, Backspace toglie, Enter conferma, Esc annulla.
+            DialogKind::Goto => match key.code {
+                KeyCode::Esc => self.dialog = None,
+                KeyCode::Enter => {
+                    let testo = std::mem::take(&mut self.goto_text);
+                    self.dialog = None;
+                    self.goto_run(&testo);
+                }
+                KeyCode::Backspace => {
+                    self.goto_text.pop();
+                }
+                KeyCode::Char(c) if !ctrl && !alt => self.goto_text.push(c),
+                _ => {}
+            },
+            // I dialoghi dei compiti successivi non prendono ancora nessun tasto.
+            _ => {}
+        }
+    }
+
+    /// Quante voci ha il menu aperto.
+    fn menu_len(&self) -> usize {
+        match self.dialog {
+            Some(DialogKind::Theme) => ThemeId::ALL.len(),
+            Some(DialogKind::Lang) => self.langs.len(),
+            _ => 0,
+        }
+    }
+
+    /// Enter in un menu: applica la scelta, chiude e salva le impostazioni. La lingua cambia il `Catalog` PRIMA
+    /// del messaggio, cosi' `flash.lang` e' nella nuova lingua.
+    fn menu_apply(&mut self) {
+        match self.dialog {
+            Some(DialogKind::Theme) => {
+                let Some(&tema) = ThemeId::ALL.get(self.menu_index) else {
+                    return;
+                };
+                self.theme = tema;
+                self.dialog = None;
+                self.flash = Some(self.cat.tf("flash.theme", &[self.cat.t(tema.key())]));
+                self.save_settings();
+            }
+            Some(DialogKind::Lang) => {
+                let Some(l) = self.langs.get(self.menu_index).cloned() else {
+                    return;
+                };
+                let nome = l.name.clone();
+                self.cat = Catalog::with(l);
+                self.lang_picked = Some(self.cat.code().to_string());
+                self.dialog = None;
+                self.flash = Some(self.cat.tf("flash.lang", &[&nome]));
+                self.save_settings();
+            }
+            _ => {}
+        }
+    }
+
+    /// Scrive le impostazioni (il tema e la lingua scelta) se c'e' un posto dove salvarle. Un errore di scrittura
+    /// si ignora: il cambiamento resta valido per questa sessione.
+    fn save_settings(&mut self) {
+        let Some(path) = self.settings_path.clone() else {
+            return;
+        };
+        let s = Settings {
+            theme: self.theme,
+            lang: self.lang_picked.clone(),
+        };
+        let _ = s.save(&path);
+    }
+
+    /// Esegue il testo del prompt "vai a" (il dialogo e' gia' chiuso): `N` = riga N (1-based, serve l'indice
+    /// pronto), `@N` = offset in byte, `%P` = percentuale 0..=100. Qualunque altra cosa, o in errore, il cursore
+    /// non si muove.
+    fn goto_run(&mut self, testo: &str) {
+        // Testo vuoto: chiuso senza chiedere niente.
+        if testo.is_empty() {
+            return;
+        }
+        if let Some(resto) = testo.strip_prefix('@') {
+            if let Some(n) = parse_cifre(resto) {
+                // Oltre la fine: l'ultima posizione consentita dal modo.
+                self.goto_move(n.min(self.max_cursor()));
+                return;
+            }
+        } else if let Some(resto) = testo.strip_prefix('%') {
+            if let Some(p) = parse_cifre(resto) {
+                if p <= 100 {
+                    let len = self.document_len();
+                    self.goto_move(len.saturating_mul(p) / 100);
+                    return;
+                }
+            }
+        } else if let Some(n) = parse_cifre(testo) {
+            if n == 0 {
+                self.flash = Some(self.cat.tf("flash.goto_bad", &[testo]));
+                return;
+            }
+            // Il numero di riga serve l'indice pronto; offset e percentuale no.
+            if !self.doc.as_ref().is_some_and(|doc| doc.has_lines()) {
+                self.flash = Some(self.cat.t("flash.goto_wait").to_string());
+                return;
+            }
+            let Some(conteggio) = self.doc.as_mut().and_then(|doc| doc.line_count()) else {
+                return;
+            };
+            if n > conteggio {
+                self.flash = Some(self.cat.tf(
+                    "flash.goto_range",
+                    &[&n.to_string(), &conteggio.to_string()],
+                ));
+                return;
+            }
+            let Some(pos) = self.doc.as_mut().and_then(|doc| doc.offset_of_line(n - 1)) else {
+                return;
+            };
+            self.goto_move(pos);
+            return;
+        }
+        self.flash = Some(self.cat.tf("flash.goto_bad", &[testo]));
+    }
+
+    /// Un "vai a" riuscito: il cursore va su un confine di carattere e la sua riga si vede (centrata se non si
+    /// vedeva gia').
+    fn goto_move(&mut self, pos: u64) {
+        let pos = self.snap_to_char(pos.min(self.max_cursor()));
+        self.cursor = pos;
+        self.remember_col();
+        self.center_cursor_row();
+        self.scroll_adjust();
+    }
+
+    /// Centraggio del "vai a": se la riga del cursore non e' visibile, `top` diventa l'inizio della riga visuale
+    /// `righe_di_testo / 2` righe PRIMA di quella del cursore (non prima dell'inizio del file), poi limitato
+    /// all'ultima pagina.
+    fn center_cursor_row(&mut self) {
+        let text_rows = self.text_rows();
+        if text_rows == 0 {
+            return;
+        }
+        let row = self.cursor_row();
+        if row == self.top || self.rows_after(self.top, text_rows - 1).contains(&row) {
+            return;
+        }
+        let mut top = self
+            .rows_before(row, text_rows / 2)
+            .last()
+            .copied()
+            .unwrap_or(row);
+        let last = self.last_top();
+        if top > last {
+            top = last;
+        }
+        self.top = top;
+    }
+
+    /// Porta `pos` sul confine di carattere piu' vicino non oltre `pos`: un carattere UTF-8 valido occupa al piu'
+    /// quattro byte, quindi bastano tre passi indietro (un byte di prosecuzione `0b10xxxxxx` sta dentro un
+    /// carattere multibyte, un confine non lo e' mai).
+    fn snap_to_char(&self, pos: u64) -> u64 {
+        let Some(doc) = self.doc.as_ref() else {
+            return pos;
+        };
+        let mut pos = pos.min(doc.len());
+        for _ in 0..3 {
+            if pos == 0 {
+                break;
+            }
+            let sotto = doc.read_range(pos, 1);
+            match sotto.first() {
+                Some(b) if (b & 0b1100_0000) == 0b1000_0000 => pos -= 1,
+                _ => break,
+            }
+        }
+        pos
     }
 
     /// Raccoglie i lavori in background (l'indice righe).
@@ -339,19 +602,26 @@ impl App {
     }
 
     /// Posizione del cursore sullo schermo (colonna, riga) dopo l'ultimo `draw`; `None` se un dialogo e' aperto o
-    /// non si e' ancora disegnato.
+    /// non si e' ancora disegnato. Nei prompt e' la posizione dentro il prompt, dopo il testo scritto.
     pub fn cursor_xy(&self) -> Option<(u16, u16)> {
-        self.cursor_xy
+        match self.dialog {
+            Some(DialogKind::Goto) => self.cursor_xy,
+            Some(_) => None,
+            None => self.cursor_xy,
+        }
     }
 
     /// Il dialogo aperto.
     pub fn dialog_kind(&self) -> Option<DialogKind> {
-        None // i dialoghi arrivano con E9
+        self.dialog
     }
 
     /// La voce selezionata di un menu (tema, lingua) aperto; `None` se non c'e' un menu.
     pub fn menu_index(&self) -> Option<usize> {
-        None // i menu arrivano con E9
+        match self.dialog {
+            Some(DialogKind::Theme) | Some(DialogKind::Lang) => Some(self.menu_index),
+            _ => None,
+        }
     }
 
     pub fn theme_id(&self) -> ThemeId {
@@ -401,6 +671,16 @@ impl App {
     /// Il vocabolario attivo (ogni stringa visibile viene da qui).
     pub(crate) fn catalog(&self) -> &Catalog {
         &self.cat
+    }
+
+    /// Le lingue disponibili (le righe del menu di F7).
+    pub(crate) fn langs(&self) -> &[Lang] {
+        &self.langs
+    }
+
+    /// Il testo scritto nel prompt "vai a".
+    pub(crate) fn goto_text(&self) -> &str {
+        &self.goto_text
     }
 
     /// La percentuale dell'indicizzazione in corso (0..=100); `None` se non c'e' un lavoro in corso.
