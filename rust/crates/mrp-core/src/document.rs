@@ -13,6 +13,7 @@ use std::fs::File;
 use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::SystemTime;
 
 /// Byte copiati per volta durante il salvataggio (anche granularita' di annullamento e di avanzamento).
@@ -177,8 +178,10 @@ struct Step {
 /// File + modifiche.
 pub struct Document {
     path: PathBuf,
-    /// `None` solo se un salvataggio e' riuscito a rinominare ma non a riaprire (documento chiuso, lungo 0).
-    source: Option<FileSource>,
+    /// Sorgente condivisa: oltre al documento la tiene una `Snapshot` di `docsearch.rs` (il
+    /// salvataggio sostituisce il puntatore qui, non le copie gia' prese). `None` solo se un
+    /// salvataggio e' riuscito a rinominare ma non a riaprire (documento chiuso, lungo 0).
+    source: Option<Arc<FileSource>>,
     table: PieceTable,
     stamp: Stamp,
     /// Posizione nella storia (vedi `is_modified`): ogni modifica efficace prende da
@@ -218,7 +221,7 @@ impl Document {
         let table = PieceTable::new(source.len());
         Ok(Document {
             path: canon,
-            source: Some(source),
+            source: Some(Arc::new(source)),
             table,
             stamp,
             version: 0,
@@ -257,6 +260,12 @@ impl Document {
     /// La tabella dei pezzi (sola lettura), per chi deve conoscere la struttura.
     pub fn table(&self) -> &PieceTable {
         &self.table
+    }
+
+    /// La sorgente attuale, da condividere con la fotografia di `docsearch.rs`; `None` se il
+    /// documento e' chiuso.
+    pub(crate) fn source(&self) -> Option<&Arc<FileSource>> {
+        self.source.as_ref()
     }
 
     /// Come `PieceTable::insert`. Un inserimento di `data` vuoto non segna il documento come modificato.
@@ -692,10 +701,11 @@ impl Document {
                     Ok(md) => stamp_of(&md),
                     Err(e) => return Err(SaveError::Io(e)),
                 };
-                // La sostituzione rilascia la vecchia mappatura; la tabella torna a un solo
-                // pezzo `Original` lungo quanto il file appena scritto.
+                // La sostituzione sgancia il documento dalla vecchia mappatura (resta viva
+                // finche' una fotografia la condivide); la tabella torna a un solo pezzo
+                // `Original` lungo quanto il file appena scritto.
                 self.table = PieceTable::new(new_source.len());
-                self.source = Some(new_source);
+                self.source = Some(Arc::new(new_source));
                 self.stamp = stamp;
                 // Il salvataggio e' riuscito: lo stato attuale e' quello del file e la storia
                 // non vale piu' (i pezzi `Original` puntavano al vecchio file).
