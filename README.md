@@ -11,8 +11,9 @@ truncates your data, and that opens a multi-gigabyte file like a viewer and beco
 
 > **Status: early development — a first terminal editor (`mrp`) runs.** Memory-mapped file source, sparse line index, search,
 > a piece-table edit layer with undo/redo, a crash-safe save and a terminal UI (view, edit, find, go to, themes, 7 languages) are
-> implemented and tested (212 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows, on small files, and the
-> multi-gigabyte behaviour of the UI is not measured yet. The evidence that the gap is real:
+> implemented and tested (212 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
+> once and keeps about 13–35 MiB of private memory, even while saving (one machine, one HDD, a handful of runs: see
+> [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux and macOS are untried. The evidence that the gap is real:
 > [market survey](docs/MARKET.md) and [reproducible benchmarks](docs/BENCHMARKS.md) of four tools on a 6 GB file.
 > 🇮🇹 [Leggi in italiano](README.it.md)
 
@@ -62,7 +63,7 @@ Details, method and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). One machi
 
 1. **Core** — memory-mapped file source, sparse line index, search with cancel. *(viewer mode — done for the library, in `rust/crates/mrp-core`)*
 2. **Editing** — piece-table overlay over the original file *(done: `PieceTable`)*; streaming save to a temp file + atomic rename *(done: `Document::save`)*; undo/redo and a line index that follows the edits *(done)*.
-3. **TUI front end** (ratatui), classic keyboard model, mouse as a shortcut *(first version done: `mrp`, view/edit/find/go to/themes/languages; to do: measure it on multi-gigabyte files, Linux/macOS)*.
+3. **TUI front end** (ratatui), classic keyboard model, mouse as a shortcut *(first version done: `mrp`, view/edit/find/go to/themes/languages; measured once on a 6 GB file; to do: SSD, Linux/macOS)*.
 4. **Column mode** and encodings.
 5. **GUI front end.**
 
