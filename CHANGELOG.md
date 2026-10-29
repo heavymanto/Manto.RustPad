@@ -5,6 +5,14 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 ## [Unreleased]
 
 ### Added
+- **`PieceTable`** (`edit.rs`): the document as a list of pieces pointing into the original file (never copied) or a small
+  buffer of additions; `insert`, `delete`, `read_range` with 64-bit offsets, canonical form (no empty pieces, contiguous
+  pieces merged), errors that change nothing. Memory follows the edits, not the file size. 22 tests, with a naive
+  `Vec<u8>` oracle on random edits.
+- **`Document`** (`document.rs`): a file plus its `PieceTable`, and **`save`**: writes a temporary file in the same folder,
+  `fsync`s it, copies the permissions and renames it over the original. Cancel (checked every 4 MiB) and failure leave the
+  original untouched and no temporary file; if the file on disk changed since it was opened (length or date, or gone)
+  the save is refused (`SourceChanged`) instead of overwriting someone else's work. 16 tests plus one 6 GB test.
 - **`mrp-core` 0.1.0** — the engine, a library with no user interface yet:
   - `FileSource`: read-only memory-mapped file, 64-bit offsets, bytes (not
     UTF-8), empty file handled, error on anything that is not a regular file.

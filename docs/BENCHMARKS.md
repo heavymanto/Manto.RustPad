@@ -113,7 +113,17 @@ sequential**, and any second reader (a worker faulting on a page the prefetcher 
 pattern. The fix was to make the prefetch thread the only thing that touches the disk. The price is that, when the file is
 already cached, the single-threaded prefetch copy limits the index to ~4 GB/s (1.3 s) instead of ~13 GB/s.
 
-Not measured yet: search throughput, any editing or saving, SSD behaviour, Linux/macOS, interactive latency (there is no UI).
+### Saving (first measurement)
+
+`Document::save` writes the edited document to a temporary file next to the original (4 MiB blocks, explicit reads, `fsync`),
+then renames it over the original. Test `big_file_save_beyond_4gib`, release build, same 6.0 GB file on the HDD: a 7-byte insert at
+byte 4,500,000,000 and a 100-byte delete near the start. Result: file of 5,999,999,907 bytes (6,000,000,000 + 7 − 100),
+first 100 bytes, the bytes around the insert and the last 100 bytes verified, no temporary file left. The whole test
+took **116 s** — it reads and writes ~6 GB on the *same* disk, so the two streams compete for it. One run, file freshly
+copied (partly in cache), the figure includes opening and the checks. It is **not** a clean throughput number.
+
+Not measured yet: search throughput, a clean save throughput (and on SSD), the cost of many edits (the piece list is a plain
+vector, O(pieces) per edit), SSD behaviour, Linux/macOS, interactive latency (there is no UI).
 
 ## What this means for Manto.RustPad
 

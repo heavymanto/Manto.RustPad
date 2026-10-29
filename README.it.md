@@ -10,7 +10,7 @@
 che non tronca mai i dati in silenzio e che apre un file da molti gigabyte come un viewer, diventando modificabile a richiesta.*
 
 > **Stato: sviluppo iniziale — la libreria del core funziona, non c'è ancora un'interfaccia da editor.** File mappato in
-> memoria, indice righe sparso e ricerca sono realizzati e testati (30 test più uno su un file da 6 GB oltre 4 GiB). La prova che il vuoto è reale:
+> memoria, indice righe sparso, ricerca, livello di modifica a piece table e salvataggio a prova di interruzione sono realizzati e testati (68 test più due su file da 6 GB oltre 4 GiB). La prova che il vuoto è reale:
 > [indagine di mercato](docs/MARKET.md) e [benchmark riproducibili](docs/BENCHMARKS.md) di quattro programmi su un file da 6 GB.
 > 🇬🇧 [Read in English](README.md)
 
@@ -59,7 +59,7 @@ Dettagli, metodo e limiti: [docs/BENCHMARKS.md](docs/BENCHMARKS.md) (in inglese)
 ## Tappe
 
 1. **Core**: sorgente file mappato in memoria, indice righe sparso, ricerca annullabile (modalità viewer). *Fatto per la libreria: `rust/crates/mrp-core`.*
-2. **Modifica**: piece table sopra il file originale; salvataggio a flusso su file temporaneo con rinomina atomica.
+2. **Modifica**: piece table sopra il file originale *(fatto: `PieceTable`)*; salvataggio a flusso su file temporaneo con rinomina atomica *(fatto: `Document::save`)*; annulla/ripeti e indice righe che segue le modifiche *(prossimo)*.
 3. **Modalità colonna** e codifiche.
 4. **Interfaccia TUI** (ratatui), tastiera classica, mouse come scorciatoia.
 5. **Interfaccia GUI.**

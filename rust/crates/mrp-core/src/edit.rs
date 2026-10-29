@@ -91,6 +91,23 @@ impl PieceTable {
         self.add.len() as u64
     }
 
+    /// Fetta del buffer delle aggiunte: serve al salvataggio. Fuori dai limiti restituisce una fetta vuota.
+    pub(crate) fn add_bytes(&self, start: u64, len: usize) -> &[u8] {
+        // Come le altre conversioni u64 -> usize del crate: mai `unwrap`, fuori dai limiti si
+        // restituisce il vuoto.
+        let s = match usize::try_from(start) {
+            Ok(s) => s,
+            // Inizio oltre `usize::MAX`.
+            Err(_) => return &[],
+        };
+        let e = match s.checked_add(len) {
+            Some(e) => e,
+            // Fine oltre `usize::MAX` (restare oltre la fine del buffer lo segnala `get`).
+            None => return &[],
+        };
+        self.add.get(s..e).unwrap_or(&[])
+    }
+
     /// Inserisce `data` alla posizione `pos` (0..=len()). `data` vuoto = nessun effetto (ma `pos` e' comunque controllato).
     /// Errore `OutOfRange` se `pos > len()`; in caso di errore il documento resta identico.
     pub fn insert(&mut self, pos: u64, data: &[u8]) -> Result<(), EditError> {

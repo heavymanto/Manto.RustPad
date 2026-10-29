@@ -5,11 +5,13 @@
 //! - posizioni e conteggi sono `u64` (i file superano 4 GiB);
 //! - il contenuto e' trattato come byte, non come UTF-8.
 
+pub mod document;
 pub mod edit;
 pub mod lines;
 pub mod search;
 pub mod source;
 
+pub use document::{Document, SaveError};
 pub use lines::{BuildOptions, Cancelled, LineIndex};
 pub use search::{find_next, find_prev, SearchOptions, SearchResult};
 pub use source::FileSource;
