@@ -9,8 +9,10 @@
 *A familiar, non-modal text editor written in Rust whose memory use does not depend on file size, that never silently
 truncates your data, and that opens a multi-gigabyte file like a viewer and becomes editable on demand.*
 
-> **Status: early development — the core library works, there is no editor UI yet.** Memory-mapped file source, sparse line
-> index, search, a piece-table edit layer and a crash-safe save are implemented and tested (68 tests + two 6 GB tests beyond 4 GiB). The evidence that the gap is real:
+> **Status: early development — a first terminal editor (`mrp`) runs.** Memory-mapped file source, sparse line index, search,
+> a piece-table edit layer with undo/redo, a crash-safe save and a terminal UI (view, edit, find, go to, themes, 7 languages) are
+> implemented and tested (212 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows, on small files, and the
+> multi-gigabyte behaviour of the UI is not measured yet. The evidence that the gap is real:
 > [market survey](docs/MARKET.md) and [reproducible benchmarks](docs/BENCHMARKS.md) of four tools on a 6 GB file.
 > 🇮🇹 [Leggi in italiano](README.it.md)
 
@@ -59,9 +61,9 @@ Details, method and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). One machi
 ## Roadmap
 
 1. **Core** — memory-mapped file source, sparse line index, search with cancel. *(viewer mode — done for the library, in `rust/crates/mrp-core`)*
-2. **Editing** — piece-table overlay over the original file *(done: `PieceTable`)*; streaming save to a temp file + atomic rename *(done: `Document::save`)*; undo/redo and a line index that follows the edits *(next)*.
-3. **Column mode** and encodings.
-4. **TUI front end** (ratatui), classic keyboard model, mouse as a shortcut.
+2. **Editing** — piece-table overlay over the original file *(done: `PieceTable`)*; streaming save to a temp file + atomic rename *(done: `Document::save`)*; undo/redo and a line index that follows the edits *(done)*.
+3. **TUI front end** (ratatui), classic keyboard model, mouse as a shortcut *(first version done: `mrp`, view/edit/find/go to/themes/languages; to do: measure it on multi-gigabyte files, Linux/macOS)*.
+4. **Column mode** and encodings.
 5. **GUI front end.**
 
 Each step is gated by the same benchmark suite (`bench/`) so claims stay falsifiable.
@@ -72,7 +74,8 @@ Each step is gated by the same benchmark suite (`bench/`) so claims stay falsifi
 |---|---|
 | `docs/MARKET.md` | Landscape of existing tools, with sources |
 | `docs/BENCHMARKS.md` | Measurements, method, limitations |
-| `rust/crates/mrp-core` | The core library (Rust): `FileSource`, `LineIndex`, `find_next`/`find_prev`, tests, `info` example |
+| `rust/crates/mrp-core` | The core library (Rust): `FileSource`, `LineIndex`, `PieceTable`/`Document` (edit, undo, save), search, view model, languages, tests, `info` example |
+| `rust/crates/mrp-tui` | The terminal editor `mrp` (ratatui): app state machine, screen, themes, settings, command line |
 | `bench/` | Reproducible scripts (Windows, Python 3.12, no dependencies) and raw results |
 | `CONTRIBUTING.md` | How to build, and the rules the code follows (64-bit offsets, never the whole file in memory…) |
 | `CHANGELOG.md`, `SECURITY.md` | What changed; how to report a vulnerability privately |

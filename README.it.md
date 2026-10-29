@@ -9,8 +9,8 @@
 *Un editor di testo in Rust, con comandi familiari (non modale), la cui memoria non dipende dalla dimensione del file,
 che non tronca mai i dati in silenzio e che apre un file da molti gigabyte come un viewer, diventando modificabile a richiesta.*
 
-> **Stato: sviluppo iniziale — la libreria del core funziona, non c'è ancora un'interfaccia da editor.** File mappato in
-> memoria, indice righe sparso, ricerca, livello di modifica a piece table e salvataggio a prova di interruzione sono realizzati e testati (68 test più due su file da 6 GB oltre 4 GiB). La prova che il vuoto è reale:
+> **Stato: sviluppo iniziale — gira un primo editor da terminale (`mrp`).** File mappato in
+> memoria, indice righe sparso, ricerca, livello di modifica a piece table con annulla/ripeti, salvataggio a prova di interruzione e interfaccia da terminale (lettura, modifica, ricerca, vai a, temi, 7 lingue) sono realizzati e testati (212 test più 3 su file da 6 GB oltre 4 GiB). Finora è stato provato solo su Windows e su file piccoli; il comportamento dell'interfaccia sui file da più gigabyte non è ancora misurato. La prova che il vuoto è reale:
 > [indagine di mercato](docs/MARKET.md) e [benchmark riproducibili](docs/BENCHMARKS.md) di quattro programmi su un file da 6 GB.
 > 🇬🇧 [Read in English](README.md)
 
@@ -59,9 +59,9 @@ Dettagli, metodo e limiti: [docs/BENCHMARKS.md](docs/BENCHMARKS.md) (in inglese)
 ## Tappe
 
 1. **Core**: sorgente file mappato in memoria, indice righe sparso, ricerca annullabile (modalità viewer). *Fatto per la libreria: `rust/crates/mrp-core`.*
-2. **Modifica**: piece table sopra il file originale *(fatto: `PieceTable`)*; salvataggio a flusso su file temporaneo con rinomina atomica *(fatto: `Document::save`)*; annulla/ripeti e indice righe che segue le modifiche *(prossimo)*.
-3. **Modalità colonna** e codifiche.
-4. **Interfaccia TUI** (ratatui), tastiera classica, mouse come scorciatoia.
+2. **Modifica**: piece table sopra il file originale *(fatto: `PieceTable`)*; salvataggio a flusso su file temporaneo con rinomina atomica *(fatto: `Document::save`)*; annulla/ripeti e indice righe che segue le modifiche *(fatto)*.
+3. **Interfaccia TUI** (ratatui), tastiera classica, mouse come scorciatoia *(prima versione fatta: `mrp`, lettura/modifica/ricerca/vai a/temi/lingue; da fare: misure su file da più gigabyte, Linux/macOS)*.
+4. **Modalità colonna** e codifiche.
 5. **Interfaccia GUI.**
 
 Ogni tappa è verificata con la stessa suite di benchmark (`bench/`), così le affermazioni restano falsificabili.
