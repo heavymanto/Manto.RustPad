@@ -18,7 +18,9 @@ impl TestDir {
         TestDir(p)
     }
     fn open(&self, data: &[u8]) -> Document {
-        let p = self.0.join("a.txt");
+        let p = self
+            .0
+            .join(format!("a{}.txt", COUNTER.fetch_add(1, Ordering::SeqCst)));
         std::fs::write(&p, data).unwrap();
         Document::open(&p).unwrap()
     }
@@ -201,6 +203,56 @@ fn cancel_stops_the_search() {
         p.load(Ordering::SeqCst),
         data.len() as u64,
         "progress arriva ai byte esaminati (tutto il documento)"
+    );
+}
+
+#[test]
+fn a_cancel_already_set_wins_over_the_quick_none_answers() {
+    let dir = TestDir::new();
+    let d = dir.open(b"abc");
+    let s = d.snapshot().unwrap();
+    let c = AtomicBool::new(true);
+    let p = AtomicU64::new(0);
+    // ago piu' lungo del documento, partenza oltre la fine: senza cancel sarebbero `None` subito
+    assert!(matches!(
+        s.find_next(b"abcdef", 0, &c, &p),
+        Err(SearchError::Cancelled)
+    ));
+    assert!(matches!(
+        s.find_next(b"a", 99, &c, &p),
+        Err(SearchError::Cancelled)
+    ));
+    assert!(matches!(
+        s.find_prev(b"abcdef", 3, &c, &p),
+        Err(SearchError::Cancelled)
+    ));
+    assert!(matches!(
+        s.find_prev(b"a", 0, &c, &p),
+        Err(SearchError::Cancelled)
+    ));
+    let (c, p) = flags();
+    assert_eq!(s.find_next(b"abcdef", 0, &c, &p).unwrap(), None);
+    assert_eq!(s.find_prev(b"a", 0, &c, &p).unwrap(), None);
+}
+
+#[test]
+fn a_chunk_of_zero_still_progresses_and_find_prev_reports_progress() {
+    let dir = TestDir::new();
+    let d = dir.open(b"abcabc");
+    let s = d.snapshot().unwrap().with_chunk(0);
+    let (c, p) = flags();
+    assert_eq!(s.find_next(b"ca", 0, &c, &p).unwrap(), Some(2));
+    assert_eq!(s.find_prev(b"bc", 6, &c, &p).unwrap(), Some(4));
+    // find_prev senza trovare niente: l'avanzamento copre (quasi) tutto il documento
+    let data = vec![b'a'; 1024 * 1024];
+    let d = dir.open(&data);
+    let s = d.snapshot().unwrap().with_chunk(64 * 1024);
+    let (c, p) = flags();
+    assert_eq!(s.find_prev(b"zz", data.len() as u64, &c, &p).unwrap(), None);
+    let fatto = p.load(Ordering::SeqCst);
+    assert!(
+        fatto >= data.len() as u64 - 1 && fatto <= data.len() as u64,
+        "progress {fatto}"
     );
 }
 
