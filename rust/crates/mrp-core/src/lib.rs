@@ -5,6 +5,7 @@
 //! - posizioni e conteggi sono `u64` (i file superano 4 GiB);
 //! - il contenuto e' trattato come byte, non come UTF-8.
 
+pub mod edit;
 pub mod lines;
 pub mod search;
 pub mod source;
