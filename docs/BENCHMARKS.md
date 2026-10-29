@@ -141,8 +141,26 @@ the file. 6.0 GB file, same HDD. The raw line of the last run is in
 | Edit and save (`XYZ` at line 30,000,000) | file 6,000,000,000 → 6,000,000,003 bytes, `XYZ` found at byte 2,999,999,900, the rest of the line intact; **91 s** and **98 s** in two runs, which is the cost of reading and writing 6 GB on one HDD |
 | Search (not measured with the script) | a `--dump` run that searched for a string that is *not* in the file (a full pass plus the wrap-around) took 24 s in total, including the ~7 s the dump waits for the index. Rough, one run |
 
-Not measured yet: a clean save throughput (and on SSD), the cost of many edits (the piece list is a plain vector, O(pieces)
-per edit), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real terminal (only the ConPTY driver).
+### Many scattered edits (first measurement — the weak spot)
+
+`cargo run --release -p mrp-core --example edits -- <file> <n>` inserts one byte at pseudo-random positions (the worst case for
+the piece list: every edit adds two pieces) in a 20 MB file and prints the average cost of the last tenth of the edits.
+One run, in memory only, 20,000 edits:
+
+| Edits so far | Pieces | Cost of one edit |
+|---|---|---|
+| 2,000 | 4,000 | 0.15 ms |
+| 10,000 | 20,000 | 0.87 ms |
+| 20,000 | 40,000 | 1.8 ms |
+
+The cost grows with the number of pieces (the piece list is a plain vector, copied and rebuilt on every edit): **quadratic in
+the number of edits**. Typing in one place does not hurt (adjacent pieces merge), and a person rarely makes thousands of
+separate edits in one session, but a future "replace all" with 100,000 matches would, extrapolating the growth (not measured), take several minutes. The fix is a tree instead of
+a vector; it is a design change, not done yet. Not measured: the cost of the line index and of the screen redraw with many
+pieces.
+
+Not measured yet: a clean save throughput (and on SSD), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real
+terminal (only the ConPTY driver).
 
 ## What this means for Manto.RustPad
 
