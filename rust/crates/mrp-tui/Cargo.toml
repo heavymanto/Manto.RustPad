@@ -1,0 +1,34 @@
+[package]
+name = "mrp-tui"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/heavymanto/Manto.RustPad"
+publish = false
+description = "Manto.RustPad TUI: editor da terminale per file piu' grandi della RAM (ratatui + crossterm sul motore mrp-core)"
+
+[lib]
+name = "mrp_tui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mrp"
+path = "src/main.rs"
+
+[dependencies]
+mrp-core = { path = "../mrp-core" }
+# crossterm non e' una dipendenza diretta: si usa tramite la re-export
+# ratatui::crossterm, cosi' la versione e' sempre quella del backend
+ratatui = "0.30"
+# NOTA su parking_lot (transitivo di crossterm): la parking_lot_core 0.9.12
+# dipende da windows-link, che sul target x86_64-pc-windows-gnu genera le
+# librerie di importazione con dlltool all'atto della build; il toolchain gnu
+# di rustup non ha l'assembler che dlltool richiede (serve un MinGW completo).
+# Le 0.12.4 / 0.9.11 usano windows_x86_64_gnu con librerie precompilate e
+# costruiscono senza nulla di tutto cio'. Da ripensare quando
+# crossterm/windows-link sistemano il target gnu.
+parking_lot = "=0.12.4"
+parking_lot_core = "=0.9.11"
+
+# NOTA: [profile.release] sta nel Cargo.toml del workspace (rust/), non qui:
+# Cargo ignora i profili dichiarati nei crate member.

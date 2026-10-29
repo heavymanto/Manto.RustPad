@@ -1,0 +1,214 @@
+//! I quattro temi del TUI (F6): **Night** (blu Norton/Total Commander, selezione gialla), **Debian** (sfondo blu
+//! dell'installer, finestre grigie, selezione rossa), **Console** (il predefinito: bianco su nero, accenti gialli,
+//! selezione verde) e **Minimal** (nessun colore imposto: quelli del terminale). 16 colori ANSI, niente truecolor.
+//! Stessa tecnica di Manto.FreeDisk (`mfd-tui/src/theme.rs`, da cui si porta): i temi sono codice, i nomi nel menu
+//! vengono dalle lingue (`key`/`blurb_key`).
+
+use ratatui::style::{Color, Modifier, Style};
+
+/// L'identita' di un tema: quello che si sceglie nel menu e che l'app ricorda. L'ordine delle varianti e' l'ordine
+/// del menu.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum ThemeId {
+    Night,
+    Debian,
+    Console,
+    Minimal,
+}
+
+impl ThemeId {
+    /// I quattro temi, nell'ordine del menu.
+    pub const ALL: [ThemeId; 4] = [
+        ThemeId::Night,
+        ThemeId::Debian,
+        ThemeId::Console,
+        ThemeId::Minimal,
+    ];
+
+    /// Il tema di partenza e di fabbrica: Console.
+    pub const DEFAULT: ThemeId = ThemeId::Console;
+
+    /// Chiave della lingua per il nome nel menu: `theme.night`, `theme.debian`, `theme.console`, `theme.minimal`.
+    pub fn key(self) -> &'static str {
+        match self {
+            ThemeId::Night => "theme.night",
+            ThemeId::Debian => "theme.debian",
+            ThemeId::Console => "theme.console",
+            ThemeId::Minimal => "theme.minimal",
+        }
+    }
+
+    /// Chiave della lingua per la riga descrittiva: la chiave del nome piu' `.b`.
+    pub fn blurb_key(self) -> &'static str {
+        match self {
+            ThemeId::Night => "theme.night.b",
+            ThemeId::Debian => "theme.debian.b",
+            ThemeId::Console => "theme.console.b",
+            ThemeId::Minimal => "theme.minimal.b",
+        }
+    }
+
+    /// Codice ASCII nel file delle impostazioni e in `--theme`: `night`, `debian`, `console`, `minimal`.
+    pub fn code(self) -> &'static str {
+        match self {
+            ThemeId::Night => "night",
+            ThemeId::Debian => "debian",
+            ThemeId::Console => "console",
+            ThemeId::Minimal => "minimal",
+        }
+    }
+
+    /// Il tema dal suo codice, tollerante a maiuscole e spazi; `None` se non e' uno dei quattro.
+    pub fn parse(s: &str) -> Option<ThemeId> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "night" => Some(ThemeId::Night),
+            "debian" => Some(ThemeId::Debian),
+            "console" => Some(ThemeId::Console),
+            "minimal" => Some(ThemeId::Minimal),
+            _ => None,
+        }
+    }
+}
+
+/// Un tema completo: uno stile per ruolo.
+#[derive(Clone, Copy, Debug)]
+pub struct Theme {
+    /// Sfondo di tutto il TUI e testo di default.
+    pub screen: Style,
+    /// Sfondo delle finestre di dialogo (puo' differire da `screen`).
+    pub dialog: Style,
+    /// Testo del documento.
+    pub fg: Style,
+    /// Titoli delle finestre e barra del titolo.
+    pub title: Style,
+    /// Suggerimenti e note a margine.
+    pub hint: Style,
+    /// I numeri dei tasti funzione nella barra in fondo.
+    pub key: Style,
+    /// Riga di stato e messaggi transitori.
+    pub status: Style,
+    /// La voce selezionata nei menu.
+    pub selected: Style,
+    /// Bordo delle finestre.
+    pub border: Style,
+    /// Numeri di riga.
+    pub gutter: Style,
+    /// Testo trovato dalla ricerca.
+    pub found: Style,
+    /// I segni `«` e `»` di scorrimento orizzontale.
+    pub more: Style,
+    /// Il marcatore VIEW nella barra del titolo.
+    pub mode_view: Style,
+    /// Il marcatore EDIT (e il segno di modificato) nella barra del titolo.
+    pub mode_edit: Style,
+    /// Primo piano del velo che scurisce cio' che sta dietro le finestre.
+    pub shadow_fg: Color,
+    /// Fondo del velo: `None` per Minimal (lascia i colori del terminale).
+    pub shadow_bg: Option<Color>,
+}
+
+impl Theme {
+    pub fn for_id(id: ThemeId) -> Theme {
+        match id {
+            ThemeId::Night => Theme::night(),
+            ThemeId::Debian => Theme::debian(),
+            ThemeId::Console => Theme::console(),
+            ThemeId::Minimal => Theme::minimal(),
+        }
+    }
+
+    /// Minimal: nessun colore imposto, restano quelli del terminale (su un terminale nero e' il tema nero).
+    /// Selezione e trovato a video inverso, il marcatore EDIT aggiunge il grassetto. L'ombra tocca solo il primo
+    /// piano: il fondo resta del terminale.
+    fn minimal() -> Theme {
+        Theme {
+            screen: Style::new(),
+            dialog: Style::new(),
+            fg: Style::new(),
+            title: Style::new().add_modifier(Modifier::BOLD),
+            hint: Style::new().add_modifier(Modifier::DIM),
+            key: Style::new().add_modifier(Modifier::BOLD),
+            status: Style::new().add_modifier(Modifier::BOLD),
+            selected: Style::new().add_modifier(Modifier::REVERSED),
+            border: Style::new().add_modifier(Modifier::BOLD),
+            gutter: Style::new().add_modifier(Modifier::DIM),
+            found: Style::new().add_modifier(Modifier::REVERSED),
+            more: Style::new().add_modifier(Modifier::BOLD),
+            mode_view: Style::new().add_modifier(Modifier::BOLD),
+            mode_edit: Style::new().add_modifier(Modifier::REVERSED | Modifier::BOLD),
+            shadow_fg: Color::DarkGray,
+            shadow_bg: None,
+        }
+    }
+
+    /// Night: il blu Norton/Total Commander. Sfondo blu, testo bianco, ciano per titoli, suggerimenti e numeri di
+    /// riga, giallo per gli accenti; selezione, trovato e marcatore EDIT nero su giallo. Ombra nera a velo.
+    fn night() -> Theme {
+        Theme {
+            screen: Style::new().bg(Color::Blue).fg(Color::White),
+            dialog: Style::new().bg(Color::Blue).fg(Color::White),
+            fg: Style::new().fg(Color::White),
+            title: Style::new().fg(Color::Cyan).bold(),
+            hint: Style::new().fg(Color::Cyan),
+            key: Style::new().fg(Color::Yellow).bold(),
+            status: Style::new().fg(Color::Yellow),
+            selected: Style::new().fg(Color::Black).bg(Color::Yellow),
+            border: Style::new().fg(Color::Yellow),
+            gutter: Style::new().fg(Color::Cyan),
+            found: Style::new().fg(Color::Black).bg(Color::Yellow),
+            more: Style::new().fg(Color::Yellow).bold(),
+            mode_view: Style::new().fg(Color::Yellow),
+            mode_edit: Style::new().fg(Color::Black).bg(Color::Yellow),
+            shadow_fg: Color::DarkGray,
+            shadow_bg: Some(Color::Black),
+        }
+    }
+
+    /// Debian: lo sfondo blu dell'installer, con i colori dei dialoghi debconf: finestre grigio chiaro (il testo
+    /// nero dentro le finestre e' lo stile `dialog`), accenti e selezione rossi. Il documento resta bianco sul blu
+    /// dello schermo; trovato e marcatore EDIT bianco su rosso. Ombra nera a velo.
+    fn debian() -> Theme {
+        Theme {
+            screen: Style::new().bg(Color::Blue).fg(Color::White),
+            dialog: Style::new().bg(Color::Gray).fg(Color::Black),
+            fg: Style::new().fg(Color::White),
+            title: Style::new().fg(Color::Red).bold(),
+            hint: Style::new().fg(Color::DarkGray),
+            key: Style::new().fg(Color::Red).bold(),
+            status: Style::new().fg(Color::Red),
+            selected: Style::new().fg(Color::White).bg(Color::Red),
+            border: Style::new().fg(Color::Red),
+            gutter: Style::new().fg(Color::DarkGray),
+            found: Style::new().fg(Color::White).bg(Color::Red),
+            more: Style::new().fg(Color::Red).bold(),
+            mode_view: Style::new().fg(Color::Red),
+            mode_edit: Style::new().fg(Color::White).bg(Color::Red),
+            shadow_fg: Color::DarkGray,
+            shadow_bg: Some(Color::Black),
+        }
+    }
+
+    /// Console: il tema di fabbrica. Nero, testo bianco, accenti gialli, grigio per il secondario, numeri di riga
+    /// in grigio scuro; il selettore e' il verde chiaro delle console vere, trovato e marcatore EDIT nero su
+    /// giallo. L'ombra scolorisce in grigio scuro, a velo: l'effetto popup, non la lastra piena.
+    fn console() -> Theme {
+        Theme {
+            screen: Style::new().bg(Color::Black).fg(Color::White),
+            dialog: Style::new().bg(Color::Black).fg(Color::White),
+            fg: Style::new().fg(Color::White),
+            title: Style::new().fg(Color::Yellow).bold(),
+            hint: Style::new().fg(Color::Gray),
+            key: Style::new().fg(Color::Yellow).bold(),
+            status: Style::new().fg(Color::Yellow),
+            selected: Style::new().fg(Color::Black).bg(Color::LightGreen),
+            border: Style::new().fg(Color::Yellow),
+            gutter: Style::new().fg(Color::DarkGray),
+            found: Style::new().fg(Color::Black).bg(Color::Yellow),
+            more: Style::new().fg(Color::Yellow).bold(),
+            mode_view: Style::new().fg(Color::Yellow),
+            mode_edit: Style::new().fg(Color::Black).bg(Color::Yellow),
+            shadow_fg: Color::DarkGray,
+            shadow_bg: Some(Color::Black),
+        }
+    }
+}

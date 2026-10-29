@@ -1,0 +1,110 @@
+//! Le impostazioni persistenti del TUI: il tema e la lingua. Si salvano da sole quando l'utente cambia tema o lingua
+//! (F6/F7) nel profilo utente: `%APPDATA%\mrp\settings.txt` su Windows, `~/.config/mrp/settings.txt` altrove. Formato
+//! ASCII, una riga `chiave=valore` (con `#` per i commenti). Eliminare il file riporta ai valori di fabbrica.
+//! Stessa tecnica di Manto.FreeDisk (`mfd-tui/src/settings.rs`): `from_text` e' tollerante, le righe che non capisce
+//! diventano default, mai un errore.
+
+use crate::theme::ThemeId;
+use mrp_core::FileSource;
+use std::path::{Path, PathBuf};
+
+/// Le impostazioni che sopravvivono alla sessione.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct Settings {
+    pub theme: ThemeId,
+    /// Codice della lingua scelta (`it`, `pt-BR`...); `None`: l'inglese incorporato. Lo valida chi lo usa.
+    pub lang: Option<String>,
+}
+
+impl Default for Settings {
+    fn default() -> Self {
+        Settings {
+            theme: ThemeId::DEFAULT,
+            lang: None,
+        }
+    }
+}
+
+impl Settings {
+    /// Il testo del file: un commento in testa, poi `theme=<codice>` e, se c'e' una lingua scelta, `lang=<codice>`.
+    pub fn to_text(&self) -> String {
+        let mut out = String::new();
+        out.push_str("# mrp: theme and language of the TUI, saved by the program.\n");
+        out.push_str("# Delete this file to return to the factory defaults.\n");
+        out.push_str(&format!("theme={}\n", self.theme.code()));
+        if let Some(lang) = &self.lang {
+            out.push_str(&format!("lang={}\n", lang));
+        }
+        out
+    }
+
+    /// Rilegge il testo, tollerante: commenti, righe vuote, chiavi sconosciute, righe senza `=` e valori non validi
+    /// si saltano (restano i default); spazi, maiuscole nel tema, CRLF e BOM si tollerano; se una chiave compare due
+    /// volte vale l'ultima valida; una lingua vuota si ignora.
+    pub fn from_text(text: &str) -> Settings {
+        let mut s = Settings::default();
+        // il BOM di chi ha salvato con Notepad non e' un errore
+        let text = text.strip_prefix('\u{feff}').unwrap_or(text);
+        for line in text.lines() {
+            let line = line.trim();
+            // commenti e righe vuote si saltano
+            if line.is_empty() || line.starts_with('#') {
+                continue;
+            }
+            // senza '=' non c'e' niente da capire
+            let Some((k, v)) = line.split_once('=') else {
+                continue;
+            };
+            let (k, v) = (k.trim(), v.trim());
+            match k {
+                "theme" => {
+                    // una chiave doppia: vale l'ultima valida
+                    if let Some(t) = ThemeId::parse(v) {
+                        s.theme = t;
+                    }
+                }
+                "lang" if !v.is_empty() => {
+                    // una lingua vuota non si salva: si resta al fabbrica
+                    s.lang = Some(v.to_string());
+                }
+                _ => {}
+            }
+        }
+        s
+    }
+
+    /// Dove vivono le impostazioni (vedi la testa del modulo); `None` solo senza profilo utente.
+    pub fn default_path() -> Option<PathBuf> {
+        #[cfg(windows)]
+        {
+            std::env::var_os("APPDATA").map(|d| PathBuf::from(d).join("mrp").join("settings.txt"))
+        }
+        #[cfg(not(windows))]
+        {
+            std::env::var_os("HOME").map(|d| {
+                PathBuf::from(d)
+                    .join(".config")
+                    .join("mrp")
+                    .join("settings.txt")
+            })
+        }
+    }
+
+    /// Scrive il file, creando le cartelle del profilo se mancano.
+    pub fn save(&self, path: &Path) -> std::io::Result<()> {
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        std::fs::write(path, self.to_text())
+    }
+
+    /// Legge il file: `None` se manca o non si legge.
+    pub fn load(path: &Path) -> Option<Settings> {
+        // niente lettura intera in memoria (regola del progetto): il file si mappa
+        // alla maniera di `Lang::from_file`; un file che non e' nemmeno UTF-8 vale
+        // come non leggibile
+        let src = FileSource::open(path).ok()?;
+        let text = std::str::from_utf8(src.bytes()).ok()?;
+        Some(Settings::from_text(text))
+    }
+}
