@@ -1,0 +1,13 @@
+[package]
+name = "mrp-core"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/heavymanto/Manto.RustPad"
+publish = false
+description = "Manto.RustPad core: file mappato, indice righe sparso e ricerca per file piu' grandi della RAM"
+
+[dependencies]
+memmap2 = "0.9"
+memchr = "2"
+rayon = "1"

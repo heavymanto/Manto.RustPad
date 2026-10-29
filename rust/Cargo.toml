@@ -1,0 +1,11 @@
+# Workspace Cargo di Manto.RustPad.
+#   mrp-core: motore (file mappato, indice righe, ricerca). Nessuna interfaccia.
+#   (in arrivo) mrp-tui, poi la GUI: stesso schema di Manto.FreeDisk.
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+
+# I profili vivono SOLO a livello workspace: Cargo ignora quelli dei crate member.
+[profile.release]
+lto = true
+codegen-units = 1

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: The benchmarks
+    url: https://github.com/heavymanto/Manto.RustPad/blob/main/docs/BENCHMARKS.md
+    about: What existing tools do with a 6 GB file, and how Manto.RustPad's core compares — measured, with the scripts.

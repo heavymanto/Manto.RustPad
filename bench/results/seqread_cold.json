@@ -1,0 +1,1 @@
+{"app":"sequential read baseline (python, 8 MiB blocks)","file":"big6g.txt","cache":"cold (30 GiB flush)","elapsed_s":40.3,"mb_per_s":149}

@@ -1,0 +1,4 @@
+# Il repository conserva i file con fine riga LF; ogni piattaforma riceve i suoi al checkout.
+* text=auto
+*.png binary
+*.gif binary
