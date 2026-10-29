@@ -7,9 +7,12 @@
 
 pub mod document;
 pub mod edit;
+pub mod lang;
 pub mod lines;
+pub mod scan;
 pub mod search;
 pub mod source;
+pub mod view;
 
 pub use document::{Document, SaveError};
 pub use lines::{BuildOptions, Cancelled, LineIndex};
