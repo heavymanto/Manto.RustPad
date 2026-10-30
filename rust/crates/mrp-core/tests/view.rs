@@ -56,6 +56,7 @@ fn opts(tab: usize, max_scan: u64) -> ViewOptions {
         tab_width: tab,
         max_scan,
         show_eof_row: false,
+        ..ViewOptions::default()
     }
 }
 

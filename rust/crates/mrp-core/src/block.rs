@@ -110,7 +110,7 @@ fn span_of_row(
 ) -> RowSpan {
     let (end, _, a_capo, _) = fine_riga(doc, row_start, opts.max_scan);
     let tab = opts.tab_width.max(1);
-    let mut caratteri = Caratteri::new(doc, row_start, end);
+    let mut caratteri = Caratteri::new(doc, row_start, end, opts.encoding);
     // fine della riga per il blocco: la fine vera, meno il \r nascosto se la riga finisce con lui
     let mut fine_blocco = end;
     let mut colonna = 0usize;

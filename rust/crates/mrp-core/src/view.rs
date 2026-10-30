@@ -3,7 +3,9 @@
 //! risolti qui; l'interfaccia disegna soltanto.
 //!
 //! Modello di cella (la specifica esatta; i test la verificano con un oracolo ingenuo):
-//! - la riga si decodifica a caratteri: un carattere UTF-8 valido, oppure UN SINGOLO BYTE non valido = U+FFFD largo 1;
+//! - la riga si decodifica a caratteri con la codifica di `ViewOptions.encoding`: in UTF-8 un carattere valido,
+//!   oppure UN SINGOLO BYTE non valido = U+FFFD largo 1; in una code page a byte singolo un byte = un carattere
+//!   della tabella (U+FFFD se la code page non lo definisce);
 //! - larghezza: tabulazione fino al prossimo multiplo di `tab_width` (0 = 1); `\r` come ULTIMO byte di una riga che
 //!   termina con `\n` -> larghezza 0, invisibile; ogni altro carattere di controllo (`char::is_control`) -> `U+00B7` largo 1;
 //!   il resto `UnicodeWidthChar::width(c).unwrap_or(0)`;
@@ -11,6 +13,7 @@
 //!   tabulazione) solo in parte dentro la finestra lascia UNO SPAZIO per ogni sua cella dentro la finestra.
 
 use crate::document::Document;
+use crate::encoding::Encoding;
 use crate::scan::{next_row, Next};
 use unicode_width::UnicodeWidthChar;
 
@@ -27,6 +30,8 @@ pub struct ViewOptions {
     /// Se vero e il documento e' vuoto o finisce con `\n`, in fondo alla camminata c'e' una riga vuota in piu' dove sta
     /// il cursore in un editor.
     pub show_eof_row: bool,
+    /// Come si leggono i byte come caratteri (vedi `encoding`). Predefinita: UTF-8.
+    pub encoding: Encoding,
 }
 
 impl Default for ViewOptions {
@@ -35,6 +40,7 @@ impl Default for ViewOptions {
             tab_width: 4,
             max_scan: crate::scan::DEFAULT_MAX_SCAN,
             show_eof_row: false,
+            encoding: Encoding::Utf8,
         }
     }
 }
@@ -90,7 +96,7 @@ pub fn rows_from(
         let troncato = leggi < disponibili;
         let mut testo = String::new();
         let mut colonna = 0usize;
-        let mut caratteri = Caratteri::new(doc, start, start + leggi);
+        let mut caratteri = Caratteri::new(doc, start, start + leggi, opts.encoding);
         while let Some((p, c, n)) = caratteri.prossimo() {
             let nascosto = c == '\r' && p + n as u64 == end && a_capo;
             let (w, glifo) = cella(c, colonna, tab, nascosto);
@@ -156,7 +162,7 @@ pub fn col_of(doc: &Document, row_start: u64, off: u64, opts: &ViewOptions) -> u
     // contano i caratteri che iniziano prima di `off`: l'ultimo puo' estendersi oltre di 3 byte,
     // leggere piu' in la' non serve
     let fine = end.min(off.saturating_add(3));
-    let mut caratteri = Caratteri::new(doc, row_start, fine);
+    let mut caratteri = Caratteri::new(doc, row_start, fine, opts.encoding);
     let mut colonna = 0usize;
     while let Some((p, c, n)) = caratteri.prossimo() {
         if p >= off {
@@ -175,7 +181,7 @@ pub fn offset_at_col(doc: &Document, row_start: u64, col: u64, opts: &ViewOption
     let (end, _, a_capo, _) = fine_riga(doc, row_start, opts.max_scan);
     let col = usize::try_from(col).unwrap_or(usize::MAX);
     let tab = opts.tab_width.max(1);
-    let mut caratteri = Caratteri::new(doc, row_start, end);
+    let mut caratteri = Caratteri::new(doc, row_start, end, opts.encoding);
     let mut colonna = 0usize;
     while let Some((p, c, n)) = caratteri.prossimo() {
         let nascosto = c == '\r' && p + n as u64 == end && a_capo;
@@ -245,11 +251,12 @@ pub(crate) fn cella(c: char, colonna: usize, tab: usize, nascosto: bool) -> (usi
     }
 }
 
-/// I caratteri di un pezzo di riga, letti a blocchi dal documento: un carattere UTF-8 valido,
+/// I caratteri di un pezzo di riga, letti a blocchi dal documento: in UTF-8 un carattere valido,
 /// oppure un singolo byte non valido che vale un carattere `U+FFFD` (i byte non validi non si
-/// uniscono). Un carattere multibyte tagliato dal confine del blocco si rilegge col blocco che
-/// parte da lui; se invece a tagliarlo e' il limite di lettura (vedi `rows_from`) la lettura si
-/// ferma: oltre quel punto non si sa niente e non si spaccia per non valido cio' che non si e' letto.
+/// uniscono); in una code page a byte singolo un byte = un carattere della tabella. Un carattere
+/// multibyte tagliato dal confine del blocco si rilegge col blocco che parte da lui; se invece a
+/// tagliarlo e' il limite di lettura (vedi `rows_from`) la lettura si ferma: oltre quel punto non
+/// si sa niente e non si spaccia per non valido cio' che non si e' letto.
 pub(crate) struct Caratteri<'a> {
     doc: &'a Document,
     /// fino a qui si legge (fine riga o limite del chiamante)
@@ -259,16 +266,19 @@ pub(crate) struct Caratteri<'a> {
     blocco: u64,
     /// posizione del prossimo carattere, nel documento
     pos: u64,
+    /// come si leggono i byte (UTF-8 o una code page a byte singolo)
+    encoding: Encoding,
 }
 
 impl<'a> Caratteri<'a> {
-    pub(crate) fn new(doc: &'a Document, da: u64, fine: u64) -> Caratteri<'a> {
+    pub(crate) fn new(doc: &'a Document, da: u64, fine: u64, encoding: Encoding) -> Caratteri<'a> {
         Caratteri {
             doc,
             fine,
             buf: Vec::new(),
             blocco: da,
             pos: da,
+            encoding,
         }
     }
 
@@ -297,6 +307,16 @@ impl<'a> Caratteri<'a> {
             // offset del carattere dentro il blocco: e' un offset di blocco, sempre piccolo
             let i = usize::try_from(self.pos - self.blocco).ok()?;
             let disponibili = self.buf.len() - i;
+            // code page a byte singolo: un byte = un carattere, sempre lungo 1 (nessun confine di
+            // blocco da rispettare); il carattere e' quello del byte nella codifica
+            if !self.encoding.is_utf8() {
+                let c = self
+                    .encoding
+                    .first_char(&self.buf[i..i + 1])
+                    .map_or('\u{fffd}', |(c, _)| c);
+                self.pos += 1;
+                return Some((self.pos - 1, c, 1));
+            }
             // il primo prefisso valido e' il carattere (stessa regola dei test: un carattere
             // valido, oppure un singolo byte non valido)
             for n in 1..=4.min(disponibili) {

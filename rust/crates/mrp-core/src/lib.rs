@@ -6,9 +6,11 @@
 //! - il contenuto e' trattato come byte, non come UTF-8.
 
 pub mod block;
+pub mod charsets;
 pub mod docsearch;
 pub mod document;
 pub mod edit;
+pub mod encoding;
 pub mod lang;
 pub mod lines;
 pub mod scan;
