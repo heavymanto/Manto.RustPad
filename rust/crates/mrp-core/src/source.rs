@@ -4,6 +4,7 @@ use memmap2::Mmap;
 use std::fs::File;
 use std::io;
 use std::path::Path;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// File aperto in sola lettura. Non copia il contenuto: le pagine vengono caricate dal sistema operativo quando servono.
 pub struct FileSource {
@@ -11,6 +12,9 @@ pub struct FileSource {
     map: Option<Mmap>,
     /// Il file aperto, tenuto per le letture esplicite (precaricamento): vedi `read_at`.
     file: File,
+    /// Quante volte si e' chiesta la fetta mappata (`bytes`, `read_range`): un contatore diagnostico, serve a
+    /// provare che un'operazione grande (l'indice delle righe) legge con `read_at` e non tocca la mappatura.
+    map_accesses: AtomicU64,
 }
 
 impl FileSource {
@@ -40,7 +44,11 @@ impl FileSource {
             // (rischio noto, accettato).
             Some(unsafe { Mmap::map(&file)? })
         };
-        Ok(FileSource { map, file })
+        Ok(FileSource {
+            map,
+            file,
+            map_accesses: AtomicU64::new(0),
+        })
     }
 
     /// Lettura esplicita a una posizione (non sposta nessun cursore condiviso). Serve al
@@ -70,6 +78,11 @@ impl FileSource {
         self.map.as_ref().map_or(0, |m| m.len() as u64)
     }
 
+    /// Quante volte si e' chiesta la fetta mappata (diagnostico, vedi il campo).
+    pub fn map_accesses(&self) -> u64 {
+        self.map_accesses.load(Ordering::Relaxed)
+    }
+
     /// Vero se il file e' vuoto.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
@@ -77,6 +90,7 @@ impl FileSource {
 
     /// Tutto il contenuto come fetta di byte (mappatura, non copia).
     pub fn bytes(&self) -> &[u8] {
+        self.map_accesses.fetch_add(1, Ordering::Relaxed);
         self.map.as_ref().map_or(&[], |m| &m[..])
     }
 

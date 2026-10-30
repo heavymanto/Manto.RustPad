@@ -46,7 +46,9 @@ try:
         m = p.mark()
         p.send('\x07'); time.sleep(0.3)
         p.send(f'{line}\r')
-        if p.wait_for(str(line), since=m, timeout=3) is not None:
+        # si guarda la riga di STATO ("Ln N "), non il numero in se': il prompt "vai a" mostra quello che si scrive
+        # e darebbe un falso "arrivato" mentre l'indice non e' ancora pronto
+        if p.wait_for(f'Ln {line} ', since=m, timeout=3) is not None:
             arrivato = time.perf_counter() - t0
             break
         time.sleep(1.0)

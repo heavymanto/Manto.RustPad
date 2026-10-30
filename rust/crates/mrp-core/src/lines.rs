@@ -5,10 +5,16 @@
 //! - le righe sono numerate da 0;
 //! - il numero di righe e' il numero di `\n` piu' 1 se il file e' non vuoto e non finisce con `\n`;
 //!   un file vuoto ha 0 righe; `"a\n"` ha 1 riga; `"a\nb"` ha 2 righe; `"\n\n"` ha 2 righe.
+//!
+//! La costruzione legge il file con letture esplicite (`FileSource::read_at`) a segmenti di
+//! `READ_BYTES`, non dalla mappatura: il working set del processo non cresce con la dimensione
+//! del file. La mappatura si tocca solo nel ripiego di `scan_block`, per un blocco la cui
+//! lettura e' fallita o finita prima del previsto.
 
 use crate::source::FileSource;
 use memchr::memchr_iter;
 use rayon::prelude::*;
+use std::io;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -19,6 +25,11 @@ const PREFETCH_MIN_FILE: usize = 64 * 1024 * 1024;
 const PREFETCH_STEP: usize = 8 * 1024 * 1024;
 /// Massimo vantaggio in byte del thread di precaricamento sui lavoratori: oltre, aspetta.
 const PREFETCH_LEAD: u64 = 256 * 1024 * 1024;
+
+/// Quanti byte legge in una volta ogni lavoratore dell'indice, con `read_at` e un buffer
+/// proprio riusato (E21): segmenti piccoli, cosi' il working set del processo non cresce
+/// con la dimensione del file.
+pub const READ_BYTES: usize = 256 * 1024;
 
 /// La costruzione e' stata interrotta dal chiamante.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -79,6 +90,10 @@ fn slice_index(bytes: &[u8], pos: u64) -> usize {
 /// locale dell'inizio, posizione in byte), solo per gli indici multipli di `every`. Il blocco
 /// copre `[i * chunk, min((i + 1) * chunk, bytes.len()))`. Cancel e progress li gestisce il
 /// chiamante, prima e dopo la chiamata.
+///
+/// Percorso di ripiego, non piu' quello normale (E21): i lavoratori leggono con
+/// `scan_block_reads` e toccano la mappatura solo se una lettura esplicita fallisce o se il
+/// file e' stato accorciato mentre si indicizzava; in quel caso il blocco si rifa' qui.
 fn scan_block(bytes: &[u8], i: usize, chunk: usize, every: u64) -> ChunkResult {
     // Con i < n_blocchi resta a < file_len: il prodotto non va in overflow.
     let a = i * chunk;
@@ -108,6 +123,92 @@ fn scan_block(bytes: &[u8], i: usize, chunk: usize, every: u64) -> ChunkResult {
     ChunkResult { count, points }
 }
 
+/// Riempie tutto `buf` con letture esplicite da `src` a partire da `off`, ripetute perche'
+/// una lettura puo' essere breve. Errore se una lettura fallisce o se il file finisce prima
+/// del previsto (e' stato accorciato mentre si indicizza): il chiamante rifara' il blocco
+/// con `scan_block` sulla mappatura. `off + buf.len()` non supera mai la fine del file,
+/// quindi la posizione non va in overflow.
+fn read_full(src: &FileSource, buf: &mut [u8], off: usize) -> io::Result<()> {
+    let mut done: usize = 0;
+    while done < buf.len() {
+        let n = src.read_at(&mut buf[done..], (off + done) as u64)?;
+        if n == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "file accorciato mentre si indicizza",
+            ));
+        }
+        done += n;
+    }
+    Ok(())
+}
+
+/// Analisi del blocco `[a, b)` con letture esplicite a segmenti di al piu' `buf.len()` byte
+/// (E21): e' il percorso normale dei lavoratori, che non toccano la mappatura, cosi' il
+/// working set del processo non cresce con la dimensione del file. `buf` e' il buffer del
+/// lavoratore: non vuoto (il chiamante lo crea di `READ_BYTES.min(chunk)`, almeno 1) e riusato
+/// per tutti i segmenti. Da un segmento all'altro si portano il conteggio locale degli inizi
+/// di riga del blocco e se l'ultimo byte letto era `\n`. Le regole sono quelle di
+/// `scan_block`: un inizio di riga a `p` in `[a, b)` e' `p == a` con il byte prima uguale a
+/// `\n` (o `a == 0`, inizio del file), oppure `p > a` con `\n` in `p - 1`; non esiste un
+/// inizio a `p == b` (appartiene al blocco dopo); il punto `(numero locale, p)` si memorizza
+/// quando il numero locale e' multiplo di `every`. Errore se una lettura fallisce o il file
+/// finisce prima di `b`: il chiamante rifara' il blocco con `scan_block` sulla mappatura.
+fn scan_block_reads(
+    src: &FileSource,
+    a: usize,
+    b: usize,
+    every: u64,
+    buf: &mut [u8],
+) -> io::Result<ChunkResult> {
+    let mut count: u64 = 0;
+    let mut points: Vec<(u64, u64)> = Vec::new();
+    // Se il byte appena prima di quello che sta per arrivare era `\n`: decide se il primo
+    // byte del prossimo segmento e' un inizio di riga. Per il primo segmento del blocco il
+    // "byte prima" e' quello in `a - 1`, letto qui con una lettura di un byte; per `a == 0`
+    // conta come `\n` (inizio del file).
+    let mut prev_nl = if a == 0 {
+        true
+    } else {
+        let mut one = [0u8; 1];
+        read_full(src, &mut one, a - 1)?;
+        one[0] == b'\n'
+    };
+    let mut s = a;
+    while s < b {
+        // Prossimo segmento: al piu' quanto il buffer, mai oltre la fine del blocco
+        // (`seg_len` resta quindi dentro `buf`, per costruzione).
+        let seg_len = buf.len().min(b - s);
+        let e = s + seg_len;
+        // Riempie il segmento con letture esplicite ripetute (una puo' essere breve).
+        read_full(src, &mut buf[..seg_len], s)?;
+        let seg = &buf[..seg_len];
+        // Il primo byte del segmento e' un inizio di riga se il "byte prima" era `\n`.
+        if prev_nl {
+            if count.is_multiple_of(every) {
+                points.push((count, s as u64));
+            }
+            count += 1;
+        }
+        // Inizi interni: il byte dopo ogni `\n` del segmento. Quello sull'ultimo byte non si
+        // registra qui: lo registra il segmento dopo tramite `prev_nl` (e se `e == b` non lo
+        // registra nessuno, perche' un inizio a `b` appartiene al blocco dopo).
+        for j in memchr_iter(b'\n', seg) {
+            let start = s + j + 1;
+            if start < e {
+                if count.is_multiple_of(every) {
+                    points.push((count, start as u64));
+                }
+                count += 1;
+            }
+        }
+        // Da portare al segmento dopo: l'ultimo byte del segmento era `\n`?
+        prev_nl = seg.last() == Some(&b'\n');
+        s = e;
+    }
+    Ok(ChunkResult { count, points })
+}
+
 impl LineIndex {
     /// Costruisce l'indice con i parametri predefiniti.
     pub fn build(
@@ -123,6 +224,10 @@ impl LineIndex {
     ///   sui file grandi (>= `PREFETCH_MIN_FILE`) un thread di precaricamento legge il file in
     ///   avanti con letture esplicite e i lavoratori elaborano un blocco solo dopo che e' stato
     ///   letto: cosi' il disco lavora su letture contigue (vedi docs/BENCHMARKS.md).
+    /// - Ogni lavoratore legge i suoi blocchi con letture esplicite (`read_at`) in un proprio
+    ///   buffer di al piu' `READ_BYTES` byte, riusato: la mappatura non si tocca e il working
+    ///   set del processo non cresce con la dimensione del file. Solo se una lettura fallisce
+    ///   o il file finisce prima del previsto il blocco si rifa' sulla mappatura.
     /// - `cancel` e' controllato prima di ogni blocco: se e' vero restituisce `Err(Cancelled)`
     ///   (anche se e' gia' vero all'inizio).
     /// - `progress` viene incrementato del numero di byte elaborati; a costruzione riuscita vale `src.len()`
@@ -139,8 +244,10 @@ impl LineIndex {
         }
         let chunk = opts.chunk_bytes.max(1);
         let every = u64::from(opts.checkpoint_every.max(1));
-        let bytes = src.bytes();
-        let file_len = bytes.len();
+        // La lunghezza arriva da `len()`, non dalla mappatura (E21): la costruzione non deve
+        // toccarla. `open` garantisce len <= usize::MAX: la conversione non fallisce mai, ma
+        // fuori dai test non si usa `unwrap` (regola del crate); il ripiego e' irraggiungibile.
+        let file_len = usize::try_from(src.len()).unwrap_or(usize::MAX);
         if file_len == 0 {
             return Ok(LineIndex {
                 total_lines: 0,
@@ -211,7 +318,7 @@ impl LineIndex {
                                     prefetched.store(touched, Ordering::Relaxed);
                                 }
                                 // Errore o fine inattesa: il precaricamento e' solo un'ottimizzazione,
-                                // l'indice si costruisce comunque dalla mappatura.
+                                // i lavoratori leggono comunque con `read_at` (E21).
                                 _ => return,
                             }
                         }
@@ -227,6 +334,10 @@ impl LineIndex {
                 .into_par_iter()
                 .map(|_| {
                     let mut raccolti: Vec<(usize, ChunkResult)> = Vec::new();
+                    // Un buffer per lavoratore, riusato per tutti i suoi blocchi (E21): le
+                    // letture sono a segmenti di al piu' READ_BYTES, o del blocco se piu'
+                    // corto, e la mappatura non si tocca.
+                    let mut buf = vec![0u8; READ_BYTES.min(chunk)];
                     loop {
                         let i = next.fetch_add(1, Ordering::Relaxed);
                         if i >= n_blocks {
@@ -246,7 +357,15 @@ impl LineIndex {
                             }
                             std::thread::sleep(Duration::from_millis(1));
                         }
-                        let res = scan_block(bytes, i, chunk, every);
+                        // Percorso normale (E21): letture esplicite a segmenti, senza
+                        // mappatura. Se una lettura fallisce o il file finisce prima del
+                        // previsto (accorciato mentre si indicizza), il blocco si rifa' con
+                        // `scan_block` sulla mappatura: e' l'unico punto in cui i lavoratori
+                        // la toccano.
+                        let res = match scan_block_reads(src, a, b, every, &mut buf) {
+                            Ok(res) => res,
+                            Err(_) => scan_block(src.bytes(), i, chunk, every),
+                        };
                         progress.fetch_add((b - a) as u64, Ordering::Relaxed);
                         done.fetch_add((b - a) as u64, Ordering::Relaxed);
                         raccolti.push((i, res));
