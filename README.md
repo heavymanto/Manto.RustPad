@@ -11,7 +11,7 @@ truncates your data, and that opens a multi-gigabyte file like a viewer and beco
 
 > **Status: early development — a first terminal editor (`mrp`) runs.** Memory-mapped file source, sparse line index, search,
 > a piece-table edit layer with undo/redo, a crash-safe save and a terminal UI (view, edit, find, go to, selection and clipboard, column mode, themes, 7 languages) are
-> implemented and tested (362 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
+> implemented and tested (428 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
 > once and keeps about 13–35 MiB of private memory, even while saving (it grows slowly with the file, about 3.7 MB per GB: ~410 MiB on a 100 GiB sparse file, whose working set stays under 20 MiB) (one machine, one HDD, a handful of runs: see
 > [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux and macOS are untried. The evidence that the gap is real:
 > [market survey](docs/MARKET.md) and [reproducible benchmarks](docs/BENCHMARKS.md) of four tools on a 6 GB file.
@@ -40,7 +40,7 @@ navigate **and** editable — and did not find it ([survey](docs/MARKET.md)).
 - **Memory independent of file size.** Targets in the tens of MiB, whatever the file.
 - **Never loses data.** 64-bit offsets throughout, tests on files above 4 GiB from day one, loud failure instead of silent truncation.
 - **Column (block) mode, explicitly.** A first-class selection type in the core, so every front end shares it.
-- **Honest about encodings.** UTF-8 and 33 single-byte code pages (Windows-125x, ISO-8859-x, DOS 437/850/…, KOI8, Mac Roman) on files larger than RAM, chosen with `F9` or `--encoding`; UTF-16 is still to do.
+- **Honest about encodings.** UTF-8, UTF-16 (little and big endian, surrogate pairs included) and 33 single-byte code pages (Windows-125x, ISO-8859-x, DOS 437/850/…, KOI8, Mac Roman) on files larger than RAM, chosen with `F9` or `--encoding` or recognised at open; East-Asian multi-byte encodings are still to do.
 - **Streaming whole-file operations** (replace-all, sort, split) with progress and cancel.
 - **Cross-platform.** Windows, Linux, macOS.
 - **One core, several front ends** — terminal (TUI) first, desktop GUI after.
@@ -64,7 +64,7 @@ Details, method and caveats: [docs/BENCHMARKS.md](docs/BENCHMARKS.md). One machi
 1. **Core** — memory-mapped file source, sparse line index, search with cancel. *(viewer mode — done for the library, in `rust/crates/mrp-core`)*
 2. **Editing** — piece-table overlay over the original file *(done: `PieceTable`)*; streaming save to a temp file + atomic rename *(done: `Document::save`)*; undo/redo and a line index that follows the edits *(done)*.
 3. **TUI front end** (ratatui), classic keyboard model, mouse as a shortcut *(first version done: `mrp`, view/edit/find/go to/themes/languages; measured once on a 6 GB file; to do: SSD, Linux/macOS)*.
-4. **Column mode** *(done in the core and in `mrp`: `F8`; not tried with a real keyboard yet)* and **encodings** *(single-byte code pages done: `F9`, `--encoding NAME`, auto-detection at open; UTF-16 and East-Asian multi-byte encodings to do)*.
+4. **Column mode** *(done in the core and in `mrp`: `F8`; not tried with a real keyboard yet)* and **encodings** *(single-byte code pages done: `F9`, `--encoding NAME`, auto-detection at open; UTF-16 LE/BE done too; East-Asian multi-byte encodings to do)*.
 5. **GUI front end.**
 
 Each step is gated by the same benchmark suite (`bench/`) so claims stay falsifiable.

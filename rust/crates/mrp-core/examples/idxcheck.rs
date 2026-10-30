@@ -2,8 +2,9 @@
 //! volte la costruzione ha toccato la mappatura (`FileSource::map_accesses`). Il working set del processo si guarda da
 //! fuori (con un guardiano che lo ferma se supera un tetto).
 //!
-//! Uso: cargo run --release -p mrp-core --example idxcheck -- <file>
+//! Uso: cargo run --release -p mrp-core --example idxcheck -- <file> [le16|be16]  (senza il secondo argomento: a-capo a byte)
 
+use mrp_core::newline::Newline;
 use mrp_core::{FileSource, LineIndex};
 use std::sync::atomic::{AtomicBool, AtomicU64};
 use std::time::Instant;
@@ -20,9 +21,14 @@ fn main() {
             std::process::exit(1);
         }
     };
+    let newline = match std::env::args().nth(2).as_deref() {
+        Some("le16") => Newline::Le16,
+        Some("be16") => Newline::Be16,
+        _ => Newline::Byte,
+    };
     let t = Instant::now();
     let progress = AtomicU64::new(0);
-    let r = LineIndex::build(&src, &AtomicBool::new(false), &progress);
+    let r = LineIndex::build_for(&src, newline, &AtomicBool::new(false), &progress);
     match r {
         Ok(idx) => println!(
             "righe={} punti={} tempo={:.1}s accessi_alla_mappatura={}",
