@@ -207,7 +207,11 @@ fn byte_a(doc: &Document, pos: u64) -> Option<u8> {
 /// e' il punto di taglio, per l'ultima senza a-capo la fine del documento); `prossima` e' l'inizio
 /// della riga visuale successiva (`None`: non c'e'); `a_capo` dice se la riga termina con un `\n`
 /// (serve per il `\r` nascosto); `tagliata` se `max_scan` ha tagliato la riga.
-fn fine_riga(doc: &Document, start: u64, max_scan: u64) -> (u64, Option<u64>, bool, bool) {
+pub(crate) fn fine_riga(
+    doc: &Document,
+    start: u64,
+    max_scan: u64,
+) -> (u64, Option<u64>, bool, bool) {
     match next_row(doc, start, max_scan) {
         // l'a-capo chiude la riga: la fine sta prima, la prossima e' una riga vera
         Next::Line(n) => (n - 1, Some(n), true, false),
@@ -228,7 +232,7 @@ fn fine_riga(doc: &Document, start: u64, max_scan: u64) -> (u64, Option<u64>, bo
 /// Larghezza in celle e glifo di un carattere: tabulazione fino al prossimo multiplo di `tab`;
 /// `\r` nascosto (ultimo byte di una riga che termina con a-capo) largo 0 e invisibile; ogni altro
 /// carattere di controllo -> `U+00B7` largo 1; il resto la larghezza Unicode (0 se non definita).
-fn cella(c: char, colonna: usize, tab: usize, nascosto: bool) -> (usize, String) {
+pub(crate) fn cella(c: char, colonna: usize, tab: usize, nascosto: bool) -> (usize, String) {
     if c == '\t' {
         let w = tab - colonna % tab;
         (w, " ".repeat(w))
@@ -246,7 +250,7 @@ fn cella(c: char, colonna: usize, tab: usize, nascosto: bool) -> (usize, String)
 /// uniscono). Un carattere multibyte tagliato dal confine del blocco si rilegge col blocco che
 /// parte da lui; se invece a tagliarlo e' il limite di lettura (vedi `rows_from`) la lettura si
 /// ferma: oltre quel punto non si sa niente e non si spaccia per non valido cio' che non si e' letto.
-struct Caratteri<'a> {
+pub(crate) struct Caratteri<'a> {
     doc: &'a Document,
     /// fino a qui si legge (fine riga o limite del chiamante)
     fine: u64,
@@ -258,7 +262,7 @@ struct Caratteri<'a> {
 }
 
 impl<'a> Caratteri<'a> {
-    fn new(doc: &'a Document, da: u64, fine: u64) -> Caratteri<'a> {
+    pub(crate) fn new(doc: &'a Document, da: u64, fine: u64) -> Caratteri<'a> {
         Caratteri {
             doc,
             fine,
@@ -269,7 +273,7 @@ impl<'a> Caratteri<'a> {
     }
 
     /// Il prossimo carattere: `(posizione del primo byte, carattere, byte che occupa)`.
-    fn prossimo(&mut self) -> Option<(u64, char, usize)> {
+    pub(crate) fn prossimo(&mut self) -> Option<(u64, char, usize)> {
         if self.pos >= self.fine {
             return None;
         }
