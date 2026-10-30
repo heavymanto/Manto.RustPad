@@ -32,7 +32,7 @@ fn main() {
                 "dopo {:>9} modifiche: {:>9.1} us per modifica (ultimo scaglione), {:>9} pezzi",
                 i,
                 us,
-                doc.table().pieces().len()
+                doc.table().piece_count()
             );
             t = Instant::now();
         }

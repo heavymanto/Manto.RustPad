@@ -4,6 +4,9 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 
 ## [Unreleased]
 
+### Changed
+- **`PieceTable` keeps its pieces in blocks** (at most 512 pieces each, with the byte total of each block) and an insert or delete rewrites only a small window around the change instead of copying the whole list; `len()` is O(1). Scattered edits: 1.8 ms → 0.9 µs per edit at 40,000 pieces, 2.6 µs at 400,000 ([docs/BENCHMARKS.md](docs/BENCHMARKS.md)). `PieceTable::pieces()` now returns a `Vec<Piece>` (a copy); `piece_count`, `piece`, `iter`, `with_chunk_capacity` and `Document::open_with_chunk` are new. 9 new tests with blocks of 4 pieces against a naive oracle. The line-number table is still rebuilt in O(pieces) after an edit.
+
 ### Added
 - **`mrp` measured on a 6 GB file** (`bench/mrp_bench.py`, [docs/BENCHMARKS.md](docs/BENCHMARKS.md)): first screen under a second, 13–35 MiB private memory including during the save, line jump to 30,000,000 lands on the exact byte, edit + save of 6 GB takes about 91–98 s on the HDD and leaves the file correct (+3 bytes, text in the right place). One machine, few runs.
 - **`rust/install.ps1`**: local install on Windows, same idea as Manto.FreeDisk's — copies `mrp.exe` to `%USERPROFILE%\.local\bin` and the seven language files to `%APPDATA%\mrp\lang`, replaces a running `mrp.exe` by renaming it, never touches `PATH` or the saved settings, and ends with a self-test (`--help`, `--dump` in English and in Italian from the installed language folder).

@@ -153,11 +153,26 @@ One run, in memory only, 20,000 edits:
 | 10,000 | 20,000 | 0.87 ms |
 | 20,000 | 40,000 | 1.8 ms |
 
-The cost grows with the number of pieces (the piece list is a plain vector, copied and rebuilt on every edit): **quadratic in
+The cost grew with the number of pieces (the piece list was a plain vector, copied and rebuilt on every edit): **quadratic in
 the number of edits**. Typing in one place does not hurt (adjacent pieces merge), and a person rarely makes thousands of
-separate edits in one session, but a future "replace all" with 100,000 matches would, extrapolating the growth (not measured), take several minutes. The fix is a tree instead of
-a vector; it is a design change, not done yet. Not measured: the cost of the line index and of the screen redraw with many
-pieces.
+separate edits in one session, but a future "replace all" with 100,000 matches would, extrapolating the growth (not measured), have taken several minutes.
+
+**Fix (task E14): the piece list is now kept in blocks of at most 512 pieces**, each with its byte total, and an edit rewrites only
+a small window of pieces around the change (it no longer copies or rebuilds the whole list; `len()` is O(1)). Same program, same
+file, release build, one run each:
+
+| Edits so far | Pieces | Cost of one edit before | after |
+|---|---|---|---|
+| 20,000 | 40,000 | 1.8 ms | **0.9 µs** |
+| 140,000 | 279,000 | (not run) | 2.2 µs |
+| 200,000 | 398,000 | (not run) | 2.6 µs |
+
+The cost still grows slowly with the number of pieces (it scans the block headers: O(pieces / 512)), but 200,000 scattered
+edits now take about half a second instead of an extrapolated quarter of an hour or more (not measured). 9 new tests check the blocks against a naive `Vec<u8>`
+oracle with blocks of 4 pieces (so that splitting and merging happen all the time), including undo/redo, save, search and
+line queries. **Not fixed:** the derived table behind the line numbers (`Document::line_count`, `offset_of_line`,
+`line_at_offset`) is still rebuilt in O(pieces) on the first query after each edit, so a screen redraw with tens of
+thousands of pieces still pays that; it is not measured yet.
 
 Not measured yet: a clean save throughput (and on SSD), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real
 terminal (only the ConPTY driver).

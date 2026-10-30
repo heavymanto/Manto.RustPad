@@ -3,7 +3,7 @@
 //! rinomina sopra l'originale: se qualcosa va storto (errore, annullamento, file cambiato da
 //! altri) l'originale resta com'e'.
 
-use crate::edit::{Buf, EditError, Piece, PieceTable, Splice};
+use crate::edit::{Buf, EditError, Piece, PieceTable, Splice, DEFAULT_CHUNK_CAPACITY};
 use crate::lines::{BuildOptions, Cancelled, LineIndex};
 use crate::source::FileSource;
 use memchr::memchr_iter;
@@ -213,12 +213,19 @@ impl Document {
     /// Apre `path` (percorso reso canonico: un collegamento simbolico si risolve, il salvataggio sostituisce il file vero).
     /// Errori come `FileSource::open`. Un file vuoto e' valido.
     pub fn open(path: &Path) -> io::Result<Document> {
+        Document::open_with_chunk(path, DEFAULT_CHUNK_CAPACITY)
+    }
+
+    /// Come `open`, ma la tabella dei pezzi usa blocchi di al piu' `cap` pezzi (vedi
+    /// `PieceTable::with_chunk_capacity`); dopo un salvataggio riuscito la tabella nuova
+    /// ha lo stesso `cap`.
+    pub fn open_with_chunk(path: &Path, cap: usize) -> io::Result<Document> {
         // Percorso canonico: i collegamenti simbolici si risolvono e il salvataggio sostituisce
         // il file vero, non il collegamento.
         let canon = path.canonicalize()?;
         let source = FileSource::open(&canon)?;
         let stamp = stamp_of(&std::fs::metadata(&canon)?);
-        let table = PieceTable::new(source.len());
+        let table = PieceTable::with_chunk_capacity(source.len(), cap);
         Ok(Document {
             path: canon,
             source: Some(Arc::new(source)),
@@ -462,7 +469,7 @@ impl Document {
         // Pezzo che contiene il `line`-esimo `\n` del documento: l'ultimo pezzo con meno di
         // `line` a-capo prima di se'. `nl_before[0] == 0 < line`, quindi l'indice e' un pezzo vero.
         let i = prefix.nl_before.partition_point(|&n| n < line) - 1;
-        let p = self.table.pieces()[i];
+        let p = self.table.piece(i)?;
         // Il `\n` cercato e' il j-esimo del pezzo, con j contato da 1.
         let j = line - prefix.nl_before[i];
         let idx = self.lines.as_ref()?;
@@ -501,7 +508,7 @@ impl Document {
         // Pezzo che contiene `pos`: l'ultimo che inizia a posizione <= `pos` (`doc_start[0] == 0
         // <= pos`, quindi l'indice e' sempre un pezzo vero).
         let i = prefix.doc_start.partition_point(|&d| d <= pos) - 1;
-        let p = self.table.pieces()[i];
+        let p = self.table.piece(i)?;
         let idx = self.lines.as_ref()?;
         let src = self.source.as_ref()?;
         // `\n` del pezzo prima di `pos` (tratto parziale: niente cache), piu' quelli dei
@@ -532,19 +539,19 @@ impl Document {
         };
         // La cache cresce a ogni pezzo nuovo e le voci dei pezzi cancellati restano: oltre
         // il doppio dei pezzi attuali (piu' un margine) si svuota prima di ricostruire.
-        if self.nl_of_piece.len() > 2 * self.table.pieces().len() + 1024 {
+        if self.nl_of_piece.len() > 2 * self.table.piece_count() + 1024 {
             self.nl_of_piece.clear();
         }
         let mut prefix = Prefix {
-            doc_start: Vec::with_capacity(self.table.pieces().len() + 1),
-            nl_before: Vec::with_capacity(self.table.pieces().len() + 1),
+            doc_start: Vec::with_capacity(self.table.piece_count() + 1),
+            nl_before: Vec::with_capacity(self.table.piece_count() + 1),
         };
         let mut pos = 0u64; // posizione nel documento dell'inizio del pezzo corrente
         let mut nl = 0u64; // `\n` del documento prima del pezzo corrente
-        for p in self.table.pieces() {
+        for p in self.table.iter() {
             prefix.doc_start.push(pos);
             prefix.nl_before.push(nl);
-            nl += newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, *p, p.len);
+            nl += newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, p, p.len);
             pos += p.len;
         }
         // Un elemento in piu' dei pezzi: la fine del documento e il totale dei `\n`.
@@ -615,7 +622,7 @@ impl Document {
         // 4. I pezzi in ordine, a blocchi di `SAVE_CHUNK`: `Original` si legge dal file con
         //    letture esplicite (non page fault della mappatura), `Add` dal buffer delle aggiunte.
         let mut buf = vec![0u8; SAVE_CHUNK];
-        for p in self.table.pieces() {
+        for p in self.table.iter() {
             let mut done = 0u64; // byte gia' scritti di questo pezzo
             while done < p.len {
                 if cancel.load(Ordering::Relaxed) {
@@ -703,8 +710,9 @@ impl Document {
                 };
                 // La sostituzione sgancia il documento dalla vecchia mappatura (resta viva
                 // finche' una fotografia la condivide); la tabella torna a un solo pezzo
-                // `Original` lungo quanto il file appena scritto.
-                self.table = PieceTable::new(new_source.len());
+                // `Original` lungo quanto il file appena scritto, con lo stesso blocco di prima.
+                self.table =
+                    PieceTable::with_chunk_capacity(new_source.len(), self.table.chunk_capacity());
                 self.source = Some(Arc::new(new_source));
                 self.stamp = stamp;
                 // Il salvataggio e' riuscito: lo stato attuale e' quello del file e la storia
@@ -723,7 +731,7 @@ impl Document {
                 // I dati sono al sicuro su disco, ma senza sorgente il documento e' chiuso.
                 // La rinomina e' comunque riuscita: l'indice del vecchio file non vale piu'.
                 self.source = None;
-                self.table = PieceTable::new(0);
+                self.table = PieceTable::with_chunk_capacity(0, self.table.chunk_capacity());
                 // Anche da chiuso il salvataggio e' riuscito: storia e marcatore come sopra.
                 self.undo.clear();
                 self.redo.clear();
