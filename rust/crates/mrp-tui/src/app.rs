@@ -10,6 +10,7 @@ use mrp_core::block::{
 use mrp_core::docsearch::{SearchError, Snapshot};
 use mrp_core::encoding::Encoding;
 use mrp_core::lang::{Catalog, Lang};
+use mrp_core::newline::Newline;
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::{Document, FileSource, LineIndex, SaveError};
@@ -76,17 +77,34 @@ fn larghezza_da(enc: Encoding, testo: &[u8], col: u64) -> u64 {
     colonna.saturating_sub(col)
 }
 
-/// Fa partire il thread che costruisce l'indice righe del file `path`: apre la SUA sorgente (il documento
-/// non si condivide mentre indicizza) e consegna l'esito sul canale. E' il meccanismo dell'apertura,
-/// riusato dopo un salvataggio riuscito (il file su disco e' cambiato).
-fn spawn_index_job(path: &Path, cancel: &Arc<AtomicBool>, progress: &Arc<AtomicU64>) -> IndexJob {
+/// Vero se il documento finisce con un a-capo della sua forma: la lunghezza e' multipla dell'unita'
+/// e l'ultima unita' e' l'a-capo (un byte finale spaiato, in UTF-16, non lo e' mai). Il documento
+/// vuoto no. Serve ai limiti del cursore in lettura e al numero dell'ultima riga.
+fn finisce_con_a_capo(doc: &Document) -> bool {
+    let newline = doc.newline();
+    let unit = newline.unit() as u64;
+    let len = doc.len();
+    len >= unit && len.is_multiple_of(unit) && newline.is_newline(&doc.read_range(len - unit, unit))
+}
+
+/// Fa partire il thread che costruisce l'indice righe del file `path` con la forma dell'a-capo
+/// `newline` (quella del documento: in UTF-16 l'a-capo e' un'unita' a 16 bit allineata): apre la
+/// SUA sorgente (il documento non si condivide mentre indicizza) e consegna l'esito sul canale.
+/// E' il meccanismo dell'apertura, riusato dopo un salvataggio riuscito (il file su disco e'
+/// cambiato) e dopo un cambio di forma dell'a-capo.
+fn spawn_index_job(
+    path: &Path,
+    newline: Newline,
+    cancel: &Arc<AtomicBool>,
+    progress: &Arc<AtomicU64>,
+) -> IndexJob {
     let (tx, rx) = mpsc::channel();
     let path = path.to_path_buf();
     let cancel_thread = Arc::clone(cancel);
     let progress_thread = Arc::clone(progress);
     std::thread::spawn(move || {
         let esito = FileSource::open(&path).and_then(|src| {
-            LineIndex::build(&src, &cancel_thread, &progress_thread)
+            LineIndex::build_for(&src, newline, &cancel_thread, &progress_thread)
                 .map_err(|_| io::Error::other("indicizzazione annullata"))
         });
         let _ = tx.send(esito);
@@ -337,6 +355,10 @@ pub struct App {
     cancel: Arc<AtomicBool>,
     /// L'indicizzazione in corso, se c'e'.
     index_job: Option<IndexJob>,
+    /// Vero: la forma dell'a-capo del documento e' cambiata (un cambio di codifica fra UTF-16 e il
+    /// resto) e l'indice righe va rifatto con la forma nuova; lo fa il primo `tick`, cosi' il
+    /// messaggio del cambio di codifica resta da solo nella riga di stato.
+    index_pending: bool,
     /// Il salvataggio in corso, se c'e': il documento e' nel suo thread e qui non c'e'.
     save_job: Option<SaveJob>,
     /// La ricerca in corso, se c'e': gira su una fotografia, il documento non si muove.
@@ -407,7 +429,7 @@ struct BlockState {
 impl App {
     /// Apre `path`. Errore se manca o non e' un file regolare.
     pub fn open(path: &Path, cfg: AppConfig) -> io::Result<App> {
-        let doc = Document::open(path)?;
+        let mut doc = Document::open(path)?;
         let file_name = doc
             .path()
             .file_name()
@@ -422,20 +444,26 @@ impl App {
             },
             None => (Catalog::english(), None),
         };
-        let cancel = Arc::new(AtomicBool::new(false));
-        let progress = Arc::new(AtomicU64::new(0));
-        let index_job = if cfg.index {
-            // Il thread apre la SUA sorgente sullo stesso file: il documento non si condivide mentre indicizza.
-            Some(spawn_index_job(doc.path(), &cancel, &progress))
-        } else {
-            None
-        };
         // La codifica: quella richiesta, o quella che l'inizio del file suggerisce (i primi 64 KiB,
         // con `Encoding::detect`). I byte del documento non cambiano: cambia solo come si leggono.
+        // Serve prima dell'indice: la forma dell'a-capo della codifica (in UTF-16 un'unita' a 16
+        // bit) decide come si contano le righe.
         let enc = cfg.encoding.unwrap_or_else(|| {
             let campione = doc.read_range(0, doc.len().min(65536));
             Encoding::detect(&campione)
         });
+        // La forma dell'a-capo della codifica, al documento appena aperto: senza storia di
+        // modifiche non puo' fallire (il risultato bool si ignora per quello).
+        let newline = enc.newline();
+        doc.set_newline(newline);
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        let index_job = if cfg.index {
+            // Il thread apre la SUA sorgente sullo stesso file: il documento non si condivide mentre indicizza.
+            Some(spawn_index_job(doc.path(), newline, &cancel, &progress))
+        } else {
+            None
+        };
         Ok(App {
             doc: Some(doc),
             file_name,
@@ -457,6 +485,7 @@ impl App {
             theme: cfg.theme,
             cancel,
             index_job,
+            index_pending: false,
             save_job: None,
             search_job: None,
             drawn_rows: Vec::new(),
@@ -919,6 +948,28 @@ impl App {
             match sotto.first() {
                 Some(b) if (b & 0b1100_0000) == 0b1000_0000 => pos -= 1,
                 _ => break,
+            }
+        }
+        pos
+    }
+
+    /// Porta `pos` sul confine di unita' UTF-16 piu' vicino non oltre `pos` (la codifica attiva e'
+    /// UTF-16): prima si arrotonda per difetto a un multiplo di 2 (un'unita' comincia sempre a una
+    /// posizione pari), poi, se `pos` sta sul surrogato BASSO di una coppia (il carattere che
+    /// finisce li' e' lungo 4), si torna indietro di 2, al suo inizio.
+    fn snap_to_unita(&self, pos: u64) -> u64 {
+        let Some(doc) = self.doc.as_ref() else {
+            return pos;
+        };
+        let mut pos = pos.min(doc.len());
+        pos -= pos % 2;
+        // La coppia che contiene l'unita' di `pos` comincia 2 byte prima: se c'e' davvero (un'alta
+        // seguita da una bassa, come la vede `first_char`), `pos` sta a meta' del carattere e si
+        // torna al suo inizio.
+        if pos >= 2 && pos + 2 <= doc.len() {
+            let buf = doc.read_range(pos - 2, 4);
+            if self.enc.first_char(&buf).is_some_and(|(_, n)| n == 4) {
+                pos -= 2;
             }
         }
         pos
@@ -1498,8 +1549,9 @@ impl App {
         self.scroll_adjust();
     }
 
-    /// L'incolla in modalita' colonna: il testo diviso in righe su `\n` (l'ultima vuota di un testo
-    /// che finisce con a-capo si ignora) entra alla colonna `col_a` del blocco — una riga sola, su
+    /// L'incolla in modalita' colonna: il testo, gia' nei byte della codifica attiva, diviso in
+    /// righe sugli a-capo della forma del documento (l'ultima vuota di un testo che finisce con
+    /// a-capo si ignora) entra alla colonna `col_a` del blocco — una riga sola, su
     /// tutte le righe del blocco; piu' righe, una per riga dalla prima del blocco, con le righe che
     /// servono (estese con `nth_row` se il blocco non basta). Senza blocco si parte dalla riga del
     /// cursore, alla sua colonna. Se il documento finisce prima delle righe da incollare:
@@ -1508,9 +1560,22 @@ impl App {
     /// sulle stesse righe, e senza blocco non se ne crea uno (il cursore va dopo la prima riga
     /// incollata, se la sua riga l'ha ricevuta).
     fn column_paste(&mut self, testo: &[u8]) {
-        let mut righe: Vec<&[u8]> = testo.split(|&b| b == b'\n').collect();
-        if testo.ends_with(b"\n") {
-            righe.pop();
+        // Le righe dell'incolla: il testo e' gia' nei byte della codifica attiva, quindi i suoi
+        // a-capo hanno la forma del documento (in UTF-16 l'unita' a 16 bit). Ogni riga e' il
+        // tratto fra due a-capo; l'ultimo tratto vuoto di un testo che finisce con a-capo si
+        // ignora.
+        let newline = match self.doc.as_ref() {
+            Some(doc) => doc.newline(),
+            None => return,
+        };
+        let mut righe: Vec<&[u8]> = Vec::new();
+        let mut inizio = 0;
+        for p in newline.positions(testo) {
+            righe.push(&testo[inizio..p]);
+            inizio = p + newline.unit();
+        }
+        if inizio < testo.len() {
+            righe.push(&testo[inizio..]);
         }
         if righe.is_empty() {
             return;
@@ -1695,6 +1760,14 @@ impl App {
             self.tick_save();
         }
         self.tick_search();
+        // Un cambio di forma dell'a-capo ha chiesto l'indice nuovo: parte adesso (il cambio di
+        // codifica lascia il suo messaggio da solo nella riga di stato, senza l'indicatore).
+        if self.index_pending {
+            self.index_pending = false;
+            if self.index_job.is_none() {
+                self.rebuild_index();
+            }
+        }
         let esito = match self.index_job.as_mut() {
             Some(job) => job.rx.try_recv(),
             None => return,
@@ -1819,20 +1892,47 @@ impl App {
         self.enc
     }
 
-    /// Cambia la codifica: i byte del documento non si toccano. La selezione e il blocco della
-    /// modalita' colonna non valgono piu', l'evidenziazione dell'ultima ricerca sparisce e il cursore
-    /// va all'inizio del carattere che lo contiene nella nuova codifica (da una code page a UTF-8 puo'
-    /// capitare a meta' di un carattere: si torna indietro fino al suo inizio, mai oltre l'inizio
-    /// della riga); `want_col` si ricalcola. `top` non cambia: le righe dipendono solo dagli a-capo.
+    /// Cambia la codifica: i byte del documento non si toccano. Se cambia la forma dell'a-capo
+    /// (fra UTF-16 e il resto) il documento non deve avere una storia di modifiche: se ce l'ha
+    /// niente cambia (codifica, cursore e selezione compresi) e il messaggio lo dice; se la forma
+    /// cambia, l'indice righe si rifà in background con la forma nuova (parte al primo `tick`, se
+    /// l'indice e' abilitato). La selezione e il blocco della modalita' colonna non valgono piu',
+    /// l'evidenziazione dell'ultima ricerca sparisce e il cursore va all'inizio del carattere che
+    /// lo contiene nella nuova codifica (da una code page a UTF-8, o fra UTF-8 e UTF-16, puo'
+    /// capitare a meta' di un carattere: si torna indietro fino al suo inizio); `want_col` si
+    /// ricalcola. `top` non cambia: le righe dipendono solo dagli a-capo.
     pub fn set_encoding(&mut self, e: Encoding) {
+        // La forma dell'a-capo e' del documento, non della sola codifica: cambia solo senza una
+        // storia di modifiche (le posizioni da annullare o ripetere sono legate alla forma con cui
+        // le modifiche sono state fatte).
+        let forma_cambiata = match self.doc.as_mut() {
+            Some(doc) if e.newline() != doc.newline() => {
+                if !doc.set_newline(e.newline()) {
+                    self.flash = Some(self.cat.t("flash.encoding_locked").to_string());
+                    return;
+                }
+                true
+            }
+            _ => false,
+        };
+        // Con la forma nuova l'indice righe non vale piu' (li conta gli a-capo dell'altra): uno in
+        // corso si ferma, e quello nuovo parte al primo `tick`, solo se l'indice e' abilitato.
+        if forma_cambiata {
+            self.cancel.store(true, Ordering::Relaxed);
+            self.cancel = Arc::new(AtomicBool::new(false));
+            self.index_job = None;
+            self.index_pending = self.index;
+        }
         self.enc = e;
         self.anchor = None;
         self.block = None;
         self.found = None;
-        // Solo UTF-8 puo' avere il cursore a meta' di un carattere: in una code page ogni offset e'
-        // un confine.
+        // Il cursore va a un confine di carattere della codifica nuova: in una code page ogni
+        // offset e' un confine, in UTF-8 e in UTF-16 no.
         if self.enc.is_utf8() {
             self.cursor = self.snap_to_char(self.cursor);
+        } else if self.enc.unit() == 2 {
+            self.cursor = self.snap_to_unita(self.cursor);
         }
         self.remember_col();
         self.flash = Some(self.cat.tf("flash.encoding", &[self.enc.name()]));
@@ -2035,7 +2135,7 @@ impl App {
             doc.line_at_offset(self.cursor).map(|riga| riga + 1)
         } else {
             let conteggio = doc.line_count()?;
-            let finisce_nl = len > 0 && doc.read_range(len - 1, 1).first() == Some(&b'\n');
+            let finisce_nl = finisce_con_a_capo(doc);
             Some(if len == 0 || finisce_nl {
                 conteggio + 1
             } else {
@@ -2077,7 +2177,8 @@ impl App {
         (self.w as usize).saturating_sub(self.gutter_w())
     }
 
-    /// Il limite del cursore: in lettura non oltre l'ultimo a-capo di un file che ci finisce.
+    /// Il limite del cursore: in lettura non oltre l'inizio dell'ultimo a-capo di un file che ci
+    /// finisce (l'unita' intera dell'a-capo, non il byte prima).
     fn max_cursor(&self) -> u64 {
         let Some(doc) = self.doc.as_ref() else {
             return 0;
@@ -2085,8 +2186,8 @@ impl App {
         let len = doc.len();
         if self.edit || len == 0 {
             len
-        } else if doc.read_range(len - 1, 1).first() == Some(&b'\n') {
-            len - 1
+        } else if finisce_con_a_capo(doc) {
+            len - doc.newline().unit() as u64
         } else {
             len
         }
@@ -2214,7 +2315,7 @@ impl App {
         let row = scan::row_start(doc, self.cursor, MAX_SCAN).0;
         let prossima = scan::next_row(doc, row, MAX_SCAN);
         let len = doc.len();
-        let finisce_nl = len > 0 && doc.read_range(len - 1, 1).first() == Some(&b'\n');
+        let finisce_nl = finisce_con_a_capo(doc);
         match prossima {
             Next::Line(start) | Next::Cut(start) => self.cursor_at_col(start),
             Next::End => {
@@ -2540,9 +2641,9 @@ impl App {
         self.insert_over_selection(testo.as_bytes());
     }
 
-    /// Enter: un a-capo. Si aggiunge al passo di storia corrente e poi lo chiude. In modalita' colonna
-    /// toglie prima il blocco, poi e' un Enter normale al cursore; in lettura il messaggio e il
-    /// blocco resta.
+    /// Enter: un a-capo, quello della codifica attiva (in UTF-16 un'unita' a 16 bit). Si aggiunge
+    /// al passo di storia corrente e poi lo chiude. In modalita' colonna toglie prima il blocco,
+    /// poi e' un Enter normale al cursore; in lettura il messaggio e il blocco resta.
     fn insert_enter(&mut self) {
         if self.col_mode && self.block.is_some() {
             if !self.edit {
@@ -2551,19 +2652,25 @@ impl App {
             }
             self.block = None;
         }
-        if self.insert_over_selection(b"\n") {
+        if self.insert_over_selection(self.enc.newline().bytes()) {
             self.seal_history();
         }
     }
 
-    /// Tab: un tabulatore (le celle le calcola la visualizzazione: qui e' un byte come gli altri). In
-    /// modalita' colonna con un blocco entra su tutte le righe del blocco.
+    /// Tab: un tabulatore (le celle le calcola la visualizzazione: qui e' un carattere come gli
+    /// altri, nei byte della codifica attiva). In modalita' colonna con un blocco entra su tutte
+    /// le righe del blocco.
     fn insert_tab(&mut self) {
+        // Il tabulatore nei byte della codifica attiva ('\t' e' ASCII: ogni codifica lo scrive;
+        // in UTF-16 un'unita' a 16 bit).
+        let Some(testo) = self.enc.encode('\t') else {
+            return;
+        };
         if self.col_mode && self.block.is_some() {
-            self.column_type(b"\t");
+            self.column_type(&testo);
             return;
         }
-        self.insert_over_selection(b"\t");
+        self.insert_over_selection(&testo);
     }
 
     /// Inserisce `testo` al posto dell'eventuale selezione, che si toglie prima nello stesso passo di
@@ -2842,8 +2949,9 @@ impl App {
         }
     }
 
-    /// Fa ripartire la costruzione dell'indice righe in background dopo un salvataggio riuscito: il file
-    /// su disco e' cambiato e l'indice del vecchio non vale piu'. Stesso meccanismo dell'apertura.
+    /// Fa ripartire la costruzione dell'indice righe in background, con la forma dell'a-capo del
+    /// documento: dopo un salvataggio riuscito (il file su disco e' cambiato) o dopo un cambio di
+    /// forma (l'indice vecchio conta gli a-capo dell'altra). Stesso meccanismo dell'apertura.
     fn rebuild_index(&mut self) {
         if !self.index {
             return;
@@ -2851,11 +2959,18 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
-        // Un'indicizzazione partita prima del salvataggio si ferma: indicizzerebbe il file vecchio.
+        let newline = doc.newline();
+        // Un'indicizzazione partita prima si ferma: indicizzerebbe il file vecchio, o con la
+        // forma vecchia dell'a-capo.
         self.cancel.store(true, Ordering::Relaxed);
         self.cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
-        self.index_job = Some(spawn_index_job(doc.path(), &self.cancel, &progress));
+        self.index_job = Some(spawn_index_job(
+            doc.path(),
+            newline,
+            &self.cancel,
+            &progress,
+        ));
     }
 }
 

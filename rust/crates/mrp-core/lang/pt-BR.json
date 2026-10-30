@@ -22,6 +22,7 @@
   "flash.index_failed": "falha na indexação: {}",
   "flash.read_only": "somente leitura: pressione F4 para editar",
   "flash.encoding": "codificação: {}",
+  "flash.encoding_locked": "salve antes de mudar para ou de UTF-16",
   "flash.not_encodable": "não é possível escrever '{}' em {}",
   "footer.f9": "Cod",
   "help.l13": "F9                         codificação do texto (conjunto de caracteres)",

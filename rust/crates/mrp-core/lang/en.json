@@ -21,6 +21,7 @@
   "flash.index_failed": "indexing failed: {}",
   "flash.read_only": "read-only: press F4 to edit",
   "flash.encoding": "encoding: {}",
+  "flash.encoding_locked": "save before switching to or from UTF-16",
   "flash.not_encodable": "cannot write '{}' in {}",
   "footer.f9": "Enc",
   "help.l13": "F9                         text encoding (character set)",

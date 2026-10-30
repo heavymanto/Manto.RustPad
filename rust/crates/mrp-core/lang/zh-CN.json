@@ -22,6 +22,7 @@
   "flash.index_failed": "建立索引失败: {}",
   "flash.read_only": "只读: 按F4编辑",
   "flash.encoding": "编码: {}",
+  "flash.encoding_locked": "切换到或离开 UTF-16 之前请先保存",
   "flash.not_encodable": "'{}' 无法用 {} 写入",
   "footer.f9": "编码",
   "help.l13": "F9                         文本编码(字符集)",
