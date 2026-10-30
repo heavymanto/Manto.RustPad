@@ -16,6 +16,7 @@
 
 use crate::document::Document;
 use crate::edit::EditError;
+use crate::newline::Newline;
 use crate::scan::{next_row, row_start, Next};
 use crate::view::{cella, col_of, fine_riga, Caratteri, ViewOptions};
 
@@ -169,19 +170,21 @@ pub fn block_spans(
     Ok(spans)
 }
 
-/// Il testo del blocco: per ogni riga i byte `[start, end)`, righe separate da un solo `\n` (nessun `\n`
-/// finale; un blocco di larghezza zero da' tante righe vuote). `Err(TooManyBytes)` se il risultato supererebbe
-/// `max_bytes` (si ferma prima di costruirlo tutto).
+/// Il testo del blocco: per ogni riga i byte `[start, end)`, righe separate da un solo a-capo del
+/// documento (nessun a-capo finale; un blocco di larghezza zero da' tante righe vuote). `Err(TooManyBytes)` se il
+/// risultato supererebbe `max_bytes` (si ferma prima di costruirlo tutto).
 pub fn block_text(
     doc: &Document,
     spans: &[RowSpan],
     max_bytes: u64,
 ) -> Result<Vec<u8>, BlockError> {
+    // le righe si separano con l'a-capo del documento, che conta un'unita' in byte
+    let nl = doc.newline();
     // il totale si conosce prima di leggere: un blocco troppo grande non viene mai costruito
     let mut totale = 0u64;
     for (i, span) in spans.iter().enumerate() {
         if i > 0 {
-            totale = totale.saturating_add(1);
+            totale = totale.saturating_add(nl.unit() as u64);
         }
         totale = totale.saturating_add(span.end - span.start);
     }
@@ -191,7 +194,7 @@ pub fn block_text(
     let mut testo = Vec::new();
     for (i, span) in spans.iter().enumerate() {
         if i > 0 {
-            testo.push(b'\n');
+            testo.extend_from_slice(nl.bytes());
         }
         testo.extend_from_slice(&doc.read_range(span.start, span.end - span.start));
     }
@@ -213,8 +216,9 @@ pub fn delete_block(doc: &mut Document, spans: &[RowSpan]) -> Result<u64, BlockE
 }
 
 /// Inserisce `testo` a `span.start` su una riga del blocco: tale e quale se la riga `reaches` la colonna `col_a`;
-/// se non ci arriva, solo con `pad`, dopo `col_a - width` spazi che riportano la riga alla colonna giusta (senza
-/// `pad` la riga resta intatta). `testo` non deve essere vuoto. Restituisce se la riga e' stata modificata.
+/// se non ci arriva, solo con `pad`, dopo `col_a - width` spazi nella codifica del documento che riportano la
+/// riga alla colonna giusta (senza `pad` la riga resta intatta). `testo` non deve essere vuoto. Restituisce se
+/// la riga e' stata modificata.
 fn inserisci_riga(
     doc: &mut Document,
     span: &RowSpan,
@@ -229,9 +233,21 @@ fn inserisci_riga(
     if !pad {
         return Ok(false);
     }
-    // riga corta (width < col_a): prima gli spazi che mancano fino a col_a
+    // riga corta (width < col_a): prima gli spazi che mancano fino a col_a, ciascuno scritto
+    // nella codifica del documento (b" " in UTF-8 e code page, l'unita' UTF-16 dello spazio)
     let spazi = usize::try_from(col_a - span.width).unwrap_or(usize::MAX);
-    let mut dati = vec![b' '; spazi];
+    let spazio: &[u8] = match doc.newline() {
+        Newline::Byte => b" ",
+        Newline::Le16 => b" \0",
+        Newline::Be16 => b"\0 ",
+    };
+    let capacita = spazi
+        .saturating_mul(spazio.len())
+        .saturating_add(testo.len());
+    let mut dati = Vec::with_capacity(capacita);
+    for _ in 0..spazi {
+        dati.extend_from_slice(spazio);
+    }
     dati.extend_from_slice(testo);
     doc.insert(span.start, &dati).map_err(BlockError::Edit)?;
     Ok(true)

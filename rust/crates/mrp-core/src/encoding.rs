@@ -1,16 +1,23 @@
 //! Codifiche dei caratteri. Il documento resta sempre una sequenza di BYTE: la codifica dice soltanto come quei byte si
 //! leggono come caratteri (vista, cursore, larghezza delle colonne) e come un carattere digitato diventa byte.
 //!
-//! Le codifiche di questo modulo sono tutte compatibili con l'ASCII (il byte 0x0A e' sempre `\n`, 0x09 sempre la
-//! tabulazione), quindi righe, indice delle righe e ricerca per byte non cambiano:
+//! Due famiglie. Quelle compatibili con l'ASCII (`Utf8`, `Single`): il byte 0x0A e' sempre `\n`, 0x09 sempre la
+//! tabulazione, quindi righe, indice delle righe e ricerca per byte non cambiano. Quelle a 16 bit (`Utf16Le`,
+//! `Utf16Be`): un carattere e' una o due unita' da 2 byte e l'a-capo e' una unita' (`newline::Newline`), quindi
+//! posizioni e ricerche devono stare allineate a 2 byte.
 //! - `Utf8`: quella di sempre; un byte che non inizia un carattere valido e' un carattere tutto suo, U+FFFD;
 //! - `Single`: una code page a byte singolo (windows-125x, ISO-8859-x, DOS, KOI8, Mac Roman; tabelle in `charsets`):
 //!   un byte = un carattere; i byte 0x00-0x7F sono ASCII, gli altri vengono dalla tabella (U+FFFD se la code page
-//!   non li definisce).
+//!   non li definisce);
+//! - `Utf16Le`, `Utf16Be`: UTF-16 little e big endian. Un carattere sono 2 byte (unita'), o 4 se e' una coppia di
+//!   surrogati (alto D800-DBFF seguito da basso DC00-DFFF). Un surrogato spaiato e' un carattere U+FFFD di 2 byte;
+//!   un byte finale che non completa una unita' e' un carattere U+FFFD di 1 byte. Il BOM (U+FEFF) e' un carattere
+//!   come un altro: sta nei byte del documento e si conserva.
 //!
 //! I nomi si confrontano senza distinguere maiuscole e con `_` uguale a `-` (`by_name`).
 
 use crate::charsets::CHARSETS;
+use crate::newline::Newline;
 
 /// Una codifica. E' un valore piccolo e copiabile (nel caso `Single`, l'indice in `charsets::CHARSETS`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
@@ -20,6 +27,10 @@ pub enum Encoding {
     Utf8,
     /// Una code page a byte singolo: indice in `charsets::CHARSETS`.
     Single(usize),
+    /// UTF-16 little endian.
+    Utf16Le,
+    /// UTF-16 big endian.
+    Utf16Be,
 }
 
 impl Encoding {
@@ -32,6 +43,12 @@ impl Encoding {
         if nome == "utf-8" || nome == "utf8" {
             return Some(Encoding::Utf8);
         }
+        // UTF-16: `utf-16le`, `utf16le`, `utf-16-le` e gli stessi per `be`; `utf-16` da solo e' ambiguo: non esiste
+        match nome.as_str() {
+            "utf-16le" | "utf16le" | "utf-16-le" => return Some(Encoding::Utf16Le),
+            "utf-16be" | "utf16be" | "utf-16-be" => return Some(Encoding::Utf16Be),
+            _ => {}
+        }
         for (i, cs) in CHARSETS.iter().enumerate() {
             if nome == cs.name || cs.aliases.contains(&nome.as_str()) {
                 return Some(Encoding::Single(i));
@@ -40,20 +57,25 @@ impl Encoding {
         None
     }
 
-    /// Il nome canonico (minuscolo): `utf-8` oppure quello della code page. Vale `by_name(e.name()) == Some(e)`.
+    /// Il nome canonico (minuscolo): `utf-8`, `utf-16le`, `utf-16be` oppure quello della code page. Vale `by_name(e.name()) == Some(e)`.
     pub fn name(self) -> &'static str {
         match self {
             Encoding::Utf8 => "utf-8",
+            Encoding::Utf16Le => "utf-16le",
+            Encoding::Utf16Be => "utf-16be",
             // l'indice e' sempre dentro CHARSETS (esiste solo se costruito da `by_name`/`all`),
             // ma un valore fuori tabella non deve poter andare in panico
             Encoding::Single(i) => CHARSETS.get(i).map_or("", |cs| cs.name),
         }
     }
 
-    /// Tutte le codifiche: prima `Utf8`, poi le code page nell'ordine di `charsets::CHARSETS`. Nomi tutti diversi.
+    /// Tutte le codifiche: `Utf8`, `Utf16Le`, `Utf16Be`, poi le code page nell'ordine di `charsets::CHARSETS`. Nomi
+    /// tutti diversi.
     pub fn all() -> Vec<Encoding> {
-        let mut tutte = Vec::with_capacity(CHARSETS.len() + 1);
+        let mut tutte = Vec::with_capacity(CHARSETS.len() + 3);
         tutte.push(Encoding::Utf8);
+        tutte.push(Encoding::Utf16Le);
+        tutte.push(Encoding::Utf16Be);
         for i in 0..CHARSETS.len() {
             tutte.push(Encoding::Single(i));
         }
@@ -65,15 +87,52 @@ impl Encoding {
         matches!(self, Encoding::Utf8)
     }
 
+    /// Vero per `Utf16Le` e `Utf16Be`.
+    pub fn is_utf16(self) -> bool {
+        matches!(self, Encoding::Utf16Le | Encoding::Utf16Be)
+    }
+
+    /// Quanti byte ha l'unita' di questa codifica, cioe' l'allineamento di posizioni e tagli: 2 per UTF-16, 1 per le altre.
+    pub fn unit(self) -> usize {
+        self.newline().unit()
+    }
+
+    /// La forma dell'a-capo nei byte di questa codifica (vedi `newline::Newline`).
+    pub fn newline(self) -> Newline {
+        match self {
+            Encoding::Utf16Le => Newline::Le16,
+            Encoding::Utf16Be => Newline::Be16,
+            Encoding::Utf8 | Encoding::Single(_) => Newline::Byte,
+        }
+    }
+
     /// Il primo carattere di `bytes` e quanti byte occupa, `None` se `bytes` e' vuoto.
     /// - `Utf8`: il piu' corto prefisso che e' un carattere UTF-8 valido; se non c'e' (byte non valido, sequenza
     ///   troncata o sovralunga) `('\u{fffd}', 1)`: un byte non valido e' un carattere tutto suo;
-    /// - `Single`: sempre un byte; `b < 0x80` e' il carattere ASCII, altrimenti quello della tabella.
+    /// - `Single`: sempre un byte; `b < 0x80` e' il carattere ASCII, altrimenti quello della tabella;
+    /// - `Utf16Le`, `Utf16Be`: una unita' (2 byte), o una coppia di surrogati (4 byte, alto D800-DBFF seguito
+    ///   da basso DC00-DFFF); un surrogato spaiato e' `('\u{fffd}', 2)`, un byte finale che non completa una
+    ///   unita' e' `('\u{fffd}', 1)`.
     pub fn first_char(self, bytes: &[u8]) -> Option<(char, usize)> {
         let &b = bytes.first()?;
         match self {
             // code page a byte singolo: un byte = un carattere
             Encoding::Single(i) => Some((Self::char_di_byte(i, b), 1)),
+            // UTF-16: le regole nel commento del metodo, lette su una finestra di fino a 4 byte
+            Encoding::Utf16Le | Encoding::Utf16Be => {
+                // meno di 2 byte (il vuoto e' gia' escluso): resta un byte spaiato
+                let Some(prima) = self.unita(bytes, 0) else {
+                    return Some(('\u{fffd}', 1));
+                };
+                // alto seguito da basso: la coppia e' un carattere di 4 byte
+                if let Some(c) = self.coppia(bytes, 0) {
+                    return Some((c, 4));
+                }
+                // ogni altra unita' e' un carattere di 2 byte; un surrogato spaiato (un alto senza
+                // il basso dopo, o un basso da solo) non e' un carattere e vale U+FFFD
+                let c = char::from_u32(u32::from(prima)).unwrap_or('\u{fffd}');
+                Some((c, 2))
+            }
             // il piu' corto prefisso che e' un carattere intero (stessa regola di
             // `primo_carattere` in mrp-tui); se non c'e', un byte non valido e' un carattere
             // tutto suo; non si guardano mai piu' di 4 byte
@@ -93,7 +152,8 @@ impl Encoding {
     }
 
     /// Quanti byte occupa l'ULTIMO carattere di `bytes` (0 se e' vuoto): per `Utf8` il piu' corto suffisso che e' un
-    /// carattere valido, altrimenti 1 (stessa regola di `first_char`, letta dalla fine); per `Single` 1.
+    /// carattere valido, altrimenti 1 (stessa regola di `first_char`, letta dalla fine); per `Single` 1; per UTF-16
+    /// 4 se l'ultima unita' e' un basso preceduto da un alto, altrimenti 2 (e 1 se la lunghezza e' dispari).
     pub fn last_char_len(self, bytes: &[u8]) -> usize {
         if bytes.is_empty() {
             return 0;
@@ -101,6 +161,18 @@ impl Encoding {
         match self {
             // code page a byte singolo: un carattere e' sempre un byte
             Encoding::Single(_) => 1,
+            Encoding::Utf16Le | Encoding::Utf16Be => {
+                // lunghezza dispari: l'ultimo byte non completa una unita', e' un carattere spaiato
+                if !bytes.len().is_multiple_of(2) {
+                    return 1;
+                }
+                // l'ultima unita' e' un basso preceduto da un alto: il carattere e' la coppia (4 byte)
+                let n = bytes.len();
+                if n >= 4 && self.coppia(bytes, n - 4).is_some() {
+                    return 4;
+                }
+                2
+            }
             // il piu' corto suffisso che e' un carattere intero (stessa regola di
             // `ultimo_carattere` in mrp-tui), altrimenti un byte
             Encoding::Utf8 => {
@@ -119,13 +191,24 @@ impl Encoding {
     }
 
     /// I byte che scrivono `c` in questa codifica, `None` se non si puo' scrivere (carattere fuori dalla code page;
-    /// U+FFFD non si scrive mai in una code page). In `Utf8` ogni carattere si scrive (U+FFFD compreso).
+    /// U+FFFD non si scrive mai in una code page). In `Utf8` e in UTF-16 ogni carattere si scrive (U+FFFD compreso).
     pub fn encode(self, c: char) -> Option<Vec<u8>> {
         match self {
             // in UTF-8 si scrive tutto, U+FFFD compreso
             Encoding::Utf8 => {
                 let mut buf = [0u8; 4];
                 Some(c.encode_utf8(&mut buf).as_bytes().to_vec())
+            }
+            Encoding::Utf16Le | Encoding::Utf16Be => {
+                // in UTF-16 si scrive tutto, U+FFFD compreso: un'unita' (2 byte), o una coppia (4
+                // byte) sopra U+FFFF, nell'endian di questa codifica
+                let le = self == Encoding::Utf16Le;
+                let mut out = Vec::with_capacity(4);
+                let mut buf = [0u16; 2];
+                for u in c.encode_utf16(&mut buf) {
+                    out.extend_from_slice(&if le { u.to_le_bytes() } else { u.to_be_bytes() });
+                }
+                Some(out)
             }
             Encoding::Single(i) => {
                 // il carattere sostitutivo non si scrive mai in una code page
@@ -160,26 +243,71 @@ impl Encoding {
     }
 
     /// `bytes` come testo. `Utf8`: come `String::from_utf8_lossy`; `Single`: carattere per carattere dalla tabella
-    /// (un byte non definito diventa U+FFFD).
+    /// (un byte non definito diventa U+FFFD); UTF-16: le regole di `first_char` carattere per carattere.
     pub fn decode_lossy(self, bytes: &[u8]) -> String {
         match self {
             Encoding::Utf8 => String::from_utf8_lossy(bytes).into_owned(),
             Encoding::Single(i) => bytes.iter().map(|&b| Self::char_di_byte(i, b)).collect(),
+            Encoding::Utf16Le | Encoding::Utf16Be => {
+                // carattere per carattere: le coppie si uniscono, ogni surrogato spaiato e un
+                // byte finale spaiato valgono un U+FFFD
+                let mut s = String::with_capacity(bytes.len() / 2);
+                let mut i = 0;
+                while let Some((c, n)) = self.first_char(&bytes[i..]) {
+                    s.push(c);
+                    i += n;
+                }
+                s
+            }
         }
     }
 
     /// Indovina la codifica dai primi byte di un file (`sample`, di norma i primi 64 KiB), con queste regole:
-    /// 1. se contiene un byte NUL: `Utf8` (file binario o in una codifica a 16 bit: non si indovina);
-    /// 2. se e' UTF-8 valido, ammettendo una sequenza multibyte INCOMPLETA in coda (il campione e' tagliato): `Utf8`;
-    /// 3. altrimenti la code page `windows-1252`.
+    /// 1. BOM UTF-16: il campione comincia con `FF FE` senza cominciare con `FF FE 00 00` (il BOM di UTF-32 LE)
+    ///    -> `Utf16Le`; comincia con `FE FF` -> `Utf16Be`;
+    /// 2. senza BOM, se il campione ha almeno 8 byte: i byte zero nelle unita' intere dicono l'endian (in un
+    ///    testo a 16 bit circa meta' dei byte e' zero, e sta tutto nella meta' giusta dell'unita');
+    /// 3. se contiene un byte NUL: `Utf8` (file binario: non si indovina);
+    /// 4. se e' UTF-8 valido, ammettendo una sequenza multibyte INCOMPLETA in coda (il campione e' tagliato): `Utf8`;
+    /// 5. altrimenti la code page `windows-1252`.
     ///
     /// Un campione vuoto o solo ASCII e' `Utf8`.
     pub fn detect(sample: &[u8]) -> Encoding {
-        // 1. un byte NUL: file binario o codifica a 16 bit, non si indovina
+        // 1. il BOM UTF-16 all'inizio del campione (`FF FE 00 00` e' il BOM di UTF-32 LE: non e' UTF-16)
+        if sample.starts_with(&[0xFF, 0xFE]) && !sample.starts_with(&[0xFF, 0xFE, 0x00, 0x00]) {
+            return Encoding::Utf16Le;
+        }
+        if sample.starts_with(&[0xFE, 0xFF]) {
+            return Encoding::Utf16Be;
+        }
+        // 2. senza BOM, con almeno 8 byte: n = len / 2 unita' intere; z_pari = quanti byte 0 stanno
+        //    in posizione pari fra i primi 2n byte, z_dispari = in posizione dispari. In little endian
+        //    lo zero e' il byte ALTO dell'unita' (posizione dispari), in big endian il BASSO (posizione
+        //    pari); le due condizioni non possono valere insieme
+        if sample.len() >= 8 {
+            let n = sample.len() / 2;
+            let (mut z_pari, mut z_dispari) = (0usize, 0usize);
+            for (i, &b) in sample.iter().take(2 * n).enumerate() {
+                if b == 0 {
+                    if i.is_multiple_of(2) {
+                        z_pari += 1;
+                    } else {
+                        z_dispari += 1;
+                    }
+                }
+            }
+            if 2 * z_dispari >= n && 20 * z_pari <= z_dispari {
+                return Encoding::Utf16Le;
+            }
+            if 2 * z_pari >= n && 20 * z_dispari <= z_pari {
+                return Encoding::Utf16Be;
+            }
+        }
+        // 3. un byte NUL: file binario o codifica a 16 bit non riconosciuta sopra, non si indovina
         if sample.contains(&0) {
             return Encoding::Utf8;
         }
-        // 2. UTF-8 valido, ammettendo una sequenza multibyte INCOMPLETA in coda (il campione e'
+        // 4. UTF-8 valido, ammettendo una sequenza multibyte INCOMPLETA in coda (il campione e'
         //    tagliato): con from_utf8 e' l'errore con error_len() = None, quello che dice che la
         //    sequenza sarebbe continuata oltre la fine del campione
         let valido = match std::str::from_utf8(sample) {
@@ -189,7 +317,7 @@ impl Encoding {
         if valido {
             return Encoding::Utf8;
         }
-        // 3. altrimenti la code page di ripiego
+        // 5. altrimenti la code page di ripiego
         Encoding::by_name("windows-1252").unwrap_or(Encoding::Utf8)
     }
 
@@ -203,5 +331,30 @@ impl Encoding {
             .get(i)
             .and_then(|cs| cs.table.get(usize::from(b - 0x80)))
             .map_or('\u{fffd}', |&c| c)
+    }
+
+    /// L'unita' a 16 bit che comincia in `i` di `bytes`, nell'endian di questa codifica: `None` se i
+    /// byte non bastano o la codifica non e' a 16 bit.
+    fn unita(self, bytes: &[u8], i: usize) -> Option<u16> {
+        let b = bytes.get(i..i + 2)?;
+        Some(match self {
+            Encoding::Utf16Le => u16::from_le_bytes([b[0], b[1]]),
+            Encoding::Utf16Be => u16::from_be_bytes([b[0], b[1]]),
+            Encoding::Utf8 | Encoding::Single(_) => return None,
+        })
+    }
+
+    /// Il carattere della coppia di surrogati che comincia in `i` di `bytes` (alto D800-DBFF seguito da
+    /// basso DC00-DFFF): `None` se in `i` non comincia una coppia. Vale solo per `Utf16Le` e `Utf16Be`.
+    fn coppia(self, bytes: &[u8], i: usize) -> Option<char> {
+        let prima = self.unita(bytes, i)?;
+        let seconda = self.unita(bytes, i + 2)?;
+        if (0xd800..0xdc00).contains(&prima) && (0xdc00..0xe000).contains(&seconda) {
+            // la stessa aritmetica della coppia `\u{...}\u{...}` in `lang`
+            let n = 0x10000 + (u32::from(prima - 0xd800) << 10) + u32::from(seconda - 0xdc00);
+            Some(char::from_u32(n).unwrap_or('\u{fffd}'))
+        } else {
+            None
+        }
     }
 }

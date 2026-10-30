@@ -58,7 +58,8 @@ pub struct Row {
     pub more_left: bool,
     /// La riga ha piu' di `hscroll + cols` celle, oppure e' stata tagliata (continua nella riga successiva).
     pub more_right: bool,
-    /// Vero se `start` e' l'inizio di una riga vera (la prima riga della camminata: `top == 0` o il byte prima e' `\n`).
+    /// Vero se `start` e' l'inizio di una riga vera (la prima riga della camminata: `top == 0` o l'unita'
+    /// prima e' un a-capo).
     pub starts_line: bool,
 }
 
@@ -80,9 +81,14 @@ pub fn rows_from(
     }
     let tab = opts.tab_width.max(1);
     let mut start = top;
+    // l'a-capo del documento e' un'unita' (1 byte in UTF-8 e code page, 2 in UTF-16): le righe vere
+    // e la riga vuota di fine file si decidono sull'unita', non sul singolo byte
+    let nl = doc.newline();
+    let unit = nl.unit() as u64;
     // la prima riga della camminata parte da top: e' una riga vera se e' l'inizio del documento
-    // oppure se la precede un a-capo
-    let mut starts_line = start == 0 || byte_a(doc, start - 1) == Some(b'\n');
+    // oppure se l'unita' prima e' un a-capo
+    let mut starts_line =
+        start == 0 || (start >= unit && nl.is_newline(&doc.read_range(start - unit, unit)));
     while rows.len() < count && start < len {
         let (end, prossima, a_capo, tagliata) = fine_riga(doc, start, opts.max_scan);
         // per riga si leggono solo i byte che possono coprire la finestra (limite di sicurezza),
@@ -138,8 +144,13 @@ pub fn rows_from(
             None => break,
         }
     }
-    // la riga vuota di fine file, dove l'editor mette il cursore
-    if opts.show_eof_row && rows.len() < count && (len == 0 || byte_a(doc, len - 1) == Some(b'\n'))
+    // la riga vuota di fine file, dove l'editor mette il cursore: c'e' se il documento e' vuoto o
+    // finisce con un a-capo (lunghezza multipla dell'unita' e ultima unita' = a-capo)
+    if opts.show_eof_row
+        && rows.len() < count
+        && (len == 0
+            || (len.is_multiple_of(unit)
+                && nl.ends_with_newline(&doc.read_range(len - unit, unit))))
     {
         rows.push(Row {
             start: len,
@@ -198,36 +209,32 @@ pub fn offset_at_col(doc: &Document, row_start: u64, col: u64, opts: &ViewOption
     end
 }
 
-/// Un byte del documento, se esiste (una finestra piccola, mai il file intero).
-fn byte_a(doc: &Document, pos: u64) -> Option<u8> {
-    let b = doc.read_range(pos, 1);
-    if b.is_empty() {
-        None
-    } else {
-        Some(b[0])
-    }
-}
-
 /// Fine della riga che inizia in `start` e come prosegue la camminata:
 /// `(fine, prossima, a_capo, tagliata)`. `fine` esclude l'a-capo di chiusura (per una riga tagliata
 /// e' il punto di taglio, per l'ultima senza a-capo la fine del documento); `prossima` e' l'inizio
-/// della riga visuale successiva (`None`: non c'e'); `a_capo` dice se la riga termina con un `\n`
-/// (serve per il `\r` nascosto); `tagliata` se `max_scan` ha tagliato la riga.
+/// della riga visuale successiva (`None`: non c'e'); `a_capo` dice se la riga termina con l'a-capo
+/// del documento (serve per il `\r` nascosto); `tagliata` se `max_scan` ha tagliato la riga.
 pub(crate) fn fine_riga(
     doc: &Document,
     start: u64,
     max_scan: u64,
 ) -> (u64, Option<u64>, bool, bool) {
+    // l'a-capo del documento e' un'unita' (1 byte in UTF-8 e code page, 2 in UTF-16)
+    let nl = doc.newline();
+    let unit = nl.unit() as u64;
     match next_row(doc, start, max_scan) {
-        // l'a-capo chiude la riga: la fine sta prima, la prossima e' una riga vera
-        Next::Line(n) => (n - 1, Some(n), true, false),
+        // l'a-capo chiude la riga: la fine sta prima dell'unita', la prossima e' una riga vera
+        Next::Line(n) => (n - unit, Some(n), true, false),
         // riga tagliata: la fine e' il punto di taglio, la prossima comincia da li'
         Next::Cut(n) => (n, Some(n), false, true),
-        // ultima riga: se il documento finisce con un a-capo, la riga finisce prima di quel byte
+        // ultima riga: se il documento finisce con un a-capo, la riga finisce prima di quell'unita'
         Next::End => {
             let len = doc.len();
-            if len > 0 && byte_a(doc, len - 1) == Some(b'\n') {
-                (len - 1, None, true, false)
+            if len > 0
+                && len.is_multiple_of(unit)
+                && nl.ends_with_newline(&doc.read_range(len - unit, unit))
+            {
+                (len - unit, None, true, false)
             } else {
                 (len, None, false, false)
             }
@@ -253,10 +260,12 @@ pub(crate) fn cella(c: char, colonna: usize, tab: usize, nascosto: bool) -> (usi
 
 /// I caratteri di un pezzo di riga, letti a blocchi dal documento: in UTF-8 un carattere valido,
 /// oppure un singolo byte non valido che vale un carattere `U+FFFD` (i byte non validi non si
-/// uniscono); in una code page a byte singolo un byte = un carattere della tabella. Un carattere
-/// multibyte tagliato dal confine del blocco si rilegge col blocco che parte da lui; se invece a
-/// tagliarlo e' il limite di lettura (vedi `rows_from`) la lettura si ferma: oltre quel punto non
-/// si sa niente e non si spaccia per non valido cio' che non si e' letto.
+/// uniscono); in UTF-16 una o due unita' da 2 byte (una coppia di surrogati e' un carattere solo;
+/// surrogati spaiati e byte finale spaiato valgono `U+FFFD`); in una code page a byte singolo un
+/// byte = un carattere della tabella. Un carattere multibyte tagliato dal confine del blocco si
+/// rilegge col blocco che parte da lui; se invece a tagliarlo e' il limite di lettura (vedi
+/// `rows_from`) la lettura si ferma: oltre quel punto non si sa niente e non si spaccia per non
+/// valido cio' che non si e' letto.
 pub(crate) struct Caratteri<'a> {
     doc: &'a Document,
     /// fino a qui si legge (fine riga o limite del chiamante)
@@ -307,6 +316,25 @@ impl<'a> Caratteri<'a> {
             // offset del carattere dentro il blocco: e' un offset di blocco, sempre piccolo
             let i = usize::try_from(self.pos - self.blocco).ok()?;
             let disponibili = self.buf.len() - i;
+            // UTF-16: il carattere sono una o due unita' da 2 byte, decodificate da `first_char`
+            // su una finestra di fino a 4 byte. Se i byte disponibili nel blocco sono meno di 4 e
+            // il blocco non arriva a fine, il carattere puo' stare a cavallo del confine e si
+            // rilegge il blocco che parte da lui (stessa idea dell'UTF-8); il blocco comunque non
+            // passa mai fine, quindi una finestra corta vuol dire che e' fine a tagliare il
+            // carattere, che vale U+FFFD per i byte che restano
+            if self.encoding.is_utf16() {
+                if disponibili < 4 && fine_blocco < self.fine {
+                    self.buf.clear();
+                    self.blocco = self.pos;
+                    continue;
+                }
+                let (c, n) = self
+                    .encoding
+                    .first_char(&self.buf[i..i + 4.min(disponibili)])
+                    .unwrap_or(('\u{fffd}', 1));
+                self.pos += n as u64;
+                return Some((self.pos - n as u64, c, n));
+            }
             // code page a byte singolo: un byte = un carattere, sempre lungo 1 (nessun confine di
             // blocco da rispettare); il carattere e' quello del byte nella codifica
             if !self.encoding.is_utf8() {

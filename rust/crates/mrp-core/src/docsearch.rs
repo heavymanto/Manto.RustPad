@@ -35,6 +35,10 @@ pub struct Snapshot {
     table: PieceTable,
     /// Byte letti per volta (>= 1).
     chunk: usize,
+    /// Allineamento degli inizi di occorrenza validi: l'unita' dell'a-capo del documento
+    /// (1 per UTF-8 e code page, 2 per UTF-16). Un'occorrenza che comincia a una posizione
+    /// non allineata e' meta' di un'unita' e non conta.
+    align: usize,
 }
 
 // La fotografia deve poter arrivare al thread di ricerca, e piu' ricerche possono partire
@@ -53,6 +57,7 @@ impl Document {
             source: Arc::clone(self.source()?),
             table: self.table().clone(),
             chunk: DEFAULT_CHUNK,
+            align: self.newline().unit(),
         })
     }
 }
@@ -75,9 +80,10 @@ impl Snapshot {
         self.len() == 0
     }
 
-    /// Il primo inizio di `needle` che sta in `[from, len)` con l'ago intero dentro il documento. `None` se non c'e',
-    /// se `needle` e' vuoto o piu' lungo del documento, o se `from` e' oltre la fine. `progress` cresce dei byte
-    /// esaminati; `cancel` si controlla prima di ogni blocco.
+    /// Il primo inizio di `needle` che sta in `[from, len)` con l'ago intero dentro il documento e multiplo
+    /// dell'allineamento del documento (l'unita' dell'a-capo: le occorrenze sfasate di UTF-16 non contano).
+    /// `None` se non c'e', se `needle` e' vuoto o piu' lungo del documento, o se `from` e' oltre la fine.
+    /// `progress` cresce dei byte esaminati; `cancel` si controlla prima di ogni blocco.
     pub fn find_next(
         &self,
         needle: &[u8],
@@ -99,6 +105,7 @@ impl Snapshot {
             return Ok(None);
         }
         let chunk = self.chunk as u64;
+        let align = self.align as u64;
         let mut pos = from;
         loop {
             // Il cancel si controlla PRIMA di elaborare il blocco.
@@ -107,12 +114,19 @@ impl Snapshot {
             }
             // Il blocco avanza di [pos, next); la finestra letta si estende di `n - 1` oltre
             // `next`, cosi' un'occorrenza a cavallo di due blocchi non sfugge (il tratto extra
-            // non conta nel progress, che misura solo l'avanzamento).
+            // non conta nel progress, che misura solo l'avanzamento). Le occorrenze che
+            // cominciano a una posizione non allineata si saltano e si CONTINUA nella stessa
+            // finestra, riprendendo da subito dopo l'inizio trovato.
             let next = pos.saturating_add(chunk).min(len);
             let fine = next.saturating_add(n - 1).min(len);
             let block = self.table.read_range(&self.source, pos, fine - pos);
-            if let Some(i) = memmem::find(&block, needle) {
-                return Ok(Some(pos + i as u64));
+            let mut da = 0usize;
+            while let Some(i) = memmem::find(&block[da..], needle) {
+                let inizio = pos + (da + i) as u64;
+                if inizio.is_multiple_of(align) {
+                    return Ok(Some(inizio));
+                }
+                da += i + 1;
             }
             progress.fetch_add(next - pos, Ordering::Relaxed);
             if next == len {
@@ -123,7 +137,8 @@ impl Snapshot {
     }
 
     /// L'ultimo inizio di `needle` che sta prima di `before` (inizio < `before`, ago intero dentro il documento).
-    /// `before` oltre la fine vale come la fine. Stesse regole di `find_next` per ago vuoto, progress e cancel.
+    /// `before` oltre la fine vale come la fine. Stesse regole di `find_next` per ago vuoto, allineamento, progress
+    /// e cancel.
     pub fn find_prev(
         &self,
         needle: &[u8],
@@ -156,12 +171,19 @@ impl Snapshot {
             // Blocco all'indietro [lo, hi): la finestra letta si estende di `n - 1` oltre `hi`
             // per tenere dentro anche le occorrenze che iniziano nel blocco e finiscono dopo
             // `hi`; una che iniziasse a `hi` o oltre non ci sta mai intera, quindi `rfind`
-            // restituisce l'ultima occorrenza con inizio in [lo, hi).
+            // restituisce l'ultima occorrenza con inizio in [lo, hi). Le occorrenze non
+            // allineate si saltano: la finestra si accorza alla fine dell'occorrenza trovata
+            // meno un byte (cosi' restano anche quelle che la sovrappongono) e si riprova.
             let lo = hi.saturating_sub(chunk);
             let fine = hi.saturating_add(n - 1).min(len);
             let block = self.table.read_range(&self.source, lo, fine - lo);
-            if let Some(i) = memmem::rfind(&block, needle) {
-                return Ok(Some(lo + i as u64));
+            let mut fino = block.len();
+            while let Some(i) = memmem::rfind(&block[..fino], needle) {
+                let inizio = lo + i as u64;
+                if inizio.is_multiple_of(self.align as u64) {
+                    return Ok(Some(inizio));
+                }
+                fino = i + needle.len() - 1;
             }
             progress.fetch_add(hi - lo, Ordering::Relaxed);
             if lo == 0 {

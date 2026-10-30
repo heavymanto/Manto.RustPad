@@ -13,6 +13,7 @@ pub mod edit;
 pub mod encoding;
 pub mod lang;
 pub mod lines;
+pub mod newline;
 pub mod scan;
 pub mod search;
 pub mod source;

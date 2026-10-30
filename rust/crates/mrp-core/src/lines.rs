@@ -1,18 +1,20 @@
 //! Indice delle righe sparso: ricorda la posizione di un sottoinsieme di righe, non di tutte.
 //!
 //! Convenzione sulle righe (identica per tutto il progetto):
-//! - il separatore e' il solo byte `\n` (in un file CRLF il `\r` resta dentro la riga);
+//! - il separatore e' l'unita' di a-capo della forma `Newline` con cui l'indice e' costruito
+//!   (vedi `newline.rs`): il byte `0A` per UTF-8 e le code page, l'unita' di 2 byte ALLINEATA
+//!   `0A 00` o `00 0A` per UTF-16; in un file CRLF il `\r` resta dentro la riga;
 //! - le righe sono numerate da 0;
-//! - il numero di righe e' il numero di `\n` piu' 1 se il file e' non vuoto e non finisce con `\n`;
-//!   un file vuoto ha 0 righe; `"a\n"` ha 1 riga; `"a\nb"` ha 2 righe; `"\n\n"` ha 2 righe.
+//! - il numero di righe e' il numero di a-capo piu' 1 se il file e' non vuoto e non finisce con
+//!   un a-capo; un file vuoto ha 0 righe; `"a\n"` ha 1 riga; `"a\nb"` ha 2 righe; `"\n\n"` ha 2 righe.
 //!
 //! La costruzione legge il file con letture esplicite (`FileSource::read_at`) a segmenti di
 //! `READ_BYTES`, non dalla mappatura: il working set del processo non cresce con la dimensione
 //! del file. La mappatura si tocca solo nel ripiego di `scan_block`, per un blocco la cui
 //! lettura e' fallita o finita prima del previsto.
 
+use crate::newline::Newline;
 use crate::source::FileSource;
-use memchr::memchr_iter;
 use rayon::prelude::*;
 use std::io;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
@@ -74,6 +76,8 @@ impl Drop for ReleaseOnDrop<'_> {
 pub struct LineIndex {
     /// Numero totale di righe.
     total_lines: u64,
+    /// La forma dell'a-capo con cui l'indice e' stato costruito.
+    newline: Newline,
     /// Punti memorizzati: (numero di riga, posizione in byte), crescenti su entrambi.
     checkpoints: Vec<(u64, u64)>,
 }
@@ -94,25 +98,28 @@ fn slice_index(bytes: &[u8], pos: u64) -> usize {
 /// Percorso di ripiego, non piu' quello normale (E21): i lavoratori leggono con
 /// `scan_block_reads` e toccano la mappatura solo se una lettura esplicita fallisce o se il
 /// file e' stato accorciato mentre si indicizzava; in quel caso il blocco si rifa' qui.
-fn scan_block(bytes: &[u8], i: usize, chunk: usize, every: u64) -> ChunkResult {
+fn scan_block(bytes: &[u8], newline: Newline, i: usize, chunk: usize, every: u64) -> ChunkResult {
+    let unit = newline.unit();
     // Con i < n_blocchi resta a < file_len: il prodotto non va in overflow.
     let a = i * chunk;
     let b = a.saturating_add(chunk).min(bytes.len());
     let mut count: u64 = 0;
     let mut points: Vec<(u64, u64)> = Vec::new();
-    // Il primo byte del blocco e' un inizio di riga se e' l'inizio del file
-    // oppure se il byte precedente (del blocco prima, sola lettura) e' `\n`.
-    if a == 0 || bytes[a - 1] == b'\n' {
+    // Il primo byte del blocco e' un inizio di riga se e' l'inizio del file oppure se l'unita'
+    // precedente (del blocco prima, gia' in mappatura) e' un a-capo. `a` e' 0 oppure almeno
+    // `chunk`, che e' un multiplo di `unit` e quindi almeno `unit`: la sottrazione e' sicura.
+    if a == 0 || newline.is_newline(bytes.get(a - unit..a).unwrap_or(&[])) {
         if count.is_multiple_of(every) {
             points.push((count, a as u64));
         }
         count += 1;
     }
-    // Inizi interni: il byte dopo ogni `\n` del blocco. Se `p + 1 == b` l'inizio
-    // appartiene al blocco dopo (lo trova con il controllo precedente);
-    // se `p + 1 == len` non e' un inizio.
-    for p in memchr_iter(b'\n', &bytes[a..b]) {
-        let start = a + p + 1;
+    // Inizi interni: l'unita' dopo ogni a-capo del blocco. Se `p + unit == b` l'inizio
+    // appartiene al blocco dopo (lo trova con il controllo precedente); se `p + unit == len`
+    // non e' un inizio. Un byte finale spaiato invece e' un inizio di riga quando l'a-capo e'
+    // l'ultima unita' piena prima di lui: `start < b` lo conta.
+    for p in newline.positions(&bytes[a..b]) {
+        let start = a + p + unit;
         if start < b {
             if count.is_multiple_of(every) {
                 points.push((count, start as u64));
@@ -146,33 +153,39 @@ fn read_full(src: &FileSource, buf: &mut [u8], off: usize) -> io::Result<()> {
 /// Analisi del blocco `[a, b)` con letture esplicite a segmenti di al piu' `buf.len()` byte
 /// (E21): e' il percorso normale dei lavoratori, che non toccano la mappatura, cosi' il
 /// working set del processo non cresce con la dimensione del file. `buf` e' il buffer del
-/// lavoratore: non vuoto (il chiamante lo crea di `READ_BYTES.min(chunk)`, almeno 1) e riusato
-/// per tutti i segmenti. Da un segmento all'altro si portano il conteggio locale degli inizi
-/// di riga del blocco e se l'ultimo byte letto era `\n`. Le regole sono quelle di
-/// `scan_block`: un inizio di riga a `p` in `[a, b)` e' `p == a` con il byte prima uguale a
-/// `\n` (o `a == 0`, inizio del file), oppure `p > a` con `\n` in `p - 1`; non esiste un
-/// inizio a `p == b` (appartiene al blocco dopo); il punto `(numero locale, p)` si memorizza
-/// quando il numero locale e' multiplo di `every`. Errore se una lettura fallisce o il file
-/// finisce prima di `b`: il chiamante rifara' il blocco con `scan_block` sulla mappatura.
+/// lavoratore: lungo almeno un'unita' e un multiplo di `unit()` (il chiamante lo crea di
+/// `READ_BYTES.min(chunk)` arrotondato per eccesso a un multiplo di `unit()`) e riusato per
+/// tutti i segmenti. Da un segmento all'altro si portano il conteggio locale degli inizi di
+/// riga del blocco e se l'ultima unita' letta era un a-capo. Le regole sono quelle di
+/// `scan_block`: un inizio di riga a `p` in `[a, b)` e' `p == a` con l'unita' prima uguale a
+/// un a-capo (o `a == 0`, inizio del file), oppure `p > a` con a-capo in `p - unit()`; non
+/// esiste un inizio a `p == b` (appartiene al blocco dopo); il punto `(numero locale, p)` si
+/// memorizza quando il numero locale e' multiplo di `every`. Errore se una lettura fallisce o
+/// il file finisce prima di `b`: il chiamante rifara' il blocco con `scan_block` sulla
+/// mappatura.
 fn scan_block_reads(
     src: &FileSource,
+    newline: Newline,
     a: usize,
     b: usize,
     every: u64,
     buf: &mut [u8],
 ) -> io::Result<ChunkResult> {
+    let unit = newline.unit();
     let mut count: u64 = 0;
     let mut points: Vec<(u64, u64)> = Vec::new();
-    // Se il byte appena prima di quello che sta per arrivare era `\n`: decide se il primo
-    // byte del prossimo segmento e' un inizio di riga. Per il primo segmento del blocco il
-    // "byte prima" e' quello in `a - 1`, letto qui con una lettura di un byte; per `a == 0`
-    // conta come `\n` (inizio del file).
+    // Se l'unita' appena prima di quella che sta per arrivare era un a-capo: decide se il primo
+    // byte del prossimo segmento e' un inizio di riga. Per il primo segmento del blocco
+    // l'"unita' prima" e' quella in `a - unit()`, letta qui col buffer del lavoratore (il
+    // `get_mut` e' solo difensivo: il buffer e' sempre lungo almeno un'unita'); per `a == 0`
+    // conta come a-capo (inizio del file).
     let mut prev_nl = if a == 0 {
         true
+    } else if let Some(prima) = buf.get_mut(..unit) {
+        read_full(src, prima, a - unit)?;
+        newline.is_newline(prima)
     } else {
-        let mut one = [0u8; 1];
-        read_full(src, &mut one, a - 1)?;
-        one[0] == b'\n'
+        false
     };
     let mut s = a;
     while s < b {
@@ -183,18 +196,20 @@ fn scan_block_reads(
         // Riempie il segmento con letture esplicite ripetute (una puo' essere breve).
         read_full(src, &mut buf[..seg_len], s)?;
         let seg = &buf[..seg_len];
-        // Il primo byte del segmento e' un inizio di riga se il "byte prima" era `\n`.
+        // Il primo byte del segmento e' un inizio di riga se l'"unita' prima" era un a-capo.
         if prev_nl {
             if count.is_multiple_of(every) {
                 points.push((count, s as u64));
             }
             count += 1;
         }
-        // Inizi interni: il byte dopo ogni `\n` del segmento. Quello sull'ultimo byte non si
-        // registra qui: lo registra il segmento dopo tramite `prev_nl` (e se `e == b` non lo
-        // registra nessuno, perche' un inizio a `b` appartiene al blocco dopo).
-        for j in memchr_iter(b'\n', seg) {
-            let start = s + j + 1;
+        // Inizi interni: l'unita' dopo ogni a-capo del segmento. Quello sull'ultima unita' non
+        // si registra qui: lo registra il segmento dopo tramite `prev_nl` (e se `e == b` non lo
+        // registra nessuno, perche' un inizio a `b` appartiene al blocco dopo). Un byte finale
+        // spaiato non e' un a-capo, ma e' un inizio di riga se l'a-capo e' l'ultima unita'
+        // piena prima di lui: `start < e` lo conta.
+        for j in newline.positions(seg) {
+            let start = s + j + unit;
             if start < e {
                 if count.is_multiple_of(every) {
                     points.push((count, start as u64));
@@ -202,8 +217,9 @@ fn scan_block_reads(
                 count += 1;
             }
         }
-        // Da portare al segmento dopo: l'ultimo byte del segmento era `\n`?
-        prev_nl = seg.last() == Some(&b'\n');
+        // Da portare al segmento dopo: il segmento finiva con un a-capo? (Un byte finale
+        // spaiato non lo fa mai: la lunghezza non sarebbe multipla dell'unita'.)
+        prev_nl = newline.ends_with_newline(seg);
         s = e;
     }
     Ok(ChunkResult { count, points })
@@ -219,7 +235,13 @@ impl LineIndex {
         Self::build_with(src, &BuildOptions::default(), cancel, progress)
     }
 
-    /// Costruisce l'indice.
+    /// Costruisce l'indice con la forma dell'a-capo `newline`.
+    /// - Un a-capo e' una unita' di `newline.unit()` byte ALLINEATA a un multiplo di `unit()`
+    ///   dall'inizio del file, e la riga dopo comincia `unit()` byte piu' avanti (vedi
+    ///   `crate::newline`). `chunk_bytes` si arrotonda per eccesso a un multiplo di `unit()`
+    ///   (cosi' blocchi e segmenti di lettura partono tutti allineati). Un byte finale spaiato
+    ///   (file di lunghezza dispari) non e' mai un a-capo e resta dentro l'ultima riga. Con
+    ///   `Newline::Byte` e' identico a `build_with`.
     /// - I blocchi vengono assegnati ai lavoratori in ordine crescente e letti una sola volta;
     ///   sui file grandi (>= `PREFETCH_MIN_FILE`) un thread di precaricamento legge il file in
     ///   avanti con letture esplicite e i lavoratori elaborano un blocco solo dopo che e' stato
@@ -232,8 +254,9 @@ impl LineIndex {
     ///   (anche se e' gia' vero all'inizio).
     /// - `progress` viene incrementato del numero di byte elaborati; a costruzione riuscita vale `src.len()`
     ///   (si parte da zero: il chiamante passa un contatore a 0).
-    pub fn build_with(
+    pub fn build_newline(
         src: &FileSource,
+        newline: Newline,
         opts: &BuildOptions,
         cancel: &AtomicBool,
         progress: &AtomicU64,
@@ -242,7 +265,9 @@ impl LineIndex {
         if cancel.load(Ordering::Relaxed) {
             return Err(Cancelled);
         }
-        let chunk = opts.chunk_bytes.max(1);
+        let unit = newline.unit();
+        // Multiplo dell'unita': i blocchi (e i buffer dei lavoratori) partono allineati.
+        let chunk = opts.chunk_bytes.max(1).next_multiple_of(unit);
         let every = u64::from(opts.checkpoint_every.max(1));
         // La lunghezza arriva da `len()`, non dalla mappatura (E21): la costruzione non deve
         // toccarla. `open` garantisce len <= usize::MAX: la conversione non fallisce mai, ma
@@ -251,6 +276,7 @@ impl LineIndex {
         if file_len == 0 {
             return Ok(LineIndex {
                 total_lines: 0,
+                newline,
                 checkpoints: Vec::new(),
             });
         }
@@ -336,8 +362,10 @@ impl LineIndex {
                     let mut raccolti: Vec<(usize, ChunkResult)> = Vec::new();
                     // Un buffer per lavoratore, riusato per tutti i suoi blocchi (E21): le
                     // letture sono a segmenti di al piu' READ_BYTES, o del blocco se piu'
-                    // corto, e la mappatura non si tocca.
-                    let mut buf = vec![0u8; READ_BYTES.min(chunk)];
+                    // corto, e la mappatura non si tocca. Multiplo dell'unita' (READ_BYTES e'
+                    // pari: dopo il min arrotonda per eccesso, se serve), cosi' anche i
+                    // segmenti partono allineati.
+                    let mut buf = vec![0u8; READ_BYTES.min(chunk).next_multiple_of(unit)];
                     loop {
                         let i = next.fetch_add(1, Ordering::Relaxed);
                         if i >= n_blocks {
@@ -362,9 +390,9 @@ impl LineIndex {
                         // previsto (accorciato mentre si indicizza), il blocco si rifa' con
                         // `scan_block` sulla mappatura: e' l'unico punto in cui i lavoratori
                         // la toccano.
-                        let res = match scan_block_reads(src, a, b, every, &mut buf) {
+                        let res = match scan_block_reads(src, newline, a, b, every, &mut buf) {
                             Ok(res) => res,
-                            Err(_) => scan_block(src.bytes(), i, chunk, every),
+                            Err(_) => scan_block(src.bytes(), newline, i, chunk, every),
                         };
                         progress.fetch_add((b - a) as u64, Ordering::Relaxed);
                         done.fetch_add((b - a) as u64, Ordering::Relaxed);
@@ -394,8 +422,35 @@ impl LineIndex {
         }
         Ok(LineIndex {
             total_lines: first_row,
+            newline,
             checkpoints,
         })
+    }
+
+    /// Come `build_newline` con `Newline::Byte`, la forma di sempre (UTF-8 e code page): e'
+    /// quello che l'indice e' sempre stato.
+    pub fn build_with(
+        src: &FileSource,
+        opts: &BuildOptions,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<LineIndex, Cancelled> {
+        Self::build_newline(src, Newline::Byte, opts, cancel, progress)
+    }
+
+    /// `build_newline` con i parametri predefiniti.
+    pub fn build_for(
+        src: &FileSource,
+        newline: Newline,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<LineIndex, Cancelled> {
+        Self::build_newline(src, newline, &BuildOptions::default(), cancel, progress)
+    }
+
+    /// La forma dell'a-capo con cui l'indice e' stato costruito.
+    pub fn newline(&self) -> Newline {
+        self.newline
     }
 
     /// Numero di righe (vedi la convenzione in testa al modulo).
@@ -408,8 +463,9 @@ impl LineIndex {
         self.checkpoints.len()
     }
 
-    /// Quanti `\n` ci sono nei byte `[0, offset)` del file. `offset == src.len()` e' ammesso (da' il totale dei `\n`);
-    /// `None` se `offset > src.len()`. Parte dal punto memorizzato piu' vicino: il costo non dipende dalla dimensione del file.
+    /// Quanti a-capo ci sono nei byte `[0, offset)` del file (unita' intere della forma dell'indice: una unita' tagliata
+    /// a meta' da `offset` non conta). `offset == src.len()` e' ammesso (da' il totale degli a-capo); `None` se
+    /// `offset > src.len()`. Parte dal punto memorizzato piu' vicino: il costo non dipende dalla dimensione del file.
     pub fn newlines_before(&self, src: &FileSource, offset: u64) -> Option<u64> {
         if offset > src.len() {
             return None;
@@ -423,16 +479,18 @@ impl LineIndex {
         } else {
             self.checkpoints[i - 1]
         };
-        // Conta i `\n` in [pos_punto, offset), con `offset` escluso: la riga del punto e'
-        // gia' il numero di `\n` che precedono la sua posizione.
+        // Conta gli a-capo in [pos_punto, offset), con `offset` escluso: la riga del punto e'
+        // gia' il numero di a-capo che precedono la sua posizione. La fetta parte da un inizio
+        // di riga, quindi allineata; un suo byte finale spaiato non completa un'unita' e la
+        // forma lo ignora gia'.
         let inizio = slice_index(bytes, pos_punto);
         let fine = slice_index(bytes, offset);
-        let conteggio = memchr_iter(b'\n', &bytes[inizio..fine]).count() as u64;
+        let conteggio = self.newline.count(&bytes[inizio..fine]);
         Some(riga_punto + conteggio)
     }
 
     /// Posizione in byte dell'inizio della riga `line` (da 0). `None` se `line >= line_count()`.
-    /// Parte dal punto memorizzato piu' vicino e cerca i `\n` nel tratto di file che segue.
+    /// Parte dal punto memorizzato piu' vicino e cerca gli a-capo nel tratto di file che segue.
     pub fn offset_of_line(&self, src: &FileSource, line: u64) -> Option<u64> {
         if line >= self.total_lines {
             return None;
@@ -449,23 +507,25 @@ impl LineIndex {
         if da_saltare == 0 {
             return Some(off_punto);
         }
-        // Salta `da_saltare` caratteri `\n` a partire dal punto: il `\n` che chiude la riga
-        // cercata e' il `da_saltare`-esimo della fetta (il primo ha indice 0). Se non c'e',
-        // l'indice e' incoerente con questo `src`: None, senza panic (difensivo).
+        // Salta `da_saltare` a-capo a partire dal punto: l'a-capo che chiude la riga cercata
+        // e' il `da_saltare`-esimo della fetta (il primo ha indice 0) e la riga comincia
+        // `unit()` byte piu' avanti. Se non c'e', l'indice e' incoerente con questo `src`:
+        // None, senza panic (difensivo).
         let bytes = src.bytes();
         let inizio = slice_index(bytes, off_punto);
         let n = usize::try_from(da_saltare - 1).ok()?;
-        let p = memchr_iter(b'\n', &bytes[inizio..]).nth(n)?;
-        Some((inizio + p) as u64 + 1)
+        let unit = self.newline.unit();
+        let p = self.newline.positions(&bytes[inizio..]).nth(n)?;
+        Some((inizio + p + unit) as u64)
     }
 
     /// Numero della riga che contiene il byte in `offset`. `None` se `offset >= src.len()`.
-    /// Il `\n` finale appartiene alla riga che chiude.
+    /// L'a-capo finale appartiene alla riga che chiude.
     pub fn line_at_offset(&self, src: &FileSource, offset: u64) -> Option<u64> {
         if offset >= src.len() {
             return None;
         }
-        // La riga che contiene un byte e' il numero di `\n` che lo precedono: e' esattamente
+        // La riga che contiene un byte e' il numero di a-capo che lo precedono: e' esattamente
         // `newlines_before` (che qui riceve `offset < src.len()`, quindi risponde sempre).
         self.newlines_before(src, offset)
     }

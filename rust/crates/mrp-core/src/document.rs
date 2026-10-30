@@ -5,8 +5,8 @@
 
 use crate::edit::{Buf, EditError, Piece, PieceTable, Splice, DEFAULT_CHUNK_CAPACITY};
 use crate::lines::{BuildOptions, Cancelled, LineIndex};
+use crate::newline::Newline;
 use crate::source::FileSource;
-use memchr::memchr_iter;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
@@ -113,8 +113,10 @@ struct Prefix {
     nl_before: Vec<u64>,
 }
 
-/// Quanti `\n` stanno nei primi `within` byte del pezzo `p` (`within <= p.len`):
-/// - pezzo `Add`: `memchr_iter` sulla fetta del buffer delle aggiunte;
+/// Quanti a-capo della forma `newline` stanno nei primi `within` byte del pezzo `p`
+/// (`within <= p.len`):
+/// - pezzo `Add`: `Newline::count` sulla fetta del buffer delle aggiunte (che comincia a un
+///   confine di unita' se le modifiche sono allineate);
 /// - pezzo `Original`: differenza di `newlines_before` agli estremi del tratto del file
 ///   (il costo dipende dalle righe fra due punti dell'indice, non dalla dimensione del file).
 ///
@@ -126,6 +128,7 @@ fn newlines_in_piece(
     idx: &LineIndex,
     src: &FileSource,
     table: &PieceTable,
+    newline: Newline,
     cache: &mut HashMap<Piece, u64>,
     p: Piece,
     within: u64,
@@ -138,7 +141,7 @@ fn newlines_in_piece(
     }
     let n = match p.buf {
         Buf::Add => match usize::try_from(within) {
-            Ok(len) => memchr_iter(b'\n', table.add_bytes(p.start, len)).count() as u64,
+            Ok(len) => newline.count(table.add_bytes(p.start, len)),
             // Difensivo: il buffer delle aggiunte e' un `Vec<u8>`, quindi un pezzo `Add`
             // piu' lungo di `usize::MAX` non puo' esistere; si risponde 0 senza panic.
             Err(_) => 0,
@@ -200,6 +203,9 @@ pub struct Document {
     open: Option<Step>,
     /// Passi annullati, da ripetere (dal piu' recente al piu' vecchio: si toglie dal fondo).
     redo: Vec<Step>,
+    /// La forma dell'a-capo del documento (predefinito `Byte`; si cambia con `set_newline`,
+    /// solo finche' non c'e' una storia di modifiche).
+    newline: Newline,
     /// Indice righe del FILE ORIGINALE (non del documento modificato): vedi `build_lines`.
     lines: Option<LineIndex>,
     /// Cache dei conteggi: quanti `\n` contiene ciascun pezzo. Le chiavi restano vere finche'
@@ -246,6 +252,7 @@ impl Document {
             undo: Vec::new(),
             open: None,
             redo: Vec::new(),
+            newline: Newline::Byte,
             lines: None,
             nl_of_piece: HashMap::new(),
             chunk_nl: HashMap::new(),
@@ -403,12 +410,52 @@ impl Document {
         !self.redo.is_empty()
     }
 
+    /// La forma dell'a-capo di questo documento (`Newline::Byte` finche' non si cambia con `set_newline`): da essa
+    /// dipendono righe, indice, scansione e ricerca. Un documento UTF-16 ha `Le16` o `Be16`.
+    pub fn newline(&self) -> Newline {
+        self.newline
+    }
+
+    /// Dice al documento come si scrive l'a-capo (si chiama una volta, dopo l'apertura, quando la codifica e' UTF-16 o
+    /// torna a non esserlo). Vero se ora il documento ha `newline` (anche se l'aveva gia': non cambia nulla). Se la
+    /// forma e' diversa e il documento ha una storia di modifiche (e' modificato, o c'e' qualcosa da annullare o da
+    /// ripetere) non cambia nulla e risponde falso: le modifiche fatte con l'altra forma non sono allineate. Quando
+    /// cambia, l'indice righe e le cache si buttano (`has_lines()` torna falso): va ricostruito con la forma nuova.
+    pub fn set_newline(&mut self, newline: Newline) -> bool {
+        if newline == self.newline {
+            return true;
+        }
+        // Un documento chiuso non ha piu' sorgente ne' storia: si imposta comunque. Uno aperto
+        // con una storia non cambia forma: le posizioni dell'annulla/ripeti sono legate alla
+        // forma con cui le modifiche sono state fatte.
+        if self.source.is_some()
+            && (self.is_modified()
+                || !self.undo.is_empty()
+                || !self.redo.is_empty()
+                || self.open.is_some())
+        {
+            return false;
+        }
+        self.newline = newline;
+        // L'indice e le cache contano gli a-capo della forma vecchia: si buttano, come fa
+        // `install_lines`.
+        self.lines = None;
+        self.nl_of_piece.clear();
+        self.chunk_nl.clear();
+        self.prefix = None;
+        true
+    }
+
     /// Mette un indice righe costruito dal chiamante (tipicamente in un thread, da un'altra `FileSource` aperta sullo
-    /// stesso file: `Document` non e' condivisibile mentre indicizza). Svuota le cache dell'indice. Documento chiuso:
-    /// non fa nulla.
+    /// stesso file: `Document` non e' condivisibile mentre indicizza). Svuota le cache dell'indice. Un indice costruito
+    /// per un'altra forma di a-capo (`LineIndex::newline`) NON si installa. Documento chiuso: non fa nulla.
     pub fn install_lines(&mut self, idx: LineIndex) {
         // Documento chiuso: senza sorgente l'indice non servirebbe a nessuna interrogazione.
         if self.source.is_none() {
+            return;
+        }
+        // Un indice costruito per un'altra forma di a-capo non vale per questo documento.
+        if idx.newline() != self.newline {
             return;
         }
         self.lines = Some(idx);
@@ -443,7 +490,7 @@ impl Document {
         // Se la costruzione e' annullata il vecchio indice (se c'era, ancora valido) resta al
         // suo posto: lo si sostituisce, con cache e tabella derivata azzerate, solo quando la
         // nuova costruzione e' riuscita.
-        let idx = LineIndex::build_with(source, opts, cancel, progress)?;
+        let idx = LineIndex::build_newline(source, self.newline, opts, cancel, progress)?;
         self.lines = Some(idx);
         self.nl_of_piece.clear();
         self.chunk_nl.clear();
@@ -457,17 +504,24 @@ impl Document {
         self.lines.is_some()
     }
 
-    /// Numero di righe DEL DOCUMENTO modificato (stessa convenzione di `lines.rs`: `\n` piu' 1 se il documento
-    /// e' non vuoto e non finisce con `\n`). `None` se l'indice righe non e' costruito.
+    /// Numero di righe DEL DOCUMENTO modificato (stessa convenzione di `lines.rs`: a-capo piu' 1 se il documento
+    /// e' non vuoto e non finisce con un a-capo). `None` se l'indice righe non e' costruito.
     pub fn line_count(&mut self) -> Option<u64> {
         self.ensure_prefix();
         let prefix = self.prefix.as_ref()?;
-        // Totale dei `\n` del documento: l'ultimo elemento di `nl_before` c'e' sempre.
+        // Totale degli a-capo del documento: l'ultimo elemento di `nl_before` c'e' sempre.
         let nl_totali = *prefix.nl_before.last()?;
         if !self.is_empty() {
-            // Il documento non finisce con `\n`: l'ultima riga non e' terminata e va contata.
-            let ultimo = self.read_range(self.len() - 1, 1);
-            if !ultimo.is_empty() && ultimo[0] != b'\n' {
+            // Il documento non finisce con un a-capo: l'ultima riga non e' terminata e va
+            // contata. La lunghezza decide da sola quando non e' un multiplo dell'unita'
+            // (dispari, o piu' corta di un'unita'); altrimenti si legge l'ultima unita' intera.
+            let len = self.len();
+            let unit = self.newline.unit() as u64;
+            let termina = len.is_multiple_of(unit) && {
+                let ultima = self.read_range(len - unit, unit);
+                self.newline.ends_with_newline(&ultima)
+            };
+            if !termina {
                 return Some(nl_totali + 1);
             }
         }
@@ -496,7 +550,15 @@ impl Document {
         let mut doc_start = prefix.chunk_start[k]; // posizione nel documento del pezzo corrente
         let mut pezzo = None;
         for q in self.table.chunk_pieces(k) {
-            let n = newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, *q, q.len);
+            let n = newlines_in_piece(
+                idx,
+                src,
+                &self.table,
+                self.newline,
+                &mut self.nl_of_piece,
+                *q,
+                q.len,
+            );
             if nl_prima + n >= line {
                 pezzo = Some(*q);
                 break;
@@ -505,15 +567,19 @@ impl Document {
             doc_start += q.len;
         }
         let p = pezzo?;
-        // Il `\n` cercato e' il j-esimo del pezzo, con j contato da 1.
+        // L'a-capo cercato e' il j-esimo del pezzo, con j contato da 1.
         let j = line - nl_prima;
         let in_pezzo = match p.buf {
             Buf::Add => {
-                // Posizione del j-esimo `\n` del pezzo, piu' uno: la riga inizia subito dopo.
+                // Posizione del j-esimo a-capo del pezzo, piu' un'unita': la riga inizia
+                // subito dopo.
                 let len = usize::try_from(p.len).ok()?;
                 let n = usize::try_from(j - 1).ok()?;
-                let rel = memchr_iter(b'\n', self.table.add_bytes(p.start, len)).nth(n)?;
-                rel as u64 + 1
+                let rel = self
+                    .newline
+                    .positions(self.table.add_bytes(p.start, len))
+                    .nth(n)?;
+                rel as u64 + self.newline.unit() as u64
             }
             Buf::Original => {
                 // Nel file originale il `\n` cercato e' il g-esimo: l'inizio della riga sta
@@ -530,7 +596,7 @@ impl Document {
         Some(doc_start + in_pezzo)
     }
 
-    /// Riga del documento modificato che contiene il byte in `pos` (il `\n` finale appartiene alla riga che chiude).
+    /// Riga del documento modificato che contiene il byte in `pos` (l'a-capo finale appartiene alla riga che chiude).
     /// `None` se manca l'indice o `pos >= len()`.
     pub fn line_at_offset(&mut self, pos: u64) -> Option<u64> {
         self.ensure_prefix();
@@ -553,17 +619,26 @@ impl Document {
                 pezzo = Some(*q);
                 break;
             }
-            // Pezzo intero prima di `pos`: anche i suoi `\n` contano (tratto intero: cache).
-            nl_prima += newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, *q, q.len);
+            // Pezzo intero prima di `pos`: anche i suoi a-capo contano (tratto intero: cache).
+            nl_prima += newlines_in_piece(
+                idx,
+                src,
+                &self.table,
+                self.newline,
+                &mut self.nl_of_piece,
+                *q,
+                q.len,
+            );
             doc_start += q.len;
         }
         let p = pezzo?;
-        // `\n` del pezzo prima di `pos` (tratto parziale: niente cache), piu' quelli dei
+        // A-capo del pezzo prima di `pos` (tratto parziale: niente cache), piu' quelli dei
         // pezzi che precedono.
         let nl = newlines_in_piece(
             idx,
             src,
             &self.table,
+            self.newline,
             &mut self.nl_of_piece,
             p,
             pos - doc_start,
@@ -622,6 +697,7 @@ impl Document {
                             idx,
                             src,
                             &self.table,
+                            self.newline,
                             &mut self.nl_of_piece,
                             *p,
                             p.len,
