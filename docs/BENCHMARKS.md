@@ -190,6 +190,8 @@ scattered edits with the line count asked after each one take a few seconds (the
 queries against a naive oracle with blocks of 4 pieces, through edits, undo/redo and save, and check that after a short edit only a
 few blocks are counted again (a counter, not a clock). With line numbers on, the terminal editor no longer slows down with the number of pieces.
 
+**In the terminal editor itself (inconclusive).** `mrp` driven through ConPTY on a 17 MB file: 20,000 scattered edits (each one a `Ctrl+G` to a random line plus one typed character), in batches of 2,000, build before E15 against build after. Both take about 26–32 s per batch, i.e. 13–16 ms per cycle, which is the cost of the terminal driver, not of the editor; the old build drifts from 25.6 s to 30.8 s over the run (consistent with its 2 ms at 40,000 pieces), the new one from 29.6 s to 31.9 s with a slower start (the machine was shared, one run each). So this measurement cannot show the gain, and the small drift left in the new build is not explained (noise, or another cost that grows with the pieces). The 14 µs figure above comes from the library only.
+
 Not measured yet: a clean save throughput (and on SSD), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real
 terminal (only the ConPTY driver).
 
