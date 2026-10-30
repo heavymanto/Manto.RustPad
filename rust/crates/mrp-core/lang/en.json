@@ -20,6 +20,8 @@
   "flash.index_cancelled": "indexing cancelled",
   "flash.index_failed": "indexing failed: {}",
   "flash.read_only": "read-only: press F4 to edit",
+  "help.l11": "Shift+arrows, Ctrl+A       select; Ctrl+C / X / V copy, cut, paste",
+  "help.l12": "F8                         column mode (Shift+arrows: block)",
   "flash.column_on": "column mode on",
   "flash.column_off": "column mode off",
   "flash.block_too_big": "block too big (limit {} rows)",

@@ -21,6 +21,8 @@
   "flash.index_cancelled": "已取消建立索引",
   "flash.index_failed": "建立索引失败: {}",
   "flash.read_only": "只读: 按F4编辑",
+  "help.l11": "Shift+方向键, Ctrl+A       选择; Ctrl+C / X / V 复制、剪切、粘贴",
+  "help.l12": "F8                         列模式(Shift+方向键: 块)",
   "flash.column_on": "列模式已开启",
   "flash.column_off": "列模式已关闭",
   "flash.block_too_big": "块过大(上限 {} 行)",

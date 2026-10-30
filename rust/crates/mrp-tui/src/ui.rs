@@ -2,6 +2,7 @@
 
 use crate::app::{App, DialogKind};
 use crate::theme::{Theme, ThemeId};
+use mrp_core::block::{block_spans, ColumnBlock};
 use mrp_core::lang::Catalog;
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::Document;
@@ -12,10 +13,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l10`.
-const HELP_KEYS: [&str; 10] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l12` (l'ultima e' sempre Esc, `help.l10`).
+const HELP_KEYS: [&str; 12] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
-    "help.l9", "help.l10",
+    "help.l9", "help.l11", "help.l12", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -49,7 +50,13 @@ fn draw_title(f: &mut Frame, app: &mut App, t: &Theme, w: u16) {
     } else {
         "mode.view"
     };
-    let modo = app.catalog().t(mode_key).to_string();
+    let mut modo = app.catalog().t(mode_key).to_string();
+    // La modalita' colonna si dice nel titolo, dopo il modo e con un solo spazio in mezzo
+    // ("VIEW COL" / "EDIT COL"); spenta, il titolo e' quello di sempre.
+    if app.column_mode() {
+        modo.push(' ');
+        modo.push_str(app.catalog().t("mode.column"));
+    }
     let destra = size.chars().count() + 2 + modo.chars().count() + 1;
     let pad = (w as usize).saturating_sub(nome.chars().count() + destra);
     let mode_style = if app.is_edit() {
@@ -87,9 +94,17 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         ),
         None => (Vec::new(), false),
     };
-    // La riga e la colonna del cursore, per il cursore del terminale.
+    // La riga e la colonna del cursore, per il cursore del terminale. In modalita' colonna la colonna
+    // e' quella virtuale (del blocco, o del cursore), anche oltre la fine della riga.
     let cursor_row = app.cursor_row();
-    let col = app.cursor_col();
+    let col = if app.column_mode() {
+        usize::try_from(app.vcol()).unwrap_or(usize::MAX)
+    } else {
+        app.cursor_col()
+    };
+    // Il blocco della modalita' colonna, se c'e': le sue righe e le sue colonne (per le celle da
+    // colorare riga per riga, piu' sotto).
+    let col_block = app.column_block();
     let mut xy: Option<(u16, u16)> = None;
     // Le righe del disegno, gia' pronte come (gutter, testo). Col documento si calcolano ora e si
     // ricordano in `App`; senza documento si ridisegna la copia dell'ultimo disegno.
@@ -159,6 +174,33 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
                 for colonna in da..fino {
                     let x = gutter_w as u16 + (colonna - hscroll) as u16;
                     f.buffer_mut()[(x, y)].set_style(t.selection);
+                }
+            }
+        }
+        // Il blocco della modalita' colonna, se questa riga visuale e' una delle sue (il suo inizio sta
+        // fra la prima e l'ultima riga del blocco): le stesse celle dello stile `selection`, quelle dei
+        // caratteri che INIZIANO dentro le colonne del blocco (una riga piu' corta non ne ha). La
+        // copertura la chiede al core per la SOLA riga a schermo, mai per il blocco intero.
+        if let (Some(doc), Some(row), Some(b)) = (app.document(), rows.get(i), col_block) {
+            if row.start >= b.first_row && row.start <= b.last_row {
+                let sola_riga = ColumnBlock {
+                    first_row: row.start,
+                    last_row: row.start,
+                    col_a: b.col_a,
+                    col_b: b.col_b,
+                };
+                if let Ok(spans) = block_spans(doc, &sola_riga, &opts, 1) {
+                    if let Some(span) = spans.first() {
+                        let ca = view::col_of(doc, row.start, span.start, &opts);
+                        let cb = view::col_of(doc, row.start, span.end, &opts);
+                        let (da, fino) = (ca.max(hscroll), cb.min(hscroll + cells));
+                        if da < fino {
+                            for colonna in da..fino {
+                                let x = gutter_w as u16 + (colonna - hscroll) as u16;
+                                f.buffer_mut()[(x, y)].set_style(t.selection);
+                            }
+                        }
+                    }
                 }
             }
         }

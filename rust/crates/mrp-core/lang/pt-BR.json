@@ -21,6 +21,8 @@
   "flash.index_cancelled": "indexação cancelada",
   "flash.index_failed": "falha na indexação: {}",
   "flash.read_only": "somente leitura: pressione F4 para editar",
+  "help.l11": "Shift+setas, Ctrl+A        selecionar; Ctrl+C / X / V copiar, recortar, colar",
+  "help.l12": "F8                         modo coluna (Shift+setas: bloco)",
   "flash.column_on": "modo coluna ativado",
   "flash.column_off": "modo coluna desativado",
   "flash.block_too_big": "bloco grande demais (limite {} linhas)",

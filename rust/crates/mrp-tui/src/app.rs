@@ -3,12 +3,17 @@
 
 use crate::settings::Settings;
 use crate::theme::ThemeId;
+use mrp_core::block::{
+    block_spans, block_text, delete_block, insert_block, nth_row, paste_block, BlockError,
+    ColumnBlock, RowSpan,
+};
 use mrp_core::docsearch::{SearchError, Snapshot};
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::{Document, FileSource, LineIndex, SaveError};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use ratatui::text::Span;
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -69,6 +74,35 @@ fn ultimo_carattere(bytes: &[u8]) -> usize {
         }
     }
     1
+}
+
+/// La larghezza in celle di `testo` come se iniziasse alla colonna `col`: un tabulatore avanza fino al
+/// prossimo multiplo della larghezza dei tabulatori, un carattere di controllo vale 1 e un byte non
+/// valido e' un carattere tutto suo largo 1 (come nel modello di `mrp_core::view`); per il resto la
+/// larghezza Unicode (i caratteri larghi 2, i combinanti 0). E' la colonna a cui arriva il testo
+/// scritto sul blocco della modalita' colonna.
+fn larghezza_da(testo: &[u8], col: u64) -> u64 {
+    let tab = ViewOptions::default().tab_width.max(1) as u64;
+    let mut colonna = col;
+    let mut i = 0;
+    while i < testo.len() {
+        let n = primo_carattere(&testo[i..]);
+        let c = std::str::from_utf8(&testo[i..i + n])
+            .ok()
+            .and_then(|s| s.chars().next());
+        colonna = colonna.saturating_add(match c {
+            Some('\t') => tab - colonna % tab,
+            Some(c) if c.is_control() => 1,
+            Some(c) => {
+                let mut buf = [0u8; 4];
+                let s: &str = c.encode_utf8(&mut buf);
+                Span::raw(s).width() as u64
+            }
+            None => 1,
+        });
+        i += n;
+    }
+    colonna.saturating_sub(col)
 }
 
 /// Fa partire il thread che costruisce l'indice righe del file `path`: apre la SUA sorgente (il documento
@@ -269,6 +303,14 @@ struct SearchJob {
 /// `flash.copy_too_big` e niente copia (la memoria non deve dipendere dalla dimensione del file).
 pub const COPY_LIMIT: u64 = 64 << 20;
 
+/// Colonna virtuale massima del cursore in modalita' colonna (E18): oltre, il cursore non va (e il riempimento di
+/// una riga corta non puo' diventare enorme).
+pub const MAX_VCOL: u64 = 4096;
+
+/// Righe massime del blocco della modalita' colonna (E18): oltre, il messaggio `flash.block_too_big` e niente
+/// modifica ne' copia (`block_spans` si chiama sempre con questo limite).
+const MAX_BLOCK_ROWS: u64 = 200_000;
+
 /// Lo stato dell'app.
 pub struct App {
     /// Il documento aperto: `None` quando si esce (il file si rilascia) o mentre un salvataggio lo tiene
@@ -297,6 +339,11 @@ pub struct App {
     /// L'ancora della selezione: l'altro estremo e' il cursore. Resta finche' la selezione e' attiva (anche
     /// se torna vuota); la tolgono Esc, i movimenti senza Maiusc, i salti riusciti e le modifiche.
     anchor: Option<u64>,
+    /// Vero se la modalita' colonna (F8) e' accesa: Maiusc+frecce disegnano un blocco rettangolare di
+    /// celle invece della selezione, e scrivere agisce su tutte le righe del blocco.
+    col_mode: bool,
+    /// Il blocco rettangolare della modalita' colonna, se c'e' (solo a modalita' accesa).
+    block: Option<BlockState>,
     /// Gli appunti interni: li riempie la copia (Ctrl+C / Ctrl+X) e li incolla Ctrl+V.
     clip: Vec<u8>,
     /// I byte dell'ultima copia che il ciclo del terminale deve ancora mandare con OSC 52, una volta sola.
@@ -355,6 +402,25 @@ enum Mov {
     PageDown,
 }
 
+/// Il blocco rettangolare della modalita' colonna. Le righe si identificano con l'inizio della prima
+/// (`first_row`) e quante sono (`rows`), perche' dopo una modifica gli inizi delle righe successive si
+/// spostano mentre `first_row` no: il resto si ricalcola camminando il documento. L'ancora sta a
+/// `anchor_col` su una riga estrema del blocco, il cursore a `vcol` (colonna virtuale: puo' stare oltre
+/// la fine della riga) sull'altra.
+#[derive(Debug, Clone, Copy)]
+struct BlockState {
+    /// Inizio (offset in byte) della prima riga del blocco.
+    first_row: u64,
+    /// Quante righe visuali copre il blocco.
+    rows: u64,
+    /// Vero se il cursore sta sull'ultima riga del blocco e l'ancora sulla prima; falso: il contrario.
+    cursor_at_bottom: bool,
+    /// La colonna dell'ancora.
+    anchor_col: u64,
+    /// La colonna virtuale del cursore (da 0 a `MAX_VCOL`).
+    vcol: u64,
+}
+
 impl App {
     /// Apre `path`. Errore se manca o non e' un file regolare.
     pub fn open(path: &Path, cfg: AppConfig) -> io::Result<App> {
@@ -394,6 +460,8 @@ impl App {
             flash: None,
             found: None,
             anchor: None,
+            col_mode: false,
+            block: None,
             clip: Vec::new(),
             copied: None,
             cat,
@@ -505,6 +573,8 @@ impl App {
             KeyCode::F(5) => self.open_dialog(DialogKind::Goto),
             KeyCode::F(6) => self.open_dialog(DialogKind::Theme),
             KeyCode::F(7) => self.open_dialog(DialogKind::Lang),
+            // F8 accende e spegne la modalita' colonna.
+            KeyCode::F(8) => self.toggle_column(),
             KeyCode::F(10) => self.quit_request(),
             // Ctrl+Z annulla; Ctrl+Y e Ctrl+Shift+Z ripetono (col maiuscolo SHIFT arriva anche 'Z').
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl && !shift => self.undo(),
@@ -777,7 +847,9 @@ impl App {
         let pos = self.snap_to_char(pos.min(self.max_cursor()));
         self.cursor = pos;
         // Il salto riuscito toglie la selezione: il cursore e' arrivato altrove per conto suo.
+        // Toglie anche il blocco della modalita' colonna.
         self.anchor = None;
+        self.block = None;
         self.remember_col();
         self.center_cursor_row();
         self.scroll_adjust();
@@ -843,6 +915,10 @@ impl App {
     /// `false`, col messaggio giusto, se non c'e' selezione o supera `COPY_LIMIT`. Non tocca ne' il
     /// documento ne' la selezione: vale anche in lettura.
     fn copy_to_clip(&mut self) -> bool {
+        // In modalita' colonna si copia il blocco, non la selezione (che non esiste).
+        if self.col_mode {
+            return self.column_copy();
+        }
         let Some((da, fino)) = self.selection() else {
             self.flash = Some(self.cat.t("flash.nothing_selected").to_string());
             return false;
@@ -872,6 +948,11 @@ impl App {
     fn cut_selection(&mut self) {
         if !self.edit {
             self.refuse_write();
+            return;
+        }
+        // In modalita' colonna si taglia il blocco.
+        if self.col_mode {
+            self.column_cut();
             return;
         }
         if !self.copy_to_clip() {
@@ -909,6 +990,11 @@ impl App {
             return;
         }
         self.seal_history();
+        // In modalita' colonna l'incolla va per righe nel blocco (o alla riga del cursore).
+        if self.col_mode {
+            self.column_paste(testo);
+            return;
+        }
         self.insert_over_selection(testo);
     }
 
@@ -930,6 +1016,536 @@ impl App {
         self.remember_col();
         self.scroll_adjust();
         true
+    }
+
+    // ----- modalita' colonna -----
+
+    /// F8: accende e spegne la modalita' colonna. Spegnendo, il blocco sparisce (il cursore resta
+    /// dov'e'); il modo lettura/modifica non cambia.
+    fn toggle_column(&mut self) {
+        self.col_mode = !self.col_mode;
+        // Cambiando modalita' la selezione di flusso e il blocco non valgono piu': ne' l'una ne' l'altro
+        // tornano al prossimo cambio.
+        self.anchor = None;
+        self.block = None;
+        if self.col_mode {
+            self.flash = Some(self.cat.t("flash.column_on").to_string());
+        } else {
+            self.block = None;
+            self.flash = Some(self.cat.t("flash.column_off").to_string());
+        }
+    }
+
+    /// Maiusc+movimento in modalita' colonna: disegna il blocco rettangolare. Se il blocco manca lo si
+    /// crea con l'ancora alla riga e alla colonna del cursore (una riga sola); poi il movimento muove
+    /// il cursore del blocco (l'ancora non si muove mai): le colonne con Left/Right/Home/End, le righe
+    /// con Up/Down/PgUp/PgDn. Il cursore del documento segue la colonna virtuale sulla riga del
+    /// cursore del blocco. Ctrl+Maiusc+Home/End non sono movimenti del blocco: non fanno niente.
+    fn extend_block(&mut self, m: Mov) {
+        if matches!(m, Mov::FileStart | Mov::FileEnd) {
+            return;
+        }
+        if self.doc.is_none() {
+            return;
+        }
+        if self.block.is_none() {
+            let col = (self.cursor_col() as u64).min(MAX_VCOL);
+            let row = self.cursor_row();
+            self.block = Some(BlockState {
+                first_row: row,
+                rows: 1,
+                cursor_at_bottom: true,
+                anchor_col: col,
+                vcol: col,
+            });
+        }
+        match m {
+            Mov::Right => {
+                if let Some(b) = self.block.as_mut() {
+                    b.vcol = (b.vcol + 1).min(MAX_VCOL);
+                }
+            }
+            Mov::Left => {
+                if let Some(b) = self.block.as_mut() {
+                    b.vcol = b.vcol.saturating_sub(1);
+                }
+            }
+            Mov::Home => {
+                if let Some(b) = self.block.as_mut() {
+                    b.vcol = 0;
+                }
+            }
+            Mov::End => {
+                // La colonna del cursore diventa la larghezza della sua riga.
+                if let Some(larga) = self.block_cursor_row().and_then(|row| self.row_width(row)) {
+                    if let Some(b) = self.block.as_mut() {
+                        b.vcol = larga.min(MAX_VCOL);
+                    }
+                }
+            }
+            Mov::Up => self.block_up(),
+            Mov::Down => self.block_down(),
+            Mov::PageUp => {
+                // Come Up/Down per "righe di testo - 1" righe.
+                for _ in 0..self.text_rows().saturating_sub(1) {
+                    self.block_up();
+                }
+            }
+            Mov::PageDown => {
+                for _ in 0..self.text_rows().saturating_sub(1) {
+                    self.block_down();
+                }
+            }
+            Mov::FileStart | Mov::FileEnd => {}
+        }
+        self.align_cursor();
+        self.scroll_adjust();
+    }
+
+    /// Il cursore del blocco sale di una riga: il blocco si accorcia da sotto se il cursore sta
+    /// sull'ultima riga, altrimenti si allunga in alto (l'ancora, in fondo, non si muove); fermo alla
+    /// prima riga del documento.
+    fn block_up(&mut self) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let Some(b) = self.block.as_mut() else {
+            return;
+        };
+        if b.cursor_at_bottom {
+            if b.rows > 1 {
+                // Il cursore resta in fondo: la nuova ultima riga e' una piu' su.
+                b.rows -= 1;
+            } else if let Some(prima) = scan::prev_row_start(doc, b.first_row, MAX_SCAN) {
+                // Riga unica: il blocco cresce in alto, col cursore in cima e l'ancora in fondo.
+                b.first_row = prima;
+                b.rows = 2;
+                b.cursor_at_bottom = false;
+            }
+        } else if let Some(prima) = scan::prev_row_start(doc, b.first_row, MAX_SCAN) {
+            // Il cursore e' sulla prima riga: il blocco si allunga in alto.
+            b.first_row = prima;
+            b.rows += 1;
+        }
+    }
+
+    /// Il cursore del blocco scende di una riga: il blocco si allunga in basso se il cursore sta
+    /// sull'ultima riga, altrimenti si accorcia da sopra (l'ancora, in cima, non si muove); fermo
+    /// all'ultima riga del documento.
+    fn block_down(&mut self) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let Some(b) = self.block.as_mut() else {
+            return;
+        };
+        let opts = ViewOptions::default();
+        if b.cursor_at_bottom {
+            // C'e' una riga dopo l'ultima del blocco? (fermo all'ultima riga del documento)
+            if nth_row(doc, b.first_row, b.rows, &opts).is_some() {
+                b.rows += 1;
+            }
+        } else if b.rows > 1 {
+            // Il cursore e' sulla prima riga: scende di una e il blocco perde quella di sopra.
+            if let Some(dopo) = nth_row(doc, b.first_row, 1, &opts) {
+                b.first_row = dopo;
+                b.rows -= 1;
+                if b.rows == 1 {
+                    b.cursor_at_bottom = true;
+                }
+            }
+        } else if nth_row(doc, b.first_row, 1, &opts).is_some() {
+            // Riga unica: il blocco cresce in basso, col cursore in fondo.
+            b.rows = 2;
+            b.cursor_at_bottom = true;
+        }
+    }
+
+    /// La riga del cursore del blocco: l'ultima se il cursore sta in fondo, altrimenti la prima.
+    fn block_cursor_row(&self) -> Option<u64> {
+        let b = self.block.as_ref()?;
+        if b.cursor_at_bottom {
+            let doc = self.doc.as_ref()?;
+            nth_row(
+                doc,
+                b.first_row,
+                b.rows.saturating_sub(1),
+                &ViewOptions::default(),
+            )
+        } else {
+            Some(b.first_row)
+        }
+    }
+
+    /// La larghezza in celle della riga visuale che inizia in `row`.
+    fn row_width(&self, row: u64) -> Option<u64> {
+        let doc = self.doc.as_ref()?;
+        let fine = scan::row_end(doc, row, MAX_SCAN);
+        Some(view::col_of(doc, row, fine, &ViewOptions::default()) as u64)
+    }
+
+    /// Rimette il cursore del documento sulla riga del cursore del blocco, alla colonna virtuale: il
+    /// carattere che inizia a `vcol` o la fine della riga (`view::offset_at_col`: una colonna dentro
+    /// un carattere largo o un tabulatore da' l'inizio di quel carattere).
+    fn align_cursor(&mut self) {
+        let Some(b) = self.block else {
+            return;
+        };
+        let Some(row) = self.block_cursor_row() else {
+            return;
+        };
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        self.cursor =
+            view::offset_at_col(doc, row, b.vcol, &ViewOptions::default()).min(self.max_cursor());
+    }
+
+    /// Il blocco del core che corrisponde allo stato del blocco: le colonne di ancora e cursore in
+    /// ordine, le righe dalla prima all'ultima (`rows - 1` righe dopo `first_row`, camminando il
+    /// documento: dopo una modifica gli inizi delle righe successive si sono spostati).
+    fn column_block_of(&self, b: &BlockState) -> Option<ColumnBlock> {
+        let doc = self.doc.as_ref()?;
+        let last_row = nth_row(
+            doc,
+            b.first_row,
+            b.rows.saturating_sub(1),
+            &ViewOptions::default(),
+        )?;
+        Some(ColumnBlock {
+            first_row: b.first_row,
+            last_row,
+            col_a: b.anchor_col.min(b.vcol),
+            col_b: b.anchor_col.max(b.vcol),
+        })
+    }
+
+    /// Le righe del blocco con cio' che coprono, col limite di righe della modalita' colonna: oltre,
+    /// il messaggio `flash.block_too_big` e `None` (niente modifica ne' copia).
+    fn block_spans_limited(&mut self, blocco: &ColumnBlock) -> Option<Vec<RowSpan>> {
+        let doc = self.doc.as_ref()?;
+        match block_spans(doc, blocco, &ViewOptions::default(), MAX_BLOCK_ROWS) {
+            Ok(spans) => Some(spans),
+            Err(BlockError::TooManyRows) => {
+                self.flash = Some(
+                    self.cat
+                        .tf("flash.block_too_big", &[&MAX_BLOCK_ROWS.to_string()]),
+                );
+                None
+            }
+            // Difensivo: gli altri errori non vengono da block_spans.
+            Err(_) => None,
+        }
+    }
+
+    /// Toglie dal documento le righe del blocco `blocco`, nel passo di storia corrente (lo apre o lo
+    /// continua il chiamante). Le righe si tolgono dall'ultima alla prima, come vuole il core. Vero se
+    /// ha tolto (o non c'era niente da togliere senza errore).
+    fn column_delete_region(&mut self, blocco: &ColumnBlock) -> bool {
+        let Some(spans) = self.block_spans_limited(blocco) else {
+            return false;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        match delete_block(doc, &spans) {
+            Ok(_) => true,
+            Err(e) => {
+                self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+                false
+            }
+        }
+    }
+
+    /// La scrittura di `testo` (un carattere o un tabulatore) sul blocco in modalita' colonna: il
+    /// blocco largo si toglie prima, poi il testo entra alla colonna `col_a` sulle righe che ci
+    /// arrivano (senza riempimento: le righe corte restano intatte). Il blocco diventa di larghezza
+    /// zero a `col_a + larghezza del testo` (calcolata come se iniziasse a `col_a`), sulle stesse
+    /// righe; tutto nello stesso passo di storia dei caratteri successivi, come nel testo normale.
+    fn column_type(&mut self, testo: &[u8]) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        let Some(b) = self.block else {
+            return;
+        };
+        let Some(blocco) = self.column_block_of(&b) else {
+            return;
+        };
+        let mut largo_zero = blocco;
+        if blocco.col_b > blocco.col_a {
+            if !self.column_delete_region(&blocco) {
+                return;
+            }
+            // Le righe dopo la prima si sono spostate: il blocco si ricalcola.
+            let Some(b2) = self.block else {
+                return;
+            };
+            let Some(fresco) = self.column_block_of(&b2) else {
+                return;
+            };
+            largo_zero = fresco;
+        }
+        largo_zero.col_b = largo_zero.col_a;
+        let Some(spans) = self.block_spans_limited(&largo_zero) else {
+            return;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        if let Err(e) = insert_block(doc, &spans, largo_zero.col_a, testo, false) {
+            self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+            return;
+        }
+        let arrivo = largo_zero
+            .col_a
+            .saturating_add(larghezza_da(testo, largo_zero.col_a))
+            .min(MAX_VCOL);
+        if let Some(b) = self.block.as_mut() {
+            b.anchor_col = arrivo;
+            b.vcol = arrivo;
+        }
+        self.align_cursor();
+        self.scroll_adjust();
+    }
+
+    /// Backspace sul blocco: largo, si toglie e resta di larghezza zero alla colonna `col_a`; largo
+    /// zero, si cancella il blocco `[col_a - 1, col_a)` e la colonna scende di uno; a colonna 0 non
+    /// fa nulla. In lettura il messaggio e il blocco resta.
+    fn column_backspace(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        let Some(b) = self.block else {
+            return;
+        };
+        let Some(blocco) = self.column_block_of(&b) else {
+            return;
+        };
+        if blocco.col_b > blocco.col_a {
+            if self.column_delete_region(&blocco) {
+                if let Some(b) = self.block.as_mut() {
+                    b.anchor_col = blocco.col_a;
+                    b.vcol = blocco.col_a;
+                }
+                self.align_cursor();
+                self.scroll_adjust();
+            }
+            return;
+        }
+        if blocco.col_a == 0 {
+            return;
+        }
+        let mut prima = blocco;
+        prima.col_a = blocco.col_a - 1;
+        prima.col_b = blocco.col_a;
+        if !self.column_delete_region(&prima) {
+            return;
+        }
+        if let Some(b) = self.block.as_mut() {
+            b.anchor_col = prima.col_a;
+            b.vcol = prima.col_a;
+        }
+        self.align_cursor();
+        self.scroll_adjust();
+    }
+
+    /// Delete sul blocco: largo, si toglie e resta di larghezza zero alla colonna `col_a`; largo
+    /// zero, si cancella il blocco `[col_a, col_a + 1)` e la colonna resta. In lettura il messaggio
+    /// e il blocco resta.
+    fn column_delete(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        let Some(b) = self.block else {
+            return;
+        };
+        let Some(blocco) = self.column_block_of(&b) else {
+            return;
+        };
+        if blocco.col_b > blocco.col_a {
+            if self.column_delete_region(&blocco) {
+                if let Some(b) = self.block.as_mut() {
+                    b.anchor_col = blocco.col_a;
+                    b.vcol = blocco.col_a;
+                }
+                self.align_cursor();
+                self.scroll_adjust();
+            }
+            return;
+        }
+        let mut dopo = blocco;
+        dopo.col_b = blocco.col_a + 1;
+        if self.column_delete_region(&dopo) {
+            self.align_cursor();
+            self.scroll_adjust();
+        }
+    }
+
+    /// La copia del blocco in modalita' colonna: il testo delle sue celle (righe unite da un `\n`,
+    /// nessuno in fondo) negli appunti interni e in sospeso per il terminale, col messaggio di quanti
+    /// byte. `false`, col messaggio giusto, se non c'e' blocco (niente di selezionato) o supera i
+    /// limiti (righe o byte). Non tocca il documento: vale anche in lettura.
+    fn column_copy(&mut self) -> bool {
+        let Some(b) = self.block else {
+            self.flash = Some(self.cat.t("flash.nothing_selected").to_string());
+            return false;
+        };
+        let Some(blocco) = self.column_block_of(&b) else {
+            return false;
+        };
+        let Some(spans) = self.block_spans_limited(&blocco) else {
+            return false;
+        };
+        let Some(doc) = self.doc.as_ref() else {
+            return false;
+        };
+        let testo = match block_text(doc, &spans, COPY_LIMIT) {
+            Ok(testo) => testo,
+            Err(BlockError::TooManyBytes) => {
+                self.flash = Some(
+                    self.cat
+                        .tf("flash.copy_too_big", &[&(COPY_LIMIT >> 20).to_string()]),
+                );
+                return false;
+            }
+            // Difensivo: gli altri errori non vengono da block_text.
+            Err(_) => return false,
+        };
+        let quanto = testo.len() as u64;
+        // Come la copia della selezione: solo i byte del blocco, e al terminale solo cio' che OSC 52
+        // puo' portare.
+        self.clip = testo;
+        self.copied = (self.clip.len() <= crate::clip::OSC52_LIMIT).then(|| self.clip.clone());
+        self.flash = Some(self.cat.tf("flash.copied", &[&quanto.to_string()]));
+        true
+    }
+
+    /// Ctrl+X in modalita' colonna: copia come Ctrl+C e poi toglie il blocco, che resta di larghezza
+    /// zero alla colonna `col_a` sulle stesse righe. Il tasto con Ctrl ha gia' chiuso il passo della
+    /// storia prima di agire: un annulla solo.
+    fn column_cut(&mut self) {
+        if !self.column_copy() {
+            return;
+        }
+        let Some(b) = self.block else {
+            return;
+        };
+        let Some(blocco) = self.column_block_of(&b) else {
+            return;
+        };
+        if blocco.col_b > blocco.col_a && !self.column_delete_region(&blocco) {
+            return;
+        }
+        if let Some(b) = self.block.as_mut() {
+            b.anchor_col = blocco.col_a;
+            b.vcol = blocco.col_a;
+        }
+        self.align_cursor();
+        self.scroll_adjust();
+    }
+
+    /// L'incolla in modalita' colonna: il testo diviso in righe su `\n` (l'ultima vuota di un testo
+    /// che finisce con a-capo si ignora) entra alla colonna `col_a` del blocco — una riga sola, su
+    /// tutte le righe del blocco; piu' righe, una per riga dalla prima del blocco, con le righe che
+    /// servono (estese con `nth_row` se il blocco non basta). Senza blocco si parte dalla riga del
+    /// cursore, alla sua colonna. Se il documento finisce prima delle righe da incollare:
+    /// `flash.paste_rows` e niente cambia. Il blocco largo si toglie prima. Un passo di storia solo
+    /// (lo chiude il chiamante); dopo l'incolla il blocco e' di larghezza zero alla colonna d'arrivo,
+    /// sulle stesse righe, e senza blocco non se ne crea uno (il cursore va dopo la prima riga
+    /// incollata, se la sua riga l'ha ricevuta).
+    fn column_paste(&mut self, testo: &[u8]) {
+        let mut righe: Vec<&[u8]> = testo.split(|&b| b == b'\n').collect();
+        if testo.ends_with(b"\n") {
+            righe.pop();
+        }
+        if righe.is_empty() {
+            return;
+        }
+        // Riga di partenza, quante righe servono e a quale colonna: quelle del blocco, o della riga
+        // e della colonna del cursore se il blocco non c'e'.
+        let (prima, quante, col_a) = match self.block.as_ref() {
+            Some(b) => (
+                b.first_row,
+                b.rows.max(righe.len() as u64),
+                b.anchor_col.min(b.vcol),
+            ),
+            None => (
+                self.cursor_row(),
+                righe.len() as u64,
+                self.cursor_col() as u64,
+            ),
+        };
+        // Le righe da incollare devono starci tutte: se il documento finisce prima, niente cambia.
+        if self
+            .doc
+            .as_ref()
+            .and_then(|doc| nth_row(doc, prima, quante - 1, &ViewOptions::default()))
+            .is_none()
+        {
+            self.flash = Some(self.cat.t("flash.paste_rows").to_string());
+            return;
+        }
+        // Il blocco largo si toglie prima, nello stesso passo di storia.
+        if let Some(b) = self.block {
+            if let Some(blocco) = self.column_block_of(&b) {
+                if blocco.col_b > blocco.col_a && !self.column_delete_region(&blocco) {
+                    return;
+                }
+            }
+        }
+        // Le righe dell'incolla, come blocco di larghezza zero: si ricalcolano DOPO l'eventuale
+        // cancellazione, che sposta gli inizi delle righe dopo la prima.
+        let Some(ultima) = self
+            .doc
+            .as_ref()
+            .and_then(|doc| nth_row(doc, prima, quante - 1, &ViewOptions::default()))
+        else {
+            // Difensivo: prima della cancellazione c'erano tutte.
+            return;
+        };
+        let target = ColumnBlock {
+            first_row: prima,
+            last_row: ultima,
+            col_a,
+            col_b: col_a,
+        };
+        let Some(spans) = self.block_spans_limited(&target) else {
+            return;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        let esito = if righe.len() == 1 {
+            insert_block(doc, &spans, col_a, righe[0], false)
+        } else {
+            paste_block(doc, &spans, col_a, &righe, false)
+        };
+        if let Err(e) = esito {
+            self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+            return;
+        }
+        // Dopo l'incolla: il blocco di larghezza zero alla colonna d'arrivo (col_a + larghezza della
+        // prima riga incollata, come se iniziasse a col_a), stesse righe; senza blocco il cursore
+        // va dopo la prima riga incollata se la sua riga l'ha ricevuta.
+        let arrivo = col_a
+            .saturating_add(larghezza_da(righe[0], col_a))
+            .min(MAX_VCOL);
+        if self.block.is_some() {
+            if let Some(b) = self.block.as_mut() {
+                b.anchor_col = arrivo;
+                b.vcol = arrivo;
+            }
+            self.align_cursor();
+        } else if let Some(span) = spans.first() {
+            if span.reaches && !righe[0].is_empty() {
+                self.cursor = (span.start + righe[0].len() as u64).min(self.max_cursor());
+            }
+        }
+        self.scroll_adjust();
     }
 
     // ----- ricerca -----
@@ -1131,9 +1747,36 @@ impl App {
         self.cat.code()
     }
 
+    /// Vero se la modalita' colonna (F8) e' accesa.
+    pub fn column_mode(&self) -> bool {
+        self.col_mode
+    }
+
+    /// Il blocco rettangolare attuale, se c'e' (solo in modalita' colonna): le righe dalla prima
+    /// all'ultima e le colonne dell'ancora e del cursore in ordine.
+    pub fn column_block(&self) -> Option<ColumnBlock> {
+        if !self.col_mode {
+            return None;
+        }
+        self.block.as_ref().and_then(|b| self.column_block_of(b))
+    }
+
+    /// La colonna (virtuale) del cursore in modalita' colonna: quella del blocco se c'e', altrimenti
+    /// la colonna vera del cursore.
+    pub fn vcol(&self) -> u64 {
+        match self.block.as_ref() {
+            Some(b) => b.vcol,
+            None => self.cursor_col() as u64,
+        }
+    }
+
     /// La selezione normalizzata `(inizio, fine esclusa)`: l'ancora e il cursore nell'ordine; `None` se
-    /// non c'e' ancora o coincide col cursore (selezione vuota).
+    /// non c'e' ancora o coincide col cursore (selezione vuota). In modalita' colonna non esiste
+    /// selezione di flusso: c'e' il blocco.
     pub fn selection(&self) -> Option<(u64, u64)> {
+        if self.col_mode {
+            return None;
+        }
         let ancora = self.anchor?;
         if ancora == self.cursor {
             None
@@ -1382,16 +2025,23 @@ impl App {
 
     /// Maiusc+movimento: estende la selezione. Se l'ancora manca la si mette al cursore, poi il movimento
     /// e' quello del tasto senza Maiusc; l'ancora resta finche' la selezione e' attiva (anche se torna vuota).
+    /// In modalita' colonna lo stesso movimento estende il blocco rettangolare.
     fn extend_selection(&mut self, m: Mov) {
+        if self.col_mode {
+            self.extend_block(m);
+            return;
+        }
         if self.anchor.is_none() {
             self.anchor = Some(self.cursor);
         }
         self.muovi(m);
     }
 
-    /// Un movimento senza Maiusc: toglie l'ancora e muove il cursore da dove sta.
+    /// Un movimento senza Maiusc: toglie l'ancora e muove il cursore da dove sta. In modalita' colonna
+    /// toglie anche il blocco (il movimento riparte dal cursore, come fuori dalla modalita').
     fn move_no_anchor(&mut self, m: Mov) {
         self.anchor = None;
+        self.block = None;
         self.muovi(m);
     }
 
@@ -1400,6 +2050,7 @@ impl App {
     fn collapse_left(&mut self) {
         let sel = self.selection();
         self.anchor = None;
+        self.block = None;
         if let Some((da, _)) = sel {
             self.cursor = da.min(self.max_cursor());
             self.remember_col();
@@ -1414,6 +2065,7 @@ impl App {
     fn collapse_right(&mut self) {
         let sel = self.selection();
         self.anchor = None;
+        self.block = None;
         if let Some((_, fino)) = sel {
             self.cursor = fino.min(self.max_cursor());
             self.remember_col();
@@ -1423,9 +2075,11 @@ impl App {
         self.move_right();
     }
 
-    /// Esc: toglie l'ancora; il cursore resta dov'e' (anche se la selezione era rovesciata).
+    /// Esc: toglie l'ancora e il blocco della modalita' colonna; il cursore resta dov'e' (anche se la
+    /// selezione era rovesciata).
     fn collapse_escape(&mut self) {
         self.anchor = None;
+        self.block = None;
     }
 
     fn move_up(&mut self) {
@@ -1649,7 +2303,13 @@ impl App {
         if cells == 0 {
             return;
         }
-        let col = self.cursor_col();
+        // In modalita' colonna resta visibile la colonna virtuale del cursore, anche oltre la fine
+        // della riga (il cursore del terminale sta li').
+        let col = if self.col_mode {
+            usize::try_from(self.vcol()).unwrap_or(usize::MAX)
+        } else {
+            self.cursor_col()
+        };
         if col < self.hscroll {
             self.hscroll = col;
         } else if col > self.hscroll + cells - 1 {
@@ -1736,22 +2396,41 @@ impl App {
     }
 
     /// Un carattere della tastiera (anche con SHIFT): si inserisce al posto dell'eventuale selezione e il
-    /// cursore avanza di tutti i suoi byte UTF-8.
+    /// cursore avanza di tutti i suoi byte UTF-8. In modalita' colonna con un blocco entra su tutte le
+    /// righe del blocco.
     fn insert_char(&mut self, c: char) {
         let mut buf = [0u8; 4];
         let testo = c.encode_utf8(&mut buf);
+        if self.col_mode && self.block.is_some() {
+            self.column_type(testo.as_bytes());
+            return;
+        }
         self.insert_over_selection(testo.as_bytes());
     }
 
-    /// Enter: un a-capo. Si aggiunge al passo di storia corrente e poi lo chiude.
+    /// Enter: un a-capo. Si aggiunge al passo di storia corrente e poi lo chiude. In modalita' colonna
+    /// toglie prima il blocco, poi e' un Enter normale al cursore; in lettura il messaggio e il
+    /// blocco resta.
     fn insert_enter(&mut self) {
+        if self.col_mode && self.block.is_some() {
+            if !self.edit {
+                self.refuse_write();
+                return;
+            }
+            self.block = None;
+        }
         if self.insert_over_selection(b"\n") {
             self.seal_history();
         }
     }
 
-    /// Tab: un tabulatore (le celle le calcola la visualizzazione: qui e' un byte come gli altri).
+    /// Tab: un tabulatore (le celle le calcola la visualizzazione: qui e' un byte come gli altri). In
+    /// modalita' colonna con un blocco entra su tutte le righe del blocco.
     fn insert_tab(&mut self) {
+        if self.col_mode && self.block.is_some() {
+            self.column_type(b"\t");
+            return;
+        }
         self.insert_over_selection(b"\t");
     }
 
@@ -1770,8 +2449,13 @@ impl App {
     }
 
     /// Backspace: con una selezione toglie solo quella; senza toglie il carattere prima del cursore. In
-    /// lettura e' rifiutato e la selezione non si perde.
+    /// lettura e' rifiutato e la selezione non si perde. In modalita' colonna con un blocco agisce sul
+    /// blocco.
     fn backspace_key(&mut self) {
+        if self.col_mode && self.block.is_some() {
+            self.column_backspace();
+            return;
+        }
         if self.selection().is_some() {
             if !self.edit {
                 self.refuse_write();
@@ -1784,8 +2468,12 @@ impl App {
     }
 
     /// Delete: con una selezione toglie solo quella; senza toglie il carattere sotto il cursore. In lettura
-    /// e' rifiutato e la selezione non si perde.
+    /// e' rifiutato e la selezione non si perde. In modalita' colonna con un blocco agisce sul blocco.
     fn delete_key(&mut self) {
+        if self.col_mode && self.block.is_some() {
+            self.column_delete();
+            return;
+        }
         if self.selection().is_some() {
             if !self.edit {
                 self.refuse_write();
@@ -1888,8 +2576,10 @@ impl App {
             self.refuse_write();
             return;
         }
-        // L'annullamento toglie la selezione: il testo sotto e' cambiato.
+        // L'annullamento toglie la selezione e il blocco della modalita' colonna: il testo sotto e'
+        // cambiato.
         self.anchor = None;
+        self.block = None;
         let Some(doc) = self.doc.as_mut() else {
             return;
         };
@@ -1913,8 +2603,9 @@ impl App {
             self.refuse_write();
             return;
         }
-        // Come l'annulla: il ripeti toglie la selezione.
+        // Come l'annulla: il ripeti toglie la selezione e il blocco.
         self.anchor = None;
+        self.block = None;
         let Some(doc) = self.doc.as_mut() else {
             return;
         };
