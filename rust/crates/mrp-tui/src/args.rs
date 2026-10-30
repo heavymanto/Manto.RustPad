@@ -7,6 +7,7 @@
 
 use crate::settings::Settings;
 use crate::theme::ThemeId;
+use mrp_core::encoding::Encoding;
 use mrp_core::lang::{self, Lang};
 use std::ffi::OsString;
 use std::path::PathBuf;
@@ -18,6 +19,8 @@ pub struct Args {
     pub lang: Option<String>,
     /// `--theme NOME`: night, debian, console o minimal.
     pub theme: Option<String>,
+    /// `--encoding NOME`: la codifica del file (`auto`: la riconosce l'apertura).
+    pub encoding: Option<String>,
     /// `--lang-dir DIR` (sviluppatore): le lingue si cercano in DIR invece che nel posto solito.
     pub lang_dir: Option<PathBuf>,
     /// `--settings PERCORSO` (sviluppatore): le impostazioni stanno in PERCORSO.
@@ -28,6 +31,8 @@ pub struct Args {
     pub keys: Option<String>,
     /// `-h` / `--help`.
     pub help: bool,
+    /// `--list-encodings`: stampa i nomi delle codifiche, uno per riga, ed esce.
+    pub list_encodings: bool,
     /// Il file da aprire.
     pub file: Option<PathBuf>,
 }
@@ -48,6 +53,8 @@ pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> 
             "-h" | "--help" => args.help = true,
             "--lang" => args.lang = Some(testo(&mut resto, "--lang")?),
             "--theme" => args.theme = Some(testo(&mut resto, "--theme")?),
+            "--encoding" => args.encoding = Some(testo(&mut resto, "--encoding")?),
+            "--list-encodings" => args.list_encodings = true,
             "--lang-dir" => args.lang_dir = Some(percorso(&mut resto, "--lang-dir")?),
             "--settings" => args.settings = Some(percorso(&mut resto, "--settings")?),
             "--dump" => args.dump = Some(testo(&mut resto, "--dump")?),
@@ -163,4 +170,17 @@ pub fn resolve_theme(args: &Args, settings: &Option<Settings>) -> Result<ThemeId
         .as_ref()
         .map(|s| s.theme)
         .unwrap_or(ThemeId::DEFAULT))
+}
+
+/// La codifica di partenza: `--encoding NOME` con un nome noto (anche alias, come lo legge
+/// `Encoding::by_name`); `auto`, o nessuna opzione, vale `None` (la riconosce l'apertura sui primi
+/// byte del file). `Err` col nome quando non si riconosce (un errore d'uso).
+pub fn resolve_encoding(args: &Args) -> Result<Option<Encoding>, String> {
+    match &args.encoding {
+        None => Ok(None),
+        Some(nome) if nome == "auto" => Ok(None),
+        Some(nome) => Encoding::by_name(nome)
+            .map(Some)
+            .ok_or_else(|| nome.clone()),
+    }
 }

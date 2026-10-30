@@ -8,6 +8,7 @@ use mrp_core::block::{
     ColumnBlock, RowSpan,
 };
 use mrp_core::docsearch::{SearchError, Snapshot};
+use mrp_core::encoding::Encoding;
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
@@ -47,58 +48,28 @@ fn parse_cifre(s: &str) -> Option<u64> {
     s.parse().ok()
 }
 
-/// Quanti byte occupa il primo carattere di `bytes`: il piu' corto prefisso UTF-8 valido, altrimenti un solo byte
-/// (un byte non valido e' un carattere tutto suo, come nel modello di `mrp_core::view`).
-fn primo_carattere(bytes: &[u8]) -> usize {
-    for n in 1..=bytes.len().min(4) {
-        let intero = std::str::from_utf8(&bytes[..n])
-            .ok()
-            .and_then(|s| s.chars().next())
-            .is_some_and(|c| c.len_utf8() == n);
-        if intero {
-            return n;
-        }
-    }
-    1
-}
-
-/// Quanti byte occupa l'ultimo carattere di `bytes`: il piu' corto suffisso UTF-8 valido, altrimenti un solo byte.
-fn ultimo_carattere(bytes: &[u8]) -> usize {
-    for n in 1..=bytes.len().min(4) {
-        let intero = std::str::from_utf8(&bytes[bytes.len() - n..])
-            .ok()
-            .and_then(|s| s.chars().next())
-            .is_some_and(|c| c.len_utf8() == n);
-        if intero {
-            return n;
-        }
-    }
-    1
-}
-
 /// La larghezza in celle di `testo` come se iniziasse alla colonna `col`: un tabulatore avanza fino al
-/// prossimo multiplo della larghezza dei tabulatori, un carattere di controllo vale 1 e un byte non
-/// valido e' un carattere tutto suo largo 1 (come nel modello di `mrp_core::view`); per il resto la
-/// larghezza Unicode (i caratteri larghi 2, i combinanti 0). E' la colonna a cui arriva il testo
+/// prossimo multiplo della larghezza dei tabulatori, un carattere di controllo vale 1 e un carattere
+/// che la codifica non definisce e' un carattere tutto suo largo 1 (come nel modello di
+/// `mrp_core::view`); per il resto la larghezza Unicode (i caratteri larghi 2, i combinanti 0). I byte
+/// si leggono come caratteri con `enc` (`Encoding::first_char`). E' la colonna a cui arriva il testo
 /// scritto sul blocco della modalita' colonna.
-fn larghezza_da(testo: &[u8], col: u64) -> u64 {
+fn larghezza_da(enc: Encoding, testo: &[u8], col: u64) -> u64 {
     let tab = ViewOptions::default().tab_width.max(1) as u64;
     let mut colonna = col;
     let mut i = 0;
     while i < testo.len() {
-        let n = primo_carattere(&testo[i..]);
-        let c = std::str::from_utf8(&testo[i..i + n])
-            .ok()
-            .and_then(|s| s.chars().next());
+        // il primo carattere e quanti byte occupa; qui lo slice non e' mai vuoto (lo esclude il
+        // while), ma un ripiego non puo' fare danno
+        let (c, n) = enc.first_char(&testo[i..]).unwrap_or(('\u{fffd}', 1));
         colonna = colonna.saturating_add(match c {
-            Some('\t') => tab - colonna % tab,
-            Some(c) if c.is_control() => 1,
-            Some(c) => {
+            '\t' => tab - colonna % tab,
+            c if c.is_control() => 1,
+            c => {
                 let mut buf = [0u8; 4];
                 let s: &str = c.encode_utf8(&mut buf);
                 Span::raw(s).width() as u64
             }
-            None => 1,
         });
         i += n;
     }
@@ -172,7 +143,8 @@ fn search_all(
 /// canale: il meccanismo dell'indicizzazione e del salvataggio (cancel e progress condivisi).
 fn spawn_search_job(
     snap: Snapshot,
-    ago: &str,
+    ago: &[u8],
+    testo: &str,
     forward: bool,
     da: u64,
     cancel: &Arc<AtomicBool>,
@@ -181,7 +153,7 @@ fn spawn_search_job(
     let (tx, rx) = mpsc::channel();
     let cancel_thread = Arc::clone(cancel);
     let progress_thread = Arc::clone(progress);
-    let ago_thread = ago.as_bytes().to_vec();
+    let ago_thread = ago.to_vec();
     let len = snap.len();
     std::thread::spawn(move || {
         let esito = search_all(
@@ -199,7 +171,8 @@ fn spawn_search_job(
         progress: Arc::clone(progress),
         cancel: Arc::clone(cancel),
         len,
-        needle: ago.to_string(),
+        needle: testo.to_string(),
+        needle_len: ago.len() as u64,
     }
 }
 
@@ -216,6 +189,9 @@ pub struct AppConfig {
     pub settings_path: Option<PathBuf>,
     /// Vero: costruisce l'indice righe in background.
     pub index: bool,
+    /// La codifica dei caratteri: `Some(e)` quella, `None` la riconosce all'apertura dai primi byte del file
+    /// (`Encoding::detect`).
+    pub encoding: Option<Encoding>,
 }
 
 impl Default for AppConfig {
@@ -226,6 +202,7 @@ impl Default for AppConfig {
             langs: vec![Lang::english()],
             settings_path: None,
             index: true,
+            encoding: Some(Encoding::Utf8),
         }
     }
 }
@@ -239,6 +216,8 @@ pub enum DialogKind {
     Theme,
     /// F7: menu delle lingue.
     Lang,
+    /// F9: menu delle codifiche.
+    Encoding,
     /// F5 / Ctrl+G: prompt "vai a".
     Goto,
     /// F3 / Ctrl+F: prompt di ricerca.
@@ -295,8 +274,10 @@ struct SearchJob {
     cancel: Arc<AtomicBool>,
     /// La lunghezza della fotografia quando la ricerca e' partita: il totale della percentuale.
     len: u64,
-    /// L'ago cercato: i byte UTF-8 del testo del prompt.
+    /// L'ago cercato: il testo del prompt, per i messaggi.
     needle: String,
+    /// Quanti byte occupa l'ago nella codifica del documento: la fine dell'occorrenza trovata.
+    needle_len: u64,
 }
 
 /// Byte massimi che una copia (Ctrl+C / Ctrl+X) puo' mettere negli appunti interni: oltre, il messaggio
@@ -385,6 +366,8 @@ pub struct App {
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
     index: bool,
+    /// La codifica con cui i byte del documento si leggono e si scrivono come caratteri.
+    enc: Encoding,
 }
 
 /// Un movimento del cursore: quello del tasto senza Maiusc. La selezione con Maiusc fa lo stesso movimento
@@ -447,6 +430,12 @@ impl App {
         } else {
             None
         };
+        // La codifica: quella richiesta, o quella che l'inizio del file suggerisce (i primi 64 KiB,
+        // con `Encoding::detect`). I byte del documento non cambiano: cambia solo come si leggono.
+        let enc = cfg.encoding.unwrap_or_else(|| {
+            let campione = doc.read_range(0, doc.len().min(65536));
+            Encoding::detect(&campione)
+        });
         Ok(App {
             doc: Some(doc),
             file_name,
@@ -482,6 +471,7 @@ impl App {
             settings_path: cfg.settings_path,
             lang_picked,
             index: cfg.index,
+            enc,
         })
     }
 
@@ -575,6 +565,9 @@ impl App {
             KeyCode::F(7) => self.open_dialog(DialogKind::Lang),
             // F8 accende e spegne la modalita' colonna.
             KeyCode::F(8) => self.toggle_column(),
+            // F9 apre il menu delle codifiche (con un altro dialogo aperto non fa nulla: i tasti
+            // arrivano al dialogo, come per gli altri menu).
+            KeyCode::F(9) => self.open_dialog(DialogKind::Encoding),
             KeyCode::F(10) => self.quit_request(),
             // Ctrl+Z annulla; Ctrl+Y e Ctrl+Shift+Z ripetono (col maiuscolo SHIFT arriva anche 'Z').
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl && !shift => self.undo(),
@@ -652,6 +645,13 @@ impl App {
                     .position(|l| l.code == self.cat.code())
                     .unwrap_or(0);
             }
+            DialogKind::Encoding => {
+                // Come gli altri menu: parte dalla codifica corrente.
+                self.menu_index = Encoding::all()
+                    .iter()
+                    .position(|&e| e == self.enc)
+                    .unwrap_or(0);
+            }
             DialogKind::Goto => self.goto_text.clear(),
             // Il prompt di ricerca riparte dall'ultimo testo cercato (vuoto se non c'e').
             DialogKind::Find => self.find_text = self.last_find.clone().unwrap_or_default(),
@@ -681,6 +681,21 @@ impl App {
                         self.menu_index += 1;
                     }
                 }
+                KeyCode::Enter => self.menu_apply(),
+                KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
+            // Menu delle codifiche: come tema e lingua, ma Home e End vanno alla prima e all'ultima
+            // voce (la lista e' lunga e scorre: la finestra la tiene visibile il disegno).
+            DialogKind::Encoding => match key.code {
+                KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
+                KeyCode::Down => {
+                    if self.menu_index + 1 < self.menu_len() {
+                        self.menu_index += 1;
+                    }
+                }
+                KeyCode::Home => self.menu_index = 0,
+                KeyCode::End => self.menu_index = self.menu_len().saturating_sub(1),
                 KeyCode::Enter => self.menu_apply(),
                 KeyCode::Esc => self.dialog = None,
                 _ => {}
@@ -745,6 +760,7 @@ impl App {
         match self.dialog {
             Some(DialogKind::Theme) => ThemeId::ALL.len(),
             Some(DialogKind::Lang) => self.langs.len(),
+            Some(DialogKind::Encoding) => Encoding::all().len(),
             _ => 0,
         }
     }
@@ -772,6 +788,14 @@ impl App {
                 self.dialog = None;
                 self.flash = Some(self.cat.tf("flash.lang", &[&nome]));
                 self.save_settings();
+            }
+            Some(DialogKind::Encoding) => {
+                let Some(&e) = Encoding::all().get(self.menu_index) else {
+                    return;
+                };
+                self.dialog = None;
+                // La scelta non si salva nelle impostazioni: la codifica e' del file, non dell'utente.
+                self.set_encoding(e);
             }
             _ => {}
         }
@@ -931,11 +955,18 @@ impl App {
             );
             return false;
         }
-        // Solo i byte della selezione, e solo ora che servono: mai una copia del documento intero.
+        // Solo i byte della selezione, e solo ora che servono: mai una copia del documento intero. In
+        // una code page gli appunti sono testo UTF-8: i byte si decodificano; in UTF-8 restano byte
+        // per byte, anche quelli non validi.
         let Some(doc) = self.doc.as_ref() else {
             return false;
         };
-        self.clip = doc.read_range(da, quanto);
+        let letto = doc.read_range(da, quanto);
+        self.clip = if self.enc.is_utf8() {
+            letto
+        } else {
+            self.enc.decode_lossy(&letto).into_bytes()
+        };
         // Al terminale si manda solo cio' che OSC 52 puo' portare: una copia grande resta negli appunti interni
         // senza un secondo esemplare in memoria.
         self.copied = (self.clip.len() <= crate::clip::OSC52_LIMIT).then(|| self.clip.clone());
@@ -962,7 +993,8 @@ impl App {
     }
 
     /// Ctrl+V: gli appunti interni al posto dell'eventuale selezione, al cursore. In lettura il messaggio
-    /// di sola lettura; appunti vuoti il loro messaggio.
+    /// di sola lettura; appunti vuoti il loro messaggio. In un documento non UTF-8 gli appunti (testo
+    /// UTF-8) si codificano con la codifica attiva, tutto o niente.
     fn paste_clipboard(&mut self) {
         if !self.edit {
             self.refuse_write();
@@ -974,7 +1006,19 @@ impl App {
         }
         // Gli appunti si tolgono un momento: l'inserimento prende in prestito tutta l'app.
         let testo = std::mem::take(&mut self.clip);
-        self.paste_bytes(&testo);
+        if self.enc.is_utf8() {
+            self.paste_bytes(&testo);
+        } else {
+            match self.enc.encode_str(&String::from_utf8_lossy(&testo)) {
+                Ok(bytes) => self.paste_bytes(&bytes),
+                Err(c) => {
+                    self.flash = Some(
+                        self.cat
+                            .tf("flash.not_encodable", &[&c.to_string(), self.enc.name()]),
+                    );
+                }
+            }
+        }
         self.clip = testo;
     }
 
@@ -1133,13 +1177,14 @@ impl App {
     /// sull'ultima riga, altrimenti si accorcia da sopra (l'ancora, in cima, non si muove); fermo
     /// all'ultima riga del documento.
     fn block_down(&mut self) {
+        // Le opzioni si prendono prima: sotto servono i prestiti del documento e del blocco.
+        let opts = self.view_opts();
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
         let Some(b) = self.block.as_mut() else {
             return;
         };
-        let opts = ViewOptions::default();
         if b.cursor_at_bottom {
             // C'e' una riga dopo l'ultima del blocco? (fermo all'ultima riga del documento)
             if nth_row(doc, b.first_row, b.rows, &opts).is_some() {
@@ -1170,7 +1215,7 @@ impl App {
                 doc,
                 b.first_row,
                 b.rows.saturating_sub(1),
-                &ViewOptions::default(),
+                &self.view_opts(),
             )
         } else {
             Some(b.first_row)
@@ -1181,7 +1226,7 @@ impl App {
     fn row_width(&self, row: u64) -> Option<u64> {
         let doc = self.doc.as_ref()?;
         let fine = scan::row_end(doc, row, MAX_SCAN);
-        Some(view::col_of(doc, row, fine, &ViewOptions::default()) as u64)
+        Some(view::col_of(doc, row, fine, &self.view_opts()) as u64)
     }
 
     /// Rimette il cursore del documento sulla riga del cursore del blocco, alla colonna virtuale: il
@@ -1198,7 +1243,7 @@ impl App {
             return;
         };
         self.cursor =
-            view::offset_at_col(doc, row, b.vcol, &ViewOptions::default()).min(self.max_cursor());
+            view::offset_at_col(doc, row, b.vcol, &self.view_opts()).min(self.max_cursor());
     }
 
     /// Il blocco del core che corrisponde allo stato del blocco: le colonne di ancora e cursore in
@@ -1210,7 +1255,7 @@ impl App {
             doc,
             b.first_row,
             b.rows.saturating_sub(1),
-            &ViewOptions::default(),
+            &self.view_opts(),
         )?;
         Some(ColumnBlock {
             first_row: b.first_row,
@@ -1224,7 +1269,7 @@ impl App {
     /// il messaggio `flash.block_too_big` e `None` (niente modifica ne' copia).
     fn block_spans_limited(&mut self, blocco: &ColumnBlock) -> Option<Vec<RowSpan>> {
         let doc = self.doc.as_ref()?;
-        match block_spans(doc, blocco, &ViewOptions::default(), MAX_BLOCK_ROWS) {
+        match block_spans(doc, blocco, &self.view_opts(), MAX_BLOCK_ROWS) {
             Ok(spans) => Some(spans),
             Err(BlockError::TooManyRows) => {
                 self.flash = Some(
@@ -1300,7 +1345,7 @@ impl App {
         }
         let arrivo = largo_zero
             .col_a
-            .saturating_add(larghezza_da(testo, largo_zero.col_a))
+            .saturating_add(larghezza_da(self.enc, testo, largo_zero.col_a))
             .min(MAX_VCOL);
         if let Some(b) = self.block.as_mut() {
             b.anchor_col = arrivo;
@@ -1416,9 +1461,14 @@ impl App {
             Err(_) => return false,
         };
         let quanto = testo.len() as u64;
-        // Come la copia della selezione: solo i byte del blocco, e al terminale solo cio' che OSC 52
-        // puo' portare.
-        self.clip = testo;
+        // Come la copia della selezione: i byte delle celle del blocco, letti come testo nella
+        // codifica attiva (in UTF-8 restano byte per byte); al terminale solo cio' che OSC 52 puo'
+        // portare.
+        self.clip = if self.enc.is_utf8() {
+            testo
+        } else {
+            self.enc.decode_lossy(&testo).into_bytes()
+        };
         self.copied = (self.clip.len() <= crate::clip::OSC52_LIMIT).then(|| self.clip.clone());
         self.flash = Some(self.cat.tf("flash.copied", &[&quanto.to_string()]));
         true
@@ -1483,7 +1533,7 @@ impl App {
         if self
             .doc
             .as_ref()
-            .and_then(|doc| nth_row(doc, prima, quante - 1, &ViewOptions::default()))
+            .and_then(|doc| nth_row(doc, prima, quante - 1, &self.view_opts()))
             .is_none()
         {
             self.flash = Some(self.cat.t("flash.paste_rows").to_string());
@@ -1502,7 +1552,7 @@ impl App {
         let Some(ultima) = self
             .doc
             .as_ref()
-            .and_then(|doc| nth_row(doc, prima, quante - 1, &ViewOptions::default()))
+            .and_then(|doc| nth_row(doc, prima, quante - 1, &self.view_opts()))
         else {
             // Difensivo: prima della cancellazione c'erano tutte.
             return;
@@ -1532,7 +1582,7 @@ impl App {
         // prima riga incollata, come se iniziasse a col_a), stesse righe; senza blocco il cursore
         // va dopo la prima riga incollata se la sua riga l'ha ricevuta.
         let arrivo = col_a
-            .saturating_add(larghezza_da(righe[0], col_a))
+            .saturating_add(larghezza_da(self.enc, righe[0], col_a))
             .min(MAX_VCOL);
         if self.block.is_some() {
             if let Some(b) = self.block.as_mut() {
@@ -1578,6 +1628,19 @@ impl App {
         let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
             return;
         };
+        // L'ago nei byte della codifica del documento; un carattere che la code page non ha non puo'
+        // stare nel file: la ricerca non parte e l'esito e' il solito "non trovato".
+        let ago_bytes: Vec<u8> = if self.enc.is_utf8() {
+            ago.as_bytes().to_vec()
+        } else {
+            match self.enc.encode_str(ago) {
+                Ok(b) => b,
+                Err(_) => {
+                    self.flash = Some(self.cat.tf("flash.not_found", &[ago]));
+                    return;
+                }
+            }
+        };
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
         let da = if forward {
@@ -1585,7 +1648,9 @@ impl App {
         } else {
             self.cursor
         };
-        self.search_job = Some(spawn_search_job(snap, ago, forward, da, &cancel, &progress));
+        self.search_job = Some(spawn_search_job(
+            snap, &ago_bytes, ago, forward, da, &cancel, &progress,
+        ));
     }
 
     /// La fine della ricerca (la chiama `tick`): trovata, il cursore va all'inizio
@@ -1597,7 +1662,7 @@ impl App {
         };
         match job.rx.try_recv() {
             Ok(SearchOutcome::Found(inizio, giro_completo)) => {
-                let fine = inizio + job.needle.len() as u64;
+                let fine = inizio + job.needle_len;
                 self.search_job = None;
                 self.goto_move(inizio);
                 if giro_completo {
@@ -1733,7 +1798,9 @@ impl App {
     /// La voce selezionata di un menu (tema, lingua) aperto; `None` se non c'e' un menu.
     pub fn menu_index(&self) -> Option<usize> {
         match self.dialog {
-            Some(DialogKind::Theme) | Some(DialogKind::Lang) => Some(self.menu_index),
+            Some(DialogKind::Theme) | Some(DialogKind::Lang) | Some(DialogKind::Encoding) => {
+                Some(self.menu_index)
+            }
             _ => None,
         }
     }
@@ -1745,6 +1812,30 @@ impl App {
     /// Codice della lingua attiva.
     pub fn lang_code(&self) -> &str {
         self.cat.code()
+    }
+
+    /// La codifica attiva.
+    pub fn encoding(&self) -> Encoding {
+        self.enc
+    }
+
+    /// Cambia la codifica: i byte del documento non si toccano. La selezione e il blocco della
+    /// modalita' colonna non valgono piu', l'evidenziazione dell'ultima ricerca sparisce e il cursore
+    /// va all'inizio del carattere che lo contiene nella nuova codifica (da una code page a UTF-8 puo'
+    /// capitare a meta' di un carattere: si torna indietro fino al suo inizio, mai oltre l'inizio
+    /// della riga); `want_col` si ricalcola. `top` non cambia: le righe dipendono solo dagli a-capo.
+    pub fn set_encoding(&mut self, e: Encoding) {
+        self.enc = e;
+        self.anchor = None;
+        self.block = None;
+        self.found = None;
+        // Solo UTF-8 puo' avere il cursore a meta' di un carattere: in una code page ogni offset e'
+        // un confine.
+        if self.enc.is_utf8() {
+            self.cursor = self.snap_to_char(self.cursor);
+        }
+        self.remember_col();
+        self.flash = Some(self.cat.tf("flash.encoding", &[self.enc.name()]));
     }
 
     /// Vero se la modalita' colonna (F8) e' accesa.
@@ -1792,9 +1883,22 @@ impl App {
     }
 
     /// Testo incollato dal terminale (l'incolla con le parentesi): come Ctrl+V ma col testo arrivato; in
-    /// lettura `flash.read_only`.
+    /// lettura `flash.read_only`. In un documento non UTF-8 il testo si codifica con la codifica
+    /// attiva, tutto o niente.
     pub fn paste_text(&mut self, testo: &str) {
-        self.paste_bytes(testo.as_bytes());
+        if self.enc.is_utf8() {
+            self.paste_bytes(testo.as_bytes());
+            return;
+        }
+        match self.enc.encode_str(testo) {
+            Ok(bytes) => self.paste_bytes(&bytes),
+            Err(c) => {
+                self.flash = Some(
+                    self.cat
+                        .tf("flash.not_encodable", &[&c.to_string(), self.enc.name()]),
+                );
+            }
+        }
     }
 
     /// Il contenuto del documento (per i test: legge tutto, solo per file piccoli).
@@ -1820,6 +1924,15 @@ impl App {
     /// Il documento, per il disegno (`view::rows_from` e compagnia); `None` quando si e' usciti.
     pub(crate) fn document(&self) -> Option<&Document> {
         self.doc.as_ref()
+    }
+
+    /// Le opzioni di vista con la codifica attiva (il resto e' il predefinito): tutto cio' che nel
+    /// disegno e nei movimenti legge i byte come caratteri passa da qui.
+    pub(crate) fn view_opts(&self) -> ViewOptions {
+        ViewOptions {
+            encoding: self.enc,
+            ..ViewOptions::default()
+        }
     }
 
     /// Il nome del file per il titolo.
@@ -1944,7 +2057,7 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return 0;
         };
-        view::col_of(doc, self.cursor_row(), self.cursor, &ViewOptions::default())
+        view::col_of(doc, self.cursor_row(), self.cursor, &self.view_opts())
     }
 
     /// Ricorda la posizione del cursore sullo schermo (la scrive `ui::draw`).
@@ -1993,7 +2106,7 @@ impl App {
             return;
         };
         let row = scan::row_start(doc, self.cursor, MAX_SCAN).0;
-        self.want_col = view::col_of(doc, row, self.cursor, &ViewOptions::default()) as u64;
+        self.want_col = view::col_of(doc, row, self.cursor, &self.view_opts()) as u64;
     }
 
     /// Porta il cursore sulla riga che inizia in `row`, alla colonna ricordata.
@@ -2001,8 +2114,8 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
-        self.cursor = view::offset_at_col(doc, row, self.want_col, &ViewOptions::default())
-            .min(self.max_cursor());
+        self.cursor =
+            view::offset_at_col(doc, row, self.want_col, &self.view_opts()).min(self.max_cursor());
     }
 
     // ----- movimenti -----
@@ -2123,7 +2236,7 @@ impl App {
         };
         let da = self.cursor.saturating_sub(4);
         let buf = doc.read_range(da, self.cursor - da);
-        self.cursor -= ultimo_carattere(&buf) as u64;
+        self.cursor -= self.enc.last_char_len(&buf) as u64;
         self.remember_col();
         self.scroll_adjust();
     }
@@ -2138,7 +2251,8 @@ impl App {
         };
         let restanti = (doc.len() - self.cursor).min(4);
         let buf = doc.read_range(self.cursor, restanti);
-        self.cursor = (self.cursor + primo_carattere(&buf) as u64).min(max);
+        let n = self.enc.first_char(&buf).map_or(1, |(_, n)| n) as u64;
+        self.cursor = (self.cursor + n).min(max);
         self.remember_col();
         self.scroll_adjust();
     }
@@ -2396,9 +2510,27 @@ impl App {
     }
 
     /// Un carattere della tastiera (anche con SHIFT): si inserisce al posto dell'eventuale selezione e il
-    /// cursore avanza di tutti i suoi byte UTF-8. In modalita' colonna con un blocco entra su tutte le
-    /// righe del blocco.
+    /// cursore avanza di tutti i suoi byte. In modalita' colonna con un blocco entra su tutte le righe
+    /// del blocco. In una code page il carattere deve starci: se non si puo' scrivere niente cambia
+    /// (nessuna modifica, nessun passo di storia) e il messaggio lo dice.
     fn insert_char(&mut self, c: char) {
+        // In una code page i byte del carattere li dice la codifica.
+        if !self.enc.is_utf8() {
+            let Some(testo) = self.enc.encode(c) else {
+                self.flash = Some(
+                    self.cat
+                        .tf("flash.not_encodable", &[&c.to_string(), self.enc.name()]),
+                );
+                return;
+            };
+            if self.col_mode && self.block.is_some() {
+                self.column_type(&testo);
+                return;
+            }
+            self.insert_over_selection(&testo);
+            return;
+        }
+        // In UTF-8 il percorso e' quello di sempre: nessuna conversione, nessun controllo.
         let mut buf = [0u8; 4];
         let testo = c.encode_utf8(&mut buf);
         if self.col_mode && self.block.is_some() {
@@ -2526,10 +2658,10 @@ impl App {
             return;
         };
         // Il carattere precedente sta nei 4 byte prima del cursore (un carattere UTF-8 occupa al piu' 4
-        // byte; un byte non valido e' un carattere tutto suo).
+        // byte, in una code page uno; un byte non valido e' un carattere tutto suo).
         let da = self.cursor.saturating_sub(4);
         let buf = doc.read_range(da, self.cursor - da);
-        let n = ultimo_carattere(&buf) as u64;
+        let n = self.enc.last_char_len(&buf) as u64;
         if let Err(e) = doc.delete(self.cursor - n, n) {
             self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
             return;
@@ -2555,10 +2687,10 @@ impl App {
         if self.cursor >= len {
             return;
         }
-        // Il carattere successivo comincia al cursore: ne bastano 4 byte.
+        // Il carattere successivo comincia al cursore: ne bastano 4 byte (in una code page uno).
         let restanti = (len - self.cursor).min(4);
         let buf = doc.read_range(self.cursor, restanti);
-        let n = primo_carattere(&buf) as u64;
+        let n = self.enc.first_char(&buf).map_or(1, |(_, n)| n) as u64;
         if let Err(e) = doc.delete(self.cursor, n) {
             self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
             return;

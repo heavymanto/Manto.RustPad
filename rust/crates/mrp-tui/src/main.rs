@@ -4,6 +4,7 @@
 //! (inglese se non se ne conosce ancora una); i codici di uscita: 0 tutto bene, 1 il file non si apre o il
 //! terminale fallisce, 2 errore d'uso.
 
+use mrp_core::encoding::Encoding;
 use mrp_core::lang::Catalog;
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::args;
@@ -46,13 +47,23 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             "cli.help.l2",
             "cli.help.l3",
             "cli.help.l4",
+            "cli.help.enc",
             "cli.help.l5",
         ] {
             println!("{}", cat.t(chiave));
         }
         return 0;
     }
-    // gli errori d'uso, nell'ordine: il file, il tema, la lingua, la dimensione del dump, i tasti
+    // anche i nomi delle codifiche vengono prima di ogni controllo (come l'aiuto): i nomi canonici,
+    // uno per riga, e non serve nemmeno il file
+    if a.list_encodings {
+        for e in Encoding::all() {
+            println!("{}", e.name());
+        }
+        return 0;
+    }
+    // gli errori d'uso, nell'ordine: il file, il tema, la lingua, la codifica, la dimensione del
+    // dump, i tasti
     let Some(file) = &a.file else {
         return usage_error(&cat, "cli.err.no_file", &[]);
     };
@@ -64,6 +75,10 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         Ok(Some(l)) => Some(l.code),
         Ok(None) => None,
         Err(code) => return usage_error(&cat, "cli.err.lang", &[&code]),
+    };
+    let encoding = match args::resolve_encoding(&a) {
+        Ok(e) => e,
+        Err(nome) => return usage_error(&cat, "cli.err.encoding", &[&nome]),
     };
     let dump = match &a.dump {
         Some(testo) => match args::parse_dump(testo) {
@@ -86,6 +101,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         langs: profilo.langs,
         settings_path: profilo.path,
         index: true,
+        encoding,
     };
     let mut app = match App::open(file, cfg) {
         Ok(app) => app,

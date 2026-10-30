@@ -3,6 +3,7 @@
 use crate::app::{App, DialogKind};
 use crate::theme::{Theme, ThemeId};
 use mrp_core::block::{block_spans, ColumnBlock};
+use mrp_core::encoding::Encoding;
 use mrp_core::lang::Catalog;
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::Document;
@@ -13,10 +14,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l12` (l'ultima e' sempre Esc, `help.l10`).
-const HELP_KEYS: [&str; 12] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l13` (l'ultima e' sempre Esc, `help.l10`).
+const HELP_KEYS: [&str; 13] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
-    "help.l9", "help.l11", "help.l12", "help.l10",
+    "help.l9", "help.l11", "help.l12", "help.l13", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -84,7 +85,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let cells = (w as usize).saturating_sub(gutter_w);
     let opts = ViewOptions {
         show_eof_row: app.is_edit(),
-        ..ViewOptions::default()
+        ..app.view_opts()
     };
     let (top, hscroll) = (app.top(), app.hscroll());
     let (rows, dal_documento) = match app.document() {
@@ -217,11 +218,12 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
 
 /// Riga h-2: il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, se un
 /// lavoro e' in corso, `status.saving`, `status.searching` o `status.indexing` con la percentuale, seguito
-/// da uno spazio.
+/// da uno spazio; poi, separato da due spazi se c'e' anche quello, il nome della codifica quando non e'
+/// UTF-8 (con uno spazio finale, come gli altri testi di destra).
 fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // Il messaggio si copia prima: sotto serve l'app mutabile.
     let flash = app.flash().map(|msg| msg.to_string());
-    let left = match flash {
+    let left = match &flash {
         Some(msg) => format!(" {}", msg),
         None => {
             let riga = match app.cursor_line() {
@@ -243,7 +245,7 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     };
     // A destra il lavoro in corso: il salvataggio (quando c'e', e' quello che tiene lo schermo
     // congelato), la ricerca o l'indicizzazione.
-    let right = if let Some(p) = app.save_progress() {
+    let mut right = if let Some(p) = app.save_progress() {
         format!("{} ", app.catalog().tf("status.saving", &[&p.to_string()]))
     } else if let Some(p) = app.search_progress() {
         format!(
@@ -258,6 +260,16 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     } else {
         String::new()
     };
+    // Il nome della codifica, solo se non e' UTF-8 e la riga non e' di un messaggio transitorio (che
+    // la occupa per conto suo): dopo l'eventuale lavoro in corso, separato da due spazi, e con uno
+    // spazio finale come gli altri testi di destra. In UTF-8 la riga di stato e' identica a oggi.
+    if flash.is_none() && !app.encoding().is_utf8() {
+        if !right.is_empty() {
+            right.push(' ');
+        }
+        right.push_str(app.encoding().name());
+        right.push(' ');
+    }
     let pad = (w as usize).saturating_sub(left.chars().count() + right.chars().count());
     let line = Line::from(vec![
         Span::styled(left, t.status),
@@ -290,14 +302,16 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         ("F6", "footer.f6"),
         ("F7", "footer.f7"),
         ("F8", "footer.f8"),
+        ("F9", "footer.f9"),
         ("F10", "footer.f10"),
     ];
     // Larghezza della riga con un certo separatore: lo spazio iniziale, le voci ("Fn" + spazio + etichetta) e i
-    // separatori in mezzo.
+    // separatori in mezzo. Le larghezze sono quelle del terminale (un carattere largo, per esempio CJK,
+    // vale due celle), non il numero di caratteri.
     let largo = |sep: usize| -> usize {
         1 + voci
             .iter()
-            .map(|(tasto, chiave)| tasto.chars().count() + 1 + cat.t(chiave).chars().count())
+            .map(|(tasto, chiave)| Span::raw(*tasto).width() + 1 + Span::raw(cat.t(chiave)).width())
             .sum::<usize>()
             + sep * (voci.len() - 1)
     };
@@ -331,7 +345,7 @@ fn draw_dialog(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         titolo,
         righe,
         cursore,
-    } = contenuto_dialogo(app, t, kind);
+    } = contenuto_dialogo(app, t, kind, h);
     // La finestra: il contenuto piu' il bordo, al piu' larga e alta come lo schermo, centrata.
     let larga_contenuto = righe
         .iter()
@@ -394,10 +408,46 @@ struct ContenutoDialogo {
 }
 
 /// Il contenuto di un dialogo: il titolo e le righe; per i prompt anche dove sta il cursore (riga e colonna
-/// DENTRO il contenuto). Ogni stringa viene dal `Catalog`.
-fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind) -> ContenutoDialogo {
+/// DENTRO il contenuto). Ogni stringa viene dal `Catalog`. `h` e' l'altezza dello schermo: i menu che
+/// scorrono (le codifiche) ne limitano la lista a quante righe ci stanno.
+fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> ContenutoDialogo {
     let cat = app.catalog();
     match kind {
+        // Il menu delle codifiche: la lista e' quella di `Encoding::all()` (nomi canonici) e scorre:
+        // la finestra mostra al piu' quante righe stanno nello schermo meno bordo e suggerimento, e
+        // tiene sempre visibile la voce scelta (evidenziata come negli altri menu).
+        DialogKind::Encoding => {
+            let selezione = app.menu_index().unwrap_or(0);
+            let tutte = Encoding::all();
+            let altezza = (h as usize).saturating_sub(3);
+            let quante = tutte.len().min(altezza);
+            let prima = if tutte.len() > altezza {
+                selezione
+                    .saturating_sub(altezza.saturating_sub(1))
+                    .min(tutte.len() - quante)
+            } else {
+                0
+            };
+            let mut righe: Vec<(String, Style)> = tutte[prima..prima + quante]
+                .iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    let stile = if prima + i == selezione {
+                        t.selected
+                    } else {
+                        t.dialog
+                    };
+                    (e.name().to_string(), stile)
+                })
+                .collect();
+            // Il suggerimento sta sotto la lista, come nel menu delle lingue.
+            righe.push((cat.t("menu.hint").to_string(), t.hint));
+            ContenutoDialogo {
+                titolo: cat.t("menu.encoding.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
         DialogKind::Help => {
             let mut righe: Vec<(String, Style)> = HELP_KEYS
                 .iter()
@@ -608,7 +658,9 @@ pub fn render_lines(app: &mut App, w: u16, h: u16) -> Vec<String> {
     if terminal.draw(|f| draw(f, app)).is_err() {
         return vec![String::new(); h as usize];
     }
-    // Una cella = un carattere; le celle saltate dai caratteri larghi si leggono come spazi.
+    // Una cella = un carattere; le celle saltate dai caratteri larghi si leggono come spazi. Gli spazi
+    // in fondo a ogni riga non si restituiscono: la riga e' il suo contenuto, cosi' chi la guarda
+    // (i test, `--dump`) non dipende dalla larghezza dello schermo.
     let mut out = Vec::with_capacity(h as usize);
     for riga in terminal.backend().buffer().content().chunks(w as usize) {
         let mut s = String::with_capacity(w as usize);
@@ -618,7 +670,7 @@ pub fn render_lines(app: &mut App, w: u16, h: u16) -> Vec<String> {
                 simbolo => s.push_str(simbolo),
             }
         }
-        out.push(s);
+        out.push(s.trim_end().to_string());
     }
     out
 }
