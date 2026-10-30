@@ -7,7 +7,7 @@ use crate::edit::{Buf, EditError, Piece, PieceTable, Splice, DEFAULT_CHUNK_CAPAC
 use crate::lines::{BuildOptions, Cancelled, LineIndex};
 use crate::source::FileSource;
 use memchr::memchr_iter;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
 use std::fs::File;
 use std::io::{self, Write};
@@ -100,14 +100,15 @@ impl Drop for TempGuard {
     }
 }
 
-/// Tabella derivata dall'indice del file originale e dai pezzi, ricostruita al primo uso dopo
-/// ogni cambiamento della tabella dei pezzi: per ogni pezzo, dove inizia nel documento e
-/// quanti `\n` del documento lo precedono. Entrambi i vettori sono lunghi `pezzi + 1`.
+/// Tabella derivata dall'indice del file originale e dai BLOCCHI dei pezzi, ricostruita al
+/// primo uso dopo ogni cambiamento della tabella dei pezzi: per ogni blocco, dove inizia nel
+/// documento e quanti `\n` del documento lo precedono. Entrambi i vettori sono lunghi
+/// `blocchi + 1`.
 struct Prefix {
-    /// `doc_start[i]` = posizione nel documento dell'inizio del pezzo `i`; l'ultimo elemento
-    /// e' la fine dell'ultimo pezzo, cioe' `len()`.
-    doc_start: Vec<u64>,
-    /// `nl_before[i]` = numero di `\n` del documento prima del pezzo `i`; l'ultimo elemento
+    /// `chunk_start[k]` = posizione nel documento dell'inizio del blocco `k`; l'ultimo elemento
+    /// e' la fine dell'ultimo blocco, cioe' `len()`.
+    chunk_start: Vec<u64>,
+    /// `nl_before[k]` = numero di `\n` del documento prima del blocco `k`; l'ultimo elemento
     /// e' il totale dei `\n` del documento.
     nl_before: Vec<u64>,
 }
@@ -204,7 +205,15 @@ pub struct Document {
     /// Cache dei conteggi: quanti `\n` contiene ciascun pezzo. Le chiavi restano vere finche'
     /// `lines` e' valido (file originale e buffer delle aggiunte non cambiano sotto i pezzi).
     nl_of_piece: HashMap<Piece, u64>,
-    /// Tabella derivata dai pezzi (posizioni nel documento e `\n` cumulati), ricostruita al
+    /// Cache dei conteggi per blocco: quanti `\n` contiene il blocco con quella etichetta. Le
+    /// chiavi restano vere finche' `lines` e' valido: un blocco toccato prende un'etichetta mai
+    /// assegnata prima (vedi `PieceTable::chunk_stamp`), quindi non puo' confondersi con un
+    /// contenuto diverso.
+    chunk_nl: HashMap<u64, u64>,
+    /// Quanti conteggi di `\n` per blocco sono stati fatti in tutto, da quando il documento e'
+    /// aperto (diagnostica: i test verificano che dopo una modifica se ne ricalcolino pochi).
+    aggregations: u64,
+    /// Tabella derivata dai blocchi (posizioni nel documento e `\n` cumulati), ricostruita al
     /// primo uso dopo l'ultima modifica: vedi `ensure_prefix`.
     prefix: Option<Prefix>,
 }
@@ -239,8 +248,16 @@ impl Document {
             redo: Vec::new(),
             lines: None,
             nl_of_piece: HashMap::new(),
+            chunk_nl: HashMap::new(),
+            aggregations: 0,
             prefix: None,
         })
+    }
+
+    /// Quanti conteggi di `\n` per blocco sono stati calcolati da quando il documento e' aperto
+    /// (diagnostica: i test verificano che dopo una modifica se ne ricalcolino pochi).
+    pub fn chunk_aggregations(&self) -> u64 {
+        self.aggregations
     }
 
     /// Percorso canonico del file.
@@ -396,6 +413,7 @@ impl Document {
         }
         self.lines = Some(idx);
         self.nl_of_piece.clear();
+        self.chunk_nl.clear();
         self.prefix = None;
     }
 
@@ -428,6 +446,7 @@ impl Document {
         let idx = LineIndex::build_with(source, opts, cancel, progress)?;
         self.lines = Some(idx);
         self.nl_of_piece.clear();
+        self.chunk_nl.clear();
         self.prefix = None;
         Ok(())
     }
@@ -466,14 +485,28 @@ impl Document {
         }
         // `line_count` ha gia' ricostruito la tabella derivata: il `?` e' solo difensivo.
         let prefix = self.prefix.as_ref()?;
-        // Pezzo che contiene il `line`-esimo `\n` del documento: l'ultimo pezzo con meno di
-        // `line` a-capo prima di se'. `nl_before[0] == 0 < line`, quindi l'indice e' un pezzo vero.
-        let i = prefix.nl_before.partition_point(|&n| n < line) - 1;
-        let p = self.table.piece(i)?;
-        // Il `\n` cercato e' il j-esimo del pezzo, con j contato da 1.
-        let j = line - prefix.nl_before[i];
+        // Blocco che contiene il `line`-esimo `\n` del documento: l'ultimo blocco con meno di
+        // `line` a-capo prima di se'. `nl_before[0] == 0 < line`, quindi l'indice e' un blocco
+        // vero. Dentro il blocco (al piu' `cap` pezzi) si scorrono i pezzi accumulando `\n` e
+        // byte, fino a quello che contiene il `\n` cercato.
+        let k = prefix.nl_before.partition_point(|&n| n < line) - 1;
         let idx = self.lines.as_ref()?;
         let src = self.source.as_ref()?;
+        let mut nl_prima = prefix.nl_before[k]; // `\n` del documento prima del pezzo corrente
+        let mut doc_start = prefix.chunk_start[k]; // posizione nel documento del pezzo corrente
+        let mut pezzo = None;
+        for q in self.table.chunk_pieces(k) {
+            let n = newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, *q, q.len);
+            if nl_prima + n >= line {
+                pezzo = Some(*q);
+                break;
+            }
+            nl_prima += n;
+            doc_start += q.len;
+        }
+        let p = pezzo?;
+        // Il `\n` cercato e' il j-esimo del pezzo, con j contato da 1.
+        let j = line - nl_prima;
         let in_pezzo = match p.buf {
             Buf::Add => {
                 // Posizione del j-esimo `\n` del pezzo, piu' uno: la riga inizia subito dopo.
@@ -494,7 +527,7 @@ impl Document {
                 nel_file.checked_sub(p.start)?
             }
         };
-        Some(prefix.doc_start[i] + in_pezzo)
+        Some(doc_start + in_pezzo)
     }
 
     /// Riga del documento modificato che contiene il byte in `pos` (il `\n` finale appartiene alla riga che chiude).
@@ -505,12 +538,26 @@ impl Document {
         if pos >= self.len() {
             return None;
         }
-        // Pezzo che contiene `pos`: l'ultimo che inizia a posizione <= `pos` (`doc_start[0] == 0
-        // <= pos`, quindi l'indice e' sempre un pezzo vero).
-        let i = prefix.doc_start.partition_point(|&d| d <= pos) - 1;
-        let p = self.table.piece(i)?;
+        // Blocco che contiene `pos`: l'ultimo che inizia a posizione <= `pos` (`chunk_start[0]
+        // == 0 <= pos`, quindi l'indice e' sempre un blocco vero). Dentro il blocco (al piu'
+        // `cap` pezzi) si scorrono i pezzi accumulando `\n` e byte, fino a quello che contiene
+        // `pos`.
+        let k = prefix.chunk_start.partition_point(|&d| d <= pos) - 1;
         let idx = self.lines.as_ref()?;
         let src = self.source.as_ref()?;
+        let mut nl_prima = prefix.nl_before[k]; // `\n` del documento prima del pezzo corrente
+        let mut doc_start = prefix.chunk_start[k]; // posizione nel documento del pezzo corrente
+        let mut pezzo = None;
+        for q in self.table.chunk_pieces(k) {
+            if doc_start + q.len > pos {
+                pezzo = Some(*q);
+                break;
+            }
+            // Pezzo intero prima di `pos`: anche i suoi `\n` contano (tratto intero: cache).
+            nl_prima += newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, *q, q.len);
+            doc_start += q.len;
+        }
+        let p = pezzo?;
         // `\n` del pezzo prima di `pos` (tratto parziale: niente cache), piu' quelli dei
         // pezzi che precedono.
         let nl = newlines_in_piece(
@@ -519,14 +566,16 @@ impl Document {
             &self.table,
             &mut self.nl_of_piece,
             p,
-            pos - prefix.doc_start[i],
+            pos - doc_start,
         );
-        Some(prefix.nl_before[i] + nl)
+        Some(nl_prima + nl)
     }
 
     /// Se l'indice e' valido ma la tabella derivata manca (prima interrogazione dopo
     /// l'apertura, dopo una modifica o dopo la costruzione dell'indice), la ricostruisce con
-    /// un giro sui pezzi. Il costo dipende dal numero di pezzi, non dalla dimensione del file.
+    /// un giro sui BLOCCHI: i `\n` di un blocco si prendono dalla cache per etichetta e solo i
+    /// blocchi con etichetta mai vista si contano davvero, pezzo per pezzo. Il costo dipende
+    /// dal numero di blocchi (piu' i pezzi di quelli nuovi), non dalla dimensione del file.
     fn ensure_prefix(&mut self) {
         if self.prefix.is_some() {
             return;
@@ -542,20 +591,52 @@ impl Document {
         if self.nl_of_piece.len() > 2 * self.table.piece_count() + 1024 {
             self.nl_of_piece.clear();
         }
-        let mut prefix = Prefix {
-            doc_start: Vec::with_capacity(self.table.piece_count() + 1),
-            nl_before: Vec::with_capacity(self.table.piece_count() + 1),
-        };
-        let mut pos = 0u64; // posizione nel documento dell'inizio del pezzo corrente
-        let mut nl = 0u64; // `\n` del documento prima del pezzo corrente
-        for p in self.table.iter() {
-            prefix.doc_start.push(pos);
-            prefix.nl_before.push(nl);
-            nl += newlines_in_piece(idx, src, &self.table, &mut self.nl_of_piece, p, p.len);
-            pos += p.len;
+        // Come quella dei pezzi, ma le voci dei blocchi restano valide finche' il blocco non
+        // cambia: oltre il doppio dei blocchi attuali (piu' un margine) si tengono solo le
+        // etichette correnti, per non crescere senza limite.
+        if self.chunk_nl.len() > 2 * self.table.chunk_count() + 1024 {
+            let attuali: HashSet<u64> = (0..self.table.chunk_count())
+                .map(|k| self.table.chunk_stamp(k))
+                .collect();
+            self.chunk_nl.retain(|s, _| attuali.contains(s));
         }
-        // Un elemento in piu' dei pezzi: la fine del documento e il totale dei `\n`.
-        prefix.doc_start.push(pos);
+        let mut prefix = Prefix {
+            chunk_start: Vec::with_capacity(self.table.chunk_count() + 1),
+            nl_before: Vec::with_capacity(self.table.chunk_count() + 1),
+        };
+        let mut pos = 0u64; // posizione nel documento dell'inizio del blocco corrente
+        let mut nl = 0u64; // `\n` del documento prima del blocco corrente
+        for k in 0..self.table.chunk_count() {
+            prefix.chunk_start.push(pos);
+            prefix.nl_before.push(nl);
+            // Il conteggio del blocco: dalla cache se l'etichetta e' gia' stata vista (il
+            // contenuto e' lo stesso per costruzione), altrimenti si sommano i `\n` dei suoi
+            // pezzi (ognuno con la sua cache) e si ricorda.
+            let s = self.table.chunk_stamp(k);
+            let n = match self.chunk_nl.get(&s) {
+                Some(&n) => n,
+                None => {
+                    let mut somma = 0u64;
+                    for p in self.table.chunk_pieces(k) {
+                        somma += newlines_in_piece(
+                            idx,
+                            src,
+                            &self.table,
+                            &mut self.nl_of_piece,
+                            *p,
+                            p.len,
+                        );
+                    }
+                    self.chunk_nl.insert(s, somma);
+                    self.aggregations += 1;
+                    somma
+                }
+            };
+            nl += n;
+            pos += self.table.chunk_len(k);
+        }
+        // Un elemento in piu' dei blocchi: la fine del documento e il totale dei `\n`.
+        prefix.chunk_start.push(pos);
         prefix.nl_before.push(nl);
         self.prefix = Some(prefix);
     }
@@ -724,6 +805,7 @@ impl Document {
                 // Il file su disco e' cambiato: l'indice del vecchio file non vale piu'.
                 self.lines = None;
                 self.nl_of_piece.clear();
+                self.chunk_nl.clear();
                 self.prefix = None;
                 Ok(())
             }
@@ -739,6 +821,7 @@ impl Document {
                 self.saved_version = self.version;
                 self.lines = None;
                 self.nl_of_piece.clear();
+                self.chunk_nl.clear();
                 self.prefix = None;
                 Err(SaveError::Io(e))
             }

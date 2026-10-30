@@ -11,7 +11,7 @@ truncates your data, and that opens a multi-gigabyte file like a viewer and beco
 
 > **Status: early development — a first terminal editor (`mrp`) runs.** Memory-mapped file source, sparse line index, search,
 > a piece-table edit layer with undo/redo, a crash-safe save and a terminal UI (view, edit, find, go to, themes, 7 languages) are
-> implemented and tested (221 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
+> implemented and tested (233 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
 > once and keeps about 13–35 MiB of private memory, even while saving (one machine, one HDD, a handful of runs: see
 > [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux and macOS are untried. The evidence that the gap is real:
 > [market survey](docs/MARKET.md) and [reproducible benchmarks](docs/BENCHMARKS.md) of four tools on a 6 GB file.

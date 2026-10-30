@@ -170,12 +170,25 @@ file, release build, one run each:
 The cost still grows slowly with the number of pieces (it scans the block headers: O(pieces / 512)), but 200,000 scattered
 edits now take about half a second instead of an extrapolated quarter of an hour or more (not measured). 9 new tests check the blocks against a naive `Vec<u8>`
 oracle with blocks of 4 pieces (so that splitting and merging happen all the time), including undo/redo, save, search and
-line queries. **Not fixed:** the derived table behind the line numbers (`Document::line_count`, `offset_of_line`,
-`line_at_offset`) is still rebuilt in O(pieces) on the first query after each edit, and a screen redraw asks for it. Measured with
+line queries.
+
+**The line-number table (task E15).** After E14 the derived table behind the line numbers (`Document::line_count`, `offset_of_line`,
+`line_at_offset`) was still rebuilt in O(pieces) on the first query after each edit, and a screen redraw asks for it. Measured with
 `edits <file> 20000 righe` (a `line_count()` after every edit): **1.2 ms per edit at 28,000 pieces, 2.0 ms at 40,000** — back to
-the old quadratic behaviour. So with line numbers on, the terminal editor is only fast while the number of pieces stays small
-(hundreds to a few thousand: typing and ordinary editing); thousands of scattered edits are still slow until that table is
-made incremental (next task).
+the old quadratic behaviour. Fix: every block of the piece list carries a label that changes only when its pieces change; the
+document remembers how many `\n` each label holds, so after an edit only the touched blocks (a handful) are counted again, and a
+query walks the block headers and then the pieces of one block. Same program and file, release build, one run each, a `line_count()` after every edit:
+
+| Edits so far | Pieces | Cost of one edit before | after |
+|---|---|---|---|
+| 20,000 | 40,000 | 2.0 ms | **14 µs** |
+| 50,000 | 100,000 | (not run) | 22 µs |
+| 100,000 | 199,000 | (not run) | 37 µs |
+
+It still grows slowly (the table of block positions is rebuilt in O(pieces / 512) per edit, one hash lookup per block), but 100,000
+scattered edits with the line count asked after each one take a few seconds (the same run before would have taken several minutes: extrapolated, not measured). 12 new tests check the line
+queries against a naive oracle with blocks of 4 pieces, through edits, undo/redo and save, and check that after a short edit only a
+few blocks are counted again (a counter, not a clock). With line numbers on, the terminal editor no longer slows down with the number of pieces.
 
 Not measured yet: a clean save throughput (and on SSD), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real
 terminal (only the ConPTY driver).

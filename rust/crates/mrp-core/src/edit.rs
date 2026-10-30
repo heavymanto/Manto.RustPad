@@ -13,9 +13,17 @@
 //! pezzi (se fossero piu' piccoli si fonderebbero); i contatori (`count`, `total` e i `bytes` dei
 //! blocchi) sono sempre esatti. Un documento senza pezzi non ha blocchi.
 //!
+//! Ogni blocco porta anche un'etichetta (`stamp`) che cambia ogni volta che i suoi pezzi
+//! cambiano, e anche quando il blocco prende il posto di uno buttato via vuoto (vedi
+//! `fix_chunks`); un blocco spostato a un indice diverso da inserimenti altrui la conserva.
+//! Chi tiene cache per blocco (vedi `document.rs`) riconosce cosi', senza toccare i pezzi, i
+//! blocchi da ricontare. Le etichette vengono da un contatore globale di processo, quindi due
+//! blocchi con la stessa etichetta hanno sempre gli stessi pezzi.
+//!
 //! Il file originale non viene mai modificato qui: il salvataggio e' un altro compito.
 
 use crate::source::FileSource;
+use std::sync::atomic::{AtomicU64, Ordering};
 
 /// Pezzi per blocco della lista, come li usa `PieceTable::new` (chi vuole blocchi piu' piccoli
 /// chiama `with_chunk_capacity`).
@@ -105,13 +113,39 @@ fn canonicalize(finestra: &[Piece]) -> Vec<Piece> {
     out
 }
 
+/// Prossima etichetta da assegnare a un blocco: contatore globale di processo, cosi' un'etichetta
+/// non si ripete nemmeno fra tabelle diverse (dopo un salvataggio la tabella e' nuova). Parte da
+/// 1 e cresce a ogni assegnazione: 0 non e' mai un'etichetta valida.
+static NEXT_STAMP: AtomicU64 = AtomicU64::new(1);
+
 /// Un blocco della lista dei pezzi: al piu' `cap` pezzi, con i byte totali in cache cosi' chi
-/// cerca una posizione di documento lo salta tutto d'un fiato.
+/// cerca una posizione di documento lo salta tutto d'un fiato. Lo `stamp` e' l'etichetta del
+/// blocco (vedi `NEXT_STAMP`): due blocchi con la stessa etichetta hanno sempre gli stessi pezzi.
 #[derive(Debug, Clone)]
 struct Chunk {
     pieces: Vec<Piece>,
     /// Somma delle `len` dei pezzi del blocco.
     bytes: u64,
+    /// Etichetta del blocco: la cambia `touch` ogni volta che i pezzi cambiano.
+    stamp: u64,
+}
+
+impl Chunk {
+    /// Blocco nuovo dai pezzi dati, con i byte in cache e l'etichetta appena presa dal contatore.
+    fn new(pieces: Vec<Piece>) -> Chunk {
+        Chunk {
+            bytes: pieces.iter().map(|p| p.len).sum(),
+            pieces,
+            stamp: NEXT_STAMP.fetch_add(1, Ordering::Relaxed),
+        }
+    }
+
+    /// Assegna al blocco un'etichetta nuova: la chiamano i punti che mutano i suoi `pieces`
+    /// (creazione, svuotamento, riempimento, fusione) e la compattazione di `fix_chunks`,
+    /// cosi' ogni modifica efficace lascia almeno un blocco con etichetta nuova.
+    fn touch(&mut self) {
+        self.stamp = NEXT_STAMP.fetch_add(1, Ordering::Relaxed);
+    }
 }
 
 /// Documento = sequenza di pezzi sopra un file originale lungo `original_len` byte.
@@ -146,14 +180,11 @@ impl PieceTable {
         let cap = cap.max(4);
         let (chunks, count, total) = if original_len > 0 {
             (
-                vec![Chunk {
-                    pieces: vec![Piece {
-                        buf: Buf::Original,
-                        start: 0,
-                        len: original_len,
-                    }],
-                    bytes: original_len,
-                }],
+                vec![Chunk::new(vec![Piece {
+                    buf: Buf::Original,
+                    start: 0,
+                    len: original_len,
+                }])],
                 1,
                 original_len,
             )
@@ -197,6 +228,28 @@ impl PieceTable {
     /// Quanti pezzi ha ciascun blocco, in ordine.
     pub fn chunk_sizes(&self) -> Vec<usize> {
         self.chunks.iter().map(|c| c.pieces.len()).collect()
+    }
+
+    /// Quanti blocchi ci sono (O(1)).
+    pub fn chunk_count(&self) -> usize {
+        self.chunks.len()
+    }
+
+    /// I pezzi del blocco `c` in ordine di documento; fetta vuota se `c >= chunk_count()`.
+    pub fn chunk_pieces(&self, c: usize) -> &[Piece] {
+        self.chunks.get(c).map_or(&[], |c| &c.pieces)
+    }
+
+    /// Byte del documento coperti dal blocco `c` (O(1)); 0 se `c >= chunk_count()`.
+    pub fn chunk_len(&self, c: usize) -> u64 {
+        self.chunks.get(c).map_or(0, |c| c.bytes)
+    }
+
+    /// Etichetta del blocco `c`: cambia ogni volta che i pezzi del blocco cambiano, resta uguale
+    /// altrimenti (un blocco spostato a un indice diverso la conserva). Due blocchi con la stessa
+    /// etichetta hanno sempre gli stessi pezzi. 0 se `c >= chunk_count()`.
+    pub fn chunk_stamp(&self, c: usize) -> u64 {
+        self.chunks.get(c).map_or(0, |c| c.stamp)
     }
 
     /// Lunghezza attuale del documento in byte (O(1): la somma sta in `total`).
@@ -570,10 +623,7 @@ impl PieceTable {
         let nuovi_bytes: u64 = nuovi.iter().map(|p| p.len).sum();
         // Documento senza blocchi (nessun pezzo): il primo blocco nasce qui e poi si sistema.
         if self.chunks.is_empty() {
-            self.chunks.push(Chunk {
-                pieces: nuovi.to_vec(),
-                bytes: nuovi_bytes,
-            });
+            self.chunks.push(Chunk::new(nuovi.to_vec()));
             self.count = nuovi.len();
             self.total = nuovi_bytes;
             self.fix_chunks(0, 0);
@@ -614,6 +664,8 @@ impl PieceTable {
             if let Some(c) = self.chunks.get_mut(ci) {
                 c.pieces.splice(off..off, nuovi.iter().copied());
                 c.bytes += nuovi_bytes;
+                // I pezzi del blocco sono cambiati: etichetta nuova.
+                c.touch();
             }
         }
         // 3. I contatori restano esatti.
@@ -634,6 +686,8 @@ impl PieceTable {
             tolti += p.len;
         }
         c.bytes -= tolti;
+        // I pezzi del blocco sono cambiati (i chiamanti tolgono sempre qualcosa): etichetta nuova.
+        c.touch();
         tolti
     }
 
@@ -647,9 +701,11 @@ impl PieceTable {
         //    segue il confine destro della regione.
         let mut fine = a;
         let mut i = da;
+        let mut vuoti = 0;
         while i <= fine && i < self.chunks.len() {
             if self.chunks[i].pieces.is_empty() {
                 self.chunks.remove(i);
+                vuoti += 1;
                 fine = fine.saturating_sub(1);
             } else {
                 i += 1;
@@ -657,6 +713,16 @@ impl PieceTable {
         }
         if self.chunks.is_empty() {
             return; // niente piu' pezzi: nessun blocco
+        }
+        // Buttare un blocco vuoto e' come fonderlo via: il blocco che ne prende il posto (o
+        // l'ultimo, se i vuoti stavano in coda) e' il destinatario e prende un'etichetta nuova.
+        // Senza questo tocco una cancellazione che coincide con blocchi interi non lascerebbe
+        // nessuna etichetta nuova: i blocchi toccati dal drain sono spariti con i pezzi.
+        if vuoti > 0 {
+            let k = da.min(self.chunks.len() - 1);
+            if let Some(c) = self.chunks.get_mut(k) {
+                c.touch();
+            }
         }
         // 2. Il blocco rifarcito (il primo toccato) puo' essere piu' lungo di `cap`: si divide
         //    in parti il piu' possibile uguali. Le parti in piu' allargano la regione a destra.
@@ -675,6 +741,8 @@ impl PieceTable {
             let c = &mut self.chunks[i];
             c.pieces.extend(vicino.pieces);
             c.bytes += vicino.bytes;
+            // Il blocco ha inglobato il vicino: i suoi pezzi sono cambiati, etichetta nuova.
+            c.touch();
         }
     }
 
@@ -694,11 +762,9 @@ impl PieceTable {
         for j in 0..m {
             let size = if j < extra { q + 1 } else { q };
             let parte: Vec<Piece> = pezzi.drain(..size).collect();
-            let bytes = parte.iter().map(|p| p.len).sum();
-            let blocco = Chunk {
-                pieces: parte,
-                bytes,
-            };
+            // Ogni parte e' un blocco con pezzi e confini diversi da prima: etichetta nuova,
+            // anche per la prima, che sostituisce il blocco lungo rimasto senza pezzi.
+            let blocco = Chunk::new(parte);
             if j == 0 {
                 self.chunks[k] = blocco;
             } else {
