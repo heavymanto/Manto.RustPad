@@ -171,8 +171,11 @@ The cost still grows slowly with the number of pieces (it scans the block header
 edits now take about half a second instead of an extrapolated quarter of an hour or more (not measured). 9 new tests check the blocks against a naive `Vec<u8>`
 oracle with blocks of 4 pieces (so that splitting and merging happen all the time), including undo/redo, save, search and
 line queries. **Not fixed:** the derived table behind the line numbers (`Document::line_count`, `offset_of_line`,
-`line_at_offset`) is still rebuilt in O(pieces) on the first query after each edit, so a screen redraw with tens of
-thousands of pieces still pays that; it is not measured yet.
+`line_at_offset`) is still rebuilt in O(pieces) on the first query after each edit, and a screen redraw asks for it. Measured with
+`edits <file> 20000 righe` (a `line_count()` after every edit): **1.2 ms per edit at 28,000 pieces, 2.0 ms at 40,000** — back to
+the old quadratic behaviour. So with line numbers on, the terminal editor is only fast while the number of pieces stays small
+(hundreds to a few thousand: typing and ordinary editing); thousands of scattered edits are still slow until that table is
+made incremental (next task).
 
 Not measured yet: a clean save throughput (and on SSD), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real
 terminal (only the ConPTY driver).
