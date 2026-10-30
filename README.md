@@ -82,6 +82,8 @@ mrp yourfile.txt               # F1 = help, F4 = edit, F10 = quit
 `install.ps1` never touches your `PATH` (it only tells you if the folder is missing from it) and never touches your saved settings.
 Without installing: `cargo run --release -p mrp-tui -- yourfile.txt`.
 
+**Portable:** `.\portable.ps1` (after the build) makes a folder with `mrp.exe` and `lang\`; copy it anywhere. As long as the `lang` folder is next to the exe, languages and saved settings (`settings.txt`) stay in that folder and nothing is written to your profile.
+
 ## Repository layout
 
 | Path | Contents |

@@ -271,7 +271,9 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
 }
 
 /// Riga h-1: `" "` + `F1 Help  F2 Save  ...` (voci separate da due spazi, F4 cambia etichetta col modo), tagliata
-/// alla larghezza dal disegno.
+/// alla larghezza dal disegno. Se con due spazi la riga non sta nello schermo ma con uno sola si', si usa uno
+/// spazio solo (cosi' su 80 colonne ci sono tutte le voci, compreso F10); se non sta nemmeno cosi' restano i
+/// due spazi e la riga si taglia.
 fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let cat = app.catalog();
     let f4 = if app.is_edit() {
@@ -287,12 +289,27 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         ("F5", "footer.f5"),
         ("F6", "footer.f6"),
         ("F7", "footer.f7"),
+        ("F8", "footer.f8"),
         ("F10", "footer.f10"),
     ];
+    // Larghezza della riga con un certo separatore: lo spazio iniziale, le voci ("Fn" + spazio + etichetta) e i
+    // separatori in mezzo.
+    let largo = |sep: usize| -> usize {
+        1 + voci
+            .iter()
+            .map(|(tasto, chiave)| tasto.chars().count() + 1 + cat.t(chiave).chars().count())
+            .sum::<usize>()
+            + sep * (voci.len() - 1)
+    };
+    let sep = if largo(2) > w as usize && largo(1) <= w as usize {
+        " "
+    } else {
+        "  "
+    };
     let mut spans = vec![Span::raw(" ")];
     for (i, (tasto, chiave)) in voci.iter().enumerate() {
         if i > 0 {
-            spans.push(Span::raw("  "));
+            spans.push(Span::raw(sep));
         }
         spans.push(Span::styled((*tasto).to_string(), t.key));
         spans.push(Span::raw(format!(" {}", cat.t(chiave))));

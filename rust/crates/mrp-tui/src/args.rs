@@ -93,7 +93,8 @@ fn cifra_u16(s: &str) -> Option<u16> {
 
 /// Il profilo utente visto dal binario: le lingue disponibili, le impostazioni lette e dove salvarle.
 /// `--lang-dir` e `--settings` vincono sul profilo; con `MRP_NO_PROFILE=1` il profilo non si tocca (lingue:
-/// solo l'inglese incorporato; impostazioni: niente da leggere e niente da scrivere).
+/// solo l'inglese incorporato; impostazioni: niente da leggere e niente da scrivere). Se accanto all'eseguibile
+/// c'e' una cartella `lang` (modo portatile) lingue e impostazioni stanno accanto all'eseguibile.
 pub struct Profile {
     /// Le lingue disponibili: il menu di F7 e la validazione di `--lang`.
     pub langs: Vec<Lang>,
@@ -114,7 +115,11 @@ pub fn profile(args: &Args) -> Profile {
     let path = match &args.settings {
         Some(p) => Some(p.clone()),
         None if senza_profilo => None,
-        None => Settings::default_path(),
+        // Modo portatile: con una cartella `lang` accanto all'eseguibile anche le impostazioni vivono li'
+        // (`settings.txt`), cosi' la cartella si porta dove si vuole senza lasciare niente nel profilo.
+        None => lang::portable_dir()
+            .map(|d| d.join("settings.txt"))
+            .or_else(Settings::default_path),
     };
     let settings = path.as_ref().and_then(|p| Settings::load(p));
     Profile {

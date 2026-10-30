@@ -21,6 +21,7 @@
   "flash.index_cancelled": "Indizierung abgebrochen",
   "flash.index_failed": "Indizierung fehlgeschlagen: {}",
   "flash.read_only": "Schreibschutz: zum Bearbeiten F4 drücken",
+  "footer.f8": "Spa",
   "help.l11": "Umschalt+Pfeile, Strg+A    markieren; Strg+C / X / V kopieren, ausschneiden, einfügen",
   "help.l12": "F8                         Spaltenmodus (Umschalt+Pfeile: Block)",
   "flash.column_on": "Spaltenmodus an",

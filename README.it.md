@@ -79,6 +79,8 @@ mrp tuofile.txt                # F1 = aiuto, F4 = modifica, F10 = esci
 `install.ps1` non tocca mai il `PATH` (ti avvisa soltanto se la cartella non c'è) né le impostazioni salvate.
 Senza installare: `cargo run --release -p mrp-tui -- tuofile.txt`.
 
+**Portatile:** `.\portable.ps1` (dopo la build) prepara una cartella con `mrp.exe` e `lang\`; si copia dove si vuole. Finché la cartella `lang` sta accanto all'exe, lingue e impostazioni salvate (`settings.txt`) restano in quella cartella e nel profilo non si scrive nulla.
+
 ## Licenza
 
 Copyright (C) 2026 Francesco Mantovanelli.

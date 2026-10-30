@@ -187,16 +187,27 @@ pub fn registry_in(dir: Option<&Path>) -> (Vec<Lang>, Vec<String>) {
     (langs, unreadable)
 }
 
+/// La cartella del modo portatile per un eseguibile in `exe`: la sua cartella, se accanto c'e' una sottocartella
+/// `lang`. Chi la trova usa le lingue di li' e tiene li' anche le impostazioni (vedi `portable_dir`).
+pub fn portable_dir_of(exe: &Path) -> Option<PathBuf> {
+    let dir = exe.parent()?;
+    if dir.join("lang").is_dir() {
+        Some(dir.to_path_buf())
+    } else {
+        None
+    }
+}
+
+/// La cartella del modo portatile per l'eseguibile in esecuzione, se c'e' (vedi `portable_dir_of`).
+pub fn portable_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| portable_dir_of(&p))
+}
+
 /// La cartella delle lingue accanto all'eseguibile in esecuzione (modo portatile): se c'e', vince sul profilo.
 fn local_dir() -> Option<PathBuf> {
-    std::env::current_exe().ok().and_then(|p| {
-        let dir = p.parent()?.join("lang");
-        if dir.is_dir() {
-            Some(dir)
-        } else {
-            None
-        }
-    })
+    portable_dir().map(|d| d.join("lang"))
 }
 
 /// Come `registry_in`, scegliendo la cartella: `lang/` accanto all'eseguibile se esiste (modo portatile), altrimenti
