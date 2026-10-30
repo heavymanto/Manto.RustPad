@@ -265,6 +265,10 @@ struct SearchJob {
     needle: String,
 }
 
+/// Byte massimi che una copia (Ctrl+C / Ctrl+X) puo' mettere negli appunti interni: oltre, il messaggio
+/// `flash.copy_too_big` e niente copia (la memoria non deve dipendere dalla dimensione del file).
+pub const COPY_LIMIT: u64 = 64 << 20;
+
 /// Lo stato dell'app.
 pub struct App {
     /// Il documento aperto: `None` quando si esce (il file si rilascia) o mentre un salvataggio lo tiene
@@ -290,6 +294,13 @@ pub struct App {
     /// L'ultima occorrenza trovata dalla ricerca (inizio, fine esclusa): come il messaggio
     /// transitorio, sparisce al primo tasto successivo che non sia F3 / Maiusc+F3.
     found: Option<(u64, u64)>,
+    /// L'ancora della selezione: l'altro estremo e' il cursore. Resta finche' la selezione e' attiva (anche
+    /// se torna vuota); la tolgono Esc, i movimenti senza Maiusc, i salti riusciti e le modifiche.
+    anchor: Option<u64>,
+    /// Gli appunti interni: li riempie la copia (Ctrl+C / Ctrl+X) e li incolla Ctrl+V.
+    clip: Vec<u8>,
+    /// I byte dell'ultima copia che il ciclo del terminale deve ancora mandare con OSC 52, una volta sola.
+    copied: Option<Vec<u8>>,
     /// Il vocabolario attivo.
     cat: Catalog,
     /// Il tema attivo.
@@ -327,6 +338,21 @@ pub struct App {
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
     index: bool,
+}
+
+/// Un movimento del cursore: quello del tasto senza Maiusc. La selezione con Maiusc fa lo stesso movimento
+/// del tasto semplice (colonna ricordata, limite del cursore e scorrimento compresi).
+enum Mov {
+    Up,
+    Down,
+    Left,
+    Right,
+    Home,
+    End,
+    FileStart,
+    FileEnd,
+    PageUp,
+    PageDown,
 }
 
 impl App {
@@ -367,6 +393,9 @@ impl App {
             edit: false,
             flash: None,
             found: None,
+            anchor: None,
+            clip: Vec::new(),
+            copied: None,
             cat,
             theme: cfg.theme,
             cancel,
@@ -440,16 +469,32 @@ impl App {
             self.seal_history();
         }
         match key.code {
-            KeyCode::Up => self.move_up(),
-            KeyCode::Down => self.move_down(),
-            KeyCode::Left => self.move_left(),
-            KeyCode::Right => self.move_right(),
-            KeyCode::Home if ctrl => self.move_file_start(),
-            KeyCode::Home => self.move_home(),
-            KeyCode::End if ctrl => self.move_file_end(),
-            KeyCode::End => self.move_end(),
-            KeyCode::PageUp => self.page_up(),
-            KeyCode::PageDown => self.page_down(),
+            // Con Maiusc il movimento estende la selezione: senza ancora la si mette al cursore, poi il
+            // movimento e' quello del tasto semplice. Con Ctrl+Maiusc, Home ed End vanno agli estremi del file.
+            KeyCode::Up if shift => self.extend_selection(Mov::Up),
+            KeyCode::Down if shift => self.extend_selection(Mov::Down),
+            KeyCode::Left if shift => self.extend_selection(Mov::Left),
+            KeyCode::Right if shift => self.extend_selection(Mov::Right),
+            KeyCode::Home if ctrl && shift => self.extend_selection(Mov::FileStart),
+            KeyCode::Home if shift => self.extend_selection(Mov::Home),
+            KeyCode::End if ctrl && shift => self.extend_selection(Mov::FileEnd),
+            KeyCode::End if shift => self.extend_selection(Mov::End),
+            KeyCode::PageUp if shift => self.extend_selection(Mov::PageUp),
+            KeyCode::PageDown if shift => self.extend_selection(Mov::PageDown),
+            // Senza Maiusc i movimenti tolgono l'ancora: Left e Right con una selezione ci collassano
+            // sopra (all'inizio e alla fine, senza muoversi oltre), gli altri si muovono dal cursore.
+            KeyCode::Up => self.move_no_anchor(Mov::Up),
+            KeyCode::Down => self.move_no_anchor(Mov::Down),
+            KeyCode::Left => self.collapse_left(),
+            KeyCode::Right => self.collapse_right(),
+            KeyCode::Home if ctrl => self.move_no_anchor(Mov::FileStart),
+            KeyCode::Home => self.move_no_anchor(Mov::Home),
+            KeyCode::End if ctrl => self.move_no_anchor(Mov::FileEnd),
+            KeyCode::End => self.move_no_anchor(Mov::End),
+            KeyCode::PageUp => self.move_no_anchor(Mov::PageUp),
+            KeyCode::PageDown => self.move_no_anchor(Mov::PageDown),
+            // Esc toglie l'ancora: la selezione collassa sulla sua fine.
+            KeyCode::Esc => self.collapse_escape(),
             KeyCode::F(1) => self.open_dialog(DialogKind::Help),
             KeyCode::F(2) => self.start_save(false),
             // F3 cerca la prossima occorrenza dell'ultimo testo cercato, Maiusc+F3 la
@@ -470,13 +515,21 @@ impl App {
             KeyCode::Char('f') if ctrl => self.open_dialog(DialogKind::Find),
             KeyCode::Char('g') if ctrl => self.open_dialog(DialogKind::Goto),
             KeyCode::Char('q') if ctrl => self.quit_request(),
+            // Ctrl+A seleziona tutto; Ctrl+C copia, Ctrl+X taglia e Ctrl+V incolla gli appunti interni.
+            KeyCode::Char('a') if ctrl => self.select_all(),
+            KeyCode::Char('c') if ctrl => {
+                self.copy_to_clip();
+            }
+            KeyCode::Char('x') if ctrl => self.cut_selection(),
+            KeyCode::Char('v') if ctrl => self.paste_clipboard(),
             // I tasti di scrittura: un carattere (anche con SHIFT) si inserisce al cursore, Enter mette un
-            // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore
-            // (in lettura sono rifiutati con un suggerimento).
+            // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore;
+            // con una selezione agiscono su quella (un carattere, Enter e Tab la sostituiscono, Backspace e
+            // Delete la tolgono e basta). In lettura sono rifiutati con un suggerimento.
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
             KeyCode::Enter if !ctrl && !alt => self.insert_enter(),
-            KeyCode::Backspace if !ctrl && !alt => self.delete_before(),
-            KeyCode::Delete if !ctrl && !alt => self.delete_after(),
+            KeyCode::Backspace if !ctrl && !alt => self.backspace_key(),
+            KeyCode::Delete if !ctrl && !alt => self.delete_key(),
             KeyCode::Tab if !ctrl && !alt => self.insert_tab(),
             _ => {}
         }
@@ -723,6 +776,8 @@ impl App {
     fn goto_move(&mut self, pos: u64) {
         let pos = self.snap_to_char(pos.min(self.max_cursor()));
         self.cursor = pos;
+        // Il salto riuscito toglie la selezione: il cursore e' arrivato altrove per conto suo.
+        self.anchor = None;
         self.remember_col();
         self.center_cursor_row();
         self.scroll_adjust();
@@ -771,6 +826,110 @@ impl App {
             }
         }
         pos
+    }
+
+    // ----- selezione e appunti -----
+
+    /// Ctrl+A: seleziona tutto: l'ancora a 0 e il cursore al limite del modo (in lettura non oltre l'ultimo
+    /// a-capo di un file che ci finisce).
+    fn select_all(&mut self) {
+        self.anchor = Some(0);
+        self.cursor = self.max_cursor();
+        self.remember_col();
+        self.scroll_adjust();
+    }
+
+    /// La selezione negli appunti interni (e in sospeso per il terminale), col messaggio di quanti byte:
+    /// `false`, col messaggio giusto, se non c'e' selezione o supera `COPY_LIMIT`. Non tocca ne' il
+    /// documento ne' la selezione: vale anche in lettura.
+    fn copy_to_clip(&mut self) -> bool {
+        let Some((da, fino)) = self.selection() else {
+            self.flash = Some(self.cat.t("flash.nothing_selected").to_string());
+            return false;
+        };
+        let quanto = fino - da;
+        if quanto > COPY_LIMIT {
+            self.flash = Some(
+                self.cat
+                    .tf("flash.copy_too_big", &[&(COPY_LIMIT >> 20).to_string()]),
+            );
+            return false;
+        }
+        // Solo i byte della selezione, e solo ora che servono: mai una copia del documento intero.
+        let Some(doc) = self.doc.as_ref() else {
+            return false;
+        };
+        self.clip = doc.read_range(da, quanto);
+        // Al terminale si manda solo cio' che OSC 52 puo' portare: una copia grande resta negli appunti interni
+        // senza un secondo esemplare in memoria.
+        self.copied = (self.clip.len() <= crate::clip::OSC52_LIMIT).then(|| self.clip.clone());
+        self.flash = Some(self.cat.tf("flash.copied", &[&quanto.to_string()]));
+        true
+    }
+
+    /// Ctrl+X: in lettura il messaggio di sola lettura e niente copia; in modifica copia come Ctrl+C e poi
+    /// toglie la selezione nello stesso passo di storia (il tasto con Ctrl ha gia' chiuso il passo prima).
+    fn cut_selection(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        if !self.copy_to_clip() {
+            return;
+        }
+        self.delete_selection();
+    }
+
+    /// Ctrl+V: gli appunti interni al posto dell'eventuale selezione, al cursore. In lettura il messaggio
+    /// di sola lettura; appunti vuoti il loro messaggio.
+    fn paste_clipboard(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        if self.clip.is_empty() {
+            self.flash = Some(self.cat.t("flash.clipboard_empty").to_string());
+            return;
+        }
+        // Gli appunti si tolgono un momento: l'inserimento prende in prestito tutta l'app.
+        let testo = std::mem::take(&mut self.clip);
+        self.paste_bytes(&testo);
+        self.clip = testo;
+    }
+
+    /// L'inserimento di un incolla (Ctrl+V o l'incolla dal terminale): il testo entra al posto
+    /// dell'eventuale selezione e il cursore finisce dopo di lui, tutto in un passo di storia (chiuso prima
+    /// di agire, cosi' l'incolla e' un passo suo). Testo vuoto: niente. In lettura il messaggio.
+    fn paste_bytes(&mut self, testo: &[u8]) {
+        if testo.is_empty() {
+            return;
+        }
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        self.seal_history();
+        self.insert_over_selection(testo);
+    }
+
+    /// Toglie la selezione (in modifica) portando il cursore al suo inizio, nel passo di storia corrente
+    /// (lo apre o lo continua: un passo suo se lo chiude il chiamante). Vero se ha tolto qualcosa.
+    fn delete_selection(&mut self) -> bool {
+        let Some((da, fino)) = self.selection() else {
+            return false;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        if let Err(e) = doc.delete(da, fino - da) {
+            self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
+            return false;
+        }
+        self.cursor = da;
+        self.anchor = None;
+        self.remember_col();
+        self.scroll_adjust();
+        true
     }
 
     // ----- ricerca -----
@@ -970,6 +1129,29 @@ impl App {
     /// Codice della lingua attiva.
     pub fn lang_code(&self) -> &str {
         self.cat.code()
+    }
+
+    /// La selezione normalizzata `(inizio, fine esclusa)`: l'ancora e il cursore nell'ordine; `None` se
+    /// non c'e' ancora o coincide col cursore (selezione vuota).
+    pub fn selection(&self) -> Option<(u64, u64)> {
+        let ancora = self.anchor?;
+        if ancora == self.cursor {
+            None
+        } else {
+            Some((ancora.min(self.cursor), ancora.max(self.cursor)))
+        }
+    }
+
+    /// I byte dell'ultima copia (Ctrl+C / Ctrl+X), una volta sola: il ciclo del terminale li manda al
+    /// terminale con OSC 52.
+    pub fn take_copied(&mut self) -> Option<Vec<u8>> {
+        self.copied.take()
+    }
+
+    /// Testo incollato dal terminale (l'incolla con le parentesi): come Ctrl+V ma col testo arrivato; in
+    /// lettura `flash.read_only`.
+    pub fn paste_text(&mut self, testo: &str) {
+        self.paste_bytes(testo.as_bytes());
     }
 
     /// Il contenuto del documento (per i test: legge tutto, solo per file piccoli).
@@ -1181,6 +1363,70 @@ impl App {
     }
 
     // ----- movimenti -----
+
+    /// Il movimento `m` del cursore: quello del tasto senza Maiusc.
+    fn muovi(&mut self, m: Mov) {
+        match m {
+            Mov::Up => self.move_up(),
+            Mov::Down => self.move_down(),
+            Mov::Left => self.move_left(),
+            Mov::Right => self.move_right(),
+            Mov::Home => self.move_home(),
+            Mov::End => self.move_end(),
+            Mov::FileStart => self.move_file_start(),
+            Mov::FileEnd => self.move_file_end(),
+            Mov::PageUp => self.page_up(),
+            Mov::PageDown => self.page_down(),
+        }
+    }
+
+    /// Maiusc+movimento: estende la selezione. Se l'ancora manca la si mette al cursore, poi il movimento
+    /// e' quello del tasto senza Maiusc; l'ancora resta finche' la selezione e' attiva (anche se torna vuota).
+    fn extend_selection(&mut self, m: Mov) {
+        if self.anchor.is_none() {
+            self.anchor = Some(self.cursor);
+        }
+        self.muovi(m);
+    }
+
+    /// Un movimento senza Maiusc: toglie l'ancora e muove il cursore da dove sta.
+    fn move_no_anchor(&mut self, m: Mov) {
+        self.anchor = None;
+        self.muovi(m);
+    }
+
+    /// Left senza Maiusc: con una selezione il cursore va al suo inizio (ancora tolta, senza muoversi
+    /// oltre); senza selezione si muove di un carattere a sinistra.
+    fn collapse_left(&mut self) {
+        let sel = self.selection();
+        self.anchor = None;
+        if let Some((da, _)) = sel {
+            self.cursor = da.min(self.max_cursor());
+            self.remember_col();
+            self.scroll_adjust();
+            return;
+        }
+        self.move_left();
+    }
+
+    /// Right senza Maiusc: con una selezione il cursore va alla sua fine (ancora tolta, senza muoversi
+    /// oltre); senza selezione si muove di un carattere a destra.
+    fn collapse_right(&mut self) {
+        let sel = self.selection();
+        self.anchor = None;
+        if let Some((_, fino)) = sel {
+            self.cursor = fino.min(self.max_cursor());
+            self.remember_col();
+            self.scroll_adjust();
+            return;
+        }
+        self.move_right();
+    }
+
+    /// Esc: toglie l'ancora; il cursore resta dov'e' (anche se la selezione era rovesciata).
+    fn collapse_escape(&mut self) {
+        self.anchor = None;
+    }
 
     fn move_up(&mut self) {
         let Some(doc) = self.doc.as_ref() else {
@@ -1489,24 +1735,66 @@ impl App {
         }
     }
 
-    /// Un carattere della tastiera (anche con SHIFT): si inserisce al cursore e il cursore avanza di tutti
-    /// i suoi byte UTF-8.
+    /// Un carattere della tastiera (anche con SHIFT): si inserisce al posto dell'eventuale selezione e il
+    /// cursore avanza di tutti i suoi byte UTF-8.
     fn insert_char(&mut self, c: char) {
         let mut buf = [0u8; 4];
         let testo = c.encode_utf8(&mut buf);
-        self.insert_at_cursor(testo.as_bytes());
+        self.insert_over_selection(testo.as_bytes());
     }
 
     /// Enter: un a-capo. Si aggiunge al passo di storia corrente e poi lo chiude.
     fn insert_enter(&mut self) {
-        if self.insert_at_cursor(b"\n") {
+        if self.insert_over_selection(b"\n") {
             self.seal_history();
         }
     }
 
     /// Tab: un tabulatore (le celle le calcola la visualizzazione: qui e' un byte come gli altri).
     fn insert_tab(&mut self) {
-        self.insert_at_cursor(b"\t");
+        self.insert_over_selection(b"\t");
+    }
+
+    /// Inserisce `testo` al posto dell'eventuale selezione, che si toglie prima nello stesso passo di
+    /// storia (un carattere, Enter, Tab o un incolla: un solo annulla). In lettura la scrittura e'
+    /// rifiutata e la selezione non si perde. Vero se ha inserito.
+    fn insert_over_selection(&mut self, testo: &[u8]) -> bool {
+        if !self.edit {
+            self.refuse_write();
+            return false;
+        }
+        if self.selection().is_some() && !self.delete_selection() {
+            return false;
+        }
+        self.insert_at_cursor(testo)
+    }
+
+    /// Backspace: con una selezione toglie solo quella; senza toglie il carattere prima del cursore. In
+    /// lettura e' rifiutato e la selezione non si perde.
+    fn backspace_key(&mut self) {
+        if self.selection().is_some() {
+            if !self.edit {
+                self.refuse_write();
+                return;
+            }
+            self.delete_selection();
+            return;
+        }
+        self.delete_before();
+    }
+
+    /// Delete: con una selezione toglie solo quella; senza toglie il carattere sotto il cursore. In lettura
+    /// e' rifiutato e la selezione non si perde.
+    fn delete_key(&mut self) {
+        if self.selection().is_some() {
+            if !self.edit {
+                self.refuse_write();
+                return;
+            }
+            self.delete_selection();
+            return;
+        }
+        self.delete_after();
     }
 
     /// Inserisce `testo` al cursore (in modifica) e porta il cursore alla fine di cio' che ha scritto;
@@ -1523,6 +1811,8 @@ impl App {
         match doc.insert(self.cursor, testo) {
             Ok(()) => {
                 self.cursor += testo.len() as u64;
+                // Ogni modifica toglie la selezione.
+                self.anchor = None;
                 self.remember_col();
                 self.scroll_adjust();
                 true
@@ -1557,6 +1847,8 @@ impl App {
             return;
         }
         self.cursor -= n;
+        // Ogni modifica toglie la selezione.
+        self.anchor = None;
         self.remember_col();
         self.scroll_adjust();
     }
@@ -1583,6 +1875,8 @@ impl App {
             self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
             return;
         }
+        // Ogni modifica toglie la selezione.
+        self.anchor = None;
         self.remember_col();
         self.scroll_adjust();
     }
@@ -1594,6 +1888,8 @@ impl App {
             self.refuse_write();
             return;
         }
+        // L'annullamento toglie la selezione: il testo sotto e' cambiato.
+        self.anchor = None;
         let Some(doc) = self.doc.as_mut() else {
             return;
         };
@@ -1617,6 +1913,8 @@ impl App {
             self.refuse_write();
             return;
         }
+        // Come l'annulla: il ripeti toglie la selezione.
+        self.anchor = None;
         let Some(doc) = self.doc.as_mut() else {
             return;
         };

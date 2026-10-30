@@ -95,6 +95,8 @@ pub struct Theme {
     pub gutter: Style,
     /// Testo trovato dalla ricerca.
     pub found: Style,
+    /// Le celle del testo selezionato (Maiusc+frecce, Ctrl+A): vince sullo stile del trovato.
+    pub selection: Style,
     /// I segni `«` e `»` di scorrimento orizzontale.
     pub more: Style,
     /// Il marcatore VIEW nella barra del titolo.
@@ -133,6 +135,7 @@ impl Theme {
             border: Style::new().add_modifier(Modifier::BOLD),
             gutter: Style::new().add_modifier(Modifier::DIM),
             found: Style::new().add_modifier(Modifier::REVERSED),
+            selection: Style::new().add_modifier(Modifier::REVERSED),
             more: Style::new().add_modifier(Modifier::BOLD),
             mode_view: Style::new().add_modifier(Modifier::BOLD),
             mode_edit: Style::new().add_modifier(Modifier::REVERSED | Modifier::BOLD),
@@ -156,6 +159,7 @@ impl Theme {
             border: Style::new().fg(Color::Yellow),
             gutter: Style::new().fg(Color::Cyan),
             found: Style::new().fg(Color::Black).bg(Color::Yellow),
+            selection: Style::new().fg(Color::Black).bg(Color::Cyan),
             more: Style::new().fg(Color::Yellow).bold(),
             mode_view: Style::new().fg(Color::Yellow),
             mode_edit: Style::new().fg(Color::Black).bg(Color::Yellow),
@@ -180,6 +184,7 @@ impl Theme {
             border: Style::new().fg(Color::Red),
             gutter: Style::new().fg(Color::DarkGray),
             found: Style::new().fg(Color::White).bg(Color::Red),
+            selection: Style::new().fg(Color::Black).bg(Color::Gray),
             more: Style::new().fg(Color::Red).bold(),
             mode_view: Style::new().fg(Color::Red),
             mode_edit: Style::new().fg(Color::White).bg(Color::Red),
@@ -204,6 +209,7 @@ impl Theme {
             border: Style::new().fg(Color::Yellow),
             gutter: Style::new().fg(Color::DarkGray),
             found: Style::new().fg(Color::Black).bg(Color::Yellow),
+            selection: Style::new().fg(Color::White).bg(Color::Blue),
             more: Style::new().fg(Color::Yellow).bold(),
             mode_view: Style::new().fg(Color::Yellow),
             mode_edit: Style::new().fg(Color::Black).bg(Color::Yellow),

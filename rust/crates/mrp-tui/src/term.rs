@@ -5,17 +5,19 @@
 //! l'hook che c'era prima.
 
 use crate::app::App;
+use crate::clip;
 use crate::ui;
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event, KeyEventKind,
 };
 use ratatui::crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::crossterm::ExecutableCommand;
 use ratatui::Terminal;
-use std::io::{self, Stdout};
+use std::io::{self, Stdout, Write};
 use std::time::Duration;
 
 /// Quanto si aspetta un evento prima di rifare il giro (il `tick` passa comunque: i lavori in background
@@ -40,6 +42,8 @@ fn dentro(app: &mut App) -> io::Result<()> {
     let mut stdout = io::stdout();
     stdout.execute(EnterAlternateScreen)?;
     stdout.execute(EnableMouseCapture)?;
+    // L'incolla del terminale arriva come un evento solo, col testo fra parentesi.
+    stdout.execute(EnableBracketedPaste)?;
     let mut terminale = Terminal::new(CrosstermBackend::new(stdout))?;
     // le dimensioni iniziali dal terminale vero; poi i Resize le aggiornano
     let dimensione = terminale.size()?;
@@ -48,7 +52,8 @@ fn dentro(app: &mut App) -> io::Result<()> {
 }
 
 /// Il ciclo: un disegno, un evento (se arriva entro `ATTESA_EVENTO`), un `tick`; si esce quando l'app lo
-/// chiede.
+/// chiede. Dopo un tasto o un incolla, la copia in sospeso (Ctrl+C / Ctrl+X) va agli appunti di sistema
+/// con la sequenza OSC 52, se non e' troppo grande per il terminale.
 fn ciclo(terminale: &mut Schermo, app: &mut App) -> io::Result<()> {
     while !app.should_quit() {
         terminale.draw(|f| ui::draw(f, app))?;
@@ -61,8 +66,16 @@ fn ciclo(terminale: &mut Schermo, app: &mut App) -> io::Result<()> {
                     app.handle_key(t)
                 }
                 Event::Mouse(m) => app.handle_mouse(m),
+                // l'incolla del terminale (con le parentesi): il testo entra come un incolla da tastiera
+                Event::Paste(s) => app.paste_text(&s),
                 Event::Resize(w, h) => app.resize(w, h),
                 _ => {}
+            }
+            if let Some(byte) = app.take_copied() {
+                if let Some(seq) = clip::osc52(&byte) {
+                    terminale.backend_mut().write_all(seq.as_bytes())?;
+                    terminale.backend_mut().flush()?;
+                }
             }
         }
         app.tick();
@@ -83,6 +96,7 @@ fn installa_hook() {
 /// Rimette il terminale com'era: mouse, schermo alternativo, raw. Si fa il piu' possibile e gli errori si
 /// buttano: qui non c'e' piu' nessuno a cui dirli (e non devono nascondere quello che sta salendo).
 fn ripristina() {
+    let _ = io::stdout().execute(DisableBracketedPaste);
     let _ = io::stdout().execute(DisableMouseCapture);
     let _ = io::stdout().execute(LeaveAlternateScreen);
     let _ = disable_raw_mode();

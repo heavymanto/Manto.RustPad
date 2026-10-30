@@ -68,9 +68,9 @@ fn draw_title(f: &mut Frame, app: &mut App, t: &Theme, w: u16) {
 }
 
 /// Righe 1..=h-3: il testo con il gutter dei numeri di riga; imposta anche il cursore del terminale.
-/// La parte trovata dalla ricerca si disegna con lo stile `found` (solo le celle visibili, mai
-/// il gutter). Senza documento (un salvataggio lo tiene nel suo thread) ridisegna le righe
-/// dell'ultimo disegno.
+/// La parte trovata dalla ricerca si disegna con lo stile `found` e la selezione con lo stile `selection`,
+/// che vince sul trovato (in entrambi i casi solo le celle visibili, mai il gutter). Senza documento (un
+/// salvataggio lo tiene nel suo thread) ridisegna le righe dell'ultimo disegno.
 fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let text_rows = (h as usize).saturating_sub(3);
     let gutter_w = app.gutter_w();
@@ -148,6 +148,17 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
                 for colonna in da..fino {
                     let x = gutter_w as u16 + (colonna - hscroll) as u16;
                     f.buffer_mut()[(x, y)].set_style(t.found);
+                }
+            }
+        }
+        // La selezione, se questa riga la contiene: lo stesso meccanismo del trovato ma con lo stile
+        // `selection`, che vince (si applica dopo). Solo le celle dei caratteri: gli a-capo non ne hanno,
+        // e un carattere largo o un tabulatore colora tutte le sue celle visibili.
+        if let (Some(doc), Some(row), Some(sel)) = (app.document(), rows.get(i), app.selection()) {
+            if let Some((da, fino)) = found_cells(doc, row, sel, hscroll, cells, &opts) {
+                for colonna in da..fino {
+                    let x = gutter_w as u16 + (colonna - hscroll) as u16;
+                    f.buffer_mut()[(x, y)].set_style(t.selection);
                 }
             }
         }
