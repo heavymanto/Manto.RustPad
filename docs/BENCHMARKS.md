@@ -192,8 +192,26 @@ few blocks are counted again (a counter, not a clock). With line numbers on, the
 
 **In the terminal editor itself (inconclusive).** `mrp` driven through ConPTY on a 17 MB file: 20,000 scattered edits (each one a `Ctrl+G` to a random line plus one typed character), in batches of 2,000, build before E15 against build after. Both take about 26–32 s per batch, i.e. 13–16 ms per cycle, which is the cost of the terminal driver, not of the editor; the old build drifts from 25.6 s to 30.8 s over the run (consistent with its 2 ms at 40,000 pieces), the new one from 29.6 s to 31.9 s with a slower start (the machine was shared, one run each). So this measurement cannot show the gain, and the small drift left in the new build is not explained (noise, or another cost that grows with the pieces). The 14 µs figure above comes from the library only.
 
-Not measured yet: a clean save throughput (and on SSD), SSD behaviour, Linux/macOS, the UI with a real keyboard on a real
-terminal (only the ConPTY driver).
+Not measured yet: Linux/macOS, the UI with a real keyboard on a real terminal (only the ConPTY driver), a real 100 GB file (SSD and disk measurements for 6 and 10 GB are in the next section).
+
+### SSD, 10 GB, and a 100 GiB sparse file (tasks E20/E21)
+
+Same driver ([`bench/mrp_bench.py`](../bench/mrp_bench.py)), cache flushed (a 30 GiB file written and re-read) before every cold measurement. Disks: the system SSD (`C:`) and the same mechanical disk as above (`D:`). Files: the 100-byte-line test file at 6 and 10 GB, and a **sparse NTFS file of 100 GiB** (`bench/` does not include the generator; ~200 MB on disk: 1,000,000 lines at each end and zeros in between, i.e. one 100 GiB "line"; it tests addressing, the mapping and the index, not disk speed). Raw lines: [`results/tui_mrp_ssd.jsonl`](../bench/results/tui_mrp_ssd.jsonl), [`results/tui_mrp_hdd.jsonl`](../bench/results/tui_mrp_hdd.jsonl); the earlier runs (before E21) are in the `*_pre_e21.jsonl` files.
+
+**What the first SSD runs showed.** Memory was *not* constant. (1) The *private* memory grows by about **3.7 MB per GB of file** (33 → 48 → 411 MiB at 6 → 10 → 100 GiB): it is what Windows charges for the mapping of the file. (2) The *working set* followed the file: the index workers scanned the file through the mapping, so the process working set reached the file size (5.7 GB at 6 GB, 9.3 GB at 10 GB, **20 GB on a 24 GB machine** at 100 GiB). Those are file-backed, evictable pages, but on a shared machine it is not polite (the system had to stop one of my background jobs for lack of memory).
+
+**Fix (task E21):** the index workers read with explicit `read_at` calls, 256 KiB at a time into a private buffer, and never touch the mapping (`FileSource::map_accesses()` is 0 after a build; a test checks it). Working set after the fix: **17–29 MiB at every size, 100 GiB included**. The index itself, alone (`examples/idxcheck`, 6 GB): 2.3 s with the file in cache, 4.4 s cold on the SSD (segments of 64 KiB, 1 MiB and 4 MiB were no better or used more memory).
+
+| After E21 | SSD 6 GB | SSD 10 GB | HDD 10 GB | Sparse 100 GiB (SSD, 4 threads) |
+|---|---|---|---|---|
+| Name on screen | 0.04 s | 0.04–0.05 s | 0.08–0.14 s | 2.6 s |
+| Line jump usable (line 30,000,000) | 9.1–9.2 s | 11.9–12.0 s | 71.3–72.5 s | 67.9 s (line 1,500,000) |
+| `Ctrl+End` / `Ctrl+Home` (screen settles) | 4.6 s / 0.06 s | 0.06–7.4 s / 0.06–7.4 s | 0.04–0.1 s / 0.05 s | 60.8 s / 0.06 s |
+| Edit + save (`XYZ` at line 30,000,000) | 4.1 s | 5.9 s | 66.6 s | not run |
+| Private memory | 18–41 MiB | 31–55 MiB | 31–55 MiB | 203–412 MiB |
+| Working set, peak | 25 MiB | 28–29 MiB | 29 MiB | 17 MiB |
+
+The edit lands on the right byte and the file grows by exactly 3 bytes in every edit run. Caveats: the "line jump usable" time has a granularity of about 3.8 s (the driver retries every 1 s, waiting up to 2.5 s for the "still building" message); `Ctrl+End`/`Ctrl+Home` are "time until the screen stops changing" and depend on whether the index is still reading the disk; one run each, shared machine. The 66.6 s save on the mechanical disk compares with 153.6 s measured earlier with the build before E21 while the machine was busy: do not read it as an improvement. An earlier version of the driver took the line number echoed by the "go to" prompt as "arrived" and could edit at offset 0 when the index was not ready; the raw lines in `*_pre_e21.jsonl` from that version are marked by `edit_applied: false` where it happened. A real (non-sparse) 100 GB file was not tried.
 
 ## What this means for Manto.RustPad
 

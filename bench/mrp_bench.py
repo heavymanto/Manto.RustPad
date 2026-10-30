@@ -46,9 +46,10 @@ try:
         m = p.mark()
         p.send('\x07'); time.sleep(0.3)
         p.send(f'{line}\r')
-        # si guarda la riga di STATO ("Ln N "), non il numero in se': il prompt "vai a" mostra quello che si scrive
-        # e darebbe un falso "arrivato" mentre l'indice non e' ancora pronto
-        if p.wait_for(f'Ln {line} ', since=m, timeout=3) is not None:
+        # Arrivato = l'editor NON risponde "still building" (l'indice non e' pronto). Non si cerca il numero di riga:
+        # il prompt "vai a" lo mostra mentre si digita (falso "arrivato"), e il terminale manda solo le celle cambiate,
+        # quindi "Ln 30000000" nella riga di stato non compare mai tutto di fila nel flusso.
+        if p.wait_for('still building', since=m, timeout=2.5) is None:
             arrivato = time.perf_counter() - t0
             break
         time.sleep(1.0)
