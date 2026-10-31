@@ -10,6 +10,7 @@ use mrp_core::block::{
 use mrp_core::docsearch::{SearchError, Snapshot};
 use mrp_core::encoding::Encoding;
 use mrp_core::lang::{Catalog, Lang};
+use mrp_core::lineending::LineEnding;
 use mrp_core::newline::Newline;
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
@@ -390,6 +391,8 @@ pub struct App {
     index: bool,
     /// La codifica con cui i byte del documento si leggono e si scrivono come caratteri.
     enc: Encoding,
+    /// Lo stile di fine riga del file (da un campione dell'inizio, all'apertura): lo scrive Invio e lo mostra la riga di stato.
+    eol: LineEnding,
 }
 
 /// Un movimento del cursore: quello del tasto senza Maiusc. La selezione con Maiusc fa lo stesso movimento
@@ -448,13 +451,14 @@ impl App {
         // con `Encoding::detect`). I byte del documento non cambiano: cambia solo come si leggono.
         // Serve prima dell'indice: la forma dell'a-capo della codifica (in UTF-16 un'unita' a 16
         // bit) decide come si contano le righe.
-        let enc = cfg.encoding.unwrap_or_else(|| {
-            let campione = doc.read_range(0, doc.len().min(65536));
-            Encoding::detect(&campione)
-        });
+        let campione = doc.read_range(0, doc.len().min(65536));
+        let enc = cfg.encoding.unwrap_or_else(|| Encoding::detect(&campione));
+        // Lo stile di fine riga (LF, CRLF, CR da solo) dal campione e dalla codifica: decide la forma
+        // dell'a-capo del documento (il CR da solo ha la sua) e cosa scrive Invio.
+        let eol = LineEnding::detect(&campione, enc).for_encoding(enc);
         // La forma dell'a-capo della codifica, al documento appena aperto: senza storia di
         // modifiche non puo' fallire (il risultato bool si ignora per quello).
-        let newline = enc.newline();
+        let newline = eol.newline_for(enc);
         doc.set_newline(newline);
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
@@ -501,6 +505,7 @@ impl App {
             lang_picked,
             index: cfg.index,
             enc,
+            eol,
         })
     }
 
@@ -1907,6 +1912,11 @@ impl App {
         self.cat.code()
     }
 
+    /// Lo stile di fine riga del file (rilevato all'apertura; cosa scrive Invio).
+    pub fn line_ending(&self) -> LineEnding {
+        self.eol
+    }
+
     /// La codifica attiva.
     pub fn encoding(&self) -> Encoding {
         self.enc
@@ -1925,9 +1935,13 @@ impl App {
         // La forma dell'a-capo e' del documento, non della sola codifica: cambia solo senza una
         // storia di modifiche (le posizioni da annullare o ripetere sono legate alla forma con cui
         // le modifiche sono state fatte).
+        // Lo stile di fine riga che la codifica nuova ammette (il CR da solo non c'e' in UTF-16 e UTF-32)
+        // e la forma dell'a-capo che ne viene.
+        let eol_nuovo = self.eol.for_encoding(e);
+        let forma = eol_nuovo.newline_for(e);
         let forma_cambiata = match self.doc.as_mut() {
-            Some(doc) if e.newline() != doc.newline() => {
-                if !doc.set_newline(e.newline()) {
+            Some(doc) if forma != doc.newline() => {
+                if !doc.set_newline(forma) {
                     self.flash = Some(self.cat.t("flash.encoding_locked").to_string());
                     return;
                 }
@@ -1944,6 +1958,7 @@ impl App {
             self.index_pending = self.index;
         }
         self.enc = e;
+        self.eol = eol_nuovo;
         self.anchor = None;
         self.block = None;
         self.found = None;
@@ -2675,7 +2690,7 @@ impl App {
             }
             self.block = None;
         }
-        if self.insert_over_selection(self.enc.newline().bytes()) {
+        if self.insert_over_selection(&self.eol.bytes(self.enc)) {
             self.seal_history();
         }
     }

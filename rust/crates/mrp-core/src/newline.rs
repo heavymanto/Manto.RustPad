@@ -14,12 +14,15 @@
 
 use memchr::Memchr;
 
-/// La forma dell'a-capo: una per famiglia di codifiche.
+/// La forma dell'a-capo: una per famiglia di codifiche (piu' `Cr` per i file con il solo `\r`).
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
 pub enum Newline {
     /// Il byte `0A` (UTF-8 e code page): la forma di sempre.
     #[default]
     Byte,
+    /// Il byte `0D` da solo (file dei vecchi Mac, UTF-8 e code page): ogni `\r` e' un a-capo. Solo per le codifiche a
+    /// byte singolo o multibyte (il `\r` e' ASCII e non compare dentro un carattere).
+    Cr,
     /// L'unita' UTF-16 little endian: `0A 00`.
     Le16,
     /// L'unita' UTF-16 big endian: `00 0A`.
@@ -34,7 +37,7 @@ impl Newline {
     /// Quanti byte occupa un'unita' (e quindi l'allineamento): 1 per `Byte`, 2 per `Le16` e `Be16`, 4 per `Le32` e `Be32`.
     pub fn unit(self) -> usize {
         match self {
-            Newline::Byte => 1,
+            Newline::Byte | Newline::Cr => 1,
             Newline::Le16 | Newline::Be16 => 2,
             Newline::Le32 | Newline::Be32 => 4,
         }
@@ -44,6 +47,7 @@ impl Newline {
     pub fn bytes(self) -> &'static [u8] {
         match self {
             Newline::Byte => b"\n",
+            Newline::Cr => b"\r",
             Newline::Le16 => b"\n\0",
             Newline::Be16 => b"\0\n",
             Newline::Le32 => b"\n\0\0\0",
@@ -61,14 +65,23 @@ impl Newline {
         Positions {
             nl: self,
             hay,
-            inner: Memchr::new(b'\n', hay),
+            inner: Memchr::new(self.search_byte(), hay),
+        }
+    }
+
+    /// Il byte che `memchr` cerca: `0D` per `Cr`, `0A` per tutte le altre.
+    fn search_byte(self) -> u8 {
+        if self == Newline::Cr {
+            b'\r'
+        } else {
+            b'\n'
         }
     }
 
     /// Quanti a-capo ci sono in `hay`.
     pub fn count(self, hay: &[u8]) -> u64 {
-        if self == Newline::Byte {
-            return Memchr::new(b'\n', hay).count() as u64;
+        if matches!(self, Newline::Byte | Newline::Cr) {
+            return Memchr::new(self.search_byte(), hay).count() as u64;
         }
         self.positions(hay).count() as u64
     }
@@ -102,7 +115,7 @@ impl Positions<'_> {
     /// Se il byte 0x0A in `p` e' l'a-capo di questa forma, la posizione dell'unita'.
     fn unita(&self, p: usize) -> Option<usize> {
         match self.nl {
-            Newline::Byte => Some(p),
+            Newline::Byte | Newline::Cr => Some(p),
             // `0A 00`: il 0x0A sta in posizione pari e il byte dopo (se c'e') e' 0
             Newline::Le16 => (p.is_multiple_of(2) && self.hay.get(p + 1) == Some(&0)).then_some(p),
             // `00 0A`: il 0x0A sta in posizione dispari e il byte prima e' 0

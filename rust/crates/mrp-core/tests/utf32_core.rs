@@ -147,6 +147,7 @@ fn modello_nl(nl: Newline, hay: &[u8]) -> Vec<usize> {
         let ok = match nl {
             Newline::Le32 => unita == [0x0A, 0, 0, 0],
             Newline::Be32 => unita == [0, 0, 0, 0x0A],
+            Newline::Cr => unita == [0x0D],
             Newline::Le16 => unita == [0x0A, 0],
             Newline::Be16 => unita == [0, 0x0A],
             Newline::Byte => unita == [0x0A],

@@ -237,7 +237,7 @@ fn inserisci_riga(
     // nella codifica del documento (b" " in UTF-8 e code page, l'unita' UTF-16 dello spazio)
     let spazi = usize::try_from(col_a - span.width).unwrap_or(usize::MAX);
     let spazio: &[u8] = match doc.newline() {
-        Newline::Byte => b" ",
+        Newline::Byte | Newline::Cr => b" ",
         Newline::Le16 => b" \0",
         Newline::Be16 => b"\0 ",
         Newline::Le32 => b" \0\0\0",

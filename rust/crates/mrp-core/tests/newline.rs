@@ -15,6 +15,7 @@ fn modello(nl: Newline, hay: &[u8]) -> Vec<usize> {
             Newline::Be16 => hay[i] == 0x00 && hay[i + 1] == 0x0A,
             Newline::Le32 => hay[i..i + 4] == [0x0A, 0, 0, 0],
             Newline::Be32 => hay[i..i + 4] == [0, 0, 0, 0x0A],
+            Newline::Cr => hay[i] == 0x0D,
         };
         if ok {
             v.push(i);

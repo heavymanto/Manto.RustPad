@@ -270,6 +270,17 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         right.push_str(app.encoding().name());
         right.push(' ');
     }
+    // Lo stile di fine riga, solo se non e' LF (la riga di stato con LF e' identica a oggi): dopo la codifica.
+    if flash.is_none() && app.line_ending() != mrp_core::lineending::LineEnding::Lf {
+        if !right.is_empty() && !right.ends_with(' ') {
+            right.push(' ');
+        }
+        if !right.is_empty() {
+            right.push(' ');
+        }
+        right.push_str(app.line_ending().label());
+        right.push(' ');
+    }
     let pad = (w as usize).saturating_sub(left.chars().count() + right.chars().count());
     let line = Line::from(vec![
         Span::styled(left, t.status),

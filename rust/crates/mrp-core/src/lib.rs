@@ -12,6 +12,7 @@ pub mod document;
 pub mod edit;
 pub mod encoding;
 pub mod lang;
+pub mod lineending;
 pub mod lines;
 pub mod multibyte;
 pub mod newline;
