@@ -182,5 +182,7 @@
   "help.l18": "Strg+N / Strg+Umschalt+S  neues Dokument / speichern unter",
   "gui.new": "Neu",
   "gui.save_as": "Speichern unter…",
-  "gui.save_as_title": "Speichern unter"
+  "gui.save_as_title": "Speichern unter",
+  "gui.home": "Zum Anfang",
+  "gui.end": "Zum Ende"
 }

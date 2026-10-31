@@ -117,6 +117,8 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::Language, Some(k(KeyCode::F(7), NIENTE)), "F7"),
         (Cmd::Encoding, Some(k(KeyCode::F(9), NIENTE)), "F9"),
         (Cmd::Help, Some(k(KeyCode::F(1), NIENTE)), "F1"),
+        (Cmd::Home, Some(k(KeyCode::Home, CTRL)), "Ctrl+Home"),
+        (Cmd::End, Some(k(KeyCode::End, CTRL)), "Ctrl+End"),
         // lo zoom e' della finestra: nessun tasto dell'App
         (Cmd::ZoomIn, None, "Ctrl++"),
         (Cmd::ZoomOut, None, "Ctrl+-"),
@@ -243,6 +245,8 @@ fn the_other_commands_are_always_enabled() {
         Cmd::Language,
         Cmd::Encoding,
         Cmd::Help,
+        Cmd::Home,
+        Cmd::End,
         Cmd::ZoomIn,
         Cmd::ZoomOut,
         Cmd::ZoomReset,

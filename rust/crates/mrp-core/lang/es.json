@@ -182,5 +182,7 @@
   "help.l18": "Ctrl+N / Ctrl+Mayús+S      documento nuevo / guardar como",
   "gui.new": "Nuevo",
   "gui.save_as": "Guardar como…",
-  "gui.save_as_title": "Guardar como"
+  "gui.save_as_title": "Guardar como",
+  "gui.home": "Ir al inicio",
+  "gui.end": "Ir al final"
 }

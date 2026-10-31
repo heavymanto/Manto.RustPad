@@ -181,5 +181,7 @@
   "help.l18": "Ctrl+N / Ctrl+Maiusc+S      documento nuovo / salva con nome",
   "gui.new": "Nuovo",
   "gui.save_as": "Salva con nome…",
-  "gui.save_as_title": "Salva con nome"
+  "gui.save_as_title": "Salva con nome",
+  "gui.home": "Vai all'inizio",
+  "gui.end": "Vai alla fine"
 }

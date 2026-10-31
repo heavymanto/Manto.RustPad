@@ -116,6 +116,8 @@ pub struct Workspace {
     nav: bool,
     /// Dove sta ogni pulsante della barra dei salti dopo l'ultimo disegno: colonne da..a (escluso) e cosa fa.
     nav_spans: Vec<(u16, u16, NavAzione)>,
+    /// La barra dei salti si disegna a celle (il TUI si', la finestra no: ha i suoi pulsanti e legge `nav_bar`).
+    nav_cells: bool,
 }
 
 impl Drop for Workspace {
@@ -160,6 +162,7 @@ impl Workspace {
             replace: None,
             nav,
             nav_spans: Vec::new(),
+            nav_cells: true,
         }
     }
 
@@ -429,7 +432,7 @@ impl Workspace {
 
     /// Quante righe prende la barra dei salti: una se e' visibile, altrimenti nessuna.
     fn nav_height(&self) -> u16 {
-        u16::from(self.nav)
+        u16::from(self.nav && self.nav_cells)
     }
 
     /// Le righe sopra la scheda attiva: la barra delle schede e quella dei salti.
@@ -885,6 +888,44 @@ impl Workspace {
         self.tabs[self.active].handle_mouse(m);
     }
 
+    /// Senza la barra dei salti a celle: la finestra la disegna con i suoi pulsanti (`nav_bar` dice se e' accesa).
+    pub fn senza_nav_celle(mut self) -> Workspace {
+        self.nav_cells = false;
+        self
+    }
+
+    /// Accende o spegne la barra dei salti a celle (la finestra la spegne quando disegna i suoi pulsanti); lo spazio
+    /// del testo si adatta.
+    pub fn set_nav_cells(&mut self, accesa: bool) {
+        if self.nav_cells != accesa {
+            self.nav_cells = accesa;
+            self.apply_size();
+        }
+    }
+
+    /// Salta di `pagine` pagine avanti o indietro nella scheda attiva (come i pulsanti della barra dei salti).
+    pub fn jump(&mut self, avanti: bool, pagine: usize) {
+        self.tabs[self.active].page_jump(avanti, pagine);
+        self.settle();
+    }
+
+    /// Porta la scheda attiva all'inizio del file (Ctrl+Home).
+    pub fn go_start(&mut self) {
+        self.tabs[self.active].handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL));
+        self.settle();
+    }
+
+    /// Porta la scheda attiva alla fine del file (Ctrl+End).
+    pub fn go_end(&mut self) {
+        self.tabs[self.active].handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
+        self.settle();
+    }
+
+    /// I moltiplicatori dei salti di pagina della scheda attiva (le impostazioni `jump_pages`).
+    pub fn jump_pages(&self) -> [usize; 3] {
+        self.tabs[self.active].jump_pages()
+    }
+
     /// Un clic sulla colonna `col` della barra dei salti: il pulsante che la copre agisce sulla scheda attiva.
     fn nav_click(&mut self, col: u16) {
         let Some(&(_, _, azione)) = self
@@ -894,15 +935,11 @@ impl Workspace {
         else {
             return;
         };
-        let attiva = &mut self.tabs[self.active];
         match azione {
-            NavAzione::Home => {
-                attiva.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL))
-            }
-            NavAzione::End => attiva.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL)),
-            NavAzione::Salto(avanti, pagine) => attiva.page_jump(avanti, pagine),
+            NavAzione::Home => self.go_start(),
+            NavAzione::End => self.go_end(),
+            NavAzione::Salto(avanti, pagine) => self.jump(avanti, pagine),
         }
-        self.settle();
     }
 
     /// Un testo incollato dal terminale.
@@ -976,7 +1013,7 @@ impl Workspace {
         } else {
             self.spans.clear();
         }
-        if self.nav {
+        if self.nav && self.nav_cells {
             self.draw_nav(f, Rect::new(area.x, area.y + schede, w, 1));
         } else {
             self.nav_spans.clear();

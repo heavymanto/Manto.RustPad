@@ -182,5 +182,7 @@
   "help.l18": "Ctrl+N / Ctrl+Shift+S      novo documento / salvar como",
   "gui.new": "Novo",
   "gui.save_as": "Salvar como…",
-  "gui.save_as_title": "Salvar como"
+  "gui.save_as_title": "Salvar como",
+  "gui.home": "Ir para o início",
+  "gui.end": "Ir para o fim"
 }
