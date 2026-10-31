@@ -241,6 +241,9 @@ pub struct AppConfig {
     pub jump_pages: [usize; 3],
     /// Vero: la barra dei salti (Ctrl+B) e' visibile all'avvio (vedi `Settings::nav_bar`).
     pub nav_bar: bool,
+    /// Vero (predefinito): lo schermo ha la cornice del terminale (titolo, riga di stato, tasti). Falso: l'`App` disegna
+    /// solo il testo e la finestra disegna il resto (`status`, `scroll_info`).
+    pub chrome: bool,
 }
 
 impl Default for AppConfig {
@@ -254,6 +257,7 @@ impl Default for AppConfig {
             encoding: Some(Encoding::Utf8),
             jump_pages: JUMP_PAGES,
             nav_bar: false,
+            chrome: true,
         }
     }
 }
@@ -285,6 +289,47 @@ pub enum DialogKind {
     SaveAs,
     /// Il file scelto per "salva con nome" esiste gia': Invio lo sostituisce, Esc rinuncia.
     Overwrite,
+}
+
+/// Il lavoro in background che si vede nella riga di stato.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Busy {
+    Saving,
+    Searching,
+    Indexing,
+}
+
+/// Lo stato del documento per una riga di stato disegnata dalla finestra (`App::status`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StatusInfo {
+    /// Il nome mostrato (per un documento senza nome "Untitled N").
+    pub file_name: String,
+    /// La lunghezza del documento in byte.
+    pub size: u64,
+    /// In modifica (altrimenti in lettura), con modifiche non salvate, in modalita' colonna, senza nome.
+    pub edit: bool,
+    pub modified: bool,
+    pub column_mode: bool,
+    pub untitled: bool,
+    /// La riga del cursore (da 1; `None` finche' l'indice non e' pronto), la colonna (da 1), il byte e la percentuale.
+    pub line: Option<u64>,
+    pub column: usize,
+    pub offset: u64,
+    pub percent: u8,
+    /// Il nome della codifica e dell'a-capo (`LF`, `CRLF`, `CR`).
+    pub encoding: String,
+    pub line_ending: &'static str,
+    /// Il messaggio transitorio, se c'e'.
+    pub flash: Option<String>,
+    /// Il lavoro in corso e la sua percentuale.
+    pub busy: Option<(Busy, u8)>,
+}
+
+/// Dove sta la finestra nel documento (`App::scroll_info`): da dove comincia e quanta parte ne mostra, da 0 a 1.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ScrollInfo {
+    pub start: f64,
+    pub size: f64,
 }
 
 /// L'indicizzazione in corso: il canale col thread che costruisce l'indice e i byte gia' esaminati.
@@ -566,6 +611,8 @@ pub struct App {
     jump_pages: [usize; 3],
     /// La barra dei salti e' visibile (la scelta si salva nelle impostazioni; la disegna il `Workspace`).
     nav_bar: bool,
+    /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
+    chrome: bool,
     /// Il codice della lingua scelta dall'utente (`None`: l'inglese incorporato): e' la `lang` delle impostazioni.
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
@@ -711,6 +758,7 @@ impl App {
             settings_path: cfg.settings_path,
             jump_pages: cfg.jump_pages,
             nav_bar: cfg.nav_bar,
+            chrome: cfg.chrome,
             lang_picked,
             index: cfg.index,
             enc,
@@ -897,10 +945,11 @@ impl App {
         };
         // la riga 0 e' il titolo (un clic li' non fa niente, un trascinamento che ci arriva sta sulla prima riga);
         // le righe di testo cominciano alla 1
-        if riga == 0 && !trascina {
+        let sopra = self.top_offset();
+        if sopra == 1 && riga == 0 && !trascina {
             return false;
         }
-        let mut indice = usize::from(riga).saturating_sub(1);
+        let mut indice = usize::from(riga).saturating_sub(usize::from(sopra));
         if indice >= self.row_starts.len() {
             if !trascina {
                 return false;
@@ -2798,6 +2847,103 @@ impl App {
         }
     }
 
+    /// Lo schermo ha la cornice del terminale?
+    pub fn chrome(&self) -> bool {
+        self.chrome
+    }
+
+    /// Accende o spegne la cornice del terminale (spenta, la finestra disegna titolo, stato e scrollbar).
+    pub fn set_chrome(&mut self, acceso: bool) {
+        self.chrome = acceso;
+    }
+
+    /// Lo stato del documento come lo mostra la riga di stato, in forma di dati (per la barra di stato della finestra).
+    pub fn status(&mut self) -> StatusInfo {
+        let busy = if let Some(p) = self.save_progress() {
+            Some((Busy::Saving, p.min(100) as u8))
+        } else if let Some(p) = self.search_progress() {
+            Some((Busy::Searching, p.min(100) as u8))
+        } else {
+            self.index_progress()
+                .map(|p| (Busy::Indexing, p.min(100) as u8))
+        };
+        let size = self.document_len();
+        let offset = self.cursor;
+        StatusInfo {
+            file_name: self.file_name.clone(),
+            size,
+            edit: self.edit,
+            modified: self.is_modified(),
+            column_mode: self.col_mode,
+            untitled: self.untitled.is_some(),
+            line: self.cursor_line(),
+            column: self.cursor_col() + 1,
+            offset,
+            percent: offset
+                .saturating_mul(100)
+                .checked_div(size)
+                .unwrap_or(0)
+                .min(100) as u8,
+            encoding: self.enc.name().to_string(),
+            line_ending: match self.eol {
+                LineEnding::Lf => "LF",
+                LineEnding::CrLf => "CRLF",
+                LineEnding::Cr => "CR",
+            },
+            flash: self.flash.clone(),
+            busy,
+        }
+    }
+
+    /// Dove sta la finestra nel documento, come frazioni da 0 a 1: da dove comincia e quanta parte ne mostra (serve alla
+    /// scrollbar). Si calcola sull'ultimo disegno: prima del primo la parte mostrata e' 0.
+    pub fn scroll_info(&self) -> ScrollInfo {
+        let Some(doc) = self.doc.as_ref() else {
+            return ScrollInfo {
+                start: 0.0,
+                size: 1.0,
+            };
+        };
+        let len = doc.len();
+        if len == 0 {
+            return ScrollInfo {
+                start: 0.0,
+                size: 1.0,
+            };
+        }
+        let start = (self.top as f64 / len as f64).min(1.0);
+        let fine = match self.row_starts.last() {
+            Some(&r) => match scan::next_row(doc, r, MAX_SCAN) {
+                Next::Line(n) | Next::Cut(n) => n,
+                Next::End => len,
+            },
+            None => self.top,
+        };
+        let size = (fine.saturating_sub(self.top) as f64 / len as f64).clamp(0.0, 1.0);
+        ScrollInfo { start, size }
+    }
+
+    /// Porta la cima della finestra alla riga che contiene il byte alla frazione `f` (da 0 a 1, fuori si limita; non un
+    /// numero vale 0) del documento, senza andare oltre l'ultima pagina. Il cursore, se resta fuori dalla finestra, va alla
+    /// riga visibile piu' vicina (come con la rotella).
+    pub fn scroll_to_fraction(&mut self, f: f64) {
+        if self.text_rows() == 0 {
+            return;
+        }
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let len = doc.len();
+        if len == 0 {
+            return;
+        }
+        let f = if f.is_nan() { 0.0 } else { f.clamp(0.0, 1.0) };
+        let byte = ((f * len as f64).round() as u64).min(len - 1);
+        let riga = scan::row_start(doc, byte, MAX_SCAN).0;
+        self.top = riga.min(self.last_top());
+        self.follow_window();
+    }
+
     /// C'e' qualcosa di selezionato: una selezione di flusso (non vuota) o un blocco della modalita' colonna.
     pub fn has_selection(&self) -> bool {
         self.selection().is_some() || (self.col_mode && self.block.is_some())
@@ -3220,9 +3366,18 @@ impl App {
 
     // ----- geometria dello schermo -----
 
-    /// Le righe di testo dello schermo (le altre tre: titolo, stato, barra dei tasti).
+    /// Le righe di testo dello schermo (con la cornice le altre tre sono titolo, stato, barra dei tasti; senza, sono tutte).
     fn text_rows(&self) -> usize {
-        (self.h as usize).saturating_sub(3)
+        if self.chrome {
+            (self.h as usize).saturating_sub(3)
+        } else {
+            self.h as usize
+        }
+    }
+
+    /// La riga dello schermo da cui comincia il testo: 1 con il titolo sopra, 0 senza cornice.
+    pub(crate) fn top_offset(&self) -> u16 {
+        u16::from(self.chrome)
     }
 
     /// Le celle di testo per riga (la larghezza meno il gutter).

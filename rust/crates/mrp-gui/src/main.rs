@@ -59,6 +59,7 @@ fn run() -> i32 {
             .as_ref()
             .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
         nav_bar: profilo.settings.as_ref().is_some_and(|s| s.nav_bar),
+        chrome: true,
         settings_path: profilo.path,
         index: true,
         encoding,

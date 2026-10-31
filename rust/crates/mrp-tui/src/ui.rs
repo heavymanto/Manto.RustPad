@@ -29,15 +29,20 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     // Il fondo del tema su tutto lo schermo.
     f.render_widget(Block::default().style(t.screen), area);
     let (w, h) = (area.width, area.height);
-    if w == 0 || h < 4 {
-        // Il contratto chiede h >= 4: sotto non c'e' niente da disegnare.
+    // con la cornice il contratto chiede h >= 4 (titolo, almeno una riga di testo, stato, tasti); senza basta una riga
+    let minima = if app.chrome() { 4 } else { 1 };
+    if w == 0 || h < minima {
         app.set_cursor_xy(None);
         return;
     }
-    draw_title(f, app, &t, w);
+    if app.chrome() {
+        draw_title(f, app, &t, w);
+    }
     draw_text(f, app, &t, w, h);
-    draw_status(f, app, &t, w, h);
-    draw_footer(f, app, &t, w, h);
+    if app.chrome() {
+        draw_status(f, app, &t, w, h);
+        draw_footer(f, app, &t, w, h);
+    }
     draw_dialog(f, app, &t, w, h);
 }
 
@@ -82,7 +87,13 @@ fn draw_title(f: &mut Frame, app: &mut App, t: &Theme, w: u16) {
 /// che vince sul trovato (in entrambi i casi solo le celle visibili, mai il gutter). Senza documento (un
 /// salvataggio lo tiene nel suo thread) ridisegna le righe dell'ultimo disegno.
 fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
-    let text_rows = (h as usize).saturating_sub(3);
+    // la riga da cui comincia il testo (1 sotto il titolo, 0 senza cornice) e quante ne sono
+    let sopra = app.top_offset();
+    let text_rows = if app.chrome() {
+        (h as usize).saturating_sub(3)
+    } else {
+        h as usize
+    };
     let gutter_w = app.gutter_w();
     let cells = (w as usize).saturating_sub(gutter_w);
     let opts = ViewOptions {
@@ -135,7 +146,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         if xy.is_none() && row.start == cursor_row && col >= hscroll && col - hscroll < cells {
             xy = Some((
                 gutter_w as u16 + (col - hscroll) as u16,
-                1 + righe.len() as u16,
+                sopra + righe.len() as u16,
             ));
         }
         righe.push((gutter, text));
@@ -149,7 +160,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         righe.truncate(text_rows);
     }
     for (i, (gutter, text)) in righe.iter().enumerate() {
-        let y = 1 + i as u16;
+        let y = sopra + i as u16;
         // Ogni riga arriva fino in fondo allo schermo.
         let mut text = text.clone();
         let manca = cells.saturating_sub(text.chars().count());
