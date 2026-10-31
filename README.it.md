@@ -63,7 +63,7 @@ La memoria cresce piano con il file (circa 3,7 MB per GB: ~410 MiB su un file sp
 ## Scaricalo
 
 Niente da installare: estrai e avvia. Entrambi i programmi funzionano subito, in modo *portatile*: l'inglese è incorporato, le altre
-sei lingue si trovano in `lang/` accanto ai programmi; impostazioni e sessione salvata restano nella stessa cartella.
+sei lingue si trovano in `lang/` accanto ai programmi; impostazioni e sessione salvata restano nella stessa cartella. Li vuoi come comandi da qualunque cartella? Ogni pacchetto contiene `install.ps1` (Windows) o `install.sh` (Linux, macOS): copia `mrp` e `mrpg` in `~/.local/bin` (e su Windows lo aggiunge al PATH utente) e le lingue nel tuo profilo.
 
 [![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
 [![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)

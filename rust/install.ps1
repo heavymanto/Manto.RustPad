@@ -1,5 +1,5 @@
-# install.ps1 - pubblica mrp (l'editor da terminale) come comando utente
-# Copia rust\target\release\mrp.exe (workspace Cargo) in %USERPROFILE%\.local\bin
+# install.ps1 - pubblica mrp (l'editor da terminale) e mrpg (la finestra) come comandi utente
+# Copia rust\target\release\mrp.exe e mrpg.exe (workspace Cargo) in %USERPROFILE%\.local\bin
 # e crates\mrp-core\lang\*.json (le sette lingue) in %APPDATA%\mrp\lang, il registro
 # che mrp scopre a runtime (l'inglese e' incorporato nell'exe: la cartella serve per
 # le altre lingue e per l'override di en.json, che nel profilo sopravanza quello di
@@ -8,7 +8,7 @@
 # La copia installata e' uno snapshot: rieseguire questo script dopo ogni rebuild o
 # dopo ogni cambio alle lingue. Le impostazioni dell'utente (%APPDATA%\mrp\settings.txt)
 # non si toccano.
-# Uso:  cargo build --release -p mrp-tui   (in rust\)
+# Uso:  cargo build --release   (in rust\)
 #       .\install.ps1
 #       mrp <file>        -> apre il file (lettura; F4 per modificare, F1 aiuto)
 #       mrp --help        -> le opzioni
@@ -16,25 +16,33 @@ $ErrorActionPreference = 'Stop'
 $binDir = Join-Path $env:USERPROFILE '.local\bin'
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
 
-$src = Join-Path $PSScriptRoot 'target\release\mrp.exe'
-if (-not (Test-Path $src)) { throw "build mancante: $src (prima: cargo build --release -p mrp-tui in rust\)" }
 $langSrc = Join-Path $PSScriptRoot 'crates\mrp-core\lang'
 if (-not (Test-Path $langSrc)) { throw "cartella lingue mancante: $langSrc" }
 
-$dst = Join-Path $binDir 'mrp.exe'
-Remove-Item "$dst.old" -Force -ErrorAction SilentlyContinue
-try {
-    Copy-Item $src $dst -Force
-} catch {
-    # exe in esecuzione (es. un file aperto in mrp): Windows non consente la
-    # sovrascrittura ma CONSENTE il rename di un exe in uso; spostiamo il vecchio
-    # e mettiamo il nuovo al suo posto.
-    Move-Item $dst "$dst.old" -Force
-    Copy-Item $src $dst -Force
-    # se il vecchio processo e' ancora attivo la Delete fallisce: ripulita al giro dopo
+# mrp (terminale) e mrpg (finestra): mrp e' obbligatorio, mrpg si installa se e' stato compilato
+foreach ($nome in 'mrp', 'mrpg') {
+    $src = Join-Path $PSScriptRoot "target\release\$nome.exe"
+    if (-not (Test-Path $src)) {
+        if ($nome -eq 'mrp') { throw "build mancante: $src (prima: cargo build --release in rust\)" }
+        "saltato: $src non c'e' (cargo build --release -p mrp-gui)"
+        continue
+    }
+    $dst = Join-Path $binDir "$nome.exe"
     Remove-Item "$dst.old" -Force -ErrorAction SilentlyContinue
+    try {
+        Copy-Item $src $dst -Force
+    } catch {
+        # exe in esecuzione (es. un file aperto in mrp): Windows non consente la
+        # sovrascrittura ma CONSENTE il rename di un exe in uso; spostiamo il vecchio
+        # e mettiamo il nuovo al suo posto.
+        Move-Item $dst "$dst.old" -Force
+        Copy-Item $src $dst -Force
+        # se il vecchio processo e' ancora attivo la Delete fallisce: ripulita al giro dopo
+        Remove-Item "$dst.old" -Force -ErrorAction SilentlyContinue
+    }
+    "installato: $dst"
 }
-"installato: $dst"
+$dst = Join-Path $binDir 'mrp.exe'
 
 # registro lingue: i JSON sorgente (il test di parita' del core li ha gia' verificati)
 # finiscono nel profilo utente. Su una macchina nuova la cartella non esiste: la creiamo.

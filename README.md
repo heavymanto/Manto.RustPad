@@ -63,7 +63,7 @@ with the file (about 3.7 MB per GB: ~410 MiB on a 100 GiB sparse file, whose wor
 ## Get it
 
 Nothing to install: extract and run. Both programs work right away, in *portable* mode — English is embedded, and the other
-six languages are found in `lang/` next to the programs; settings and the saved session stay in that same folder.
+six languages are found in `lang/` next to the programs; settings and the saved session stay in that same folder. Want them as commands that work from any folder? Each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS): it copies `mrp` and `mrpg` to `~/.local/bin` (adding it to your user PATH on Windows) and the languages to your profile.
 
 [![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
 [![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)

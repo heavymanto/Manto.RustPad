@@ -1,6 +1,6 @@
 # Release: al push di un tag v* compila in release e pubblica la GitHub Release.
 # Ogni archivio contiene i due eseguibili (mrp: terminale, mrpg: finestra), le sette
-# lingue in lang/, la licenza e il README; con lang/ accanto agli eseguibili il
+# lingue in lang/, la licenza, un README.txt breve e install.ps1/install.sh (copiati da dist/); con lang/ accanto agli eseguibili il
 # programma e' "portatile" (impostazioni e sessione restano nella stessa cartella).
 # Windows crea la Release (con le note prese dal CHANGELOG), Linux e macOS caricano
 # il loro archivio sulla Release gia' creata. Ogni archivio ha il suo SHA256.
@@ -29,7 +29,8 @@ jobs:
           Copy-Item rust/target/release/mrpg.exe $dir
           Copy-Item rust/crates/mrp-core/lang/*.json "$dir/lang/"
           Copy-Item LICENSE $dir
-          Copy-Item README.md $dir
+          Copy-Item dist/install-zip.ps1 "$dir/install.ps1"
+          Copy-Item dist/README.txt "$dir/README.txt"
           Compress-Archive -Path $dir -DestinationPath "dist/$name.zip"
           $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash
           "$hash  $name.zip" | Out-File "dist/$name.zip.sha256" -Encoding ascii
@@ -73,7 +74,10 @@ jobs:
           cp rust/target/release/mrp rust/target/release/mrpg "$DIR/"
           chmod +x "$DIR/mrp" "$DIR/mrpg"
           cp rust/crates/mrp-core/lang/*.json "$DIR/lang/"
-          cp LICENSE README.md "$DIR/"
+          cp LICENSE "$DIR/"
+          cp dist/install-linux.sh "$DIR/install.sh"
+          chmod +x "$DIR/install.sh"
+          cp dist/README-linux.txt "$DIR/README.txt"
           tar -czf "dist/$NAME.tar.gz" -C "dist" "$NAME"
           (cd dist && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
           echo "$NAME.tar.gz" > dist/tar-name.txt
@@ -102,7 +106,10 @@ jobs:
           cp rust/target/release/mrp rust/target/release/mrpg "$DIR/"
           chmod +x "$DIR/mrp" "$DIR/mrpg"
           cp rust/crates/mrp-core/lang/*.json "$DIR/lang/"
-          cp LICENSE README.md "$DIR/"
+          cp LICENSE "$DIR/"
+          cp dist/install-macos.sh "$DIR/install.sh"
+          chmod +x "$DIR/install.sh"
+          cp dist/README-macos.txt "$DIR/README.txt"
           tar -czf "dist/$NAME.tar.gz" -C "dist" "$NAME"
           (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
           echo "$NAME.tar.gz" > dist/tar-name.txt
