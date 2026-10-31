@@ -953,6 +953,23 @@ impl App {
         pos
     }
 
+    /// Porta `pos` all'inizio del carattere che lo contiene (la codifica attiva e' una multibyte asiatica): si
+    /// guardano i byte prima fino a un inizio sicuro (`Encoding::char_start`) e quelli dopo per la lunghezza.
+    fn snap_to_multibyte(&self, pos: u64) -> u64 {
+        let Some(doc) = self.doc.as_ref() else {
+            return pos;
+        };
+        let pos = pos.min(doc.len());
+        let da = pos.saturating_sub(self.enc.back_window() as u64);
+        let fine = pos.saturating_add(4).min(doc.len());
+        let ctx = doc.read_range(da, fine - da);
+        let i = (pos - da) as usize;
+        if i >= ctx.len() {
+            return pos;
+        }
+        da + self.enc.char_start(&ctx, i) as u64
+    }
+
     /// Porta `pos` sul confine di unita' piu' vicino non oltre `pos` (la codifica attiva e' a 16 o a
     /// 32 bit): prima si arrotonda per difetto a un multiplo della dimensione dell'unita' (un'unita'
     /// comincia sempre a una posizione multipla), poi, in UTF-16, se `pos` sta sul surrogato BASSO di
@@ -1694,6 +1711,8 @@ impl App {
         let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
             return;
         };
+        // nelle multibyte asiatiche un'occorrenza nel mezzo di un carattere non conta
+        let snap = snap.with_boundary(self.enc);
         // L'ago nei byte della codifica del documento; un carattere che la code page non ha non puo'
         // stare nel file: la ricerca non parte e l'esito e' il solito "non trovato".
         let ago_bytes: Vec<u8> = if self.enc.is_utf8() {
@@ -1932,6 +1951,8 @@ impl App {
         // offset e' un confine, in UTF-8 e in UTF-16 no.
         if self.enc.is_utf8() {
             self.cursor = self.snap_to_char(self.cursor);
+        } else if self.enc.is_multibyte() {
+            self.cursor = self.snap_to_multibyte(self.cursor);
         } else if self.enc.unit() > 1 {
             self.cursor = self.snap_to_unita(self.cursor);
         }
@@ -2336,7 +2357,8 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
-        let da = self.cursor.saturating_sub(4);
+        // 4 byte bastano quasi sempre; le multibyte asiatiche ne vogliono di piu' (`back_window`)
+        let da = self.cursor.saturating_sub(self.enc.back_window() as u64);
         let buf = doc.read_range(da, self.cursor - da);
         self.cursor -= self.enc.last_char_len(&buf) as u64;
         self.remember_col();
@@ -2767,7 +2789,7 @@ impl App {
         };
         // Il carattere precedente sta nei 4 byte prima del cursore (un carattere UTF-8 occupa al piu' 4
         // byte, in una code page uno; un byte non valido e' un carattere tutto suo).
-        let da = self.cursor.saturating_sub(4);
+        let da = self.cursor.saturating_sub(self.enc.back_window() as u64);
         let buf = doc.read_range(da, self.cursor - da);
         let n = self.enc.last_char_len(&buf) as u64;
         if let Err(e) = doc.delete(self.cursor - n, n) {

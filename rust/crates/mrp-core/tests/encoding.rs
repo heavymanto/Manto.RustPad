@@ -38,14 +38,7 @@ fn names_resolve_without_case_and_with_underscore_for_dash() {
 
 #[test]
 fn unknown_names_are_none() {
-    for n in [
-        "",
-        "klingon",
-        "utf-16",
-        "utf-32",
-        "shift_jis",
-        "windows-9999",
-    ] {
+    for n in ["", "klingon", "utf-16", "utf-32", "windows-9999"] {
         assert_eq!(Encoding::by_name(n), None, "{n}");
     }
 }
@@ -53,11 +46,14 @@ fn unknown_names_are_none() {
 #[test]
 fn all_lists_utf8_then_utf16_then_every_code_page_with_distinct_names() {
     let all = Encoding::all();
-    assert_eq!(all.len(), 5 + CHARSETS.len());
+    assert_eq!(
+        all.len(),
+        5 + CHARSETS.len() + mrp_core::multibyte::MULTI.len()
+    );
     assert_eq!(all[0], Encoding::Utf8);
     assert_eq!(Encoding::Utf8.name(), "utf-8");
     let mut names: Vec<&str> = all.iter().map(|e| e.name()).collect();
-    for (i, e) in all.iter().enumerate().skip(5) {
+    for (i, e) in all.iter().enumerate().skip(5).take(CHARSETS.len()) {
         assert_eq!(e.name(), CHARSETS[i - 5].name);
     }
     names.sort_unstable();
@@ -153,7 +149,7 @@ fn latin1_c1_range_is_controls_not_windows_1252_punctuation() {
 
 #[test]
 fn every_code_page_keeps_ascii_and_round_trips_every_defined_byte() {
-    for e in Encoding::all().into_iter().skip(5) {
+    for e in Encoding::all().into_iter().skip(5).take(CHARSETS.len()) {
         for b in 0u8..=255 {
             let (c, n) = e.first_char(&[b]).unwrap();
             assert_eq!(n, 1, "{} {b:#04x}", e.name());

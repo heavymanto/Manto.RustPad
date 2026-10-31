@@ -59,9 +59,12 @@ fn utf16_names_resolve() {
 #[test]
 fn all_lists_utf8_then_utf16_then_the_code_pages() {
     let all = Encoding::all();
-    assert_eq!(all.len(), 5 + CHARSETS.len());
+    assert_eq!(
+        all.len(),
+        5 + CHARSETS.len() + mrp_core::multibyte::MULTI.len()
+    );
     assert_eq!(&all[..3], &[Encoding::Utf8, LE, BE]);
-    for (i, e) in all.iter().enumerate().skip(5) {
+    for (i, e) in all.iter().enumerate().skip(5).take(CHARSETS.len()) {
         assert_eq!(e.name(), CHARSETS[i - 5].name);
     }
     let mut nomi: Vec<&str> = all.iter().map(|e| e.name()).collect();

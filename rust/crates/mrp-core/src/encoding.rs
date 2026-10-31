@@ -17,6 +17,7 @@
 //! I nomi si confrontano senza distinguere maiuscole e con `_` uguale a `-` (`by_name`).
 
 use crate::charsets::CHARSETS;
+use crate::multibyte::{self, MULTI};
 use crate::newline::Newline;
 
 /// Una codifica. E' un valore piccolo e copiabile (nel caso `Single`, l'indice in `charsets::CHARSETS`).
@@ -35,6 +36,8 @@ pub enum Encoding {
     Utf32Le,
     /// UTF-32 big endian.
     Utf32Be,
+    /// Una codifica multibyte dell'Asia orientale: indice in `multibyte::MULTI`.
+    Multi(usize),
 }
 
 impl Encoding {
@@ -60,6 +63,11 @@ impl Encoding {
                 return Some(Encoding::Single(i));
             }
         }
+        for (i, m) in MULTI.iter().enumerate() {
+            if nome == m.name || m.aliases.contains(&nome.as_str()) {
+                return Some(Encoding::Multi(i));
+            }
+        }
         None
     }
 
@@ -74,13 +82,14 @@ impl Encoding {
             // l'indice e' sempre dentro CHARSETS (esiste solo se costruito da `by_name`/`all`),
             // ma un valore fuori tabella non deve poter andare in panico
             Encoding::Single(i) => CHARSETS.get(i).map_or("", |cs| cs.name),
+            Encoding::Multi(i) => MULTI.get(i).map_or("", |m| m.name),
         }
     }
 
     /// Tutte le codifiche: `Utf8`, `Utf16Le`, `Utf16Be`, `Utf32Le`, `Utf32Be`, poi le code page nell'ordine di
-    /// `charsets::CHARSETS`. Nomi tutti diversi.
+    /// `charsets::CHARSETS`, poi le multibyte nell'ordine di `multibyte::MULTI`. Nomi tutti diversi.
     pub fn all() -> Vec<Encoding> {
-        let mut tutte = Vec::with_capacity(CHARSETS.len() + 5);
+        let mut tutte = Vec::with_capacity(CHARSETS.len() + MULTI.len() + 5);
         tutte.push(Encoding::Utf8);
         tutte.push(Encoding::Utf16Le);
         tutte.push(Encoding::Utf16Be);
@@ -88,6 +97,9 @@ impl Encoding {
         tutte.push(Encoding::Utf32Be);
         for i in 0..CHARSETS.len() {
             tutte.push(Encoding::Single(i));
+        }
+        for i in 0..MULTI.len() {
+            tutte.push(Encoding::Multi(i));
         }
         tutte
     }
@@ -107,6 +119,32 @@ impl Encoding {
         matches!(self, Encoding::Utf32Le | Encoding::Utf32Be)
     }
 
+    /// Vero per le codifiche multibyte dell'Asia orientale (`Multi`): un carattere sono 1-4 byte e, per tornare
+    /// indietro, serve guardare piu' di 4 byte (`back_window`).
+    pub fn is_multibyte(self) -> bool {
+        matches!(self, Encoding::Multi(_))
+    }
+
+    /// Quanti byte prima di una posizione bisogna leggere per trovare dove comincia il carattere precedente
+    /// (`last_char_len`) o quello che la contiene (`char_start`): 4 dove bastano (UTF-8, UTF-16, UTF-32, code page),
+    /// `multibyte::BACK_WINDOW` per le multibyte, dove il secondo byte di un carattere puo' sembrare un altro carattere.
+    pub fn back_window(self) -> usize {
+        if self.is_multibyte() {
+            multibyte::BACK_WINDOW
+        } else {
+            4
+        }
+    }
+
+    /// Dove comincia il carattere che contiene `ctx[i]` (`i < ctx.len()`), leggendo da `ctx` che finisce DOPO `i`
+    /// (servono i byte seguenti per sapere quanto e' lungo): vale per le sole multibyte, per le altre vale `i`.
+    pub fn char_start(self, ctx: &[u8], i: usize) -> usize {
+        match self {
+            Encoding::Multi(k) => MULTI.get(k).map_or(i, |m| multibyte::char_start(m, ctx, i)),
+            _ => i,
+        }
+    }
+
     /// Quanti byte ha l'unita' di questa codifica, cioe' l'allineamento di posizioni e tagli: 4 per UTF-32, 2 per UTF-16, 1 per le altre.
     pub fn unit(self) -> usize {
         self.newline().unit()
@@ -119,7 +157,7 @@ impl Encoding {
             Encoding::Utf16Be => Newline::Be16,
             Encoding::Utf32Le => Newline::Le32,
             Encoding::Utf32Be => Newline::Be32,
-            Encoding::Utf8 | Encoding::Single(_) => Newline::Byte,
+            Encoding::Utf8 | Encoding::Single(_) | Encoding::Multi(_) => Newline::Byte,
         }
     }
 
@@ -137,6 +175,8 @@ impl Encoding {
         match self {
             // code page a byte singolo: un byte = un carattere
             Encoding::Single(i) => Some((Self::char_di_byte(i, b), 1)),
+            // multibyte: le regole sono in `multibyte`
+            Encoding::Multi(i) => MULTI.get(i).and_then(|m| multibyte::first_char(m, bytes)),
             // UTF-16: le regole nel commento del metodo, lette su una finestra di fino a 4 byte
             Encoding::Utf16Le | Encoding::Utf16Be => {
                 // meno di 2 byte (il vuoto e' gia' escluso): resta un byte spaiato
@@ -188,6 +228,10 @@ impl Encoding {
         match self {
             // code page a byte singolo: un carattere e' sempre un byte
             Encoding::Single(_) => 1,
+            // multibyte: si riparte da un byte sicuro e si va avanti (`multibyte`)
+            Encoding::Multi(i) => MULTI
+                .get(i)
+                .map_or(1, |m| multibyte::last_char_len(m, bytes)),
             Encoding::Utf16Le | Encoding::Utf16Be => {
                 // lunghezza dispari: l'ultimo byte non completa una unita', e' un carattere spaiato
                 if !bytes.len().is_multiple_of(2) {
@@ -245,6 +289,7 @@ impl Encoding {
             // UTF-32: il valore del carattere in 4 byte, nell'endian di questa codifica (si scrive tutto)
             Encoding::Utf32Le => Some((c as u32).to_le_bytes().to_vec()),
             Encoding::Utf32Be => Some((c as u32).to_be_bytes().to_vec()),
+            Encoding::Multi(i) => MULTI.get(i).and_then(|m| multibyte::encode(m, c)),
             Encoding::Single(i) => {
                 // il carattere sostitutivo non si scrive mai in una code page
                 if c == '\u{fffd}' {
@@ -283,7 +328,11 @@ impl Encoding {
         match self {
             Encoding::Utf8 => String::from_utf8_lossy(bytes).into_owned(),
             Encoding::Single(i) => bytes.iter().map(|&b| Self::char_di_byte(i, b)).collect(),
-            Encoding::Utf16Le | Encoding::Utf16Be | Encoding::Utf32Le | Encoding::Utf32Be => {
+            Encoding::Utf16Le
+            | Encoding::Utf16Be
+            | Encoding::Utf32Le
+            | Encoding::Utf32Be
+            | Encoding::Multi(_) => {
                 // carattere per carattere: le coppie si uniscono, ogni surrogato spaiato e un
                 // byte finale spaiato valgono un U+FFFD
                 let mut s = String::with_capacity(bytes.len() / 2);
@@ -383,9 +432,7 @@ impl Encoding {
         Some(match self {
             Encoding::Utf16Le => u16::from_le_bytes([b[0], b[1]]),
             Encoding::Utf16Be => u16::from_be_bytes([b[0], b[1]]),
-            Encoding::Utf8 | Encoding::Single(_) | Encoding::Utf32Le | Encoding::Utf32Be => {
-                return None
-            }
+            _ => return None,
         })
     }
 

@@ -5,6 +5,7 @@
 
 use crate::document::Document;
 use crate::edit::PieceTable;
+use crate::encoding::Encoding;
 use crate::source::FileSource;
 use memchr::memmem;
 use std::io;
@@ -39,6 +40,9 @@ pub struct Snapshot {
     /// (1 per UTF-8 e code page, 2 per UTF-16). Un'occorrenza che comincia a una posizione
     /// non allineata e' meta' di un'unita' e non conta.
     align: usize,
+    /// Per le codifiche multibyte asiatiche: un'occorrenza vale solo se comincia a un confine di carattere
+    /// (il secondo byte di un carattere puo' avere lo stesso valore di un carattere ASCII). Vedi `with_boundary`.
+    boundary: Option<Encoding>,
 }
 
 // La fotografia deve poter arrivare al thread di ricerca, e piu' ricerche possono partire
@@ -58,6 +62,7 @@ impl Document {
             table: self.table().clone(),
             chunk: DEFAULT_CHUNK,
             align: self.newline().unit(),
+            boundary: None,
         })
     }
 }
@@ -69,6 +74,29 @@ impl Snapshot {
             chunk: chunk.max(1),
             ..self
         }
+    }
+
+    /// Con una codifica multibyte asiatica (Shift_JIS, GBK, Big5, EUC-JP, EUC-KR) le occorrenze che cominciano nel mezzo
+    /// di un carattere non contano: la barra rovesciata 0x5C e' anche il secondo byte di molti ideogrammi in Shift_JIS.
+    /// Per le altre codifiche non cambia nulla.
+    pub fn with_boundary(self, enc: Encoding) -> Snapshot {
+        Snapshot {
+            boundary: enc.is_multibyte().then_some(enc),
+            ..self
+        }
+    }
+
+    /// Vero se `pos` e' un inizio di carattere (sempre, senza `with_boundary`): si guardano i byte prima di `pos` fino
+    /// a un inizio sicuro (`Encoding::char_start`) e quelli dopo, per sapere quanto e' lungo il carattere.
+    fn is_boundary(&self, pos: u64) -> bool {
+        let Some(enc) = self.boundary else {
+            return true;
+        };
+        let da = pos.saturating_sub(enc.back_window() as u64);
+        let fine = pos.saturating_add(4).min(self.len());
+        let ctx = self.table.read_range(&self.source, da, fine - da);
+        let i = (pos - da) as usize;
+        i >= ctx.len() || enc.char_start(&ctx, i) == i
     }
 
     /// Lunghezza della fotografia in byte.
@@ -123,7 +151,7 @@ impl Snapshot {
             let mut da = 0usize;
             while let Some(i) = memmem::find(&block[da..], needle) {
                 let inizio = pos + (da + i) as u64;
-                if inizio.is_multiple_of(align) {
+                if inizio.is_multiple_of(align) && self.is_boundary(inizio) {
                     return Ok(Some(inizio));
                 }
                 da += i + 1;
@@ -180,7 +208,7 @@ impl Snapshot {
             let mut fino = block.len();
             while let Some(i) = memmem::rfind(&block[..fino], needle) {
                 let inizio = lo + i as u64;
-                if inizio.is_multiple_of(self.align as u64) {
+                if inizio.is_multiple_of(self.align as u64) && self.is_boundary(inizio) {
                     return Ok(Some(inizio));
                 }
                 fino = i + needle.len() - 1;
