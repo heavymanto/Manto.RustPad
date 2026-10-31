@@ -135,5 +135,10 @@
   "gui.zoom_reset": "实际大小",
   "gui.help": "按键与帮助",
   "gui.open_title": "打开文件",
-  "gui.open_unsaved": "打开其他文件前请先保存"
+  "prompt.open.title": "打开文件",
+  "prompt.open.hint": "要打开的文件路径",
+  "gui.close_tab": "关闭标签页",
+  "gui.next_tab": "下一个标签页",
+  "gui.prev_tab": "上一个标签页",
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   打开、关闭、切换标签页"
 }

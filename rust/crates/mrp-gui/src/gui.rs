@@ -11,6 +11,7 @@ use eframe::egui::{
 };
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::cells::{render_grid, BG_PREDEFINITO};
+use mrp_tui::workspace::Workspace;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
@@ -35,11 +36,16 @@ const RIDISEGNO: Duration = Duration::from_millis(60);
 /// Come si sceglie un file da aprire: riceve il titolo del dialogo, restituisce il percorso o `None` se si annulla.
 pub type Selettore = Box<dyn FnMut(&str) -> Option<PathBuf>>;
 
+/// Cosa si e' scelto nella barra delle schede.
+enum Scheda {
+    Seleziona(usize),
+    Chiudi(usize),
+}
+
 /// La finestra dell'editor.
 pub struct Finestra {
-    app: App,
-    /// Come si apre un altro file (trascinato sulla finestra): la configurazione di partenza.
-    nuova_config: Box<dyn Fn() -> AppConfig>,
+    /// Le schede (la barra la disegna questa finestra, non il `Workspace`).
+    ws: Workspace,
     corpo: f32,
     /// Le scritture asiatiche per cui si e' caricato un font.
     scritture: Vec<Scrittura>,
@@ -61,7 +67,7 @@ pub struct Finestra {
 }
 
 impl Finestra {
-    /// La finestra per `app`; `nuova_config` serve ad aprire altri file.
+    /// La finestra per `app`; `nuova_config` e' la configurazione con cui si aprono gli altri file (schede nuove).
     pub fn new(
         cc: &eframe::CreationContext<'_>,
         app: App,
@@ -86,8 +92,7 @@ impl Finestra {
     pub fn da_app(app: App, nuova_config: Box<dyn Fn() -> AppConfig>) -> Finestra {
         let scritture = Finestra::scritture_iniziali(&app);
         Finestra {
-            app,
-            nuova_config,
+            ws: Workspace::new(app, nuova_config()).senza_barra(),
             corpo: CORPO,
             scritture,
             dimensione: (0, 0),
@@ -122,9 +127,14 @@ impl Finestra {
         self.geometria
     }
 
-    /// L'`App` sotto la finestra (per i test).
+    /// L'`App` della scheda attiva (per i test).
     pub fn app(&mut self) -> &mut App {
-        &mut self.app
+        self.ws.active_mut()
+    }
+
+    /// Le schede (per i test e per aprire altri file all'avvio).
+    pub fn workspace(&mut self) -> &mut Workspace {
+        &mut self.ws
     }
 
     /// Porta all'`App` gli eventi di egui di questo giro. Restituisce `true` se ne ha portato qualcuno.
@@ -138,7 +148,7 @@ impl Finestra {
             match e {
                 Event::Text(t) => {
                     for k in input::testo(&t) {
-                        self.app.handle_key(k);
+                        self.ws.handle_key(k);
                         tocco = true;
                     }
                 }
@@ -168,11 +178,21 @@ impl Finestra {
                                 tocco = true;
                                 continue;
                             }
+                            // Ctrl+Tab / Ctrl+Maiusc+Tab: la scheda dopo / prima
+                            egui::Key::Tab => {
+                                if modifiers.shift {
+                                    self.ws.prev();
+                                } else {
+                                    self.ws.next();
+                                }
+                                tocco = true;
+                                continue;
+                            }
                             _ => {}
                         }
                     }
                     if let Some(k) = input::tasto(key, modifiers) {
-                        self.app.handle_key(k);
+                        self.ws.handle_key(k);
                         tocco = true;
                     }
                 }
@@ -202,7 +222,7 @@ impl Finestra {
                             }
                             if let Some((x, y)) = input::cella_sotto(pos, o, c, colonne, righe) {
                                 self.premuto = true;
-                                self.app.handle_mouse(MouseEvent {
+                                self.ws.handle_mouse(MouseEvent {
                                     kind: MouseEventKind::Down(MouseButton::Left),
                                     column: x,
                                     row: y,
@@ -213,7 +233,7 @@ impl Finestra {
                         } else if self.premuto {
                             self.premuto = false;
                             let (x, y) = input::cella_vicina(pos, o, c, colonne, righe);
-                            self.app.handle_mouse(MouseEvent {
+                            self.ws.handle_mouse(MouseEvent {
                                 kind: MouseEventKind::Up(MouseButton::Left),
                                 column: x,
                                 row: y,
@@ -225,7 +245,7 @@ impl Finestra {
                 Event::PointerMoved(pos) => {
                     if let (true, Some((o, c, colonne, righe))) = (self.premuto, self.geometria) {
                         let (x, y) = input::cella_vicina(pos, o, c, colonne, righe);
-                        self.app.handle_mouse(MouseEvent {
+                        self.ws.handle_mouse(MouseEvent {
                             kind: MouseEventKind::Drag(MouseButton::Left),
                             column: x,
                             row: y + u16::from(pos.y >= o.y),
@@ -235,19 +255,19 @@ impl Finestra {
                     }
                 }
                 Event::Copy => {
-                    self.app.handle_key(ctrl('c'));
+                    self.ws.handle_key(ctrl('c'));
                     tocco = true;
                 }
                 Event::Cut => {
-                    self.app.handle_key(ctrl('x'));
+                    self.ws.handle_key(ctrl('x'));
                     tocco = true;
                 }
                 Event::Paste(s) => {
                     if s.is_empty() {
                         // gli appunti di sistema sono vuoti o illeggibili: restano quelli interni dell'app
-                        self.app.handle_key(ctrl('v'));
+                        self.ws.handle_key(ctrl('v'));
                     } else {
-                        self.app.paste_text(&s);
+                        self.ws.paste_text(&s);
                     }
                     tocco = true;
                 }
@@ -291,7 +311,7 @@ impl Finestra {
     }
 
     fn rotella(&mut self, kind: MouseEventKind) {
-        self.app.handle_mouse(MouseEvent {
+        self.ws.handle_mouse(MouseEvent {
             kind,
             column: 0,
             row: 0,
@@ -299,49 +319,79 @@ impl Finestra {
         });
     }
 
-    /// Apre un file trascinato sulla finestra.
+    /// Apre i file trascinati sulla finestra, ognuno in una scheda.
     fn file_trascinato(&mut self, ctx: &Context) {
-        let file = ctx.input(|i| i.raw.dropped_files.iter().find_map(|f| f.path.clone()));
-        if let Some(percorso) = file {
+        let file: Vec<_> = ctx.input(|i| {
+            i.raw
+                .dropped_files
+                .iter()
+                .filter_map(|f| f.path.clone())
+                .collect()
+        });
+        for percorso in file {
             self.apri_file(&percorso);
         }
     }
 
-    /// Apre `percorso` al posto del documento attuale. Con modifiche non salvate non lo apre e lo dice nella riga di
-    /// stato; se il file non si apre lo dice e resta il documento di prima.
+    /// Apre `percorso` in una scheda nuova (o porta avanti quella che lo ha gia'); se non si apre lo dice nella riga
+    /// di stato e le schede restano come sono.
     fn apri_file(&mut self, percorso: &Path) {
-        if self.app.is_modified() {
-            let testo = self.app.text("gui.open_unsaved").to_string();
-            self.app.set_flash(testo);
-            return;
+        if let Err(e) = self.ws.open(percorso) {
+            let a = self.ws.active_mut();
+            let testo = a.text_with(
+                "cli.err.open",
+                &[&percorso.display().to_string(), &e.to_string()],
+            );
+            a.set_flash(testo);
         }
-        match App::open(percorso, (self.nuova_config)()) {
-            Ok(nuova) => {
-                self.app = nuova;
-                self.dimensione = (0, 0);
-                self.titolo.clear();
-            }
-            Err(e) => {
-                let testo = self.app.text_with(
-                    "cli.err.open",
-                    &[&percorso.display().to_string(), &e.to_string()],
-                );
-                self.app.set_flash(testo);
-            }
-        }
+        self.dimensione = (0, 0);
     }
 
-    /// Fa scegliere un file (Ctrl+O, menu File) e lo apre. Senza modifiche da salvare: altrimenti non chiede nemmeno.
+    /// Fa scegliere un file (Ctrl+O, menu File) e lo apre in una scheda.
     fn apri(&mut self) {
-        if self.app.is_modified() {
-            let testo = self.app.text("gui.open_unsaved").to_string();
-            self.app.set_flash(testo);
-            return;
-        }
-        let titolo = self.app.text("gui.open_title").to_string();
+        let titolo = self.ws.active().text("gui.open_title").to_string();
         if let Some(percorso) = (self.selettore)(&titolo) {
             self.apri_file(&percorso);
         }
+    }
+
+    /// La barra delle schede (solo con piu' di una): un'etichetta per scheda con il segno delle modifiche e una x per
+    /// chiuderla; il clic centrale chiude. Restituisce cosa si e' scelto in questo giro.
+    fn schede(&mut self, ctx: &Context) -> Option<Scheda> {
+        if self.ws.len() < 2 {
+            return None;
+        }
+        let nomi = self.ws.titles();
+        let attiva = self.ws.active_index();
+        let mut scelta = None;
+        egui::TopBottomPanel::top("schede").show(ctx, |ui| {
+            egui::ScrollArea::horizontal().show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    for (i, (nome, modificata)) in nomi.iter().enumerate() {
+                        let etichetta = if *modificata {
+                            format!("{nome} *")
+                        } else {
+                            nome.clone()
+                        };
+                        let percorso = self.ws.tabs()[i].path().display().to_string();
+                        let r = ui
+                            .selectable_label(i == attiva, etichetta)
+                            .on_hover_text(percorso);
+                        if r.clicked() {
+                            scelta = Some(Scheda::Seleziona(i));
+                        }
+                        if r.middle_clicked() {
+                            scelta = Some(Scheda::Chiudi(i));
+                        }
+                        if ui.add(egui::Button::new("×").frame(false)).clicked() {
+                            scelta = Some(Scheda::Chiudi(i));
+                        }
+                        ui.separator();
+                    }
+                });
+            });
+        });
+        scelta
     }
 
     /// Cambia il corpo del testo: `Azione::ZoomPiu`, `ZoomMeno` o `ZoomNormale`.
@@ -362,33 +412,34 @@ impl Finestra {
     pub fn azione(&mut self, a: Azione) {
         match a {
             Azione::Apri => self.apri(),
-            Azione::Tasto(k) => self.app.handle_key(k),
+            Azione::Tasto(k) => self.ws.handle_key(k),
             z => self.zoom(z),
         }
         self.ultimo_input = Instant::now();
     }
 
-    /// La chiusura della finestra: con modifiche non salvate si chiede all'`App` (il suo dialogo), senza si chiude.
+    /// La chiusura della finestra: con modifiche non salvate in qualche scheda si chiede (i dialoghi dell'`App`, una
+    /// scheda alla volta), senza si chiude.
     fn chiusura(&mut self, ctx: &Context) {
         if ctx.input(|i| i.viewport().close_requested()) && !self.chiusura {
-            if self.app.is_modified() {
+            if self.ws.tabs().iter().any(|a| a.is_modified()) {
                 ctx.send_viewport_cmd(ViewportCommand::CancelClose);
-                self.app
-                    .handle_key(KeyEvent::new(KeyCode::F(10), KeyModifiers::NONE));
+                self.ws.close_all();
             } else {
                 self.chiusura = true;
             }
         }
-        if self.app.should_quit() && !self.chiusura {
+        if self.ws.should_quit() && !self.chiusura {
             self.chiusura = true;
             ctx.send_viewport_cmd(ViewportCommand::Close);
         }
     }
 
-    /// Il titolo della finestra: il nome del file, un asterisco se e' modificato.
+    /// Il titolo della finestra: il nome del file della scheda attiva, un asterisco se e' modificata.
     fn titolo(&mut self, ctx: &Context) {
-        let mut t = self.app.file_name().to_string();
-        if self.app.is_modified() {
+        let a = self.ws.active();
+        let mut t = a.file_name().to_string();
+        if a.is_modified() {
             t.push_str(" *");
         }
         t.push_str(" - Manto.RustPad");
@@ -428,8 +479,8 @@ impl Finestra {
         // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7)
         let mut nuova = false;
         for s in [
-            fonts::scrittura_di(self.app.encoding()),
-            fonts::scrittura_della_lingua(self.app.lang_code()),
+            fonts::scrittura_di(self.ws.active().encoding()),
+            fonts::scrittura_della_lingua(self.ws.active().lang_code()),
         ] {
             if s != Scrittura::Nessuna && !self.scritture.contains(&s) {
                 self.scritture.push(s);
@@ -455,10 +506,17 @@ impl Finestra {
         self.chiusura(ctx);
         self.titolo(ctx);
         let scelta = egui::TopBottomPanel::top("menu")
-            .show(ctx, |ui| menu::disegna(ui, &self.app))
+            .show(ctx, |ui| menu::disegna(ui, self.ws.active()))
             .inner;
         if let Some(a) = scelta {
             self.azione(a);
+        }
+        if let Some(s) = self.schede(ctx) {
+            match s {
+                Scheda::Seleziona(i) => self.ws.select(i),
+                Scheda::Chiudi(i) => self.ws.close(i),
+            }
+            self.ultimo_input = Instant::now();
         }
         egui::CentralPanel::default()
             .frame(Frame::NONE.fill(paint::colore(BG_PREDEFINITO)))
@@ -467,11 +525,11 @@ impl Finestra {
                 let colonne = input::celle_in(area.width(), cella.x, COLONNE_MIN);
                 let righe = input::celle_in(area.height(), cella.y, RIGHE_MIN);
                 if (colonne, righe) != self.dimensione {
-                    self.app.resize(colonne, righe);
+                    self.ws.resize(colonne, righe);
                     self.dimensione = (colonne, righe);
                 }
-                self.app.tick();
-                let griglia = render_grid(&mut self.app, colonne, righe);
+                self.ws.tick();
+                let griglia = render_grid(self.ws.active_mut(), colonne, righe);
                 // testo asiatico in un file che non lo dichiara (UTF-8, UTF-16...): il font si carica al primo che si vede
                 let mut nuova = false;
                 for c in griglia.celle.iter().flat_map(|c| c.simbolo.chars()) {
@@ -497,13 +555,13 @@ impl Finestra {
                     cella,
                     &griglia,
                     &font,
-                    self.app.is_edit(),
+                    self.ws.active().is_edit(),
                     acceso,
                 );
                 risposta.on_hover_cursor(CursorIcon::Text);
             });
         // le copie vanno agli appunti di sistema
-        if let Some(byte) = self.app.take_copied() {
+        if let Some(byte) = self.ws.take_copied() {
             ctx.copy_text(String::from_utf8_lossy(&byte).into_owned());
         }
         ctx.request_repaint_after(RIDISEGNO);

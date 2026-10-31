@@ -1,7 +1,7 @@
 //! Gli argomenti della riga di comando del binario `mrp`: il parser (le opzioni dell'aiuto piu' quelle da
 //! sviluppatore, che nell'aiuto non compaiono), la dimensione di `--dump` e la risoluzione di tema e lingua
-//! (opzione > impostazioni > predefinito). Il file e' l'argomento che non comincia con `-` (l'ultimo se ce
-//! n'e' piu' d'uno) e si tiene cosi' com'e' dato: un percorso non deve essere UTF-8 per aprirsi. Anche il
+//! (opzione > impostazioni > predefinito). I file sono gli argomenti che non cominciano con `-` (ognuno
+//! una scheda, in ordine) e si tengono cosi' come sono dati: un percorso non deve essere UTF-8 per aprirsi. Anche il
 //! profilo (le lingue disponibili e le impostazioni) sta qui, perche' e' il mondo dentro cui gli argomenti
 //! si interpretano. I test del binario (`tests/cli.rs`) provano tutto da fuori: qui non servono test interni.
 
@@ -33,8 +33,8 @@ pub struct Args {
     pub help: bool,
     /// `--list-encodings`: stampa i nomi delle codifiche, uno per riga, ed esce.
     pub list_encodings: bool,
-    /// Il file da aprire.
-    pub file: Option<PathBuf>,
+    /// I file da aprire, uno per scheda, nell'ordine dato.
+    pub files: Vec<PathBuf>,
 }
 
 /// Legge la riga di comando: `Err` con l'argomento che non va (opzione sconosciuta o senza valore). Un
@@ -43,9 +43,9 @@ pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> 
     let mut args = Args::default();
     let mut resto = argv.into_iter();
     while let Some(arg) = resto.next() {
-        // quello che non comincia con '-' e' il file, cosi' com'e' (l'ultimo vince)
+        // quello che non comincia con '-' e' un file, cosi' com'e'
         if !arg.to_string_lossy().starts_with('-') {
-            args.file = Some(PathBuf::from(arg));
+            args.files.push(PathBuf::from(arg));
             continue;
         }
         // le opzioni sono testo: un byte strano non puo' matchare nessuna opzione nota

@@ -14,10 +14,10 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l13` (l'ultima e' sempre Esc, `help.l10`).
-const HELP_KEYS: [&str; 13] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l14` (l'ultima e' sempre Esc, `help.l10`).
+const HELP_KEYS: [&str; 14] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
-    "help.l9", "help.l11", "help.l12", "help.l13", "help.l10",
+    "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -523,6 +523,13 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             "prompt.goto.title",
             "prompt.goto.hint",
             app.goto_text(),
+        ),
+        DialogKind::Open => prompt_contenuto(
+            cat,
+            t,
+            "prompt.open.title",
+            "prompt.open.hint",
+            app.open_text(),
         ),
         // Il prompt di ricerca: uguale al "vai a", cambia solo il vocabolario.
         DialogKind::Find => prompt_contenuto(

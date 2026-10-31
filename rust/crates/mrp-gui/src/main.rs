@@ -24,11 +24,11 @@ fn run() -> i32 {
         Ok(None) | Err(_) => Catalog::english(),
     };
     if a.help {
-        println!("mrpg [FILE] [--encoding NAME] [--theme NAME] [--lang CODE]");
+        println!("mrpg [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
     // senza file nella riga di comando si sceglie con il dialogo; annullare non e' un errore
-    let file = match &a.file {
+    let file = match a.files.first() {
         Some(f) => f.clone(),
         None => match scegli(cat.t("gui.open_title")) {
             Some(f) => f,
@@ -84,6 +84,7 @@ fn run() -> i32 {
         encoding: None,
         ..cfg
     };
+    let altri: Vec<std::path::PathBuf> = a.files.iter().skip(1).cloned().collect();
     let opzioni = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1000.0, 700.0])
@@ -96,8 +97,15 @@ fn run() -> i32 {
         "Manto.RustPad",
         opzioni,
         Box::new(move |cc| {
-            let finestra = Finestra::new(cc, app, Box::new(move || nuova.clone()))
+            let mut finestra = Finestra::new(cc, app, Box::new(move || nuova.clone()))
                 .con_selettore(Box::new(|t: &str| scegli(t)));
+            // gli altri file della riga di comando: una scheda ciascuno; resta avanti la prima
+            for altro in altri.iter() {
+                if let Err(e) = finestra.workspace().open(altro) {
+                    eprintln!("{}: {e}", altro.display());
+                }
+            }
+            finestra.workspace().select(0);
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => finestra.con_scatto(p.into()),

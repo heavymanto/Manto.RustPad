@@ -134,5 +134,10 @@
   "gui.zoom_reset": "Actual size",
   "gui.help": "Keys and help",
   "gui.open_title": "Open file",
-  "gui.open_unsaved": "save before opening another file"
+  "prompt.open.title": "OPEN FILE",
+  "prompt.open.hint": "path of the file to open",
+  "gui.close_tab": "Close tab",
+  "gui.next_tab": "Next tab",
+  "gui.prev_tab": "Previous tab",
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   open, close, switch tabs"
 }

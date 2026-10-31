@@ -135,5 +135,10 @@
   "gui.zoom_reset": "実際のサイズ",
   "gui.help": "キーとヘルプ",
   "gui.open_title": "ファイルを開く",
-  "gui.open_unsaved": "別のファイルを開く前に保存してください"
+  "prompt.open.title": "ファイルを開く",
+  "prompt.open.hint": "開くファイルのパス",
+  "gui.close_tab": "タブを閉じる",
+  "gui.next_tab": "次のタブ",
+  "gui.prev_tab": "前のタブ",
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   タブを開く・閉じる・切り替え"
 }

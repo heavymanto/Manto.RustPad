@@ -47,6 +47,7 @@ const NIENTE: KeyModifiers = KeyModifiers::NONE;
 const FILE: &[Option<Voce>] = &[
     voce("gui.open", "Ctrl+O", Azione::Apri),
     voce("gui.save", "F2", tasto(KeyCode::F(2), NIENTE)),
+    voce("gui.close_tab", "Ctrl+W", tasto(KeyCode::Char('w'), CTRL)),
     None,
     voce("gui.quit", "F10", tasto(KeyCode::F(10), NIENTE)),
 ];
@@ -67,6 +68,9 @@ const MODIFICA: &[Option<Voce>] = &[
 ];
 
 const VISTA: &[Option<Voce>] = &[
+    voce("gui.next_tab", "Ctrl+PgDn", tasto(KeyCode::PageDown, CTRL)),
+    voce("gui.prev_tab", "Ctrl+PgUp", tasto(KeyCode::PageUp, CTRL)),
+    None,
     voce("gui.column_mode", "F8", tasto(KeyCode::F(8), NIENTE)),
     None,
     voce("gui.theme", "F6", tasto(KeyCode::F(6), NIENTE)),

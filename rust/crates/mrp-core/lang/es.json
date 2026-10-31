@@ -135,5 +135,10 @@
   "gui.zoom_reset": "Tamaño real",
   "gui.help": "Teclas y ayuda",
   "gui.open_title": "Abrir archivo",
-  "gui.open_unsaved": "guarda antes de abrir otro archivo"
+  "prompt.open.title": "ABRIR ARCHIVO",
+  "prompt.open.hint": "ruta del archivo que se abrirá",
+  "gui.close_tab": "Cerrar pestaña",
+  "gui.next_tab": "Pestaña siguiente",
+  "gui.prev_tab": "Pestaña anterior",
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   abrir, cerrar, cambiar pestaña"
 }

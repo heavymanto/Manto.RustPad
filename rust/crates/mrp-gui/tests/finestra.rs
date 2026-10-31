@@ -255,25 +255,28 @@ fn giro_con_file_trascinato(f: &mut Finestra, ctx: &Context, percorso: &std::pat
 }
 
 #[test]
-fn a_dropped_file_opens_unless_there_are_unsaved_changes() {
+fn a_dropped_file_opens_in_a_new_tab_even_with_unsaved_changes() {
     let (mut f, ctx, p) = finestra(b"uno\n");
-    giro(&mut f, &ctx, vec![]);
-    let q = file(b"due\n");
-    giro_con_file_trascinato(&mut f, &ctx, &q);
-    assert_eq!(
-        f.app().file_name(),
-        q.file_name().unwrap().to_string_lossy()
-    );
-    // con modifiche non salvate non si apre
     giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
-    let r = file(b"tre\n");
-    giro_con_file_trascinato(&mut f, &ctx, &r);
+    let q = file(b"due\n");
+    giro_con_file_trascinato(&mut f, &ctx, &q);
+    assert_eq!(f.workspace().len(), 2);
     assert_eq!(
         f.app().file_name(),
         q.file_name().unwrap().to_string_lossy()
     );
-    assert_eq!(f.app().flash(), Some("save before opening another file"));
+    // un secondo file: un'altra scheda; lo stesso file ancora: nessuna scheda nuova, torna avanti quella
+    let r = file(b"tre\n");
+    giro_con_file_trascinato(&mut f, &ctx, &r);
+    assert_eq!(f.workspace().len(), 3);
+    giro_con_file_trascinato(&mut f, &ctx, &q);
+    assert_eq!(f.workspace().len(), 3);
+    assert_eq!(f.workspace().active_index(), 1);
+    // la prima scheda ha ancora le sue modifiche
+    f.workspace().select(0);
+    assert!(f.app().is_modified());
+    assert_eq!(f.app().document_text(), b"xuno\n");
     for x in [p, q, r] {
         let _ = std::fs::remove_file(x);
     }
@@ -363,4 +366,115 @@ fn pointer_events_outside_the_grid_or_before_the_first_frame_do_nothing() {
     assert_eq!(f.app().cursor(), 0);
     assert_eq!(f.app().selection(), None);
     let _ = std::fs::remove_file(p);
+}
+
+// ---- le schede nella finestra (E34) ----
+
+fn finestra_con_schede() -> (Finestra, Context, Vec<PathBuf>) {
+    let (mut f, ctx, p) = finestra(b"uno\n");
+    let q = file(b"due\n");
+    giro(&mut f, &ctx, vec![]);
+    giro_con_file_trascinato(&mut f, &ctx, &q);
+    giro(&mut f, &ctx, vec![]);
+    (f, ctx, vec![p, q])
+}
+
+#[test]
+fn ctrl_tab_and_ctrl_shift_tab_cycle_through_the_tabs_without_reaching_the_app() {
+    let (mut f, ctx, file) = finestra_con_schede();
+    assert_eq!(f.workspace().active_index(), 1);
+    giro(&mut f, &ctx, vec![tasto(Key::Tab, ctrl())]);
+    assert_eq!(
+        f.workspace().active_index(),
+        0,
+        "dall'ultima si torna alla prima"
+    );
+    let mut m = ctrl();
+    m.shift = true;
+    giro(&mut f, &ctx, vec![tasto(Key::Tab, m)]);
+    assert_eq!(f.workspace().active_index(), 1);
+    // il tasto Tab non e' arrivato come tabulatore (siamo in lettura, ma il testo e' intatto)
+    assert_eq!(f.app().document_text(), b"due\n");
+    for x in file {
+        let _ = std::fs::remove_file(x);
+    }
+}
+
+#[test]
+fn ctrl_w_closes_the_active_tab_and_asks_when_it_has_changes() {
+    let (mut f, ctx, file) = finestra_con_schede();
+    giro(&mut f, &ctx, vec![tasto(Key::W, ctrl())]);
+    assert_eq!(f.workspace().len(), 1);
+    assert_eq!(
+        f.app().file_name(),
+        file[0].file_name().unwrap().to_string_lossy()
+    );
+    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![Event::Text("x".into())]);
+    giro(&mut f, &ctx, vec![tasto(Key::W, ctrl())]);
+    // l'ultima scheda con modifiche: chiede, non chiude
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Confirm));
+    assert!(!f.workspace().should_quit());
+    for x in file {
+        let _ = std::fs::remove_file(x);
+    }
+}
+
+#[test]
+fn the_tab_strip_takes_space_only_with_more_than_one_tab() {
+    let (mut f, ctx, p) = finestra(b"uno\n");
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
+    let una = f.geometria().unwrap().0.y;
+    let q = file(b"due\n");
+    giro_con_file_trascinato(&mut f, &ctx, &q);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
+    let due = f.geometria().unwrap().0.y;
+    assert!(
+        due > una + 10.0,
+        "la barra delle schede sposta la griglia: {una} -> {due}"
+    );
+    for x in [p, q] {
+        let _ = std::fs::remove_file(x);
+    }
+}
+
+#[test]
+fn clicking_a_tab_label_brings_that_tab_forward() {
+    let (mut f, ctx, file) = finestra_con_schede();
+    assert_eq!(f.workspace().active_index(), 1);
+    let (o, _, _, _) = f.geometria().unwrap();
+    // la barra delle schede e' la fascia appena sopra la griglia; la prima etichetta comincia a sinistra
+    let pos = Pos2::new(24.0, o.y - 12.0);
+    giro(
+        &mut f,
+        &ctx,
+        vec![Event::PointerMoved(pos), premi(pos, true, Modifiers::NONE)],
+    );
+    giro(&mut f, &ctx, vec![premi(pos, false, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![]);
+    assert_eq!(f.workspace().active_index(), 0);
+    for x in file {
+        let _ = std::fs::remove_file(x);
+    }
+}
+
+#[test]
+fn closing_the_window_with_changes_in_a_background_tab_asks_about_that_tab() {
+    let (mut f, ctx, file) = finestra_con_schede();
+    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![Event::Text("x".into())]);
+    f.workspace().select(0);
+    assert!(!f.app().is_modified());
+    let out = giro_con_chiusura(&mut f, &ctx);
+    assert!(comandi(&out)
+        .iter()
+        .any(|c| matches!(c, ViewportCommand::CancelClose)));
+    // la scheda con modifiche e' avanti e chiede
+    assert_eq!(f.workspace().active_index(), 1);
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Confirm));
+    for x in file {
+        let _ = std::fs::remove_file(x);
+    }
 }

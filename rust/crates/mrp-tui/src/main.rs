@@ -10,7 +10,7 @@ use mrp_tui::app::{App, AppConfig};
 use mrp_tui::args;
 use mrp_tui::keys;
 use mrp_tui::term;
-use mrp_tui::ui;
+use mrp_tui::workspace::Workspace;
 use ratatui::crossterm::event::KeyEvent;
 use std::ffi::OsString;
 use std::io::{self, Write};
@@ -64,7 +64,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
     }
     // gli errori d'uso, nell'ordine: il file, il tema, la lingua, la codifica, la dimensione del
     // dump, i tasti
-    let Some(file) = &a.file else {
+    let Some(file) = a.files.first() else {
         return usage_error(&cat, "cli.err.no_file", &[]);
     };
     let theme = match args::resolve_theme(&a, &profilo.settings) {
@@ -103,29 +103,38 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         index: true,
         encoding,
     };
-    let mut app = match App::open(file, cfg) {
-        Ok(app) => app,
-        Err(e) => {
-            eprintln!(
-                "{}",
-                cat.tf(
-                    "cli.err.open",
-                    &[&file.display().to_string(), &e.to_string()]
-                )
-            );
-            return 1;
-        }
+    let errore_apertura = |file: &std::path::Path, e: &io::Error| {
+        eprintln!(
+            "{}",
+            cat.tf(
+                "cli.err.open",
+                &[&file.display().to_string(), &e.to_string()]
+            )
+        );
+        1
     };
+    let app = match App::open(file, cfg.clone()) {
+        Ok(app) => app,
+        Err(e) => return errore_apertura(file, &e),
+    };
+    // un file per scheda, nell'ordine dato; resta avanti la prima
+    let mut ws = Workspace::new(app, cfg);
+    for altro in &a.files[1..] {
+        if let Err(e) = ws.open(altro) {
+            return errore_apertura(altro, &e);
+        }
+    }
+    ws.select(0);
     match dump {
         // --dump: niente terminale, lo schermo come testo
-        Some((w, h)) => match dump_run(&mut app, w, h, &tasti) {
+        Some((w, h)) => match dump_run(&mut ws, w, h, &tasti) {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("{}", e);
                 1
             }
         },
-        None => match term::run(app) {
+        None => match term::run(ws) {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("{}", e);
@@ -137,7 +146,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
 
 /// La modalita' `--dump`: ridimensiona l'app a W x H, applica i tasti (un `tick` dopo ognuno), aspetta che i
 /// lavori in background finiscano e stampa lo schermo, una riga per riga.
-fn dump_run(app: &mut App, w: u16, h: u16, tasti: &[KeyEvent]) -> io::Result<()> {
+fn dump_run(app: &mut Workspace, w: u16, h: u16, tasti: &[KeyEvent]) -> io::Result<()> {
     app.resize(w, h);
     for tasto in tasti {
         app.handle_key(*tasto);
@@ -150,7 +159,7 @@ fn dump_run(app: &mut App, w: u16, h: u16, tasti: &[KeyEvent]) -> io::Result<()>
     }
     let _ = app.wait_idle(ATTESA_DUMP);
     let mut out = io::stdout().lock();
-    for riga in ui::render_lines(app, w, h) {
+    for riga in app.render_lines(w, h) {
         writeln!(out, "{}", riga)?;
     }
     out.flush()

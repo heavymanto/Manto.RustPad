@@ -243,6 +243,8 @@ pub enum DialogKind {
     Goto,
     /// F3 / Ctrl+F: prompt di ricerca.
     Find,
+    /// Ctrl+O: prompt del percorso di un file da aprire (lo apre chi ospita l'app: `take_open_request`).
+    Open,
     /// Conferma all'uscita con modifiche non salvate.
     Confirm,
     /// Salvataggio in corso (avanzamento, Esc annulla).
@@ -320,6 +322,8 @@ pub struct App {
     doc: Option<Document>,
     /// Il nome del file, per il titolo.
     file_name: String,
+    /// Il percorso canonico del file aperto (non cambia mentre il documento e' in mano al salvataggio).
+    path: PathBuf,
     /// Offset del primo byte della prima riga visuale dello schermo (sempre un inizio di riga visuale).
     top: u64,
     /// Offset in byte del cursore (un confine di carattere).
@@ -384,6 +388,9 @@ pub struct App {
     menu_index: usize,
     /// Il testo scritto nel prompt "vai a".
     goto_text: String,
+    /// Il testo del prompt "apri" e la richiesta confermata (percorso) che l'ospite deve ancora raccogliere.
+    open_text: String,
+    open_request: Option<PathBuf>,
     /// Il testo scritto nel prompt di ricerca.
     find_text: String,
     /// L'ultimo testo cercato: F3 e Maiusc+F3 lo cercano di nuovo, senza prompt.
@@ -443,6 +450,7 @@ impl App {
     /// Apre `path`. Errore se manca o non e' un file regolare.
     pub fn open(path: &Path, cfg: AppConfig) -> io::Result<App> {
         let mut doc = Document::open(path)?;
+        let path = doc.path().to_path_buf();
         let file_name = doc
             .path()
             .file_name()
@@ -482,6 +490,7 @@ impl App {
         Ok(App {
             doc: Some(doc),
             file_name,
+            path,
             top: 0,
             cursor: 0,
             want_col: 0,
@@ -511,6 +520,8 @@ impl App {
             dialog: None,
             menu_index: 0,
             goto_text: String::new(),
+            open_text: String::new(),
+            open_request: None,
             find_text: String::new(),
             last_find: None,
             langs: cfg.langs,
@@ -625,6 +636,7 @@ impl App {
             // Ctrl+F apre sempre il prompt di ricerca, con l'ultimo testo cercato gia' scritto.
             KeyCode::Char('f') if ctrl => self.open_dialog(DialogKind::Find),
             KeyCode::Char('g') if ctrl => self.open_dialog(DialogKind::Goto),
+            KeyCode::Char('o') if ctrl => self.open_dialog(DialogKind::Open),
             KeyCode::Char('q') if ctrl => self.quit_request(),
             // Ctrl+A seleziona tutto; Ctrl+C copia, Ctrl+X taglia e Ctrl+V incolla gli appunti interni.
             KeyCode::Char('a') if ctrl => self.select_all(),
@@ -758,6 +770,7 @@ impl App {
                     .unwrap_or(0);
             }
             DialogKind::Goto => self.goto_text.clear(),
+            DialogKind::Open => self.open_text.clear(),
             // Il prompt di ricerca riparte dall'ultimo testo cercato (vuoto se non c'e').
             DialogKind::Find => self.find_text = self.last_find.clone().unwrap_or_default(),
             _ => {}
@@ -817,6 +830,23 @@ impl App {
                     self.goto_text.pop();
                 }
                 KeyCode::Char(c) if !ctrl && !alt => self.goto_text.push(c),
+                _ => {}
+            },
+            // Prompt "apri": come il "vai a"; Enter lascia il percorso all'ospite (un testo vuoto non apre niente).
+            DialogKind::Open => match key.code {
+                KeyCode::Esc => self.dialog = None,
+                KeyCode::Enter => {
+                    let testo = std::mem::take(&mut self.open_text);
+                    self.dialog = None;
+                    let testo = testo.trim();
+                    if !testo.is_empty() {
+                        self.open_request = Some(PathBuf::from(testo));
+                    }
+                }
+                KeyCode::Backspace => {
+                    self.open_text.pop();
+                }
+                KeyCode::Char(c) if !ctrl && !alt => self.open_text.push(c),
                 _ => {}
             },
             // Prompt di ricerca: gli stessi tasti del "vai a"; Enter ricorda il testo e fa
@@ -1953,7 +1983,9 @@ impl App {
     /// non si e' ancora disegnato. Nei prompt e' la posizione dentro il prompt, dopo il testo scritto.
     pub fn cursor_xy(&self) -> Option<(u16, u16)> {
         match self.dialog {
-            Some(DialogKind::Goto) | Some(DialogKind::Find) => self.cursor_xy,
+            Some(DialogKind::Goto) | Some(DialogKind::Find) | Some(DialogKind::Open) => {
+                self.cursor_xy
+            }
             Some(_) => None,
             None => self.cursor_xy,
         }
@@ -2147,7 +2179,12 @@ impl App {
         }
     }
 
-    /// Il nome del file per il titolo.
+    /// Il percorso canonico del file.
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Il nome del file aperto (senza cartella).
     pub fn file_name(&self) -> &str {
         &self.file_name
     }
@@ -2172,6 +2209,17 @@ impl App {
         self.cat.tf(key, args)
     }
 
+    /// Prende il tema e la lingua scelti in un'altra scheda, senza salvare le impostazioni (le ha gia' salvate quella).
+    /// Un codice di lingua sconosciuto lascia la lingua com'e'.
+    pub fn adopt_look(&mut self, theme: ThemeId, lang_code: &str) {
+        self.theme = theme;
+        if self.cat.code() != lang_code {
+            if let Some(l) = self.langs.iter().find(|l| l.code == lang_code) {
+                self.cat = Catalog::with(l.clone());
+            }
+        }
+    }
+
     /// Mostra `testo` nella riga di stato fino al prossimo tasto (per la GUI).
     pub fn set_flash(&mut self, testo: String) {
         self.flash = Some(testo);
@@ -2180,6 +2228,22 @@ impl App {
     /// Le lingue disponibili (le righe del menu di F7).
     pub(crate) fn langs(&self) -> &[Lang] {
         &self.langs
+    }
+
+    /// Il testo scritto nel prompt "apri".
+    pub(crate) fn open_text(&self) -> &str {
+        &self.open_text
+    }
+
+    /// Il percorso confermato nel prompt "apri" (Ctrl+O), una volta sola: chi ospita l'app lo apre.
+    pub fn take_open_request(&mut self) -> Option<PathBuf> {
+        self.open_request.take()
+    }
+
+    /// Chiede di chiudere questo documento: senza modifiche si chiude subito (`should_quit`), con modifiche si chiede
+    /// prima (salva, scarta o annulla), come F10.
+    pub fn request_close(&mut self) {
+        self.quit_request();
     }
 
     /// Il testo scritto nel prompt "vai a".

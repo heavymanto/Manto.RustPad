@@ -134,5 +134,10 @@
   "gui.zoom_reset": "Dimensione normale",
   "gui.help": "Tasti e aiuto",
   "gui.open_title": "Apri file",
-  "gui.open_unsaved": "salva prima di aprire un altro file"
+  "prompt.open.title": "APRI FILE",
+  "prompt.open.hint": "percorso del file da aprire",
+  "gui.close_tab": "Chiudi scheda",
+  "gui.next_tab": "Scheda successiva",
+  "gui.prev_tab": "Scheda precedente",
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   apri, chiudi, cambia scheda"
 }

@@ -4,9 +4,8 @@
 //! all'uscita, anche dopo un errore o un panic: l'hook che si installa all'inizio ripristina e poi richiama
 //! l'hook che c'era prima.
 
-use crate::app::App;
 use crate::clip;
-use crate::ui;
+use crate::workspace::Workspace;
 use ratatui::backend::CrosstermBackend;
 use ratatui::crossterm::event::{
     self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
@@ -29,7 +28,7 @@ type Schermo = Terminal<CrosstermBackend<Stdout>>;
 
 /// Prepara il terminale, fa girare il ciclo e ripristina comunque: il ripristino sta fuori dal lavoro,
 /// cosi' vale anche se qualcosa dentro e' andato storto (e un suo errore non nasconde quello originale).
-pub fn run(mut app: App) -> io::Result<()> {
+pub fn run(mut app: Workspace) -> io::Result<()> {
     installa_hook();
     let esito = dentro(&mut app);
     ripristina();
@@ -37,7 +36,7 @@ pub fn run(mut app: App) -> io::Result<()> {
 }
 
 /// Raw, schermo alternativo, mouse, le dimensioni iniziali e il ciclo.
-fn dentro(app: &mut App) -> io::Result<()> {
+fn dentro(app: &mut Workspace) -> io::Result<()> {
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     stdout.execute(EnterAlternateScreen)?;
@@ -54,9 +53,9 @@ fn dentro(app: &mut App) -> io::Result<()> {
 /// Il ciclo: un disegno, un evento (se arriva entro `ATTESA_EVENTO`), un `tick`; si esce quando l'app lo
 /// chiede. Dopo un tasto o un incolla, la copia in sospeso (Ctrl+C / Ctrl+X) va agli appunti di sistema
 /// con la sequenza OSC 52, se non e' troppo grande per il terminale.
-fn ciclo(terminale: &mut Schermo, app: &mut App) -> io::Result<()> {
+fn ciclo(terminale: &mut Schermo, app: &mut Workspace) -> io::Result<()> {
     while !app.should_quit() {
-        terminale.draw(|f| ui::draw(f, app))?;
+        terminale.draw(|f| app.draw(f))?;
         if event::poll(ATTESA_EVENTO)? {
             match event::read()? {
                 // solo le pressioni (e le ripetizioni): su Windows arrivano anche i rilasci

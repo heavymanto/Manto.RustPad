@@ -44,6 +44,8 @@ fn nome_tasto(k: KeyEvent) -> String {
     }
     match k.code {
         KeyCode::F(n) => s.push_str(&format!("F{n}")),
+        KeyCode::PageUp => s.push_str("PgUp"),
+        KeyCode::PageDown => s.push_str("PgDn"),
         KeyCode::Char(c) => s.push(c.to_ascii_uppercase()),
         altro => panic!("tasto non previsto: {altro:?}"),
     }
@@ -67,7 +69,7 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
         assert!(en.get(t).is_some(), "{t} non e' nel catalogo");
     }
     let tutte = voci();
-    assert_eq!(tutte.len(), 3 + 9 + 7 + 1);
+    assert_eq!(tutte.len(), 4 + 9 + 9 + 1);
     for v in &tutte {
         assert!(
             en.get(v.chiave).is_some(),
@@ -197,16 +199,20 @@ fn cancelling_the_open_dialog_leaves_the_document_alone() {
 }
 
 #[test]
-fn opening_with_unsaved_changes_does_not_even_ask_and_says_why() {
+fn opening_with_unsaved_changes_opens_a_new_tab_and_keeps_the_edits() {
     let q = file(b"due\n");
     let (mut f, ctx, p, titoli) = finestra(b"uno\n", vec![q.clone()]);
     giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     assert!(f.app().is_modified());
     f.azione(Azione::Apri);
-    assert!(titoli.borrow().is_empty(), "il dialogo non deve comparire");
+    assert_eq!(titoli.borrow().len(), 1);
+    assert_eq!(f.workspace().len(), 2);
+    assert_eq!(f.app().file_name(), nome(&q));
+    f.workspace().select(0);
     assert_eq!(f.app().file_name(), nome(&p));
-    assert_eq!(f.app().flash(), Some("save before opening another file"));
+    assert!(f.app().is_modified());
+    assert_eq!(f.app().document_text(), b"xuno\n");
     for x in [p, q] {
         let _ = std::fs::remove_file(x);
     }
@@ -263,7 +269,7 @@ fn the_menu_entries_do_what_their_shortcuts_do() {
     esegui(&mut f, "gui.column_mode");
     assert!(!f.app().column_mode());
     esegui(&mut f, "gui.quit");
-    assert!(f.app().should_quit());
+    assert!(f.workspace().should_quit());
     let _ = std::fs::remove_file(p);
 }
 
@@ -353,4 +359,30 @@ fn a_click_on_an_open_menu_entry_does_not_reach_the_text_underneath() {
     assert_eq!(titoli.borrow().len(), 1, "la voce Apri e' stata scelta");
     assert_eq!(f.app().cursor(), 0, "il clic non e' arrivato al testo");
     let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_tab_entries_switch_and_close_tabs() {
+    let q = file(
+        b"due
+",
+    );
+    let (mut f, ctx, p, _t) = finestra(
+        b"uno
+",
+        vec![q.clone()],
+    );
+    giro(&mut f, &ctx, vec![]);
+    f.azione(Azione::Apri);
+    assert_eq!(f.workspace().active_index(), 1);
+    f.azione(voce("gui.next_tab").azione);
+    assert_eq!(f.workspace().active_index(), 0);
+    f.azione(voce("gui.prev_tab").azione);
+    assert_eq!(f.workspace().active_index(), 1);
+    f.azione(voce("gui.close_tab").azione);
+    assert_eq!(f.workspace().len(), 1);
+    assert_eq!(f.app().file_name(), nome(&p));
+    for x in [p, q] {
+        let _ = std::fs::remove_file(x);
+    }
 }
