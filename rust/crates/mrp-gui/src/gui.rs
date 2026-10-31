@@ -2,12 +2,14 @@
 //! spazio (colonne e righe), si portano all'`App` tastiera, incolla e rotella, si fa un `tick`, si disegna la griglia
 //! che l'`App` produce (`mrp_tui::cells::render_grid_workspace`) e si mandano agli appunti di sistema le copie.
 
+use crate::barre::{self, TestiStato, POLLICE_MINIMO};
 use crate::fonts::{self, Scrittura};
 use crate::input;
 use crate::menu;
 use crate::paint;
 use eframe::egui::{
-    self, Context, CursorIcon, Event, FontId, Frame, Pos2, Sense, Vec2, ViewportCommand,
+    self, Align, Context, CursorIcon, Event, FontId, Frame, Label, Layout, Pos2, Rect, Sense, Vec2,
+    ViewportCommand,
 };
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::cells::{render_grid_workspace, BG_PREDEFINITO};
@@ -71,6 +73,16 @@ pub struct Finestra {
     selettore: Selettore,
     /// Come si sceglie il nome con cui salvare (un documento senza nome, o "salva con nome").
     salvataggio: SelettoreSalva,
+    /// I rettangoli dei pezzi della barra di stato nell'ultimo disegno, da sinistra a destra, col loro comando.
+    pezzi: Vec<(Rect, Option<Cmd>)>,
+    /// Il rettangolo della barra di stato nell'ultimo disegno (`None`: l'`App` ha la cornice del terminale).
+    rettangolo_stato: Option<Rect>,
+    /// Il rettangolo della pista della scrollbar nell'ultimo disegno (`None`: come sopra).
+    rettangolo_scroll: Option<Rect>,
+    /// I testi dell'ultima barra di stato disegnata (`None`: come sopra).
+    testi: Option<TestiStato>,
+    /// Dove si e' afferrato il pollice della scrollbar (dalla sua cima), mentre si preme sulla pista.
+    presa_scroll: Option<f32>,
 }
 
 impl Finestra {
@@ -128,6 +140,11 @@ impl Finestra {
             premuto: false,
             selettore: Box::new(|_| None),
             salvataggio: Box::new(|_, _| None),
+            pezzi: Vec::new(),
+            rettangolo_stato: None,
+            rettangolo_scroll: None,
+            testi: None,
+            presa_scroll: None,
         }
     }
 
@@ -458,6 +475,113 @@ impl Finestra {
         scelta
     }
 
+    /// La barra di stato (B2b): in basso, larga quanto la finestra. A sinistra la posizione del cursore o il
+    /// messaggio transitorio; a destra i pezzi, da sinistra a destra (l'ultimo e' il piu' a destra): l'eventuale
+    /// lavoro in corso, il modo, la codifica, l'a-capo e la dimensione. I pezzi col comando sono cliccabili.
+    fn barra_stato(&mut self, ctx: &Context) {
+        let stato = self.ws.active_mut().status();
+        let t = barre::testi_stato(&stato, self.ws.active().catalog());
+        let mut scelta = None;
+        let mut rettangoli = Vec::new();
+        let pannello = egui::TopBottomPanel::bottom("stato").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(&t.sinistra);
+                // i pezzi di destra si aggiungono da destra a sinistra, attaccati al bordo (l'ultimo di
+                // `t.destra` e' il piu' a destra), con un piccolo spazio in mezzo
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    for (i, pezzo) in t.destra.iter().enumerate().rev() {
+                        if i + 1 < t.destra.len() {
+                            ui.add_space(6.0);
+                        }
+                        let r = match pezzo.comando {
+                            Some(cmd) => {
+                                let l = Label::new(&pezzo.testo).sense(Sense::click());
+                                let r = ui.add(l).on_hover_cursor(CursorIcon::PointingHand);
+                                if r.clicked() {
+                                    scelta = Some(cmd);
+                                }
+                                r
+                            }
+                            None => ui.label(&pezzo.testo),
+                        };
+                        rettangoli.push((r.rect, pezzo.comando));
+                    }
+                });
+            });
+        });
+        // i rettangoli si sono raccolti da destra a sinistra: valgono da sinistra a destra, come `t.destra`
+        rettangoli.reverse();
+        self.pezzi = rettangoli;
+        self.rettangolo_stato = Some(pannello.response.rect);
+        self.testi = Some(t);
+        if let Some(cmd) = scelta {
+            self.azione(cmd);
+        }
+    }
+
+    /// La scrollbar (B2b): a destra, fra il menu e la barra di stato, la pista col pollice che dice dov'e' la
+    /// finestra nel documento. Premere e trascinare muove la finestra: il pollice segue il puntatore per come lo
+    /// si e' afferrato; un clic sulla pista lo porta li', centrato.
+    fn scrollbar(&mut self, ctx: &Context) {
+        self.rettangolo_scroll = Some(
+            egui::SidePanel::right("scorrimento")
+                .exact_width(14.0)
+                .frame(Frame::NONE)
+                .show(ctx, |ui| {
+                    let pista = ui.max_rect();
+                    let (cima, alto) = barre::pollice(
+                        self.ws.active().scroll_info(),
+                        pista.height(),
+                        POLLICE_MINIMO,
+                    );
+                    let pollice = Rect::from_min_size(
+                        Pos2::new(pista.min.x, pista.min.y + cima),
+                        Vec2::new(pista.width(), alto),
+                    );
+                    // la pista e' un colore tenue del tema; il pollice e' piu' marcato, e ancora di piu' al
+                    // passaggio o mentre lo si trascina
+                    let tenue = ui.style().visuals.faint_bg_color;
+                    let marcato = ui.style().visuals.weak_text_color();
+                    let vivo = ui.style().visuals.strong_text_color();
+                    ui.painter().rect_filled(pista, 0.0, tenue);
+                    let risposta =
+                        ui.interact(pista, ui.id().with("pista"), Sense::click_and_drag());
+                    let colore = if risposta.hovered() || risposta.dragged() {
+                        vivo
+                    } else {
+                        marcato
+                    };
+                    ui.painter().rect_filled(pollice, 4.0, colore);
+                    // dove si e' afferrato il pollice si decide quando si preme (il clic e' un trascinamento
+                    // che non si muove) e resta per tutto il trascinamento; fuori dal pollice, il pollice si
+                    // centra sul puntatore
+                    if risposta.is_pointer_button_down_on() && self.presa_scroll.is_none() {
+                        self.presa_scroll = Some(match risposta.interact_pointer_pos() {
+                            Some(p) if pollice.contains(p) => p.y - (pista.min.y + cima),
+                            _ => alto / 2.0,
+                        });
+                    }
+                    if risposta.is_pointer_button_down_on() || risposta.clicked() {
+                        if let (Some(p), Some(presa)) =
+                            (risposta.interact_pointer_pos(), self.presa_scroll)
+                        {
+                            let f = barre::frazione_da_posizione(
+                                p.y - pista.min.y,
+                                presa,
+                                pista.height(),
+                            );
+                            self.ws.active_mut().scroll_to_fraction(f);
+                        }
+                    }
+                    if !risposta.is_pointer_button_down_on() {
+                        self.presa_scroll = None;
+                    }
+                    pista
+                })
+                .inner,
+        );
+    }
+
     /// Cambia il corpo del testo: `Cmd::ZoomIn`, `ZoomOut` o `ZoomReset`.
     fn zoom(&mut self, a: Cmd) {
         self.corpo = match a {
@@ -470,6 +594,27 @@ impl Finestra {
     /// Il corpo del testo in punti (per i test).
     pub fn corpo(&self) -> f32 {
         self.corpo
+    }
+
+    /// Il rettangolo della barra di stato nell'ultimo disegno (per i test); `None` se non c'e' (cornice).
+    pub fn barra_stato_rect(&self) -> Option<Rect> {
+        self.rettangolo_stato
+    }
+
+    /// Il rettangolo della pista della scrollbar nell'ultimo disegno (per i test); `None` se non c'e'.
+    pub fn scrollbar_rect(&self) -> Option<Rect> {
+        self.rettangolo_scroll
+    }
+
+    /// I testi dell'ultima barra di stato disegnata (per i test); `None` se non c'e'.
+    pub fn stato_disegnato(&self) -> Option<&TestiStato> {
+        self.testi.as_ref()
+    }
+
+    /// I rettangoli dei pezzi della barra di stato nell'ultimo disegno, da sinistra a destra, col loro comando
+    /// (per i test); vuoto se non c'e'.
+    pub fn pezzi_stato(&self) -> &[(Rect, Option<Cmd>)] {
+        &self.pezzi
     }
 
     /// Esegue il comando scelto (menu o pulsante): quelli della finestra (aprire, salvare con nome, zoom) li fa lei, gli altri
@@ -587,6 +732,19 @@ impl Finestra {
                 Scheda::Chiudi(i) => self.ws.close(i),
             }
             self.ultimo_input = Instant::now();
+        }
+        // la barra di stato e la scrollbar, solo senza la cornice del terminale (con la cornice le disegna l'App
+        // nella sua griglia): la barra resta il pannello piu' esterno in basso, la scrollbar prende il lato destro
+        // fra il menu e la barra
+        if !self.ws.active().chrome() {
+            self.barra_stato(ctx);
+            self.scrollbar(ctx);
+        } else {
+            self.pezzi.clear();
+            self.rettangolo_stato = None;
+            self.rettangolo_scroll = None;
+            self.testi = None;
+            self.presa_scroll = None;
         }
         egui::CentralPanel::default()
             .frame(Frame::NONE.fill(paint::colore(BG_PREDEFINITO)))

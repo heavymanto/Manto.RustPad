@@ -4,6 +4,7 @@
 //! comandi, dialoghi, ricerca, modifica e codifiche) e ne disegna lo schermo come griglia di celle con egui
 //! (`mrp_tui::cells`). Tastiera, incolla e rotella di egui diventano i tasti e gli eventi che l'`App` gia' conosce.
 
+pub mod barre;
 pub mod fonts;
 pub mod gui;
 pub mod input;

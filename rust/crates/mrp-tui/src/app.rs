@@ -3173,7 +3173,7 @@ impl App {
     }
 
     /// Il vocabolario attivo (ogni stringa visibile viene da qui).
-    pub(crate) fn catalog(&self) -> &Catalog {
+    pub fn catalog(&self) -> &Catalog {
         &self.cat
     }
 

@@ -695,7 +695,7 @@ fn opzioni_ricerca(app: &App, con_ambito: bool) -> String {
 }
 
 /// La dimensione leggibile del titolo: `N B` sotto 1024, altrimenti due decimali in `KiB`/`MiB`/`GiB`/`TiB`.
-fn fmt_size(len: u64) -> String {
+pub fn fmt_size(len: u64) -> String {
     const UNITA: [&str; 4] = ["KiB", "MiB", "GiB", "TiB"];
     if len < 1024 {
         return format!("{} B", len);
