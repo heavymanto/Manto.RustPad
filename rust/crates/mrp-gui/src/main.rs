@@ -102,24 +102,12 @@ fn run() -> i32 {
             ws
         }
         None => {
-            let ripresa = sessione
-                .as_ref()
-                .and_then(|d| Workspace::from_session(d.clone(), cfg.clone()));
-            match ripresa {
-                Some(ws) => ws,
-                None => {
-                    let Some(file) = scegli(cat.t("gui.open_title")) else {
-                        return 0;
-                    };
-                    let app = match App::open(&file, cfg.clone()) {
-                        Ok(app) => app,
-                        Err(e) => return errore_apertura(&file, &e),
-                    };
-                    let ws = Workspace::new(app, cfg);
-                    match &sessione {
-                        Some(dir) => ws.with_session(dir.clone()),
-                        None => ws,
-                    }
+            // senza file: l'ultima sessione, altrimenti un documento nuovo senza nome (Ctrl+O apre un file)
+            match Workspace::start(cfg, sessione.clone()) {
+                Ok(ws) => ws,
+                Err(e) => {
+                    eprintln!("{e}");
+                    return 1;
                 }
             }
         }
@@ -136,7 +124,9 @@ fn run() -> i32 {
         "Manto.RustPad",
         opzioni,
         Box::new(move |cc| {
-            let finestra = Finestra::new_ws(cc, ws).con_selettore(Box::new(|t: &str| scegli(t)));
+            let finestra = Finestra::new_ws(cc, ws)
+                .con_selettore(Box::new(|t: &str| scegli(t)))
+                .con_salvataggio(Box::new(|t: &str, nome: &str| scegli_dove_salvare(t, nome)));
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => finestra.con_scatto(p.into()),
@@ -151,6 +141,14 @@ fn run() -> i32 {
             1
         }
     }
+}
+
+/// Il dialogo nativo di salvataggio: il percorso scelto (con il nome suggerito), o `None` se si annulla.
+fn scegli_dove_salvare(titolo: &str, nome: &str) -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new()
+        .set_title(titolo)
+        .set_file_name(nome)
+        .save_file()
 }
 
 /// Il dialogo nativo di apertura file: il percorso scelto, o `None` se si annulla.

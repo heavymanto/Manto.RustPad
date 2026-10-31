@@ -178,5 +178,8 @@
   "overwrite.title": "FILE EXISTS",
   "overwrite.text": "{} already exists. Replace it?",
   "overwrite.keys": "Enter Replace   Esc Cancel",
-  "help.l18": "Ctrl+N / Ctrl+Shift+S      new document / save as"
+  "help.l18": "Ctrl+N / Ctrl+Shift+S      new document / save as",
+  "gui.new": "New",
+  "gui.save_as": "Save as…",
+  "gui.save_as_title": "Save as"
 }

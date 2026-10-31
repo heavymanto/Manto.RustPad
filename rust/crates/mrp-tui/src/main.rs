@@ -65,14 +65,11 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
     // gli errori d'uso, nell'ordine: il file, il tema, la lingua, la codifica, la dimensione del
     // dump, i tasti
     // la sessione (le schede e le modifiche non salvate dell'ultima volta) sta accanto alle impostazioni; con --dump
-    // (uso da sviluppatore) non c'e'. Senza file nella riga di comando si riapre l'ultima sessione, se c'e'.
+    // (uso da sviluppatore) non c'e'. Senza file nella riga di comando si riapre l'ultima sessione, se c'e', altrimenti si apre un documento nuovo.
     let sessione = match (&profilo.path, &a.dump) {
         (Some(p), None) => p.parent().map(|d| d.join("session")),
         _ => None,
     };
-    if a.files.is_empty() && sessione.is_none() {
-        return usage_error(&cat, "cli.err.no_file", &[]);
-    }
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => return usage_error(&cat, "cli.err.theme", &[&nome]),
@@ -125,13 +122,14 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         1
     };
     let mut ws = match a.files.first() {
-        None => {
-            let dir = sessione.clone().unwrap_or_default();
-            match Workspace::from_session(dir, cfg) {
-                Some(ws) => ws,
-                None => return usage_error(&cat, "cli.err.no_file", &[]),
+        // senza file: l'ultima sessione, altrimenti un documento nuovo senza nome
+        None => match Workspace::start(cfg, sessione.clone()) {
+            Ok(ws) => ws,
+            Err(e) => {
+                eprintln!("{e}");
+                return 1;
             }
-        }
+        },
         Some(file) => {
             let app = match App::open(file, cfg.clone()) {
                 Ok(app) => app,

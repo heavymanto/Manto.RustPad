@@ -179,5 +179,8 @@
   "overwrite.title": "文件已存在",
   "overwrite.text": "{} 已存在。要替换吗？",
   "overwrite.keys": "Enter 替换   Esc 取消",
-  "help.l18": "Ctrl+N / Ctrl+Shift+S      新建文档 / 另存为"
+  "help.l18": "Ctrl+N / Ctrl+Shift+S      新建文档 / 另存为",
+  "gui.new": "新建",
+  "gui.save_as": "另存为…",
+  "gui.save_as_title": "另存为"
 }

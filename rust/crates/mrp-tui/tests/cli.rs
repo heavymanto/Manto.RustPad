@@ -93,9 +93,20 @@ fn help_speaks_the_chosen_language() {
 }
 
 #[test]
+fn no_file_opens_a_new_untitled_document_in_edit_mode() {
+    // senza file e senza profilo (MRP_NO_PROFILE) non c'e' una sessione da riaprire: un documento nuovo
+    let o = run(&["--dump", "60x6"]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert!(o.stdout.contains("Untitled 1"), "{}", o.stdout);
+    assert!(o.stdout.contains("EDIT"), "{}", o.stdout);
+    // e nella lingua scelta
+    let o = run(&["--lang-dir", &lang_dir(), "--lang", "it", "--dump", "60x6"]);
+    assert_eq!(o.code, 0, "{}", o.stderr);
+    assert!(o.stdout.contains("Senza nome 1"), "{}", o.stdout);
+}
+
+#[test]
 fn bad_usage_exits_with_2_and_says_why() {
-    let o = run(&[]);
-    assert_eq!((o.code, o.stderr.trim()), (2, "no file given (try --help)"));
     let dir = TestDir::new();
     let f = dir.thirty();
     let f = f.to_str().unwrap();

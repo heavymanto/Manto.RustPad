@@ -179,5 +179,8 @@
   "overwrite.title": "ファイルが存在します",
   "overwrite.text": "{} は既に存在します。置き換えますか?",
   "overwrite.keys": "Enter 置換   Esc キャンセル",
-  "help.l18": "Ctrl+N / Ctrl+Shift+S      新規 / 名前を付けて保存"
+  "help.l18": "Ctrl+N / Ctrl+Shift+S      新規 / 名前を付けて保存",
+  "gui.new": "新規",
+  "gui.save_as": "名前を付けて保存…",
+  "gui.save_as_title": "名前を付けて保存"
 }

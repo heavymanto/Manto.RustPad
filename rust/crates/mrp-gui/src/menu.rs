@@ -11,6 +11,8 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 pub enum Azione {
     /// Sceglie un file e lo apre (il dialogo nativo).
     Apri,
+    /// Sceglie il nome con cui salvare (il dialogo nativo) e salva; il documento diventa quel file.
+    SalvaConNome,
     /// Manda questo tasto all'`App`.
     Tasto(KeyEvent),
     ZoomPiu,
@@ -45,8 +47,10 @@ const CTRL: KeyModifiers = KeyModifiers::CONTROL;
 const NIENTE: KeyModifiers = KeyModifiers::NONE;
 
 const FILE: &[Option<Voce>] = &[
+    voce("gui.new", "Ctrl+N", tasto(KeyCode::Char('n'), CTRL)),
     voce("gui.open", "Ctrl+O", Azione::Apri),
     voce("gui.save", "F2", tasto(KeyCode::F(2), NIENTE)),
+    voce("gui.save_as", "Ctrl+Shift+S", Azione::SalvaConNome),
     voce("gui.close_tab", "Ctrl+W", tasto(KeyCode::Char('w'), CTRL)),
     None,
     voce("gui.quit", "F10", tasto(KeyCode::F(10), NIENTE)),

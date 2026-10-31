@@ -469,3 +469,85 @@ fn without_a_session_the_scratch_file_lives_in_the_temp_folder() {
     assert!(!file.exists());
     pulisci(d);
 }
+
+// ----- l'avvio senza file -----
+
+fn cfg_default() -> AppConfig {
+    AppConfig::default()
+}
+
+#[test]
+fn starting_without_files_and_without_a_session_opens_a_new_document() {
+    let ws = Workspace::start(cfg_default(), None).unwrap();
+    assert_eq!(titoli(&ws), ["Untitled 1"]);
+    assert!(ws.active().is_untitled() && ws.active().is_edit());
+    assert!(!ws.has_session());
+}
+
+#[test]
+fn starting_without_files_with_an_empty_session_folder_opens_a_new_document_and_keeps_the_session_on(
+) {
+    let d = cartella();
+    let sessione = d.join("sessione");
+    let ws = Workspace::start(cfg_default(), Some(sessione.clone())).unwrap();
+    assert_eq!(titoli(&ws), ["Untitled 1"]);
+    assert!(ws.has_session());
+    assert!(ws
+        .active()
+        .path()
+        .starts_with(sessione.canonicalize().unwrap().join("untitled")));
+    drop(ws);
+    pulisci(d);
+}
+
+#[test]
+fn starting_without_files_brings_back_the_last_session_untitled_text_included() {
+    let d = cartella();
+    let sessione = d.join("sessione");
+    let mut ws = Workspace::start(cfg_default(), Some(sessione.clone())).unwrap();
+    ws.resize(70, 12);
+    scrivi(ws.active_mut(), "appunti di ieri");
+    ws.handle_key(k(KeyCode::F(10)));
+    assert!(ws.should_quit());
+    drop(ws);
+    let ws2 = Workspace::start(cfg_default(), Some(sessione)).unwrap();
+    assert_eq!(titoli(&ws2), ["Untitled 1"]);
+    assert_eq!(ws2.active().document_text(), b"appunti di ieri");
+    drop(ws2);
+    pulisci(d);
+}
+
+#[test]
+fn starting_without_files_brings_back_the_last_session_files() {
+    let d = cartella();
+    let sessione = d.join("sessione");
+    let mut ws = ws_con_file(&d);
+    ws.handle_key(k(KeyCode::F(10)));
+    drop(ws);
+    let ws2 = Workspace::start(cfg_default(), Some(sessione)).unwrap();
+    assert_eq!(
+        titoli(&ws2),
+        ["uno.txt"],
+        "la sessione vince sul documento nuovo"
+    );
+    drop(ws2);
+    pulisci(d);
+}
+
+#[test]
+fn leaving_without_a_session_removes_the_scratch_files_and_leaving_with_one_keeps_them() {
+    let ws = Workspace::start(cfg_default(), None).unwrap();
+    let file = ws.active().path().to_path_buf();
+    assert!(file.exists());
+    drop(ws);
+    assert!(!file.exists(), "senza sessione nessuno li riprenderebbe");
+    let d = cartella();
+    let ws = Workspace::start(cfg_default(), Some(d.join("sessione"))).unwrap();
+    let file = ws.active().path().to_path_buf();
+    drop(ws);
+    assert!(
+        file.exists(),
+        "con la sessione tornano alla prossima apertura"
+    );
+    pulisci(d);
+}

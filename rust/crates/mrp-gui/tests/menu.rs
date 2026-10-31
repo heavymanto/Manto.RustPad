@@ -69,7 +69,7 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
         assert!(en.get(t).is_some(), "{t} non e' nel catalogo");
     }
     let tutte = voci();
-    assert_eq!(tutte.len(), 4 + 10 + 10 + 1);
+    assert_eq!(tutte.len(), 6 + 10 + 10 + 1);
     for v in &tutte {
         assert!(
             en.get(v.chiave).is_some(),
@@ -356,8 +356,18 @@ fn a_click_on_an_open_menu_entry_does_not_reach_the_text_underneath() {
         "{voce:?} cade sulla cella {col},{riga}"
     );
     clic(&mut f, &ctx, voce);
-    assert_eq!(titoli.borrow().len(), 1, "la voce Apri e' stata scelta");
-    assert_eq!(f.app().cursor(), 0, "il clic non e' arrivato al testo");
+    // la prima voce del menu File e' Nuovo: apre una scheda senza nome
+    assert_eq!(
+        f.workspace().len(),
+        2,
+        "la prima voce (Nuovo) e' stata scelta"
+    );
+    assert!(titoli.borrow().is_empty());
+    assert_eq!(
+        f.workspace().tabs()[0].cursor(),
+        0,
+        "il clic non e' arrivato al testo"
+    );
     let _ = std::fs::remove_file(p);
 }
 
@@ -398,4 +408,171 @@ fn the_jump_bar_entry_shows_and_hides_the_bar() {
     assert!(!f.workspace().nav_bar());
     assert_eq!(voce("gui.nav_bar").scorciatoia, "Ctrl+B");
     let _ = std::fs::remove_file(p);
+}
+
+// ---- documento nuovo e salva con nome (E42b) ----
+
+type Chiamate = Rc<RefCell<Vec<(String, String)>>>;
+
+/// Una finestra su un documento senza nome, il cui selettore di salvataggio restituisce uno dopo l'altro i percorsi di
+/// `scelte` (poi `None`) e annota (titolo, nome suggerito).
+fn finestra_nuova(scelte: Vec<PathBuf>) -> (Finestra, Context, PathBuf, Chiamate) {
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let dir = std::env::temp_dir().join(format!("mrp_menu_nuovo_{}_{}", std::process::id(), n));
+    let app = App::new_untitled(&dir.join("untitled"), 1, AppConfig::default()).unwrap();
+    let chiamate: Chiamate = Rc::default();
+    let c = chiamate.clone();
+    let mut coda = scelte.into_iter();
+    let f = Finestra::da_app(app, Box::new(AppConfig::default)).con_salvataggio(Box::new(
+        move |titolo, nome| {
+            c.borrow_mut().push((titolo.to_string(), nome.to_string()));
+            coda.next()
+        },
+    ));
+    (f, Context::default(), dir, chiamate)
+}
+
+#[test]
+fn the_file_menu_has_new_and_save_as_with_their_shortcuts() {
+    assert_eq!(voce("gui.new").scorciatoia, "Ctrl+N");
+    assert_eq!(voce("gui.save_as").scorciatoia, "Ctrl+Shift+S");
+    assert_eq!(voce("gui.save_as").azione, Azione::SalvaConNome);
+    // sono nel menu File, dopo Apri
+    let file_menu: Vec<&str> = MENU[0].1.iter().flatten().map(|v| v.chiave).collect();
+    assert_eq!(file_menu[0], "gui.new");
+    assert_eq!(file_menu[1], "gui.open");
+    assert!(file_menu.contains(&"gui.save_as"));
+}
+
+#[test]
+fn the_new_entry_opens_an_untitled_tab() {
+    let (mut f, ctx, p, _t) = finestra(b"uno\n", vec![]);
+    giro(&mut f, &ctx, vec![]);
+    f.azione(voce("gui.new").azione);
+    assert_eq!(f.workspace().len(), 2);
+    assert!(f.app().is_untitled());
+    assert_eq!(f.app().file_name(), "Untitled 1");
+    // Ctrl+N dalla tastiera fa lo stesso
+    giro(&mut f, &ctx, vec![tasto(Key::N, ctrl())]);
+    assert_eq!(f.workspace().len(), 3);
+    assert_eq!(f.app().file_name(), "Untitled 2");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn ctrl_s_on_an_untitled_document_asks_the_system_dialog_for_a_name_and_saves_there() {
+    let dir0 = std::env::temp_dir().join(format!("mrp_menu_dest_{}", std::process::id()));
+    std::fs::create_dir_all(&dir0).unwrap();
+    let meta = dir0.join("nota.txt");
+    let (mut f, ctx, dir, chiamate) = finestra_nuova(vec![meta.clone()]);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![Event::Text("ciao".into())]);
+    giro(&mut f, &ctx, vec![tasto(Key::S, ctrl())]);
+    // il dialogo e' quello del sistema, non il prompt a testo dell'App (il salvataggio gia' gira)
+    assert_ne!(f.app().dialog_kind(), Some(DialogKind::SaveAs));
+    assert_eq!(
+        chiamate.borrow().as_slice(),
+        [("Save as".to_string(), "Untitled 1.txt".to_string())]
+    );
+    assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
+    assert_eq!(std::fs::read(&meta).unwrap(), b"ciao");
+    assert!(!f.app().is_untitled());
+    assert_eq!(f.app().file_name(), "nota.txt");
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(dir0);
+}
+
+#[test]
+fn f2_and_the_save_menu_entry_do_the_same_on_an_untitled_document() {
+    let dir0 = std::env::temp_dir().join(format!("mrp_menu_dest2_{}", std::process::id()));
+    std::fs::create_dir_all(&dir0).unwrap();
+    let (mut f, ctx, dir, chiamate) = finestra_nuova(vec![dir0.join("a.txt"), dir0.join("b.txt")]);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![Event::Text("x".into())]);
+    giro(&mut f, &ctx, vec![tasto(Key::F2, Modifiers::NONE)]);
+    assert_eq!(chiamate.borrow().len(), 1);
+    assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
+    assert_eq!(std::fs::read(dir0.join("a.txt")).unwrap(), b"x");
+    // una scheda nuova: la voce Salva del menu (che manda F2) passa dallo stesso dialogo
+    f.azione(voce("gui.new").azione);
+    giro(&mut f, &ctx, vec![Event::Text("y".into())]);
+    f.azione(voce("gui.save").azione);
+    assert_eq!(chiamate.borrow().len(), 2);
+    assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
+    assert_eq!(std::fs::read(dir0.join("b.txt")).unwrap(), b"y");
+    let _ = std::fs::remove_dir_all(dir);
+    let _ = std::fs::remove_dir_all(dir0);
+}
+
+#[test]
+fn cancelling_the_save_dialog_keeps_the_document_as_it_was() {
+    let (mut f, ctx, dir, chiamate) = finestra_nuova(vec![]);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![Event::Text("dati".into())]);
+    giro(&mut f, &ctx, vec![tasto(Key::S, ctrl())]);
+    assert_eq!(chiamate.borrow().len(), 1);
+    assert!(f.app().is_untitled() && f.app().is_modified());
+    assert_eq!(f.app().dialog_kind(), None);
+    assert_eq!(f.app().document_text(), b"dati");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn an_untitled_document_with_nothing_typed_has_nothing_to_save_and_asks_nothing() {
+    let (mut f, ctx, dir, chiamate) = finestra_nuova(vec![]);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![tasto(Key::S, ctrl())]);
+    assert!(chiamate.borrow().is_empty());
+    let _ = std::fs::remove_dir_all(dir);
+}
+
+#[test]
+fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let dir0 = std::env::temp_dir().join(format!("mrp_menu_copia_{}_{}", std::process::id(), n));
+    std::fs::create_dir_all(&dir0).unwrap();
+    let copia = dir0.join("copia.txt");
+    let p = file(b"uno\n");
+    let app = App::open(&p, AppConfig::default()).unwrap();
+    let chiamate: Chiamate = Rc::default();
+    let c = chiamate.clone();
+    let scelta = copia.clone();
+    let mut f = Finestra::da_app(app, Box::new(AppConfig::default)).con_salvataggio(Box::new(
+        move |t, n| {
+            c.borrow_mut().push((t.to_string(), n.to_string()));
+            Some(scelta.clone())
+        },
+    ));
+    let ctx = Context::default();
+    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![Event::Text("+".into())]);
+    giro(&mut f, &ctx, vec![tasto(Key::S, ctrl())]);
+    assert!(
+        chiamate.borrow().is_empty(),
+        "un file vero si salva e basta"
+    );
+    assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
+    assert_eq!(std::fs::read(&p).unwrap(), b"+uno\n");
+    // Salva con nome (dal menu, o Ctrl+Maiusc+S): il dialogo di sistema, il nome suggerito e' quello del file
+    giro(&mut f, &ctx, vec![Event::Text("!".into())]);
+    f.azione(Azione::SalvaConNome);
+    assert_eq!(chiamate.borrow().len(), 1);
+    assert_eq!(chiamate.borrow()[0].1, nome(&p));
+    assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
+    // il cursore era dopo il '+': il '!' sta li'
+    assert_eq!(std::fs::read(&copia).unwrap(), b"+!uno\n");
+    assert_eq!(f.app().file_name(), "copia.txt");
+    assert_eq!(
+        std::fs::read(&p).unwrap(),
+        b"+uno\n",
+        "il file di partenza resta com'era"
+    );
+    let maiusc = Modifiers {
+        shift: true,
+        ..ctrl()
+    };
+    giro(&mut f, &ctx, vec![tasto(Key::S, maiusc)]);
+    assert_eq!(chiamate.borrow().len(), 2);
+    let _ = std::fs::remove_file(p);
+    let _ = std::fs::remove_dir_all(dir0);
 }

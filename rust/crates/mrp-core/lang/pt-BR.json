@@ -179,5 +179,8 @@
   "overwrite.title": "O ARQUIVO JÁ EXISTE",
   "overwrite.text": "{} já existe. Substituir?",
   "overwrite.keys": "Enter Substituir   Esc Cancelar",
-  "help.l18": "Ctrl+N / Ctrl+Shift+S      novo documento / salvar como"
+  "help.l18": "Ctrl+N / Ctrl+Shift+S      novo documento / salvar como",
+  "gui.new": "Novo",
+  "gui.save_as": "Salvar como…",
+  "gui.save_as_title": "Salvar como"
 }

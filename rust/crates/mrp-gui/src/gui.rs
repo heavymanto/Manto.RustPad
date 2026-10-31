@@ -36,6 +36,10 @@ const RIDISEGNO: Duration = Duration::from_millis(60);
 /// Come si sceglie un file da aprire: riceve il titolo del dialogo, restituisce il percorso o `None` se si annulla.
 pub type Selettore = Box<dyn FnMut(&str) -> Option<PathBuf>>;
 
+/// Come si sceglie il nome con cui salvare: riceve il titolo del dialogo e il nome suggerito, restituisce il percorso o
+/// `None` se si annulla.
+pub type SelettoreSalva = Box<dyn FnMut(&str, &str) -> Option<PathBuf>>;
+
 /// Cosa si e' scelto nella barra delle schede.
 enum Scheda {
     Seleziona(usize),
@@ -64,6 +68,8 @@ pub struct Finestra {
     premuto: bool,
     /// Come si sceglie un file da aprire: riceve il titolo del dialogo, restituisce il percorso o `None` se si annulla.
     selettore: Selettore,
+    /// Come si sceglie il nome con cui salvare (un documento senza nome, o "salva con nome").
+    salvataggio: SelettoreSalva,
 }
 
 impl Finestra {
@@ -120,12 +126,19 @@ impl Finestra {
             geometria: None,
             premuto: false,
             selettore: Box::new(|_| None),
+            salvataggio: Box::new(|_, _| None),
         }
     }
 
     /// Imposta come si sceglie un file da aprire (il dialogo nativo, o un finto nei test).
     pub fn con_selettore(mut self, selettore: Selettore) -> Finestra {
         self.selettore = selettore;
+        self
+    }
+
+    /// Imposta come si sceglie il nome con cui salvare (il dialogo nativo, o un finto nei test).
+    pub fn con_salvataggio(mut self, selettore: SelettoreSalva) -> Finestra {
+        self.salvataggio = selettore;
         self
     }
 
@@ -172,9 +185,21 @@ impl Finestra {
                     modifiers,
                     ..
                 } => {
+                    // F2: salvare un documento senza nome chiede il nome col dialogo di sistema
+                    if key == egui::Key::F2 && !modifiers.any() && self.salva_chiede_il_nome() {
+                        self.salva_con_nome();
+                        tocco = true;
+                        continue;
+                    }
                     // Ctrl+'+' / Ctrl+'-' / Ctrl+0: il corpo del testo; Ctrl+O: apre un file
                     if modifiers.command || modifiers.ctrl {
                         match key {
+                            // Ctrl+Maiusc+S: salva con nome; Ctrl+S su un documento senza nome: lo stesso
+                            egui::Key::S if modifiers.shift || self.salva_chiede_il_nome() => {
+                                self.salva_con_nome();
+                                tocco = true;
+                                continue;
+                            }
                             egui::Key::Plus | egui::Key::Equals => {
                                 self.zoom(Azione::ZoomPiu);
                                 continue;
@@ -361,6 +386,30 @@ impl Finestra {
         self.dimensione = (0, 0);
     }
 
+    /// Vero se il salvataggio della scheda attiva passa dal dialogo di sistema: un documento senza nome con modifiche non ha
+    /// un file su cui salvare (un file vero si salva e basta).
+    fn salva_chiede_il_nome(&self) -> bool {
+        let a = self.ws.active();
+        a.is_untitled() && a.is_modified()
+    }
+
+    /// Fa scegliere il nome (Ctrl+Maiusc+S, menu File, o il salvataggio di un documento senza nome) e salva li'.
+    fn salva_con_nome(&mut self) {
+        let a = self.ws.active();
+        if a.dialog_kind().is_some() {
+            return;
+        }
+        let titolo = a.text("gui.save_as_title").to_string();
+        let suggerito = if a.is_untitled() {
+            format!("{}.txt", a.file_name())
+        } else {
+            a.file_name().to_string()
+        };
+        if let Some(percorso) = (self.salvataggio)(&titolo, &suggerito) {
+            self.ws.active_mut().save_as_path(percorso);
+        }
+    }
+
     /// Fa scegliere un file (Ctrl+O, menu File) e lo apre in una scheda.
     fn apri(&mut self) {
         let titolo = self.ws.active().text("gui.open_title").to_string();
@@ -426,6 +475,11 @@ impl Finestra {
     pub fn azione(&mut self, a: Azione) {
         match a {
             Azione::Apri => self.apri(),
+            Azione::SalvaConNome => self.salva_con_nome(),
+            // il salvataggio di un documento senza nome passa dal dialogo di sistema, non dal prompt a testo dell'App
+            Azione::Tasto(k) if k.code == KeyCode::F(2) && self.salva_chiede_il_nome() => {
+                self.salva_con_nome();
+            }
             Azione::Tasto(k) => self.ws.handle_key(k),
             z => self.zoom(z),
         }

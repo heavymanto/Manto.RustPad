@@ -179,5 +179,8 @@
   "overwrite.title": "DATEI VORHANDEN",
   "overwrite.text": "{} existiert bereits. Ersetzen?",
   "overwrite.keys": "Enter Ersetzen   Esc Abbrechen",
-  "help.l18": "Strg+N / Strg+Umschalt+S  neues Dokument / speichern unter"
+  "help.l18": "Strg+N / Strg+Umschalt+S  neues Dokument / speichern unter",
+  "gui.new": "Neu",
+  "gui.save_as": "Speichern unter…",
+  "gui.save_as_title": "Speichern unter"
 }

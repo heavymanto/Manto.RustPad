@@ -178,5 +178,8 @@
   "overwrite.title": "IL FILE ESISTE",
   "overwrite.text": "{} esiste già. Sostituirlo?",
   "overwrite.keys": "Invio Sostituisci   Esc Annulla",
-  "help.l18": "Ctrl+N / Ctrl+Maiusc+S      documento nuovo / salva con nome"
+  "help.l18": "Ctrl+N / Ctrl+Maiusc+S      documento nuovo / salva con nome",
+  "gui.new": "Nuovo",
+  "gui.save_as": "Salva con nome…",
+  "gui.save_as_title": "Salva con nome"
 }

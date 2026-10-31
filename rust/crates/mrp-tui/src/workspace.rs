@@ -118,6 +118,17 @@ pub struct Workspace {
     nav_spans: Vec<(u16, u16, NavAzione)>,
 }
 
+impl Drop for Workspace {
+    fn drop(&mut self) {
+        // senza sessione nessuno riprendera' i documenti senza nome: i loro file vuoti di appoggio non servono piu'
+        if self.session.is_none() {
+            for a in &self.tabs {
+                Workspace::pulisci_scheda(a);
+            }
+        }
+    }
+}
+
 /// Cosa fa un pulsante della barra dei salti.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum NavAzione {
@@ -530,6 +541,23 @@ impl Workspace {
         self.tabs.push(app);
         self.select(self.tabs.len() - 1);
         Ok(())
+    }
+
+    /// Senza file nella riga di comando: l'ultima sessione in `sessione` se c'e' qualcosa da riaprire, altrimenti un
+    /// documento nuovo senza nome. Se c'e' una cartella di sessione resta accesa (anche per il documento nuovo).
+    pub fn start(cfg: AppConfig, sessione: Option<PathBuf>) -> io::Result<Workspace> {
+        if let Some(dir) = &sessione {
+            if let Some(ws) = Workspace::from_session(dir.clone(), cfg.clone()) {
+                return Ok(ws);
+            }
+        }
+        let dir = Workspace::untitled_dir(sessione.as_deref());
+        let app = App::new_untitled(&dir, 1, cfg.clone())?;
+        let ws = Workspace::new(app, cfg);
+        Ok(match sessione {
+            Some(d) => ws.with_session(d),
+            None => ws,
+        })
     }
 
     /// Una scheda che si toglie davvero (chiusa a mano, non l'uscita con la sessione): il file vuoto che reggeva un
