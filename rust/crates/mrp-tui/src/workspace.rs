@@ -691,6 +691,12 @@ impl Workspace {
             match k.code {
                 KeyCode::PageDown if ctrl => return self.next(),
                 KeyCode::PageUp if ctrl => return self.prev(),
+                // Ctrl+Tab e Ctrl+Maiusc+Tab, come nella GUI (non tutti i terminali li lasciano arrivare)
+                KeyCode::Tab if ctrl && k.modifiers.contains(KeyModifiers::SHIFT) => {
+                    return self.prev();
+                }
+                KeyCode::Tab if ctrl => return self.next(),
+                KeyCode::BackTab if ctrl => return self.prev(),
                 KeyCode::Right if alt => return self.next(),
                 KeyCode::Left if alt => return self.prev(),
                 KeyCode::Char(c @ '1'..='9') if alt => {

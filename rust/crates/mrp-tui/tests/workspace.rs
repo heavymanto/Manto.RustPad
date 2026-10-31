@@ -131,6 +131,37 @@ fn tab_keys_move_between_tabs_and_wrap() {
 }
 
 #[test]
+fn ctrl_tab_and_ctrl_shift_tab_move_between_tabs_like_in_the_gui() {
+    let (d, mut ws) = due();
+    // con tre schede "avanti" e "indietro" non coincidono
+    let c = scrivi(&d, "c.txt", b"ciao\n");
+    ws.open(&c).unwrap();
+    ws.select(0);
+    ws.handle_key(mod_k(KeyCode::Tab, KeyModifiers::CONTROL));
+    assert_eq!(nome_attivo(&ws), "b.txt");
+    ws.handle_key(mod_k(KeyCode::Tab, KeyModifiers::CONTROL));
+    ws.handle_key(mod_k(KeyCode::Tab, KeyModifiers::CONTROL));
+    assert_eq!(nome_attivo(&ws), "a.txt", "dall'ultima si torna alla prima");
+    // Ctrl+Maiusc+Tab: i terminali lo mandano come BackTab o come Tab con Maiusc
+    ws.handle_key(mod_k(
+        KeyCode::BackTab,
+        KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+    ));
+    assert_eq!(nome_attivo(&ws), "c.txt", "dalla prima si va all'ultima");
+    ws.handle_key(mod_k(
+        KeyCode::Tab,
+        KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+    ));
+    assert_eq!(nome_attivo(&ws), "b.txt");
+    ws.handle_key(mod_k(KeyCode::BackTab, KeyModifiers::CONTROL));
+    assert_eq!(nome_attivo(&ws), "a.txt");
+    // il Tab semplice non cambia scheda (resta dell'editor)
+    ws.handle_key(k(KeyCode::Tab));
+    assert_eq!(nome_attivo(&ws), "a.txt");
+    pulisci(d);
+}
+
+#[test]
 fn tab_keys_are_ignored_while_a_dialog_is_open() {
     let (d, mut ws) = due();
     ws.handle_key(k(KeyCode::F(1)));
