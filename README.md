@@ -11,7 +11,7 @@ truncates your data, and that opens a multi-gigabyte file like a viewer and beco
 
 > **Status: early development — a first terminal editor (`mrp`) runs.** Memory-mapped file source, sparse line index, search,
 > a piece-table edit layer with undo/redo, a crash-safe save and a terminal UI (view, edit, find, go to, selection and clipboard, column mode, themes, 7 languages) are
-> implemented and tested (428 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
+> implemented and tested (433 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
 > once and keeps about 13–35 MiB of private memory, even while saving (it grows slowly with the file, about 3.7 MB per GB: ~410 MiB on a 100 GiB sparse file, whose working set stays under 20 MiB) (one machine, one HDD, a handful of runs: see
 > [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux and macOS are untried. The evidence that the gap is real:
 > [market survey](docs/MARKET.md) and [reproducible benchmarks](docs/BENCHMARKS.md) of four tools on a 6 GB file.
@@ -40,7 +40,7 @@ navigate **and** editable — and did not find it ([survey](docs/MARKET.md)).
 - **Memory independent of file size.** Targets in the tens of MiB, whatever the file.
 - **Never loses data.** 64-bit offsets throughout, tests on files above 4 GiB from day one, loud failure instead of silent truncation.
 - **Column (block) mode, explicitly.** A first-class selection type in the core, so every front end shares it.
-- **Honest about encodings.** UTF-8, UTF-16 (little and big endian, surrogate pairs included) and 33 single-byte code pages (Windows-125x, ISO-8859-x, DOS 437/850/…, KOI8, Mac Roman) on files larger than RAM, chosen with `F9` or `--encoding` or recognised at open; East-Asian multi-byte encodings are still to do.
+- **Honest about encodings.** UTF-8, UTF-16 (little and big endian, surrogate pairs included) and 52 single-byte code pages (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) on files larger than RAM, chosen with `F9` or `--encoding` or recognised at open; East-Asian multi-byte encodings are still to do.
 - **Streaming whole-file operations** (replace-all, sort, split) with progress and cancel.
 - **Cross-platform.** Windows, Linux, macOS.
 - **One core, several front ends** — terminal (TUI) first, desktop GUI after.

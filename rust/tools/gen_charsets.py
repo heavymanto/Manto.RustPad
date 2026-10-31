@@ -45,7 +45,36 @@ CHARSETS = [
     ("koi8-r", "koi8-r", ["koi8r"]),
     ("koi8-u", "koi8-u", ["koi8u"]),
     ("macintosh", "mac_roman", ["mac", "macroman", "mac-roman", "x-mac-roman"]),
+    # aggiunte (E25): in coda, cosi' gli indici delle code page di prima non cambiano.
+    # Manca di proposito mac-greek: Python e .NET non sono d'accordo su 0x9C e 0xFF e non ho una terza fonte.
+    # Mancano di proposito cp864 (la sua meta' bassa non e' ASCII: 0x25 e' '%' arabo) e le EBCDIC (cp037...: '\n' non e' 0x0A)
+    ("us-ascii", "ascii", ["ascii", "iso646-us"]),  # nessun byte sopra 0x7F: tutta la meta' alta vale U+FFFD
+    ("windows-874", "cp874", ["cp874", "874", "tis-620", "tis620"]),
+    ("ibm775", "cp775", ["cp775", "775"]),
+    ("ibm855", "cp855", ["cp855", "855"]),
+    ("ibm857", "cp857", ["cp857", "857"]),
+    ("ibm860", "cp860", ["cp860", "860"]),
+    ("ibm861", "cp861", ["cp861", "861"]),
+    ("ibm862", "cp862", ["cp862", "862"]),
+    ("ibm863", "cp863", ["cp863", "863"]),
+    ("ibm865", "cp865", ["cp865", "865"]),
+    ("ibm869", "cp869", ["cp869", "869"]),
+    ("ibm720", "cp720", ["cp720", "720"]),
+    ("ibm1125", "cp1125", ["cp1125", "1125"]),
+    ("mac-cyrillic", "mac_cyrillic", ["maccyrillic", "x-mac-cyrillic"]),
+    ("mac-centraleurope", "mac_latin2", ["maccentraleurope", "x-mac-ce", "x-mac-centraleurroman"]),
+    ("mac-iceland", "mac_iceland", ["maciceland", "x-mac-icelandic"]),
+    ("mac-turkish", "mac_turkish", ["macturkish", "x-mac-turkish"]),
+    ("mac-croatian", "mac_croatian", ["maccroatian", "x-mac-croatian"]),
+    ("mac-romanian", "mac_romanian", ["macromanian", "x-mac-romanian"]),
 ]
+
+# un nome o alias deve indicare una sola code page (il confronto e' senza maiuscole e con '_' = '-')
+_visti = {}
+for _n, _c, _a in CHARSETS:
+    for _nome in [_n] + _a:
+        assert _nome not in _visti, (_nome, _n, _visti.get(_nome))
+        _visti[_nome] = _n
 
 
 def table(codec):
