@@ -1,11 +1,11 @@
-# install.ps1 (ZIP version) - publishes mrp and mrpg as user commands.
+# install.ps1 (ZIP version) - publishes mrp-tui and mrp-gui as user commands.
 # Same semantics as the repo's original (rust\install.ps1), with the ZIP's
 # paths: the exes sit next to this script, languages in lang\.
 # The installed copy is a snapshot: re-run after every new ZIP.
 $ErrorActionPreference = 'Stop'
 $binDir = Join-Path $env:USERPROFILE '.local\bin'
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-foreach ($name in 'mrp', 'mrpg') {
+foreach ($name in 'mrp-tui', 'mrp-gui') {
     $src = Join-Path $PSScriptRoot "$name.exe"
     if (-not (Test-Path $src)) { throw "missing $src - the archive is incomplete" }
     $dst = Join-Path $binDir "$name.exe"
@@ -28,7 +28,7 @@ if ($userPath -notlike "*$binDir*") {
     "PATH updated: $binDir added (restart your terminal)"
 }
 # language registry: the JSON files from lang\ go to the user profile,
-# where mrp and mrpg discover them at runtime (English is already embedded).
+# where mrp-tui and mrp-gui discover them at runtime (English is already embedded).
 $langSrc = Join-Path $PSScriptRoot 'lang'
 if (-not (Test-Path $langSrc)) { throw "language folder missing: $langSrc" }
 $langDir = Join-Path $env:APPDATA 'mrp\lang'
@@ -36,4 +36,4 @@ New-Item -ItemType Directory -Force -Path $langDir | Out-Null
 Copy-Item (Join-Path $langSrc '*.json') $langDir -Force
 "languages installed: $((Get-ChildItem $langDir -Filter *.json).Count) JSON in $langDir"
 "self-test:"
-& (Join-Path $binDir 'mrp.exe') --help
+& (Join-Path $binDir 'mrp-tui.exe') --help

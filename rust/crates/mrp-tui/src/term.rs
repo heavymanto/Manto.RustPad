@@ -1,4 +1,4 @@
-//! Il terminale vero del binario `mrp` (tutto quello che non e' `--dump`): modalita' raw, schermo
+//! Il terminale vero del binario `mrp-tui` (tutto quello che non e' `--dump`): modalita' raw, schermo
 //! alternativo e cattura del mouse; il ciclo disegna lo schermo, aspetta un evento (al piu' 50
 //! millisecondi), lo consegna all'app e raccoglie i lavori in background. Il terminale si ripristina SEMPRE
 //! all'uscita, anche dopo un errore o un panic: l'hook che si installa all'inizio ripristina e poi richiama

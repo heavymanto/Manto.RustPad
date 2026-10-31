@@ -100,7 +100,7 @@
   "save.text": "正在写入 {}",
   "save.keys": "Esc 取消",
   "cli.help.l1": "Manto.RustPad - 用于内存放不下的文件的编辑器",
-  "cli.help.l2": "用法: mrp [--lang 代码] [--theme 名称] 文件",
+  "cli.help.l2": "用法: mrp-tui [--lang 代码] [--theme 名称] 文件",
   "cli.help.l3": "  --lang 代码    界面语言 (en, it, ...)",
   "cli.help.l4": "  --theme 名称   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     本帮助",

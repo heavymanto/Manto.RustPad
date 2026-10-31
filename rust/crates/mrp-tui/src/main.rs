@@ -1,4 +1,4 @@
-//! Il binario `mrp`: legge gli argomenti e il profilo, decide il tema e la lingua di partenza (opzione >
+//! Il binario `mrp-tui`: legge gli argomenti e il profilo, decide il tema e la lingua di partenza (opzione >
 //! impostazioni > predefinito) e apre il file; poi il terminale vero o, con `--dump`, lo schermo come testo
 //! (con `--keys` si prova anche una sequenza di tasti). I messaggi vengono dal `Catalog` nella lingua scelta
 //! (inglese se non se ne conosce ancora una); i codici di uscita: 0 tutto bene, 1 il file non si apre o il

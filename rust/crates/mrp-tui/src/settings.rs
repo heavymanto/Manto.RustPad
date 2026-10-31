@@ -54,7 +54,7 @@ impl Settings {
     /// Il testo del file: un commento in testa, poi `theme=<codice>` e, se c'e' una lingua scelta, `lang=<codice>`.
     pub fn to_text(&self) -> String {
         let mut out = String::new();
-        out.push_str("# mrp: theme and language of the TUI, saved by the program.\n");
+        out.push_str("# mrp-tui: theme and language of the TUI, saved by the program.\n");
         out.push_str("# Delete this file to return to the factory defaults.\n");
         out.push_str(&format!("theme={}\n", self.theme.code()));
         if let Some(lang) = &self.lang {

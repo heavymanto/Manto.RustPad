@@ -100,7 +100,7 @@
   "save.text": "schreibe {}",
   "save.keys": "Esc bricht ab",
   "cli.help.l1": "Manto.RustPad - der Editor für Dateien, die nicht in den RAM passen",
-  "cli.help.l2": "Verwendung: mrp [--lang CODE] [--theme NAME] DATEI",
+  "cli.help.l2": "Verwendung: mrp-tui [--lang CODE] [--theme NAME] DATEI",
   "cli.help.l3": "  --lang CODE    Sprache der Oberfläche (en, it, ...)",
   "cli.help.l4": "  --theme NAME   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     dieser Text",

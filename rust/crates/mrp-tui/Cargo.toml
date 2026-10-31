@@ -12,7 +12,7 @@ name = "mrp_tui"
 path = "src/lib.rs"
 
 [[bin]]
-name = "mrp"
+name = "mrp-tui"
 path = "src/main.rs"
 
 [dependencies]

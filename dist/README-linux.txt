@@ -3,8 +3,8 @@ Manto.RustPad - the editor for files that don't fit in RAM
 
 Nothing to install: extract and run.
 
-  mrp     the editor in the terminal: ./mrp file...  (F1 = help, F4 = edit)
-  mrpg    the same editor in a window: ./mrpg file...  (needs a desktop)
+  mrp-tui     the editor in the terminal: ./mrp-tui file...  (F1 = help, F4 = edit)
+  mrp-gui     the same editor in a window: ./mrp-gui file...  (needs a desktop)
 
 English is embedded; the other six languages are in lang/ next to the
 programs. While lang/ sits next to the programs, the settings and the saved
@@ -17,7 +17,7 @@ in ~/.config/mrp/lang.
 Verify the download: the .sha256 file that rides next to this archive.
 
 Note: the terminal editor and the engine have been tested on Linux; the
-window (mrpg) on Linux has not been tried yet.
+window (mrp-gui) on Linux has not been tried yet.
 
 License: AGPL-3.0 - see LICENSE. The full story (measurements, architecture)
 lives in the docs/ folder of the repository.

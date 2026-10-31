@@ -122,11 +122,11 @@ first 100 bytes, the bytes around the insert and the last 100 bytes verified, no
 took **116 s** — it reads and writes ~6 GB on the *same* disk, so the two streams compete for it. One run, file freshly
 copied (partly in cache), the figure includes opening and the checks. It is **not** a clean throughput number.
 
-### The terminal editor `mrp` on the same file (first measurement)
+### The terminal editor `mrp-tui` on the same file (first measurement)
 
-[`bench/mrp_bench.py`](../bench/mrp_bench.py) drives the release build of `mrp` in a ConPTY, the same way `tui_bench.py` drives
+[`bench/mrp_bench.py`](../bench/mrp_bench.py) drives the release build of `mrp-tui` in a ConPTY, the same way `tui_bench.py` drives
 Microsoft Edit: open, `Ctrl+End`, `Ctrl+Home`, go to line 30,000,000 (retried every second until the line index is ready,
-because `mrp` refuses a line jump while the index is still building), then `F4`, type `XYZ` at that line, `Ctrl+S`, and check
+because `mrp-tui` refuses a line jump while the index is still building), then `F4`, type `XYZ` at that line, `Ctrl+S`, and check
 the file. 6.0 GB file, same HDD. The raw line of the last run is in
 [`bench/results/tui_mrp.jsonl`](../bench/results/tui_mrp.jsonl); the table also quotes two earlier runs of the same steps
 (`tui_bench.py` for open and navigation, a throw-away script for edit and save) whose raw output is not in the repository.
@@ -190,7 +190,7 @@ scattered edits with the line count asked after each one take a few seconds (the
 queries against a naive oracle with blocks of 4 pieces, through edits, undo/redo and save, and check that after a short edit only a
 few blocks are counted again (a counter, not a clock). With line numbers on, the terminal editor no longer slows down with the number of pieces.
 
-**In the terminal editor itself (inconclusive).** `mrp` driven through ConPTY on a 17 MB file: 20,000 scattered edits (each one a `Ctrl+G` to a random line plus one typed character), in batches of 2,000, build before E15 against build after. Both take about 26–32 s per batch, i.e. 13–16 ms per cycle, which is the cost of the terminal driver, not of the editor; the old build drifts from 25.6 s to 30.8 s over the run (consistent with its 2 ms at 40,000 pieces), the new one from 29.6 s to 31.9 s with a slower start (the machine was shared, one run each). So this measurement cannot show the gain, and the small drift left in the new build is not explained (noise, or another cost that grows with the pieces). The 14 µs figure above comes from the library only.
+**In the terminal editor itself (inconclusive).** `mrp-tui` driven through ConPTY on a 17 MB file: 20,000 scattered edits (each one a `Ctrl+G` to a random line plus one typed character), in batches of 2,000, build before E15 against build after. Both take about 26–32 s per batch, i.e. 13–16 ms per cycle, which is the cost of the terminal driver, not of the editor; the old build drifts from 25.6 s to 30.8 s over the run (consistent with its 2 ms at 40,000 pieces), the new one from 29.6 s to 31.9 s with a slower start (the machine was shared, one run each). So this measurement cannot show the gain, and the small drift left in the new build is not explained (noise, or another cost that grows with the pieces). The 14 µs figure above comes from the library only.
 
 Not measured yet: Linux/macOS, the UI with a real keyboard on a real terminal (only the ConPTY driver), a real 100 GB file (SSD and disk measurements for 6 and 10 GB are in the next section).
 

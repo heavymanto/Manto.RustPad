@@ -100,7 +100,7 @@
   "save.text": "書き込み中 {}",
   "save.keys": "Esc で中止",
   "cli.help.l1": "Manto.RustPad - RAMに収まらないファイルのためのエディタ",
-  "cli.help.l2": "使い方: mrp [--lang コード] [--theme 名前] ファイル",
+  "cli.help.l2": "使い方: mrp-tui [--lang コード] [--theme 名前] ファイル",
   "cli.help.l3": "  --lang コード  インターフェースの言語 (en, it, ...)",
   "cli.help.l4": "  --theme 名前   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     このテキスト",

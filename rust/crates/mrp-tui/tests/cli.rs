@@ -1,4 +1,4 @@
-//! Test del binario `mrp`: argomenti, errori e la modalita' `--dump` (schermo come testo, senza terminale), con cui si
+//! Test del binario `mrp-tui`: argomenti, errori e la modalita' `--dump` (schermo come testo, senza terminale), con cui si
 //! provano da fuori anche le sequenze di tasti. Scritti da ARCH prima dell'implementazione.
 
 use std::path::PathBuf;
@@ -38,7 +38,7 @@ struct Out {
 }
 
 fn run(args: &[&str]) -> Out {
-    let o = Command::new(env!("CARGO_BIN_EXE_mrp"))
+    let o = Command::new(env!("CARGO_BIN_EXE_mrp-tui"))
         // il test non deve leggere ne' scrivere il profilo vero dell'utente
         .env("MRP_NO_PROFILE", "1")
         .args(args)
@@ -73,7 +73,7 @@ fn help_lists_the_options() {
         .contains("Manto.RustPad - the editor for files that do not fit in RAM"));
     assert!(o
         .stdout
-        .contains("usage: mrp [--lang CODE] [--theme NAME] FILE"));
+        .contains("usage: mrp-tui [--lang CODE] [--theme NAME] FILE"));
     assert!(o
         .stdout
         .contains("--theme NAME   night | debian | console | minimal"));

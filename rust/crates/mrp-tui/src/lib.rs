@@ -1,4 +1,4 @@
-//! Manto.RustPad TUI: libreria (app, ui, temi, impostazioni) usata dal binario `mrp`.
+//! Manto.RustPad TUI: libreria (app, ui, temi, impostazioni) usata dal binario `mrp-tui`.
 
 pub mod app;
 pub mod args;

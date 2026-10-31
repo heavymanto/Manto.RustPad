@@ -99,7 +99,7 @@
   "save.text": "writing {}",
   "save.keys": "Esc cancels",
   "cli.help.l1": "Manto.RustPad - the editor for files that do not fit in RAM",
-  "cli.help.l2": "usage: mrp [--lang CODE] [--theme NAME] FILE",
+  "cli.help.l2": "usage: mrp-tui [--lang CODE] [--theme NAME] FILE",
   "cli.help.l3": "  --lang CODE    interface language (en, it, ...)",
   "cli.help.l4": "  --theme NAME   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     this text",

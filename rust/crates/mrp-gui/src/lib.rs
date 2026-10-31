@@ -1,4 +1,4 @@
-//! Manto.RustPad GUI: libreria (finestra, disegno del testo, tastiera e mouse) usata dal binario `mrpg`.
+//! Manto.RustPad GUI: libreria (finestra, disegno del testo, tastiera e mouse) usata dal binario `mrp-gui`.
 //!
 //! La GUI non rifa la logica dell'editor: apre un `mrp_tui::app::App` (la macchina a stati del TUI, con tutti i suoi
 //! comandi, dialoghi, ricerca, modifica e codifiche) e ne disegna lo schermo come griglia di celle con egui

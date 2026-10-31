@@ -1,4 +1,4 @@
-//! Gli argomenti della riga di comando del binario `mrp`: il parser (le opzioni dell'aiuto piu' quelle da
+//! Gli argomenti della riga di comando del binario `mrp-tui`: il parser (le opzioni dell'aiuto piu' quelle da
 //! sviluppatore, che nell'aiuto non compaiono), la dimensione di `--dump` e la risoluzione di tema e lingua
 //! (opzione > impostazioni > predefinito). I file sono gli argomenti che non cominciano con `-` (ognuno
 //! una scheda, in ordine) e si tengono cosi' come sono dati: un percorso non deve essere UTF-8 per aprirsi. Anche il

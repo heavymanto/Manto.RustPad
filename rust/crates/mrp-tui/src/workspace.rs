@@ -40,7 +40,7 @@ type ImprontaScheda = (PathBuf, Option<u64>, u64, bool);
 /// La sessione su disco di questo `Workspace`: dove sta e quando si e' scritta l'ultima volta.
 struct Sessione {
     dir: PathBuf,
-    /// Il blocco della cartella: finche' il processo e' vivo (o il file e' aperto) nessun altro `mrp` scrive la stessa
+    /// Il blocco della cartella: finche' il processo e' vivo (o il file e' aperto) nessun altro `mrp-tui` scrive la stessa
     /// sessione; il sistema lo toglie da solo se il processo muore, quindi non resta mai bloccata.
     _blocco: std::fs::File,
     /// L'impronta dell'ultima scrittura (e quale scheda era avanti).
@@ -52,7 +52,7 @@ struct Sessione {
 }
 
 impl Sessione {
-    /// La sessione in `dir`, se la cartella si puo' preparare e nessun altro processo la tiene (due `mrp` aperti insieme
+    /// La sessione in `dir`, se la cartella si puo' preparare e nessun altro processo la tiene (due `mrp-tui` aperti insieme
     /// non devono scriversi addosso: il secondo lavora senza sessione).
     fn apri(dir: PathBuf) -> Option<Sessione> {
         std::fs::create_dir_all(&dir).ok()?;
@@ -318,7 +318,7 @@ impl Workspace {
     /// Un `Workspace` con le schede dell'ultima sessione in `dir` (nessun file nella riga di comando); `None` se non c'e'
     /// nessuna scheda da riaprire. La sessione resta accesa su `dir`. Gli avvisi sono nella riga di stato.
     pub fn from_session(dir: PathBuf, cfg: AppConfig) -> Option<Workspace> {
-        // prima si prende il blocco: se un altro `mrp` ha la sessione, le sue modifiche non si ripetono qui
+        // prima si prende il blocco: se un altro `mrp-tui` ha la sessione, le sue modifiche non si ripetono qui
         let sessione = Sessione::apri(dir)?;
         let (mut app, avanti, avvisi) = Workspace::load_session(&sessione.dir, &cfg, false);
         if app.is_empty() {

@@ -1,4 +1,4 @@
-//! Il binario `mrpg`: la versione grafica di Manto.RustPad. Stessi argomenti del TUI (`mrp`) per file, tema, lingua e
+//! Il binario `mrp-gui`: la versione grafica di Manto.RustPad. Stessi argomenti del TUI (`mrp-tui`) per file, tema, lingua e
 //! codifica; apre la finestra con l'`App` del TUI disegnata da egui. Codici di uscita: 0 tutto bene, 1 il file non si
 //! apre o la finestra non parte, 2 errore d'uso.
 
@@ -25,7 +25,7 @@ fn run() -> i32 {
         Ok(None) | Err(_) => Catalog::english(),
     };
     if a.help {
-        println!("mrpg [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
+        println!("mrp-gui [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
     let theme = match args::resolve_theme(&a, &profilo.settings) {

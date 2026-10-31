@@ -100,7 +100,7 @@
   "save.text": "gravando {}",
   "save.keys": "Esc cancela",
   "cli.help.l1": "Manto.RustPad - o editor para arquivos que não cabem na RAM",
-  "cli.help.l2": "uso: mrp [--lang CÓDIGO] [--theme NOME] ARQUIVO",
+  "cli.help.l2": "uso: mrp-tui [--lang CÓDIGO] [--theme NOME] ARQUIVO",
   "cli.help.l3": "  --lang CÓDIGO  idioma da interface (en, it, ...)",
   "cli.help.l4": "  --theme NOME   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     este texto",

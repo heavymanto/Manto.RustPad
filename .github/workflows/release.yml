@@ -1,5 +1,5 @@
 # Release: al push di un tag v* compila in release e pubblica la GitHub Release.
-# Ogni archivio contiene i due eseguibili (mrp: terminale, mrpg: finestra), le sette
+# Ogni archivio contiene i due eseguibili (mrp-tui: terminale, mrp-gui: finestra), le sette
 # lingue in lang/, la licenza, un README.txt breve e install.ps1/install.sh (copiati da dist/); con lang/ accanto agli eseguibili il
 # programma e' "portatile" (impostazioni e sessione restano nella stessa cartella).
 # Windows crea la Release (con le note prese dal CHANGELOG), Linux e macOS caricano
@@ -25,8 +25,8 @@ jobs:
           $name = "manto-rustpad-$ver-win-x64"
           $dir = "dist/$name"
           New-Item -ItemType Directory -Force -Path "$dir/lang" | Out-Null
-          Copy-Item rust/target/release/mrp.exe $dir
-          Copy-Item rust/target/release/mrpg.exe $dir
+          Copy-Item rust/target/release/mrp-tui.exe $dir
+          Copy-Item rust/target/release/mrp-gui.exe $dir
           Copy-Item rust/crates/mrp-core/lang/*.json "$dir/lang/"
           Copy-Item LICENSE $dir
           Copy-Item dist/install-zip.ps1 "$dir/install.ps1"
@@ -71,8 +71,8 @@ jobs:
           NAME="manto-rustpad-$VER-linux-x64"
           DIR="dist/$NAME"
           mkdir -p "$DIR/lang"
-          cp rust/target/release/mrp rust/target/release/mrpg "$DIR/"
-          chmod +x "$DIR/mrp" "$DIR/mrpg"
+          cp rust/target/release/mrp-tui rust/target/release/mrp-gui "$DIR/"
+          chmod +x "$DIR/mrp-tui" "$DIR/mrp-gui"
           cp rust/crates/mrp-core/lang/*.json "$DIR/lang/"
           cp LICENSE "$DIR/"
           cp dist/install-linux.sh "$DIR/install.sh"
@@ -103,8 +103,8 @@ jobs:
           NAME="manto-rustpad-$VER-macos-$ARCH"
           DIR="dist/$NAME"
           mkdir -p "$DIR/lang"
-          cp rust/target/release/mrp rust/target/release/mrpg "$DIR/"
-          chmod +x "$DIR/mrp" "$DIR/mrpg"
+          cp rust/target/release/mrp-tui rust/target/release/mrp-gui "$DIR/"
+          chmod +x "$DIR/mrp-tui" "$DIR/mrp-gui"
           cp rust/crates/mrp-core/lang/*.json "$DIR/lang/"
           cp LICENSE "$DIR/"
           cp dist/install-macos.sh "$DIR/install.sh"

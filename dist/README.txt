@@ -3,8 +3,8 @@ Manto.RustPad - the editor for files that don't fit in RAM
 
 Nothing to install: extract and run.
 
-  mrp.exe     the editor in the terminal: mrp file...  (F1 = help, F4 = edit)
-  mrpg.exe    the same editor in a window: mrpg file...  (no file: open dialog)
+  mrp-tui.exe     the editor in the terminal: mrp-tui file...  (F1 = help, F4 = edit)
+  mrp-gui.exe     the same editor in a window: mrp-gui file...  (no file: open dialog)
 
 English is embedded; the other six languages are in lang\ next to the
 programs. While lang\ sits next to the programs, the settings and the saved

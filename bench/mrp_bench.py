@@ -1,7 +1,7 @@
-"""Misura `mrp` (il TUI di Manto.RustPad) su un file grande, nel terminale vero (ConPTY): apertura, memoria, Ctrl+End,
+"""Misura `mrp-tui` (il TUI di Manto.RustPad) su un file grande, nel terminale vero (ConPTY): apertura, memoria, Ctrl+End,
 Ctrl+Home, "vai a riga" una volta pronto l'indice, e con --edit anche modifica + salvataggio con verifica del file.
 
-Uso:  python -I -X utf8 mrp_bench.py <file> [--edit] [--line 30000000] [--exe <mrp.exe>] [--out risultati.jsonl]
+Uso:  python -I -X utf8 mrp_bench.py <file> [--edit] [--line 30000000] [--exe <mrp-tui.exe>] [--out risultati.jsonl]
 
 ATTENZIONE: con --edit SCRIVE sul file (+3 byte e un file temporaneo grande quanto lui nella stessa cartella):
 usare una COPIA di prova. Le righe del file di prova sono di 100 byte (vedi gen_testfile.py).
@@ -19,14 +19,14 @@ def opt(nome, default=None):
 
 
 path = sys.argv[1]
-exe = opt('--exe', os.path.join(HERE, '..', 'rust', 'target', 'release', 'mrp.exe'))
+exe = opt('--exe', os.path.join(HERE, '..', 'rust', 'target', 'release', 'mrp-tui.exe'))
 out = opt('--out')
 line = int(opt('--line', '30000000'))
 do_edit = '--edit' in sys.argv
 name = os.path.basename(path).split('.')[0]
 os.environ['MRP_NO_PROFILE'] = '1'   # non toccare il profilo dell'utente
 
-res = dict(app='mrp.exe', file=os.path.basename(path), file_bytes=os.path.getsize(path))
+res = dict(app='mrp-tui.exe', file=os.path.basename(path), file_bytes=os.path.getsize(path))
 p = Pty('"' + exe + '" "' + path + '"', cols=120, rows=30)
 try:
     t0 = time.perf_counter()

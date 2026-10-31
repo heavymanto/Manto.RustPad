@@ -12,7 +12,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <img src="https://img.shields.io/badge/test-765-brightgreen" alt="765 test" />
-        <img src="https://img.shields.io/badge/programmi-mrp%20%C2%B7%20mrpg-blue" alt="mrp e mrpg" />
+        <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
         <img src="https://img.shields.io/badge/stato-sviluppo%20iniziale-orange" alt="sviluppo iniziale" />
@@ -23,8 +23,8 @@
 </table>
 
 <div align="center">
-<img src="docs/img/gui-console.png" alt="mrpg, la finestra: due schede, numeri di riga, i tasti nel piede" width="80%" />
-<br /><sub><b>mrpg</b> — lo stesso editor, disegnato in una finestra: un log e un dump SQL aperti in due schede.</sub>
+<img src="docs/img/gui-console.png" alt="mrp-gui, la finestra: due schede, numeri di riga, i tasti nel piede" width="80%" />
+<br /><sub><b>mrp-gui</b> — lo stesso editor, disegnato in una finestra: un log e un dump SQL aperti in due schede.</sub>
 </div>
 
 ---
@@ -63,7 +63,7 @@ La memoria cresce piano con il file (circa 3,7 MB per GB: ~410 MiB su un file sp
 ## Scaricalo
 
 Niente da installare: estrai e avvia. Entrambi i programmi funzionano subito, in modo *portatile*: l'inglese è incorporato, le altre
-sei lingue si trovano in `lang/` accanto ai programmi; impostazioni e sessione salvata restano nella stessa cartella. Li vuoi come comandi da qualunque cartella? Ogni pacchetto contiene `install.ps1` (Windows) o `install.sh` (Linux, macOS): copia `mrp` e `mrpg` in `~/.local/bin` (e su Windows lo aggiunge al PATH utente) e le lingue nel tuo profilo.
+sei lingue si trovano in `lang/` accanto ai programmi; impostazioni e sessione salvata restano nella stessa cartella. Li vuoi come comandi da qualunque cartella? Ogni pacchetto contiene `install.ps1` (Windows) o `install.sh` (Linux, macOS): copia `mrp-tui` e `mrp-gui` in `~/.local/bin` (e su Windows lo aggiunge al PATH utente) e le lingue nel tuo profilo.
 
 [![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
 [![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
@@ -77,19 +77,19 @@ compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido
 
 ## Due programmi, un solo motore
 
-| `mrp` — nel terminale | `mrpg` — in una finestra |
+| `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
 |:---:|:---:|
-| ![mrp: il dialogo Sostituisci con l'anteprima, nel terminale](docs/img/tui-replace.png) | ![mrpg: lo stesso editor in una finestra](docs/img/gui-night.png) |
+| ![mrp-tui: il dialogo Sostituisci con l'anteprima, nel terminale](docs/img/tui-replace.png) | ![mrp-gui: lo stesso editor in una finestra](docs/img/gui-night.png) |
 
-| | `mrp` | `mrpg` |
+| | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
 | **Cos'è** | un editor a tutto schermo per qualsiasi terminale (ratatui) | lo stesso editor disegnato in una finestra (egui), con gli appunti di sistema, i caratteri CJK e il trascinamento dei file |
-| **Avvio** | `mrp file...` | `mrpg file...` (senza file apre il dialogo di apertura) |
+| **Avvio** | `mrp-tui file...` | `mrp-gui file...` (senza file apre il dialogo di apertura) |
 | **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Aiuto) e il dialogo nativo di apertura |
 | **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
 | **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
 
-Sono **lo stesso codice**: la logica dell'editor sta in un posto solo e `mrpg` si limita a disegnarne la griglia di celle. Una funzione aggiunta a uno c'è anche nell'altro.
+Sono **lo stesso codice**: la logica dell'editor sta in un posto solo e `mrp-gui` si limita a disegnarne la griglia di celle. Una funzione aggiunta a uno c'è anche nell'altro.
 
 ## Cosa fa
 
@@ -132,24 +132,24 @@ Servono [Rust](https://rustup.rs) (`cargo --version`) e una copia di questo repo
 
 ```sh
 cd rust
-cargo build --release                 # mrp e mrpg in target/release/
-./target/release/mrp ilmiofile.txt    # F1 = aiuto, F4 = modifica, F10 = esci
-./target/release/mrpg ilmiofile.txt   # lo stesso, in una finestra
+cargo build --release                 # mrp-tui e mrp-gui in target/release/
+./target/release/mrp-tui ilmiofile.txt    # F1 = aiuto, F4 = modifica, F10 = esci
+./target/release/mrp-gui ilmiofile.txt   # lo stesso, in una finestra
 ```
 
-Windows (PowerShell): `.\install.ps1` in `rust\` è facoltativo: copia `mrp.exe` in `%USERPROFILE%\.local\bin` e i file delle lingue in
+Windows (PowerShell): `.\install.ps1` in `rust\` è facoltativo: copia `mrp-tui.exe` in `%USERPROFILE%\.local\bin` e i file delle lingue in
 `%APPDATA%\mrp\lang`; non tocca mai il `PATH` né le impostazioni salvate. `.\portable.ps1` (dopo la compilazione) crea una cartella con i programmi e `lang\`:
 copiala dove vuoi, e finché `lang` sta accanto ai programmi, lingue, impostazioni (`settings.txt`) e sessione restano in quella cartella e nel tuo profilo non si scrive nulla.
 
-Per provare le funzioni a più file: `mrp a.txt b.txt c.txt`, poi `Ctrl+H`, scrivi un modello, `Tab`, scrivi la sostituzione, `Alt+A` (tutte le schede), `Invio`.
+Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, scrivi un modello, `Tab`, scrivi la sostituzione, `Alt+A` (tutte le schede), `Invio`.
 
 ## Limiti noti
 
 - **Sviluppo iniziale.** L'editor funziona ed è coperto da 765 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
-  la finestra `mrpg` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.
-- **La finestra (`mrpg`)** è stata verificata con test automatici e schermate, non ancora con lunghe sessioni di tastiera e mouse veri.
+  la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.
+- **La finestra (`mrp-gui`)** è stata verificata con test automatici e schermate, non ancora con lunghe sessioni di tastiera e mouse veri.
 - **Regex, glob e "ignora maiuscole" funzionano solo su documenti UTF-8** (si applicano riga per riga, come grep: un'occorrenza non attraversa mai una riga). La ricerca di testo semplice funziona in ogni codifica.
   In "tutte le schede" una scheda che non può usare la regex viene saltata, e il dialogo lo dice.
 - Una sola Sostituzione gestisce fino a **2.000.000** di occorrenze; una riga più lunga di 16 MiB si legge a pezzi, quindi un'occorrenza a cavallo del taglio può sfuggire.
@@ -170,8 +170,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 | Percorso | Contenuto |
 |---|---|
 | `rust/crates/mrp-core` | Il motore (Rust): `FileSource`, `LineIndex`, `PieceTable`/`Document` (modifica, annulla, salvataggio), cerca e sostituisci (`pattern`), record di sessione (`session`), codifiche, lingue |
-| `rust/crates/mrp-tui` | L'editor da terminale `mrp` (ratatui): `App` (un documento), `Workspace` (le schede e la sessione), schermo, temi, impostazioni, riga di comando |
-| `rust/crates/mrp-gui` | La finestra `mrpg` (egui): la barra dei menu, la striscia delle schede e la griglia di celle dell'editor da terminale |
+| `rust/crates/mrp-tui` | L'editor da terminale `mrp-tui` (ratatui): `App` (un documento), `Workspace` (le schede e la sessione), schermo, temi, impostazioni, riga di comando |
+| `rust/crates/mrp-gui` | La finestra `mrp-gui` (egui): la barra dei menu, la striscia delle schede e la griglia di celle dell'editor da terminale |
 | `rust/install.ps1`, `rust/portable.ps1` | Installazione locale su Windows; una cartella portatile |
 | `docs/` | `MARKET.md` (il panorama degli strumenti esistenti, con le fonti), `BENCHMARKS.md` (misure, metodo, limiti) |
 | `bench/` | Script riproducibili (Windows, Python 3.12, senza dipendenze) e risultati grezzi |

@@ -12,7 +12,7 @@ name = "mrp_gui"
 path = "src/lib.rs"
 
 [[bin]]
-name = "mrpg"
+name = "mrp-gui"
 path = "src/main.rs"
 
 [dependencies]

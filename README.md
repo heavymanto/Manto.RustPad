@@ -12,7 +12,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <img src="https://img.shields.io/badge/tests-765-brightgreen" alt="765 tests" />
-        <img src="https://img.shields.io/badge/frontends-mrp%20%C2%B7%20mrpg-blue" alt="mrp and mrpg" />
+        <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
         <img src="https://img.shields.io/badge/status-early%20development-orange" alt="early development" />
@@ -23,8 +23,8 @@
 </table>
 
 <div align="center">
-<img src="docs/img/gui-console.png" alt="mrpg, the desktop window: two tabs, line numbers, the keys in the footer" width="80%" />
-<br /><sub><b>mrpg</b> — the same editor, drawn in a window: a log and a SQL dump open in two tabs.</sub>
+<img src="docs/img/gui-console.png" alt="mrp-gui, the desktop window: two tabs, line numbers, the keys in the footer" width="80%" />
+<br /><sub><b>mrp-gui</b> — the same editor, drawn in a window: a log and a SQL dump open in two tabs.</sub>
 </div>
 
 ---
@@ -63,7 +63,7 @@ with the file (about 3.7 MB per GB: ~410 MiB on a 100 GiB sparse file, whose wor
 ## Get it
 
 Nothing to install: extract and run. Both programs work right away, in *portable* mode — English is embedded, and the other
-six languages are found in `lang/` next to the programs; settings and the saved session stay in that same folder. Want them as commands that work from any folder? Each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS): it copies `mrp` and `mrpg` to `~/.local/bin` (adding it to your user PATH on Windows) and the languages to your profile.
+six languages are found in `lang/` next to the programs; settings and the saved session stay in that same folder. Want them as commands that work from any folder? Each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS): it copies `mrp-tui` and `mrp-gui` to `~/.local/bin` (adding it to your user PATH on Windows) and the languages to your profile.
 
 [![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
 [![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
@@ -77,19 +77,19 @@ The packages (a ZIP for Windows, a tar.gz for Linux and macOS, each with its SHA
 
 ## Two front ends, one engine
 
-| `mrp` — in the terminal | `mrpg` — in a window |
+| `mrp-tui` — in the terminal | `mrp-gui` — in a window |
 |:---:|:---:|
-| ![mrp: the Replace dialog with a preview, in the terminal](docs/img/tui-replace.png) | ![mrpg: the same editor in a desktop window](docs/img/gui-night.png) |
+| ![mrp-tui: the Replace dialog with a preview, in the terminal](docs/img/tui-replace.png) | ![mrp-gui: the same editor in a desktop window](docs/img/gui-night.png) |
 
-| | `mrp` | `mrpg` |
+| | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
 | **What it is** | a full-screen editor for any terminal (ratatui) | the same editor drawn in a window (egui), with the system clipboard, CJK fonts and drag-and-drop |
-| **Start it** | `mrp file...` | `mrpg file...` (without a file it opens the file dialog) |
+| **Start it** | `mrp-tui file...` | `mrp-gui file...` (without a file it opens the file dialog) |
 | **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Help) and the native open dialog |
 | **Tabs** | a bar on the first row, one tab per file | a strip with a close button per tab |
 | **The mouse** | positions the cursor, selects (double click: word, triple click: row), picks a tab | the same, and middle-click closes a tab |
 
-Both are the **same code**: the editor's logic lives in one place and `mrpg` just draws its cell grid. A feature added to one is in the other.
+Both are the **same code**: the editor's logic lives in one place and `mrp-gui` just draws its cell grid. A feature added to one is in the other.
 
 ## What it does
 
@@ -132,24 +132,24 @@ You need [Rust](https://rustup.rs) (`cargo --version`) and a clone of this repos
 
 ```sh
 cd rust
-cargo build --release                 # mrp and mrpg in target/release/
-./target/release/mrp yourfile.txt     # F1 = help, F4 = edit, F10 = quit
-./target/release/mrpg yourfile.txt    # the same, in a window
+cargo build --release                 # mrp-tui and mrp-gui in target/release/
+./target/release/mrp-tui yourfile.txt     # F1 = help, F4 = edit, F10 = quit
+./target/release/mrp-gui yourfile.txt    # the same, in a window
 ```
 
-Windows (PowerShell): `.\install.ps1` in `rust\` is optional — it copies `mrp.exe` to `%USERPROFILE%\.local\bin` and the language files to
+Windows (PowerShell): `.\install.ps1` in `rust\` is optional — it copies `mrp-tui.exe` to `%USERPROFILE%\.local\bin` and the language files to
 `%APPDATA%\mrp\lang`; it never touches your `PATH` or your saved settings. `.\portable.ps1` (after the build) makes a folder with the programs and `lang\`:
 copy it anywhere, and as long as `lang` is next to the programs, the languages, the settings (`settings.txt`) and the session stay in that folder and nothing is written to your profile.
 
-Try the multi-file features: `mrp a.txt b.txt c.txt`, then `Ctrl+H`, type a pattern, `Tab`, type a replacement, `Alt+A` (all tabs), `Enter`.
+Try the multi-file features: `mrp-tui a.txt b.txt c.txt`, then `Ctrl+H`, type a pattern, `Tab`, type a replacement, `Alt+A` (all tabs), `Enter`.
 
 ## Known limitations
 
 - **Early development.** The editor works and is covered by 765 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
-  the Linux/macOS desktop window (`mrpg`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.
-- **The window (`mrpg`)** has been checked with automated tests and screenshots, not yet with long sessions of real keyboard and mouse use.
+  the Linux/macOS desktop window (`mrp-gui`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.
+- **The window (`mrp-gui`)** has been checked with automated tests and screenshots, not yet with long sessions of real keyboard and mouse use.
 - **Regex, glob and ignore-case work on UTF-8 documents only** (they are matched line by line, like grep: a match never crosses a line). Plain-text search works in every encoding.
   In "all tabs" a tab that cannot use a regex is skipped, and the dialog says so.
 - A single Replace handles up to **2,000,000** matches; a line longer than 16 MiB is read in pieces, so a match straddling the cut can be missed.
@@ -170,8 +170,8 @@ cargo clippy --workspace --all-targets -- -D warnings
 | Path | Contents |
 |---|---|
 | `rust/crates/mrp-core` | The engine (Rust): `FileSource`, `LineIndex`, `PieceTable`/`Document` (edit, undo, save), search and replace (`pattern`), session records (`session`), encodings, languages |
-| `rust/crates/mrp-tui` | The terminal editor `mrp` (ratatui): `App` (one document), `Workspace` (the tabs and the session), screen, themes, settings, command line |
-| `rust/crates/mrp-gui` | The desktop window `mrpg` (egui): the menu bar, the tab strip and the cell grid of the terminal editor |
+| `rust/crates/mrp-tui` | The terminal editor `mrp-tui` (ratatui): `App` (one document), `Workspace` (the tabs and the session), screen, themes, settings, command line |
+| `rust/crates/mrp-gui` | The desktop window `mrp-gui` (egui): the menu bar, the tab strip and the cell grid of the terminal editor |
 | `rust/install.ps1`, `rust/portable.ps1` | Local install on Windows; a portable folder |
 | `docs/` | `MARKET.md` (the landscape of existing tools, with sources), `BENCHMARKS.md` (measurements, method, limitations) |
 | `bench/` | Reproducible scripts (Windows, Python 3.12, no dependencies) and raw results |

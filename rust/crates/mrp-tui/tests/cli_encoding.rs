@@ -38,7 +38,7 @@ struct Out {
 }
 
 fn run(args: &[&str]) -> Out {
-    let o = Command::new(env!("CARGO_BIN_EXE_mrp"))
+    let o = Command::new(env!("CARGO_BIN_EXE_mrp-tui"))
         .env("MRP_NO_PROFILE", "1")
         .args(args)
         .output()
