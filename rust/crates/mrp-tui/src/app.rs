@@ -2798,6 +2798,21 @@ impl App {
         }
     }
 
+    /// C'e' qualcosa di selezionato: una selezione di flusso (non vuota) o un blocco della modalita' colonna.
+    pub fn has_selection(&self) -> bool {
+        self.selection().is_some() || (self.col_mode && self.block.is_some())
+    }
+
+    /// C'e' qualcosa da annullare (la storia delle modifiche del documento).
+    pub fn can_undo(&self) -> bool {
+        self.doc.as_ref().is_some_and(Document::can_undo)
+    }
+
+    /// C'e' qualcosa da ripetere.
+    pub fn can_redo(&self) -> bool {
+        self.doc.as_ref().is_some_and(Document::can_redo)
+    }
+
     /// La selezione normalizzata `(inizio, fine esclusa)`: l'ancora e il cursore nell'ordine; `None` se
     /// non c'e' ancora o coincide col cursore (selezione vuota). In modalita' colonna non esiste
     /// selezione di flusso: c'e' il blocco.

@@ -797,6 +797,19 @@ impl Workspace {
         (a.theme_id(), a.lang_code().to_string())
     }
 
+    /// Esegue un comando del registro (`commands`): lo stesso del suo tasto. Non fa niente (e dice `false`) se il comando non
+    /// e' attivo adesso, se c'e' un dialogo aperto, o se e' della sola finestra (lo zoom).
+    pub fn exec(&mut self, cmd: crate::commands::Cmd) -> bool {
+        if self.tabs[self.active].dialog_kind().is_some() || !crate::commands::enabled(self, cmd) {
+            return false;
+        }
+        let Some(k) = cmd.info().key else {
+            return false;
+        };
+        self.handle_key(k);
+        true
+    }
+
     /// Un tasto: quelli delle schede si tengono qui (se non c'e' un dialogo aperto), gli altri vanno alla scheda attiva.
     pub fn handle_key(&mut self, k: KeyEvent) {
         // una sostituzione in corso tiene tutti i tasti: Esc la ferma

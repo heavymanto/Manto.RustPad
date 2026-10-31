@@ -6,8 +6,9 @@ use eframe::egui::{Context, Event, FullOutput, Key, Modifiers, Pos2, RawInput, R
 use mrp_core::lang::Lang;
 use mrp_gui::fonts::{scrittura_della_lingua, Scrittura};
 use mrp_gui::gui::Finestra;
-use mrp_gui::menu::{Azione, Voce, MENU};
+use mrp_gui::menu::{voce_di, Voce, MENU};
 use mrp_tui::app::{App, AppConfig, DialogKind};
+use mrp_tui::commands::{shortcut_text, Cmd};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -25,7 +26,7 @@ fn file(data: &[u8]) -> PathBuf {
 
 fn voci() -> Vec<Voce> {
     MENU.iter()
-        .flat_map(|(_, v)| v.iter().flatten().copied())
+        .flat_map(|(_, v)| v.iter().flatten().map(|c| voce_di(*c)))
         .collect()
 }
 
@@ -34,22 +35,6 @@ fn voce(chiave: &str) -> Voce {
         .into_iter()
         .find(|v| v.chiave == chiave)
         .unwrap_or_else(|| panic!("manca la voce {chiave}"))
-}
-
-/// Cio' che i titoli e le voci dichiarano di essere: come si chiama la scorciatoia di un tasto.
-fn nome_tasto(k: KeyEvent) -> String {
-    let mut s = String::new();
-    if k.modifiers.contains(KeyModifiers::CONTROL) {
-        s.push_str("Ctrl+");
-    }
-    match k.code {
-        KeyCode::F(n) => s.push_str(&format!("F{n}")),
-        KeyCode::PageUp => s.push_str("PgUp"),
-        KeyCode::PageDown => s.push_str("PgDn"),
-        KeyCode::Char(c) => s.push(c.to_ascii_uppercase()),
-        altro => panic!("tasto non previsto: {altro:?}"),
-    }
-    s
 }
 
 #[test]
@@ -87,8 +72,8 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
 #[test]
 fn the_shortcut_written_on_a_menu_entry_is_the_key_it_sends() {
     for v in voci() {
-        if let Azione::Tasto(k) = v.azione {
-            assert_eq!(v.scorciatoia, nome_tasto(k), "{}", v.chiave);
+        if let Some(k) = v.azione.info().key {
+            assert_eq!(v.scorciatoia, shortcut_text(k), "{}", v.chiave);
         }
     }
     assert_eq!(voce("gui.open").scorciatoia, "Ctrl+O");
@@ -205,7 +190,7 @@ fn opening_with_unsaved_changes_opens_a_new_tab_and_keeps_the_edits() {
     giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     assert!(f.app().is_modified());
-    f.azione(Azione::Apri);
+    f.azione(Cmd::Open);
     assert_eq!(titoli.borrow().len(), 1);
     assert_eq!(f.workspace().len(), 2);
     assert_eq!(f.app().file_name(), nome(&q));
@@ -224,7 +209,7 @@ fn a_file_that_cannot_be_opened_is_reported_and_the_old_one_stays() {
     let _ = std::fs::remove_file(&mancante);
     let (mut f, ctx, p, _t) = finestra(b"uno\n", vec![mancante.clone()]);
     giro(&mut f, &ctx, vec![]);
-    f.azione(Azione::Apri);
+    f.azione(Cmd::Open);
     assert_eq!(f.app().file_name(), nome(&p));
     let avviso = f.app().flash().expect("un avviso").to_string();
     assert!(avviso.contains("mrp_menu_test_non_esiste.txt"), "{avviso}");
@@ -245,10 +230,8 @@ fn the_menu_entries_do_what_their_shortcuts_do() {
     assert_eq!(f.app().selection(), Some((0, 7)));
     esegui(&mut f, "gui.help");
     assert_eq!(f.app().dialog_kind(), Some(DialogKind::Help));
-    f.azione(Azione::Tasto(KeyEvent::new(
-        KeyCode::Esc,
-        KeyModifiers::NONE,
-    )));
+    f.workspace()
+        .handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     for (chiave, dialogo) in [
         ("gui.find", DialogKind::Find),
         ("gui.goto", DialogKind::Goto),
@@ -258,10 +241,8 @@ fn the_menu_entries_do_what_their_shortcuts_do() {
     ] {
         esegui(&mut f, chiave);
         assert_eq!(f.app().dialog_kind(), Some(dialogo), "{chiave}");
-        f.azione(Azione::Tasto(KeyEvent::new(
-            KeyCode::Esc,
-            KeyModifiers::NONE,
-        )));
+        f.workspace()
+            .handle_key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         assert_eq!(f.app().dialog_kind(), None, "{chiave}");
     }
     esegui(&mut f, "gui.column_mode");
@@ -298,11 +279,11 @@ fn the_zoom_entries_change_the_text_size_within_limits() {
     f.azione(voce("gui.zoom_reset").azione);
     assert_eq!(f.corpo(), base);
     for _ in 0..100 {
-        f.azione(Azione::ZoomPiu);
+        f.azione(Cmd::ZoomIn);
     }
     assert_eq!(f.corpo(), 48.0);
     for _ in 0..100 {
-        f.azione(Azione::ZoomMeno);
+        f.azione(Cmd::ZoomOut);
     }
     assert_eq!(f.corpo(), 8.0);
     let _ = std::fs::remove_file(p);
@@ -332,7 +313,7 @@ fn a_click_on_an_open_menu_entry_does_not_reach_the_text_underneath() {
     let (mut f, ctx, p, titoli) = finestra(b"abc\ndef\nghi\n", vec![]);
     // il corpo piccolo: le righe sono basse, quindi la voce del menu sta sopra una riga di testo e non sul titolo
     for _ in 0..10 {
-        f.azione(Azione::ZoomMeno);
+        f.azione(Cmd::ZoomOut);
     }
     giro(&mut f, &ctx, vec![]);
     giro(&mut f, &ctx, vec![]);
@@ -383,7 +364,7 @@ fn the_tab_entries_switch_and_close_tabs() {
         vec![q.clone()],
     );
     giro(&mut f, &ctx, vec![]);
-    f.azione(Azione::Apri);
+    f.azione(Cmd::Open);
     assert_eq!(f.workspace().active_index(), 1);
     f.azione(voce("gui.next_tab").azione);
     assert_eq!(f.workspace().active_index(), 0);
@@ -436,9 +417,9 @@ fn finestra_nuova(scelte: Vec<PathBuf>) -> (Finestra, Context, PathBuf, Chiamate
 fn the_file_menu_has_new_and_save_as_with_their_shortcuts() {
     assert_eq!(voce("gui.new").scorciatoia, "Ctrl+N");
     assert_eq!(voce("gui.save_as").scorciatoia, "Ctrl+Shift+S");
-    assert_eq!(voce("gui.save_as").azione, Azione::SalvaConNome);
+    assert_eq!(voce("gui.save_as").azione, Cmd::SaveAs);
     // sono nel menu File, dopo Apri
-    let file_menu: Vec<&str> = MENU[0].1.iter().flatten().map(|v| v.chiave).collect();
+    let file_menu: Vec<&str> = MENU[0].1.iter().flatten().map(|c| c.info().label).collect();
     assert_eq!(file_menu[0], "gui.new");
     assert_eq!(file_menu[1], "gui.open");
     assert!(file_menu.contains(&"gui.save_as"));
@@ -555,7 +536,7 @@ fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
     assert_eq!(std::fs::read(&p).unwrap(), b"+uno\n");
     // Salva con nome (dal menu, o Ctrl+Maiusc+S): il dialogo di sistema, il nome suggerito e' quello del file
     giro(&mut f, &ctx, vec![Event::Text("!".into())]);
-    f.azione(Azione::SalvaConNome);
+    f.azione(Cmd::SaveAs);
     assert_eq!(chiamate.borrow().len(), 1);
     assert_eq!(chiamate.borrow()[0].1, nome(&p));
     assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));

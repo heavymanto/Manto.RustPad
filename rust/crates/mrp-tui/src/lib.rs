@@ -4,6 +4,7 @@ pub mod app;
 pub mod args;
 pub mod cells;
 pub mod clip;
+pub mod commands;
 pub mod keys;
 pub mod sessionstore;
 pub mod settings;

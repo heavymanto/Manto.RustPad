@@ -4,13 +4,14 @@
 
 use crate::fonts::{self, Scrittura};
 use crate::input;
-use crate::menu::{self, Azione};
+use crate::menu;
 use crate::paint;
 use eframe::egui::{
     self, Context, CursorIcon, Event, FontId, Frame, Pos2, Sense, Vec2, ViewportCommand,
 };
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::cells::{render_grid_workspace, BG_PREDEFINITO};
+use mrp_tui::commands::Cmd;
 use mrp_tui::workspace::Workspace;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -201,15 +202,15 @@ impl Finestra {
                                 continue;
                             }
                             egui::Key::Plus | egui::Key::Equals => {
-                                self.zoom(Azione::ZoomPiu);
+                                self.zoom(Cmd::ZoomIn);
                                 continue;
                             }
                             egui::Key::Minus => {
-                                self.zoom(Azione::ZoomMeno);
+                                self.zoom(Cmd::ZoomOut);
                                 continue;
                             }
                             egui::Key::Num0 => {
-                                self.zoom(Azione::ZoomNormale);
+                                self.zoom(Cmd::ZoomReset);
                                 continue;
                             }
                             egui::Key::O => {
@@ -457,11 +458,11 @@ impl Finestra {
         scelta
     }
 
-    /// Cambia il corpo del testo: `Azione::ZoomPiu`, `ZoomMeno` o `ZoomNormale`.
-    fn zoom(&mut self, a: Azione) {
+    /// Cambia il corpo del testo: `Cmd::ZoomIn`, `ZoomOut` o `ZoomReset`.
+    fn zoom(&mut self, a: Cmd) {
         self.corpo = match a {
-            Azione::ZoomPiu => (self.corpo + 1.0).min(CORPO_MAX),
-            Azione::ZoomMeno => (self.corpo - 1.0).max(CORPO_MIN),
+            Cmd::ZoomIn => (self.corpo + 1.0).min(CORPO_MAX),
+            Cmd::ZoomOut => (self.corpo - 1.0).max(CORPO_MIN),
             _ => CORPO,
         };
     }
@@ -471,17 +472,18 @@ impl Finestra {
         self.corpo
     }
 
-    /// Esegue la voce di menu scelta.
-    pub fn azione(&mut self, a: Azione) {
+    /// Esegue il comando scelto (menu o pulsante): quelli della finestra (aprire, salvare con nome, zoom) li fa lei, gli altri
+    /// vanno al `Workspace` (`exec`: spenti non fanno niente).
+    pub fn azione(&mut self, a: Cmd) {
         match a {
-            Azione::Apri => self.apri(),
-            Azione::SalvaConNome => self.salva_con_nome(),
+            Cmd::Open => self.apri(),
+            Cmd::SaveAs => self.salva_con_nome(),
             // il salvataggio di un documento senza nome passa dal dialogo di sistema, non dal prompt a testo dell'App
-            Azione::Tasto(k) if k.code == KeyCode::F(2) && self.salva_chiede_il_nome() => {
-                self.salva_con_nome();
+            Cmd::Save if self.salva_chiede_il_nome() => self.salva_con_nome(),
+            Cmd::ZoomIn | Cmd::ZoomOut | Cmd::ZoomReset => self.zoom(a),
+            c => {
+                self.ws.exec(c);
             }
-            Azione::Tasto(k) => self.ws.handle_key(k),
-            z => self.zoom(z),
         }
         self.ultimo_input = Instant::now();
     }
@@ -574,7 +576,7 @@ impl Finestra {
         self.chiusura(ctx);
         self.titolo(ctx);
         let scelta = egui::TopBottomPanel::top("menu")
-            .show(ctx, |ui| menu::disegna(ui, self.ws.active()))
+            .show(ctx, |ui| menu::disegna(ui, &self.ws))
             .inner;
         if let Some(a) = scelta {
             self.azione(a);
