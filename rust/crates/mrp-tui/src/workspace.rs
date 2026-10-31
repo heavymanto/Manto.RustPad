@@ -8,8 +8,10 @@
 //! modifiche.
 
 use crate::app::{App, AppConfig};
+use crate::sessionstore;
 use crate::theme::{Theme, ThemeId};
 use crate::ui;
+use mrp_core::session::TabRecord;
 use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -20,11 +22,58 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::{Frame, Terminal};
 use std::io;
-use std::path::Path;
-use std::time::Duration;
+use std::path::{Path, PathBuf};
+use std::time::{Duration, Instant};
 
 /// Quanti caratteri al massimo per il nome di una scheda nella barra.
 const NOME_MAX: usize = 24;
+
+/// Ogni quanto si guarda se la sessione e' cambiata.
+const CONTROLLO_SESSIONE: Duration = Duration::from_secs(1);
+/// Al piu' una scrittura della sessione ogni tanto.
+const SCRITTURA_SESSIONE: Duration = Duration::from_secs(5);
+
+/// Cio' che la sessione ricorda di una scheda, per capire se e' cambiata: percorso, versione del documento, cursore, modalita'.
+type ImprontaScheda = (PathBuf, Option<u64>, u64, bool);
+
+/// La sessione su disco di questo `Workspace`: dove sta e quando si e' scritta l'ultima volta.
+struct Sessione {
+    dir: PathBuf,
+    /// Il blocco della cartella: finche' il processo e' vivo (o il file e' aperto) nessun altro `mrp` scrive la stessa
+    /// sessione; il sistema lo toglie da solo se il processo muore, quindi non resta mai bloccata.
+    _blocco: std::fs::File,
+    /// L'impronta dell'ultima scrittura (e quale scheda era avanti).
+    scritta: Option<(Vec<ImprontaScheda>, usize)>,
+    controllato: Instant,
+    scritta_il: Instant,
+    controllo: Duration,
+    intervallo: Duration,
+}
+
+impl Sessione {
+    /// La sessione in `dir`, se la cartella si puo' preparare e nessun altro processo la tiene (due `mrp` aperti insieme
+    /// non devono scriversi addosso: il secondo lavora senza sessione).
+    fn apri(dir: PathBuf) -> Option<Sessione> {
+        std::fs::create_dir_all(&dir).ok()?;
+        let blocco = std::fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(dir.join("lock"))
+            .ok()?;
+        blocco.try_lock().ok()?;
+        let ora = Instant::now();
+        Some(Sessione {
+            dir,
+            _blocco: blocco,
+            scritta: None,
+            controllato: ora,
+            scritta_il: ora,
+            controllo: CONTROLLO_SESSIONE,
+            intervallo: SCRITTURA_SESSIONE,
+        })
+    }
+}
 
 /// Piu' schede aperte, una attiva.
 pub struct Workspace {
@@ -40,6 +89,8 @@ pub struct Workspace {
     quit: bool,
     /// Dove sta ogni scheda nella barra dopo l'ultimo disegno: colonne da..a (escluso); (0, 0) se non si vede.
     spans: Vec<(u16, u16)>,
+    /// La sessione su disco, se e' attiva: le schede (e le modifiche non salvate) sopravvivono alla chiusura.
+    session: Option<Sessione>,
 }
 
 impl Workspace {
@@ -57,6 +108,216 @@ impl Workspace {
             closing_all: false,
             quit: false,
             spans: Vec::new(),
+            session: None,
+        }
+    }
+
+    /// Accende la sessione in `dir`: da ora la sessione si riscrive da sola quando cambia (al piu' ogni 5 secondi),
+    /// F10 / Ctrl+Q / la chiusura della finestra non chiedono niente (la sessione tiene le modifiche non salvate) e alla
+    /// prossima apertura `from_session` / `merge_session` le rimettono.
+    /// Se un altro processo tiene gia' la sessione, questo `Workspace` resta senza (`has_session` e' falso).
+    pub fn with_session(mut self, dir: PathBuf) -> Workspace {
+        self.session = Sessione::apri(dir);
+        self
+    }
+
+    /// Cambia i tempi della sessione (per i test): ogni quanto si controlla e ogni quanto al piu' si scrive.
+    pub fn with_session_timing(mut self, controllo: Duration, intervallo: Duration) -> Workspace {
+        if let Some(s) = &mut self.session {
+            s.controllo = controllo;
+            s.intervallo = intervallo;
+        }
+        self
+    }
+
+    /// Vero se la sessione e' accesa.
+    pub fn has_session(&self) -> bool {
+        self.session.is_some()
+    }
+
+    /// I record delle schede per la sessione (quelle che si possono ricordare) e quale era avanti fra loro.
+    fn records(&self) -> (Vec<TabRecord>, usize) {
+        let mut v = Vec::new();
+        let mut avanti = 0;
+        for (i, a) in self.tabs.iter().enumerate() {
+            if let Some(r) = a.session_record() {
+                if i == self.active {
+                    avanti = v.len();
+                }
+                v.push(r);
+            }
+        }
+        (v, avanti)
+    }
+
+    /// L'impronta della sessione adesso: cambia se cambia una modifica, un cursore, una scheda o quella avanti.
+    fn fingerprint(&self) -> (Vec<ImprontaScheda>, usize) {
+        let v = self
+            .tabs
+            .iter()
+            .map(|a| {
+                (
+                    a.path().to_path_buf(),
+                    a.doc_version(),
+                    a.cursor(),
+                    a.is_edit(),
+                )
+            })
+            .collect();
+        (v, self.active)
+    }
+
+    /// Scrive la sessione adesso. Senza sessione non fa nulla.
+    pub fn save_session(&mut self) -> io::Result<()> {
+        let imp = self.fingerprint();
+        let (recs, avanti) = self.records();
+        let Some(s) = &mut self.session else {
+            return Ok(());
+        };
+        sessionstore::scrivi(&s.dir, &recs, avanti)?;
+        s.scritta = Some(imp);
+        s.scritta_il = Instant::now();
+        Ok(())
+    }
+
+    /// Un giro della sessione: la riscrive se e' cambiata e se e' passato il tempo.
+    fn tick_session(&mut self) {
+        let Some(s) = &self.session else {
+            return;
+        };
+        if s.controllato.elapsed() < s.controllo {
+            return;
+        }
+        let imp = self.fingerprint();
+        let Some(s) = &mut self.session else {
+            return;
+        };
+        s.controllato = Instant::now();
+        if s.scritta.as_ref() == Some(&imp) || s.scritta_il.elapsed() < s.intervallo {
+            return;
+        }
+        // un errore di scrittura non ferma l'editor: si riprova al prossimo giro utile
+        let _ = self.save_session();
+    }
+
+    /// Le schede della sessione in `dir`: le app riaperte, quale era avanti (se e' fra quelle riaperte) e gli avvisi
+    /// per quello che non si e' potuto rimettere. Con `solo_modificate` si riaprono solo le schede con modifiche non
+    /// salvate. Una scheda le cui modifiche non si rimettono (il file e' cambiato o sparito) mette da parte il suo file
+    /// nella cartella `stale` della sessione.
+    fn load_session(
+        dir: &Path,
+        cfg: &AppConfig,
+        solo_modificate: bool,
+    ) -> (Vec<App>, Option<usize>, Vec<String>) {
+        let mut app: Vec<App> = Vec::new();
+        let mut avvisi: Vec<String> = Vec::new();
+        let mut avanti_aperta = None;
+        let Some((avanti, schede)) = sessionstore::leggi(dir) else {
+            return (app, None, avvisi);
+        };
+        let cat = |chiave: &str, argomenti: &[&str]| {
+            let c = mrp_core::lang::Catalog::english();
+            let c = match &cfg.lang_code {
+                Some(code) => cfg
+                    .langs
+                    .iter()
+                    .find(|l| &l.code == code)
+                    .map_or(c, |l| mrp_core::lang::Catalog::with(l.clone())),
+                None => c,
+            };
+            c.tf(chiave, argomenti)
+        };
+        let mut modificate = 0;
+        for (i, (nome, r)) in schede.into_iter().enumerate() {
+            let rec = match r {
+                Ok(rec) => rec,
+                Err(_) => {
+                    let _ = sessionstore::metti_da_parte(dir, &nome);
+                    avvisi.push(cat("session.corrupt", &[]));
+                    continue;
+                }
+            };
+            if solo_modificate && rec.state.is_none() {
+                continue;
+            }
+            let file = Path::new(&rec.path)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
+            match App::restore_tab(&rec, cfg.clone()) {
+                Ok((a, esito)) => {
+                    if esito.is_some() {
+                        let dove = sessionstore::metti_da_parte(dir, &nome)
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default();
+                        avvisi.push(cat("session.stale", &[&file, &dove]));
+                    } else if rec.state.is_some() {
+                        modificate += 1;
+                    }
+                    if i == avanti {
+                        avanti_aperta = Some(app.len());
+                    }
+                    app.push(a);
+                }
+                Err(_) => {
+                    if rec.state.is_some() {
+                        let dove = sessionstore::metti_da_parte(dir, &nome)
+                            .map(|p| p.display().to_string())
+                            .unwrap_or_default();
+                        avvisi.push(cat("session.lost", &[&file, &dove]));
+                    }
+                }
+            }
+        }
+        if modificate > 0 {
+            avvisi.insert(0, cat("session.restored", &[&modificate.to_string()]));
+        }
+        (app, avanti_aperta, avvisi)
+    }
+
+    /// Un `Workspace` con le schede dell'ultima sessione in `dir` (nessun file nella riga di comando); `None` se non c'e'
+    /// nessuna scheda da riaprire. La sessione resta accesa su `dir`. Gli avvisi sono nella riga di stato.
+    pub fn from_session(dir: PathBuf, cfg: AppConfig) -> Option<Workspace> {
+        // prima si prende il blocco: se un altro `mrp` ha la sessione, le sue modifiche non si ripetono qui
+        let sessione = Sessione::apri(dir)?;
+        let (mut app, avanti, avvisi) = Workspace::load_session(&sessione.dir, &cfg, false);
+        if app.is_empty() {
+            return None;
+        }
+        let primo = app.remove(0);
+        let mut ws = Workspace::new(primo, cfg);
+        ws.session = Some(sessione);
+        // le altre schede in ordine; `avanti` contava anche la prima
+        ws.tabs.extend(app);
+        ws.active = avanti.unwrap_or(0).min(ws.tabs.len() - 1);
+        ws.apply_size();
+        ws.avvisa(avvisi);
+        Some(ws)
+    }
+
+    /// Aggiunge a questo `Workspace` le schede con modifiche non salvate dell'ultima sessione (si usa quando ci sono file
+    /// nella riga di comando: le modifiche di prima non si perdono). Una scheda dello stesso file gia' aperta senza
+    /// modifiche si sostituisce con quella della sessione. Resta avanti la scheda che era avanti.
+    pub fn merge_session(&mut self) {
+        let Some(s) = &self.session else {
+            return;
+        };
+        let (app, _, avvisi) = Workspace::load_session(&s.dir, &self.cfg, true);
+        for a in app {
+            match self.tabs.iter().position(|t| t.path() == a.path()) {
+                Some(i) if !self.tabs[i].is_modified() => self.tabs[i] = a,
+                Some(_) => {}
+                None => self.tabs.push(a),
+            }
+        }
+        self.apply_size();
+        self.avvisa(avvisi);
+    }
+
+    /// Mostra il primo avviso sulla riga di stato della scheda attiva.
+    fn avvisa(&mut self, avvisi: Vec<String>) {
+        if let Some(a) = avvisi.into_iter().next() {
+            self.tabs[self.active].set_flash(a);
         }
     }
 
@@ -180,6 +441,11 @@ impl Workspace {
 
     /// Chiude tutto: chiede, una scheda alla volta, per quelle con modifiche; poi `should_quit`.
     pub fn close_all(&mut self) {
+        // con la sessione le modifiche non salvate restano nella sessione: si scrive e si esce senza chiedere
+        if self.session.is_some() && self.save_session().is_ok() {
+            self.quit = true;
+            return;
+        }
         self.closing_all = true;
         self.ask_next();
         self.settle();
@@ -202,7 +468,11 @@ impl Workspace {
     fn settle(&mut self) {
         while let Some(i) = self.tabs.iter().position(|a| a.should_quit()) {
             if self.tabs.len() == 1 {
-                // l'ultima scheda: non si toglie (il `Workspace` non resta mai vuoto), si esce
+                // l'ultima scheda: non si toglie (il `Workspace` non resta mai vuoto), si esce; chiusa a mano, non deve
+                // tornare alla prossima apertura
+                if let Some(s) = &self.session {
+                    let _ = sessionstore::azzera(&s.dir);
+                }
                 self.quit = true;
                 return;
             }
@@ -303,6 +573,7 @@ impl Workspace {
             a.tick();
         }
         self.settle();
+        self.tick_session();
     }
 
     /// Aspetta che i lavori in background di tutte le schede finiscano, al piu' `t` per scheda; vero se sono finiti.

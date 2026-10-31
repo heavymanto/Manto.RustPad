@@ -140,5 +140,9 @@
   "gui.close_tab": "关闭标签页",
   "gui.next_tab": "下一个标签页",
   "gui.prev_tab": "上一个标签页",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   打开、关闭、切换标签页"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   打开、关闭、切换标签页",
+  "session.restored": "已恢复 {} 个有未保存更改的标签页",
+  "session.stale": "未恢复 {} 的未保存更改：磁盘上的文件已更改（副本在 {}）",
+  "session.lost": "未恢复 {} 的未保存更改：无法读取文件（副本在 {}）",
+  "session.corrupt": "无法读取已保存的标签页，已跳过"
 }

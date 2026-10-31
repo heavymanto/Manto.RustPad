@@ -140,5 +140,9 @@
   "gui.close_tab": "Tab schließen",
   "gui.next_tab": "Nächster Tab",
   "gui.prev_tab": "Vorheriger Tab",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   Tab öffnen, schließen, wechseln"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   Tab öffnen, schließen, wechseln",
+  "session.restored": "{} Tab(s) mit ungespeicherten Änderungen wiederhergestellt",
+  "session.stale": "ungespeicherte Änderungen von {} nicht wiederhergestellt: Datei auf dem Datenträger geändert (Kopie in {})",
+  "session.lost": "ungespeicherte Änderungen von {} nicht wiederhergestellt: Datei nicht lesbar (Kopie in {})",
+  "session.corrupt": "ein gespeicherter Tab war nicht lesbar und wurde übersprungen"
 }

@@ -140,5 +140,9 @@
   "gui.close_tab": "タブを閉じる",
   "gui.next_tab": "次のタブ",
   "gui.prev_tab": "前のタブ",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   タブを開く・閉じる・切り替え"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   タブを開く・閉じる・切り替え",
+  "session.restored": "未保存の変更があるタブを {} 件復元しました",
+  "session.stale": "{} の未保存の変更は復元できませんでした: ファイルが変更されています (コピー: {})",
+  "session.lost": "{} の未保存の変更は復元できませんでした: ファイルを読み込めません (コピー: {})",
+  "session.corrupt": "保存されたタブを読み込めずスキップしました"
 }

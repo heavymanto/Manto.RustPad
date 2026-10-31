@@ -140,5 +140,9 @@
   "gui.close_tab": "Cerrar pestaña",
   "gui.next_tab": "Pestaña siguiente",
   "gui.prev_tab": "Pestaña anterior",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   abrir, cerrar, cambiar pestaña"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   abrir, cerrar, cambiar pestaña",
+  "session.restored": "restauradas {} pestañas con cambios sin guardar",
+  "session.stale": "cambios sin guardar de {} no restaurados: el archivo cambió en el disco (copia en {})",
+  "session.lost": "cambios sin guardar de {} no restaurados: no se puede leer el archivo (copia en {})",
+  "session.corrupt": "una pestaña guardada no se pudo leer y se omitió"
 }

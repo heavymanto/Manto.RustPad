@@ -80,6 +80,15 @@ impl Finestra {
         Finestra::da_app(app, nuova_config)
     }
 
+    /// La finestra per un `Workspace` gia' pronto (le schede di una sessione, o piu' file); fa anche quello che fa `new`
+    /// per il contesto di egui.
+    pub fn new_ws(cc: &eframe::CreationContext<'_>, ws: Workspace) -> Finestra {
+        let finestra = Finestra::da_workspace(ws);
+        fonts::installa(&cc.egui_ctx, &finestra.scritture);
+        cc.egui_ctx.style_mut(|s| s.animation_time = 0.0);
+        finestra
+    }
+
     /// Le scritture di partenza: quella della codifica del file, se e' asiatica.
     fn scritture_iniziali(app: &App) -> Vec<Scrittura> {
         match fonts::scrittura_di(app.encoding()) {
@@ -90,9 +99,14 @@ impl Finestra {
 
     /// La finestra senza toccare il contesto (i font si installano a parte): per i test senza finestra vera.
     pub fn da_app(app: App, nuova_config: Box<dyn Fn() -> AppConfig>) -> Finestra {
-        let scritture = Finestra::scritture_iniziali(&app);
+        Finestra::da_workspace(Workspace::new(app, nuova_config()))
+    }
+
+    /// La finestra per `ws`, senza toccare il contesto (i font si installano a parte).
+    pub fn da_workspace(ws: Workspace) -> Finestra {
+        let scritture = Finestra::scritture_iniziali(ws.active());
         Finestra {
-            ws: Workspace::new(app, nuova_config()).senza_barra(),
+            ws: ws.senza_barra(),
             corpo: CORPO,
             scritture,
             dimensione: (0, 0),

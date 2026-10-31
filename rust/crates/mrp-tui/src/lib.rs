@@ -5,6 +5,7 @@ pub mod args;
 pub mod cells;
 pub mod clip;
 pub mod keys;
+pub mod sessionstore;
 pub mod settings;
 pub mod term;
 pub mod theme;

@@ -139,5 +139,9 @@
   "gui.close_tab": "Chiudi scheda",
   "gui.next_tab": "Scheda successiva",
   "gui.prev_tab": "Scheda precedente",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   apri, chiudi, cambia scheda"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   apri, chiudi, cambia scheda",
+  "session.restored": "ripristinate {} schede con modifiche non salvate",
+  "session.stale": "modifiche non salvate di {} non ripristinate: il file è cambiato su disco (copia in {})",
+  "session.lost": "modifiche non salvate di {} non ripristinate: il file non si legge (copia in {})",
+  "session.corrupt": "una scheda salvata non si legge ed è stata saltata"
 }

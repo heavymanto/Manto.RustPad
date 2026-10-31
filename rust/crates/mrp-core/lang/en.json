@@ -139,5 +139,9 @@
   "gui.close_tab": "Close tab",
   "gui.next_tab": "Next tab",
   "gui.prev_tab": "Previous tab",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   open, close, switch tabs"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   open, close, switch tabs",
+  "session.restored": "restored {} tab(s) with unsaved changes",
+  "session.stale": "unsaved changes of {} not restored: the file changed on disk (copy kept in {})",
+  "session.lost": "unsaved changes of {} not restored: the file cannot be read (copy kept in {})",
+  "session.corrupt": "a saved tab could not be read and was skipped"
 }

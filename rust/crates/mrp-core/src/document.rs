@@ -6,6 +6,7 @@
 use crate::edit::{Buf, EditError, Piece, PieceTable, Splice, DEFAULT_CHUNK_CAPACITY};
 use crate::lines::{BuildOptions, Cancelled, LineIndex};
 use crate::newline::Newline;
+use crate::session::EditState;
 use crate::source::FileSource;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{OsStr, OsString};
@@ -51,6 +52,36 @@ impl From<io::Error> for SaveError {
     fn from(e: io::Error) -> Self {
         SaveError::Io(e)
     }
+}
+
+/// Perche' le modifiche salvate non si rimettono.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RestoreError {
+    /// Il file su disco non e' piu' quello di allora (lunghezza o data diverse): i pezzi non puntano piu' a niente di
+    /// sicuro.
+    FileChanged,
+    /// Il documento ha gia' modifiche o storia.
+    HasHistory,
+    /// I pezzi salvati non sono coerenti (escono dai loro buffer).
+    Invalid(&'static str),
+}
+
+impl std::fmt::Display for RestoreError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RestoreError::FileChanged => write!(f, "il file su disco e' cambiato"),
+            RestoreError::HasHistory => write!(f, "il documento ha gia' modifiche"),
+            RestoreError::Invalid(m) => write!(f, "modifiche salvate non valide: {m}"),
+        }
+    }
+}
+
+impl std::error::Error for RestoreError {}
+
+/// Una data come (secondi, nanosecondi) dall'epoca Unix; `None` se non c'e' o e' prima dell'epoca.
+fn unix(t: Option<SystemTime>) -> Option<(i64, u32)> {
+    let d = t?.duration_since(SystemTime::UNIX_EPOCH).ok()?;
+    Some((i64::try_from(d.as_secs()).ok()?, d.subsec_nanos()))
 }
 
 /// Com'era il file quando l'abbiamo aperto (o salvato l'ultima volta): serve a riconoscere modifiche esterne.
@@ -286,6 +317,57 @@ impl Document {
     /// o salvando, il documento torna non modificato.
     pub fn is_modified(&self) -> bool {
         self.version != self.saved_version
+    }
+
+    /// La posizione nella storia delle modifiche: cambia a ogni modifica efficace, annulla e ripeti (serve a chi vuole
+    /// sapere se il documento e' cambiato dall'ultima volta che l'ha guardato).
+    pub fn version(&self) -> u64 {
+        self.version
+    }
+
+    /// Le modifiche non salvate, abbastanza per rifarle su un `Document` nuovo dello stesso file (`restore_edits`); `None`
+    /// se non ce ne sono. La storia dell'annulla non si salva.
+    pub fn edit_state(&self) -> Option<EditState> {
+        if !self.is_modified() {
+            return None;
+        }
+        Some(EditState {
+            original_len: self.stamp.len,
+            modified: unix(self.stamp.modified),
+            add: self.table.add_buffer().to_vec(),
+            pieces: self.table.pieces(),
+        })
+    }
+
+    /// Rimette le modifiche salvate in `state` sopra il file appena aperto: solo se il file su disco e' quello di allora
+    /// (stessa lunghezza e stessa data) e il documento non ha ancora storia ne' modifiche. Il documento risulta
+    /// modificato, senza storia da annullare. Se non riesce non cambia nulla.
+    pub fn restore_edits(&mut self, state: &EditState) -> Result<(), RestoreError> {
+        if self.is_modified()
+            || !self.undo.is_empty()
+            || self.open.is_some()
+            || !self.redo.is_empty()
+        {
+            return Err(RestoreError::HasHistory);
+        }
+        if self.stamp.len != state.original_len || unix(self.stamp.modified) != state.modified {
+            return Err(RestoreError::FileChanged);
+        }
+        let table = PieceTable::from_parts(
+            state.original_len,
+            self.table.chunk_capacity(),
+            state.add.clone(),
+            &state.pieces,
+        )
+        .map_err(RestoreError::Invalid)?;
+        self.table = table;
+        self.version = self.next_version;
+        self.next_version += 1;
+        // le cache dei conteggi dipendevano dai pezzi di prima
+        self.nl_of_piece.clear();
+        self.chunk_nl.clear();
+        self.prefix = None;
+        Ok(())
     }
 
     /// La tabella dei pezzi (sola lettura), per chi deve conoscere la struttura.

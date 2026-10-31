@@ -140,5 +140,9 @@
   "gui.close_tab": "Fechar aba",
   "gui.next_tab": "Próxima aba",
   "gui.prev_tab": "Aba anterior",
-  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   abrir, fechar, trocar de aba"
+  "help.l14": "Ctrl+O / Ctrl+W / Alt+←→   abrir, fechar, trocar de aba",
+  "session.restored": "restauradas {} abas com alterações não salvas",
+  "session.stale": "alterações não salvas de {} não restauradas: o arquivo mudou no disco (cópia em {})",
+  "session.lost": "alterações não salvas de {} não restauradas: o arquivo não pode ser lido (cópia em {})",
+  "session.corrupt": "uma aba salva não pôde ser lida e foi ignorada"
 }

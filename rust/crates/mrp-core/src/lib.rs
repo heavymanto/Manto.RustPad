@@ -18,10 +18,11 @@ pub mod multibyte;
 pub mod newline;
 pub mod scan;
 pub mod search;
+pub mod session;
 pub mod source;
 pub mod view;
 
-pub use document::{Document, SaveError};
+pub use document::{Document, RestoreError, SaveError};
 pub use lines::{BuildOptions, Cancelled, LineIndex};
 pub use search::{find_next, find_prev, SearchOptions, SearchResult};
 pub use source::FileSource;

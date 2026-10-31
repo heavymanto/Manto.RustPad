@@ -202,6 +202,65 @@ impl PieceTable {
         }
     }
 
+    /// Rifa una tabella dai suoi pezzi e dal buffer delle aggiunte (per ripristinare modifiche salvate): i pezzi vuoti
+    /// si scartano e quelli contigui dello stesso buffer si fondono (forma canonica). Errore se un pezzo esce dal suo
+    /// buffer (`original_len` per il file, la lunghezza di `add` per le aggiunte) o se le lunghezze non stanno in un
+    /// `u64`; in quel caso non c'e' tabella.
+    pub fn from_parts(
+        original_len: u64,
+        cap: usize,
+        add: Vec<u8>,
+        pieces: &[Piece],
+    ) -> Result<PieceTable, &'static str> {
+        let cap = cap.max(4);
+        let mut canon: Vec<Piece> = Vec::with_capacity(pieces.len());
+        let mut total = 0u64;
+        for p in pieces {
+            if p.len == 0 {
+                continue;
+            }
+            let fine = p.start.checked_add(p.len).ok_or("pezzo fuori misura")?;
+            let limite = match p.buf {
+                Buf::Original => original_len,
+                Buf::Add => add.len() as u64,
+            };
+            if fine > limite {
+                return Err("pezzo fuori dal suo buffer");
+            }
+            total = total.checked_add(p.len).ok_or("documento troppo lungo")?;
+            if let Some(ultimo) = canon.last_mut() {
+                if ultimo.buf == p.buf && ultimo.start + ultimo.len == p.start {
+                    ultimo.len += p.len;
+                    continue;
+                }
+            }
+            canon.push(*p);
+        }
+        let count = canon.len();
+        let chunks = if count == 0 {
+            Vec::new()
+        } else {
+            vec![Chunk::new(canon)]
+        };
+        let mut t = PieceTable {
+            original_len,
+            add,
+            chunks,
+            count,
+            total,
+            cap,
+        };
+        if count > 0 {
+            t.split_chunk(0);
+        }
+        Ok(t)
+    }
+
+    /// Il buffer delle aggiunte intero (per salvare le modifiche in una sessione).
+    pub fn add_buffer(&self) -> &[u8] {
+        &self.add
+    }
+
     /// Quanti pezzi ci sono (O(1)).
     pub fn piece_count(&self) -> usize {
         self.count

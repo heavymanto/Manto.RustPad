@@ -64,9 +64,15 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
     }
     // gli errori d'uso, nell'ordine: il file, il tema, la lingua, la codifica, la dimensione del
     // dump, i tasti
-    let Some(file) = a.files.first() else {
-        return usage_error(&cat, "cli.err.no_file", &[]);
+    // la sessione (le schede e le modifiche non salvate dell'ultima volta) sta accanto alle impostazioni; con --dump
+    // (uso da sviluppatore) non c'e'. Senza file nella riga di comando si riapre l'ultima sessione, se c'e'.
+    let sessione = match (&profilo.path, &a.dump) {
+        (Some(p), None) => p.parent().map(|d| d.join("session")),
+        _ => None,
     };
+    if a.files.is_empty() && sessione.is_none() {
+        return usage_error(&cat, "cli.err.no_file", &[]);
+    }
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => return usage_error(&cat, "cli.err.theme", &[&nome]),
@@ -113,18 +119,35 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         );
         1
     };
-    let app = match App::open(file, cfg.clone()) {
-        Ok(app) => app,
-        Err(e) => return errore_apertura(file, &e),
-    };
-    // un file per scheda, nell'ordine dato; resta avanti la prima
-    let mut ws = Workspace::new(app, cfg);
-    for altro in &a.files[1..] {
-        if let Err(e) = ws.open(altro) {
-            return errore_apertura(altro, &e);
+    let mut ws = match a.files.first() {
+        None => {
+            let dir = sessione.clone().unwrap_or_default();
+            match Workspace::from_session(dir, cfg) {
+                Some(ws) => ws,
+                None => return usage_error(&cat, "cli.err.no_file", &[]),
+            }
         }
-    }
-    ws.select(0);
+        Some(file) => {
+            let app = match App::open(file, cfg.clone()) {
+                Ok(app) => app,
+                Err(e) => return errore_apertura(file, &e),
+            };
+            // un file per scheda, nell'ordine dato; resta avanti la prima
+            let mut ws = Workspace::new(app, cfg);
+            for altro in &a.files[1..] {
+                if let Err(e) = ws.open(altro) {
+                    return errore_apertura(altro, &e);
+                }
+            }
+            // le schede con modifiche non salvate dell'ultima volta tornano comunque: nulla si perde
+            if let Some(dir) = &sessione {
+                ws = ws.with_session(dir.clone());
+                ws.merge_session();
+            }
+            ws.select(0);
+            ws
+        }
+    };
     match dump {
         // --dump: niente terminale, lo schermo come testo
         Some((w, h)) => match dump_run(&mut ws, w, h, &tasti) {

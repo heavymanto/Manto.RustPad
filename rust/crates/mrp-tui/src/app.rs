@@ -13,8 +13,9 @@ use mrp_core::lang::{Catalog, Lang};
 use mrp_core::lineending::LineEnding;
 use mrp_core::newline::Newline;
 use mrp_core::scan::{self, Next};
+use mrp_core::session::TabRecord;
 use mrp_core::view::{self, ViewOptions};
-use mrp_core::{Document, FileSource, LineIndex, SaveError};
+use mrp_core::{Document, FileSource, LineIndex, RestoreError, SaveError};
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
@@ -2177,6 +2178,44 @@ impl App {
             encoding: self.enc,
             ..ViewOptions::default()
         }
+    }
+
+    /// La scheda com'e' adesso, da ricordare nella sessione: il file, il cursore, la modalita', la codifica e le
+    /// modifiche non salvate. `None` se il documento e' in mano al salvataggio o il percorso non e' testo UTF-8.
+    pub fn session_record(&self) -> Option<TabRecord> {
+        let doc = self.doc.as_ref()?;
+        Some(TabRecord {
+            path: self.path.to_str()?.to_string(),
+            cursor: self.cursor,
+            edit: self.edit,
+            encoding: self.enc.name().to_string(),
+            state: doc.edit_state(),
+        })
+    }
+
+    /// La posizione del documento nella storia delle modifiche (cambia a ogni modifica, annulla, ripeti): serve a
+    /// capire se la sessione va riscritta. `None` mentre il documento e' in mano al salvataggio.
+    pub fn doc_version(&self) -> Option<u64> {
+        self.doc.as_ref().map(Document::version)
+    }
+
+    /// Riapre una scheda della sessione: il file con la codifica di allora, le sue modifiche non salvate, il cursore e la
+    /// modalita'. Se le modifiche non si possono rimettere (il file e' cambiato su disco) la scheda si apre lo stesso,
+    /// com'e' il file, e il motivo e' nel secondo valore. Errore se il file non si apre.
+    pub fn restore_tab(
+        rec: &TabRecord,
+        mut cfg: AppConfig,
+    ) -> io::Result<(App, Option<RestoreError>)> {
+        cfg.encoding = Encoding::by_name(&rec.encoding).or(cfg.encoding);
+        let mut app = App::open(Path::new(&rec.path), cfg)?;
+        let mut esito = None;
+        if let (Some(stato), Some(doc)) = (&rec.state, app.doc.as_mut()) {
+            esito = doc.restore_edits(stato).err();
+        }
+        app.edit = rec.edit && esito.is_none();
+        app.cursor = rec.cursor.min(app.max_cursor());
+        app.scroll_adjust();
+        Ok((app, esito))
     }
 
     /// Il percorso canonico del file.

@@ -7,6 +7,7 @@ use mrp_core::lang::Catalog;
 use mrp_gui::gui::Finestra;
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::args;
+use mrp_tui::workspace::Workspace;
 
 fn main() {
     std::process::exit(run());
@@ -27,15 +28,6 @@ fn run() -> i32 {
         println!("mrpg [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
-    // senza file nella riga di comando si sceglie con il dialogo; annullare non e' un errore
-    let file = match a.files.first() {
-        Some(f) => f.clone(),
-        None => match scegli(cat.t("gui.open_title")) {
-            Some(f) => f,
-            None => return 0,
-        },
-    };
-    let file = &file;
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => {
@@ -66,25 +58,67 @@ fn run() -> i32 {
         index: true,
         encoding,
     };
-    let app = match App::open(file, cfg.clone()) {
-        Ok(app) => app,
-        Err(e) => {
-            eprintln!(
-                "{}",
-                cat.tf(
-                    "cli.err.open",
-                    &[&file.display().to_string(), &e.to_string()]
-                )
-            );
-            return 1;
+    // la sessione (schede e modifiche non salvate dell'ultima volta) sta accanto alle impostazioni; con
+    // MRPG_SCREENSHOT (uso da sviluppatore) non c'e'
+    let sessione = match (&cfg.settings_path, std::env::var_os("MRPG_SCREENSHOT")) {
+        (Some(p), None) => p.parent().map(|d| d.join("session")),
+        _ => None,
+    };
+    let errore_apertura = |file: &std::path::Path, e: &std::io::Error| {
+        eprintln!(
+            "{}",
+            cat.tf(
+                "cli.err.open",
+                &[&file.display().to_string(), &e.to_string()]
+            )
+        );
+        1
+    };
+    // le schede: un file ciascuno (la prima avanti); senza file si riapre l'ultima sessione e, se non c'e', si sceglie
+    // con il dialogo (annullare non e' un errore)
+    let ws = match a.files.first() {
+        Some(file) => {
+            let app = match App::open(file, cfg.clone()) {
+                Ok(app) => app,
+                Err(e) => return errore_apertura(file, &e),
+            };
+            let mut ws = Workspace::new(app, cfg);
+            for altro in a.files.iter().skip(1) {
+                if let Err(e) = ws.open(altro) {
+                    errore_apertura(altro, &e);
+                }
+            }
+            if let Some(dir) = &sessione {
+                ws = ws.with_session(dir.clone());
+                // le schede con modifiche non salvate dell'ultima volta tornano comunque
+                ws.merge_session();
+            }
+            ws.select(0);
+            ws
+        }
+        None => {
+            let ripresa = sessione
+                .as_ref()
+                .and_then(|d| Workspace::from_session(d.clone(), cfg.clone()));
+            match ripresa {
+                Some(ws) => ws,
+                None => {
+                    let Some(file) = scegli(cat.t("gui.open_title")) else {
+                        return 0;
+                    };
+                    let app = match App::open(&file, cfg.clone()) {
+                        Ok(app) => app,
+                        Err(e) => return errore_apertura(&file, &e),
+                    };
+                    let ws = Workspace::new(app, cfg);
+                    match &sessione {
+                        Some(dir) => ws.with_session(dir.clone()),
+                        None => ws,
+                    }
+                }
+            }
         }
     };
-    // un file trascinato sulla finestra si apre con la codifica riconosciuta, non con quella imposta per il primo
-    let nuova = AppConfig {
-        encoding: None,
-        ..cfg
-    };
-    let altri: Vec<std::path::PathBuf> = a.files.iter().skip(1).cloned().collect();
     let opzioni = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1000.0, 700.0])
@@ -97,15 +131,7 @@ fn run() -> i32 {
         "Manto.RustPad",
         opzioni,
         Box::new(move |cc| {
-            let mut finestra = Finestra::new(cc, app, Box::new(move || nuova.clone()))
-                .con_selettore(Box::new(|t: &str| scegli(t)));
-            // gli altri file della riga di comando: una scheda ciascuno; resta avanti la prima
-            for altro in altri.iter() {
-                if let Err(e) = finestra.workspace().open(altro) {
-                    eprintln!("{}: {e}", altro.display());
-                }
-            }
-            finestra.workspace().select(0);
+            let finestra = Finestra::new_ws(cc, ws).con_selettore(Box::new(|t: &str| scegli(t)));
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => finestra.con_scatto(p.into()),
