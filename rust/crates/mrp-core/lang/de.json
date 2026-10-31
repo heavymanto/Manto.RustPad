@@ -28,6 +28,8 @@
   "help.l13": "F9                         Textkodierung (Zeichensatz)",
   "menu.encoding.title": "KODIERUNG",
   "cli.help.enc": "  --encoding NAME  auto | utf-8 | windows-1252 | ... (siehe --list-encodings)",
+  "cli.help.eol": "  --eol STIL       lf | crlf | cr (was Enter schreibt; vorhandene Zeilen bleiben)",
+  "cli.err.eol": "unbekanntes Zeilenende: {} (lf, crlf, cr)",
   "cli.err.encoding": "unbekannte Kodierung: {}",
   "footer.f8": "Spa",
   "help.l11": "Umschalt+Pfeile, Strg+A    markieren; Strg+C / X / V kopieren, ausschneiden, einfügen",

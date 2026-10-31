@@ -28,6 +28,8 @@
   "help.l13": "F9                         文本编码(字符集)",
   "menu.encoding.title": "编码",
   "cli.help.enc": "  --encoding 名称  auto | utf-8 | windows-1252 | ... (见 --list-encodings)",
+  "cli.help.eol": "  --eol 样式       lf | crlf | cr (回车键写入的换行；已有的行不变)",
+  "cli.err.eol": "未知的换行符: {} (lf, crlf, cr)",
   "cli.err.encoding": "未知编码: {}",
   "footer.f8": "列",
   "help.l11": "Shift+方向键, Ctrl+A       选择; Ctrl+C / X / V 复制、剪切、粘贴",

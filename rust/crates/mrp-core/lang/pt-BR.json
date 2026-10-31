@@ -28,6 +28,8 @@
   "help.l13": "F9                         codificação do texto (conjunto de caracteres)",
   "menu.encoding.title": "CODIFICAÇÃO",
   "cli.help.enc": "  --encoding NOME  auto | utf-8 | windows-1252 | ... (veja --list-encodings)",
+  "cli.help.eol": "  --eol ESTILO     lf | crlf | cr (o que o Enter escreve; as linhas existentes não mudam)",
+  "cli.err.eol": "fim de linha desconhecido: {} (lf, crlf, cr)",
   "cli.err.encoding": "codificação desconhecida: {}",
   "footer.f8": "Col",
   "help.l11": "Shift+setas, Ctrl+A        selecionar; Ctrl+C / X / V copiar, recortar, colar",

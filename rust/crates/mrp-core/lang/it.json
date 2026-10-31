@@ -27,6 +27,8 @@
   "help.l13": "F9                         codifica del testo (set di caratteri)",
   "menu.encoding.title": "CODIFICA",
   "cli.help.enc": "  --encoding NOME  auto | utf-8 | windows-1252 | ... (vedi --list-encodings)",
+  "cli.help.eol": "  --eol STILE      lf | crlf | cr (cosa scrive Invio; le righe che ci sono non cambiano)",
+  "cli.err.eol": "fine riga sconosciuto: {} (lf, crlf, cr)",
   "cli.err.encoding": "codifica sconosciuta: {}",
   "footer.f8": "Col",
   "help.l11": "Maiusc+frecce, Ctrl+A      seleziona; Ctrl+C / X / V copia, taglia, incolla",

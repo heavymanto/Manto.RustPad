@@ -9,6 +9,7 @@ use crate::settings::Settings;
 use crate::theme::ThemeId;
 use mrp_core::encoding::Encoding;
 use mrp_core::lang::{self, Lang};
+use mrp_core::lineending::LineEnding;
 use std::ffi::OsString;
 use std::path::PathBuf;
 
@@ -21,6 +22,8 @@ pub struct Args {
     pub theme: Option<String>,
     /// `--encoding NOME`: la codifica del file (`auto`: la riconosce l'apertura).
     pub encoding: Option<String>,
+    /// `--eol STILE`: lf, crlf o cr; lo stile di fine riga che scrive Invio (le righe che ci sono non cambiano).
+    pub eol: Option<String>,
     /// `--lang-dir DIR` (sviluppatore): le lingue si cercano in DIR invece che nel posto solito.
     pub lang_dir: Option<PathBuf>,
     /// `--settings PERCORSO` (sviluppatore): le impostazioni stanno in PERCORSO.
@@ -54,6 +57,7 @@ pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> 
             "--lang" => args.lang = Some(testo(&mut resto, "--lang")?),
             "--theme" => args.theme = Some(testo(&mut resto, "--theme")?),
             "--encoding" => args.encoding = Some(testo(&mut resto, "--encoding")?),
+            "--eol" => args.eol = Some(testo(&mut resto, "--eol")?),
             "--list-encodings" => args.list_encodings = true,
             "--lang-dir" => args.lang_dir = Some(percorso(&mut resto, "--lang-dir")?),
             "--settings" => args.settings = Some(percorso(&mut resto, "--settings")?),
@@ -170,6 +174,18 @@ pub fn resolve_theme(args: &Args, settings: &Option<Settings>) -> Result<ThemeId
         .as_ref()
         .map(|s| s.theme)
         .unwrap_or(ThemeId::DEFAULT))
+}
+
+/// Lo stile di fine riga di `--eol` (`lf`, `crlf`, `cr`, in qualunque maiuscola); nessuna opzione vale `None` (lo
+/// stile lo decide il file, o la piattaforma per un documento nuovo). `Err` col testo quando non si riconosce.
+pub fn resolve_eol(args: &Args) -> Result<Option<LineEnding>, String> {
+    match args.eol.as_deref().map(str::to_ascii_lowercase).as_deref() {
+        None => Ok(None),
+        Some("lf") => Ok(Some(LineEnding::Lf)),
+        Some("crlf") => Ok(Some(LineEnding::CrLf)),
+        Some("cr") => Ok(Some(LineEnding::Cr)),
+        Some(_) => Err(args.eol.clone().unwrap_or_default()),
+    }
 }
 
 /// La codifica di partenza: `--encoding NOME` con un nome noto (anche alias, come lo legge

@@ -27,6 +27,8 @@
   "help.l13": "F9                         text encoding (character set)",
   "menu.encoding.title": "ENCODING",
   "cli.help.enc": "  --encoding NAME  auto | utf-8 | windows-1252 | ... (see --list-encodings)",
+  "cli.help.eol": "  --eol STYLE      lf | crlf | cr (what Enter writes; existing lines stay as they are)",
+  "cli.err.eol": "unknown line ending: {} (lf, crlf, cr)",
   "cli.err.encoding": "unknown encoding: {}",
   "footer.f8": "Col",
   "help.l11": "Shift+arrows, Ctrl+A       select; Ctrl+C / X / V copy, cut, paste",

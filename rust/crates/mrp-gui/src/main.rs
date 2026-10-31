@@ -50,6 +50,13 @@ fn run() -> i32 {
             return 2;
         }
     };
+    let eol = match args::resolve_eol(&a) {
+        Ok(e) => e,
+        Err(nome) => {
+            eprintln!("{}", cat.tf("cli.err.eol", &[&nome]));
+            return 2;
+        }
+    };
     let cfg = AppConfig {
         theme,
         lang_code,
@@ -60,6 +67,7 @@ fn run() -> i32 {
             .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
         nav_bar: profilo.settings.as_ref().is_some_and(|s| s.nav_bar),
         chrome: false,
+        eol,
         settings_path: profilo.path,
         index: true,
         encoding,

@@ -48,6 +48,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             "cli.help.l3",
             "cli.help.l4",
             "cli.help.enc",
+            "cli.help.eol",
             "cli.help.l5",
         ] {
             println!("{}", cat.t(chiave));
@@ -83,6 +84,10 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         Ok(e) => e,
         Err(nome) => return usage_error(&cat, "cli.err.encoding", &[&nome]),
     };
+    let eol = match args::resolve_eol(&a) {
+        Ok(e) => e,
+        Err(nome) => return usage_error(&cat, "cli.err.eol", &[&nome]),
+    };
     let dump = match &a.dump {
         Some(testo) => match args::parse_dump(testo) {
             Some((w, h)) => Some((w, h)),
@@ -108,6 +113,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
         nav_bar: profilo.settings.as_ref().is_some_and(|s| s.nav_bar),
         chrome: true,
+        eol,
         settings_path: profilo.path,
         index: true,
         encoding,

@@ -241,6 +241,9 @@ pub struct AppConfig {
     pub jump_pages: [usize; 3],
     /// Vero: la barra dei salti (Ctrl+B) e' visibile all'avvio (vedi `Settings::nav_bar`).
     pub nav_bar: bool,
+    /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
+    /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
+    pub eol: Option<LineEnding>,
     /// Vero (predefinito): lo schermo ha la cornice del terminale (titolo, riga di stato, tasti). Falso: l'`App` disegna
     /// solo il testo e la finestra disegna il resto (`status`, `scroll_info`).
     pub chrome: bool,
@@ -258,6 +261,7 @@ impl Default for AppConfig {
             jump_pages: JUMP_PAGES,
             nav_bar: false,
             chrome: true,
+            eol: None,
         }
     }
 }
@@ -613,6 +617,8 @@ pub struct App {
     nav_bar: bool,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
+    /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
+    eol_forzato: Option<LineEnding>,
     /// Il codice della lingua scelta dall'utente (`None`: l'inglese incorporato): e' la `lang` delle impostazioni.
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
@@ -687,11 +693,15 @@ impl App {
         let enc = cfg.encoding.unwrap_or_else(|| Encoding::detect(&campione));
         // Lo stile di fine riga (LF, CRLF, CR da solo) dal campione e dalla codifica: decide la forma
         // dell'a-capo del documento (il CR da solo ha la sua) e cosa scrive Invio.
-        let eol = LineEnding::detect(&campione, enc).for_encoding(enc);
+        let rilevato = LineEnding::detect(&campione, enc).for_encoding(enc);
+        // Con `--eol` Invio scrive lo stile imposto; la forma dell'a-capo del documento resta quella del file (le righe che
+        // ci sono non cambiano), salvo un file senza a-capo, che segue lo stile imposto.
+        let eol = cfg.eol.map_or(rilevato, |e| e.for_encoding(enc));
+        let senza_a_capo = !campione.iter().any(|&b| b == b'\n' || b == b'\r');
         let bom = enc.bom_len(&campione) as u64;
         // La forma dell'a-capo della codifica, al documento appena aperto: senza storia di
         // modifiche non puo' fallire (il risultato bool si ignora per quello).
-        let newline = eol.newline_for(enc);
+        let newline = if senza_a_capo { eol } else { rilevato }.newline_for(enc);
         doc.set_newline(newline);
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
@@ -759,6 +769,7 @@ impl App {
             jump_pages: cfg.jump_pages,
             nav_bar: cfg.nav_bar,
             chrome: cfg.chrome,
+            eol_forzato: cfg.eol,
             lang_picked,
             index: cfg.index,
             enc,
@@ -3124,11 +3135,21 @@ impl App {
             .as_ref()
             .map(|d| d.read_range(0, d.len().min(65536)))
             .unwrap_or_default();
-        self.eol = if campione.is_empty() {
+        let rilevato = if campione.is_empty() {
             predefinito
         } else {
             LineEnding::detect(&campione, self.enc).for_encoding(self.enc)
         };
+        self.eol = self
+            .eol_forzato
+            .map_or(rilevato, |e| e.for_encoding(self.enc));
+        // un documento vuoto con lo stile CR da solo ne ha la forma d'a-capo (senza storia non puo' fallire)
+        if campione.is_empty() {
+            let forma = self.eol.newline_for(self.enc);
+            if let Some(doc) = self.doc.as_mut() {
+                doc.set_newline(forma);
+            }
+        }
     }
 
     /// Il nome "Untitled N" nella lingua attiva.

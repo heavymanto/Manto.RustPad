@@ -28,6 +28,8 @@
   "help.l13": "F9                         文字コード(エンコーディング)",
   "menu.encoding.title": "文字コード",
   "cli.help.enc": "  --encoding 名前  auto | utf-8 | windows-1252 | ... (--list-encodings 参照)",
+  "cli.help.eol": "  --eol STYLE      lf | crlf | cr (Enterが書く改行。既存の行は変わりません)",
+  "cli.err.eol": "不明な改行コード: {} (lf, crlf, cr)",
   "cli.err.encoding": "不明な文字コード: {}",
   "footer.f8": "矩形",
   "help.l11": "Shift+矢印, Ctrl+A         選択; Ctrl+C / X / V コピー・切り取り・貼り付け",
