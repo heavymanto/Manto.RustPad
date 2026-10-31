@@ -10,3 +10,4 @@ pub mod gui;
 pub mod input;
 pub mod menu;
 pub mod paint;
+pub mod strumenti;

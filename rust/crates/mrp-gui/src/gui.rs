@@ -7,6 +7,7 @@ use crate::fonts::{self, Scrittura};
 use crate::input;
 use crate::menu;
 use crate::paint;
+use crate::strumenti::{glifo, gruppi, salti, tooltip, Pulsante, SaltoAzione, SaltoVoce};
 use eframe::egui::{
     self, Align, Context, CursorIcon, Event, FontId, Frame, Label, Layout, Pos2, Rect, Sense, Vec2,
     ViewportCommand,
@@ -83,6 +84,16 @@ pub struct Finestra {
     testi: Option<TestiStato>,
     /// Dove si e' afferrato il pollice della scrollbar (dalla sua cima), mentre si preme sulla pista.
     presa_scroll: Option<f32>,
+    /// I pulsanti della barra degli strumenti nell'ultimo disegno, nell'ordine di disegno (vuoti: l'`App` ha la
+    /// cornice del terminale).
+    pulsanti: Vec<Pulsante>,
+    /// Il rettangolo della barra degli strumenti nell'ultimo disegno (`None`: come sopra).
+    rettangolo_strumenti: Option<Rect>,
+    /// I pulsanti della barra dei salti nell'ultimo disegno, da sinistra a destra, con la loro voce (vuoti: come
+    /// sopra, o la barra spenta).
+    pulsanti_salti_v: Vec<(Rect, SaltoVoce)>,
+    /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
+    rettangolo_salti: Option<Rect>,
 }
 
 impl Finestra {
@@ -145,6 +156,10 @@ impl Finestra {
             rettangolo_scroll: None,
             testi: None,
             presa_scroll: None,
+            pulsanti: Vec::new(),
+            rettangolo_strumenti: None,
+            pulsanti_salti_v: Vec::new(),
+            rettangolo_salti: None,
         }
     }
 
@@ -475,6 +490,83 @@ impl Finestra {
         scelta
     }
 
+    /// La barra degli strumenti (B3): sotto il menu, i comandi del registro a pulsanti d'icona, in gruppi separati da
+    /// un separatore. Un pulsante e' spento quando il comando non ha senso; i toggle (modifica, modalita' colonna,
+    /// barra dei salti) restano premuti mentre sono accesi; sopra un pulsante si legge il nome e la scorciatoia.
+    fn strumenti(&mut self, ctx: &Context) {
+        let mut pulsanti = Vec::new();
+        let mut scelta = None;
+        let pannello = egui::TopBottomPanel::top("strumenti").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                for (n, gruppo) in gruppi().into_iter().enumerate() {
+                    if n > 0 {
+                        ui.separator();
+                    }
+                    for cmd in gruppo {
+                        let info = cmd.info();
+                        let attivo = mrp_tui::commands::enabled(&self.ws, cmd);
+                        let acceso = match cmd {
+                            Cmd::EditMode => self.ws.active().is_edit(),
+                            Cmd::ColumnMode => self.ws.active().column_mode(),
+                            Cmd::NavBar => self.ws.nav_bar(),
+                            _ => false,
+                        };
+                        let b = egui::Button::new(egui::RichText::new(glifo(info.icon)).size(16.0))
+                            .selected(acceso);
+                        let r = ui
+                            .add_enabled(attivo, b)
+                            .on_hover_text(tooltip(cmd, self.ws.active().catalog()));
+                        if r.clicked() {
+                            scelta = Some(cmd);
+                        }
+                        pulsanti.push(Pulsante {
+                            rect: r.rect,
+                            cmd,
+                            attivo,
+                            acceso,
+                        });
+                    }
+                }
+            });
+        });
+        self.pulsanti = pulsanti;
+        self.rettangolo_strumenti = Some(pannello.response.rect);
+        if let Some(cmd) = scelta {
+            self.azione(cmd);
+        }
+    }
+
+    /// La barra dei salti (B3): senza la cornice, se Ctrl+B l'ha accesa, una striscia di pulsanti al posto della barra
+    /// a celle del terminale (che questa finestra spegne): inizio e fine del file e i salti di pagina delle
+    /// impostazioni, prima indietro poi avanti.
+    fn salti(&mut self, ctx: &Context) {
+        let voci = salti(self.ws.jump_pages());
+        let mut rettangoli = Vec::new();
+        let mut scelta = None;
+        let pannello = egui::TopBottomPanel::top("salti").show(ctx, |ui| {
+            ui.horizontal(|ui| {
+                for voce in &voci {
+                    let r = ui.add(egui::Button::new(voce.etichetta.as_str()));
+                    if r.clicked() {
+                        scelta = Some(voce.azione);
+                    }
+                    rettangoli.push((r.rect, voce.clone()));
+                }
+            });
+        });
+        self.pulsanti_salti_v = rettangoli;
+        self.rettangolo_salti = Some(pannello.response.rect);
+        match scelta {
+            Some(SaltoAzione::Inizio) => self.ws.go_start(),
+            Some(SaltoAzione::Fine) => self.ws.go_end(),
+            Some(SaltoAzione::Pagine(avanti, pagine)) => self.ws.jump(avanti, pagine),
+            None => {}
+        }
+        if scelta.is_some() {
+            self.ultimo_input = Instant::now();
+        }
+    }
+
     /// La barra di stato (B2b): in basso, larga quanto la finestra. A sinistra la posizione del cursore o il
     /// messaggio transitorio; a destra i pezzi, da sinistra a destra (l'ultimo e' il piu' a destra): l'eventuale
     /// lavoro in corso, il modo, la codifica, l'a-capo e la dimensione. I pezzi col comando sono cliccabili.
@@ -617,6 +709,28 @@ impl Finestra {
         &self.pezzi
     }
 
+    /// Il rettangolo della barra degli strumenti nell'ultimo disegno (per i test); `None` se non c'e' (cornice).
+    pub fn strumenti_rect(&self) -> Option<Rect> {
+        self.rettangolo_strumenti
+    }
+
+    /// I pulsanti della barra degli strumenti nell'ultimo disegno, nell'ordine di disegno (per i test); vuoti se
+    /// non c'e'.
+    pub fn pulsanti(&self) -> &[Pulsante] {
+        &self.pulsanti
+    }
+
+    /// Il rettangolo della barra dei salti nell'ultimo disegno (per i test); `None` se non c'e' (cornice, o spenta).
+    pub fn salti_rect(&self) -> Option<Rect> {
+        self.rettangolo_salti
+    }
+
+    /// I pulsanti della barra dei salti nell'ultimo disegno, da sinistra a destra, con la loro voce (per i test);
+    /// vuoti se non c'e'.
+    pub fn pulsanti_salti(&self) -> &[(Rect, SaltoVoce)] {
+        &self.pulsanti_salti_v
+    }
+
     /// Esegue il comando scelto (menu o pulsante): quelli della finestra (aprire, salvare con nome, zoom) li fa lei, gli altri
     /// vanno al `Workspace` (`exec`: spenti non fanno niente).
     pub fn azione(&mut self, a: Cmd) {
@@ -691,6 +805,9 @@ impl eframe::App for Finestra {
 impl Finestra {
     /// Un giro della finestra (un `update`): si puo' fare anche in un contesto di egui senza finestra, per i test.
     pub fn giro(&mut self, ctx: &Context) {
+        // senza la cornice del terminale la barra dei salti la disegna questa finestra, con i suoi pulsanti: quella a
+        // celle si spegne (con la cornice resta a celle, come oggi, e la disegna l'App nella sua griglia)
+        self.ws.set_nav_cells(self.ws.active().chrome());
         // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7)
         let mut nuova = false;
         for s in [
@@ -726,12 +843,27 @@ impl Finestra {
         if let Some(a) = scelta {
             self.azione(a);
         }
+        // la barra degli strumenti, solo senza la cornice del terminale (B3): sta sotto il menu, sopra le schede
+        if !self.ws.active().chrome() {
+            self.strumenti(ctx);
+        } else {
+            self.pulsanti.clear();
+            self.rettangolo_strumenti = None;
+        }
         if let Some(s) = self.schede(ctx) {
             match s {
                 Scheda::Seleziona(i) => self.ws.select(i),
                 Scheda::Chiudi(i) => self.ws.close(i),
             }
             self.ultimo_input = Instant::now();
+        }
+        // la barra dei salti, senza la cornice e solo se accesa (Ctrl+B): sta sotto la barra delle schede, sopra il
+        // testo, al posto della barra a celle del terminale
+        if !self.ws.active().chrome() && self.ws.nav_bar() {
+            self.salti(ctx);
+        } else {
+            self.pulsanti_salti_v.clear();
+            self.rettangolo_salti = None;
         }
         // la barra di stato e la scrollbar, solo senza la cornice del terminale (con la cornice le disegna l'App
         // nella sua griglia): la barra resta il pannello piu' esterno in basso, la scrollbar prende il lato destro
