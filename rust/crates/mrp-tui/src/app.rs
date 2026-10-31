@@ -12,6 +12,7 @@ use mrp_core::encoding::Encoding;
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::lineending::LineEnding;
 use mrp_core::newline::Newline;
+use mrp_core::pattern::{Edit, Mode, Pattern, Replacement};
 use mrp_core::scan::{self, Next};
 use mrp_core::session::TabRecord;
 use mrp_core::view::{self, ViewOptions};
@@ -125,7 +126,7 @@ fn spawn_index_job(
 /// "non trovata", l'annullamento si riporta perche' il chiamante lo dice all'utente.
 fn search_all(
     snap: &Snapshot,
-    ago: &[u8],
+    ago: &Needle,
     forward: bool,
     da: u64,
     cancel: &AtomicBool,
@@ -134,23 +135,15 @@ fn search_all(
     let len = snap.len();
     // Da dove si riparte se la prima ricerca non trova niente: l'altra parte del documento.
     let ripartenza = if forward { 0 } else { len };
-    let primo = if forward {
-        snap.find_next(ago, da, cancel, progress)
-    } else {
-        snap.find_prev(ago, da, cancel, progress)
-    };
+    let primo = cerca(snap, ago, forward, da, cancel, progress);
     match primo {
         // Trovata senza bisogno del giro completo: nessun avviso.
-        Ok(Some(pos)) => SearchOutcome::Found(pos, false),
+        Ok(Some((pos, lunga))) => SearchOutcome::Found(pos, lunga, false),
         Ok(None) => {
             // Non c'e' niente da questa parte: si riprova dall'altra.
-            let secondo = if forward {
-                snap.find_next(ago, ripartenza, cancel, progress)
-            } else {
-                snap.find_prev(ago, ripartenza, cancel, progress)
-            };
+            let secondo = cerca(snap, ago, forward, ripartenza, cancel, progress);
             match secondo {
-                Ok(Some(pos)) => SearchOutcome::Found(pos, true),
+                Ok(Some((pos, lunga))) => SearchOutcome::Found(pos, lunga, true),
                 Ok(None) => SearchOutcome::NotFound,
                 Err(SearchError::Cancelled) => SearchOutcome::Cancelled,
                 Err(SearchError::Io(_)) => SearchOutcome::NotFound,
@@ -161,11 +154,46 @@ fn search_all(
     }
 }
 
+/// Cosa si cerca: byte esatti (la ricerca di sempre, qualunque codifica) o un `Pattern` (glob, regex, senza maiuscole;
+/// solo documenti UTF-8).
+enum Needle {
+    Literal(Vec<u8>),
+    Pattern(Pattern),
+}
+
+/// Una ricerca da `da` nella direzione voluta: inizio e lunghezza dell'occorrenza.
+fn cerca(
+    snap: &Snapshot,
+    ago: &Needle,
+    forward: bool,
+    da: u64,
+    cancel: &AtomicBool,
+    progress: &AtomicU64,
+) -> Result<Option<(u64, u64)>, SearchError> {
+    match ago {
+        Needle::Literal(b) => {
+            let r = if forward {
+                snap.find_next(b, da, cancel, progress)
+            } else {
+                snap.find_prev(b, da, cancel, progress)
+            };
+            r.map(|o| o.map(|p| (p, b.len() as u64)))
+        }
+        Needle::Pattern(p) => {
+            if forward {
+                snap.find_pattern_next(p, da, cancel, progress)
+            } else {
+                snap.find_pattern_prev(p, da, cancel, progress)
+            }
+        }
+    }
+}
+
 /// Fa partire il thread che cerca `ago` nella fotografia del documento e consegna l'esito sul
 /// canale: il meccanismo dell'indicizzazione e del salvataggio (cancel e progress condivisi).
 fn spawn_search_job(
     snap: Snapshot,
-    ago: &[u8],
+    ago: Needle,
     testo: &str,
     forward: bool,
     da: u64,
@@ -175,17 +203,9 @@ fn spawn_search_job(
     let (tx, rx) = mpsc::channel();
     let cancel_thread = Arc::clone(cancel);
     let progress_thread = Arc::clone(progress);
-    let ago_thread = ago.to_vec();
     let len = snap.len();
     std::thread::spawn(move || {
-        let esito = search_all(
-            &snap,
-            &ago_thread,
-            forward,
-            da,
-            &cancel_thread,
-            &progress_thread,
-        );
+        let esito = search_all(&snap, &ago, forward, da, &cancel_thread, &progress_thread);
         let _ = tx.send(esito);
     });
     SearchJob {
@@ -194,7 +214,6 @@ fn spawn_search_job(
         cancel: Arc::clone(cancel),
         len,
         needle: testo.to_string(),
-        needle_len: ago.len() as u64,
     }
 }
 
@@ -244,6 +263,8 @@ pub enum DialogKind {
     Goto,
     /// F3 / Ctrl+F: prompt di ricerca.
     Find,
+    /// Ctrl+H: prompt "sostituisci" (cerca, con, opzioni; anteprima prima di applicare).
+    Replace,
     /// Ctrl+O: prompt del percorso di un file da aprire (lo apre chi ospita l'app: `take_open_request`).
     Open,
     /// Conferma all'uscita con modifiche non salvate.
@@ -280,7 +301,7 @@ struct SaveJob {
 enum SearchOutcome {
     /// Trovata: l'inizio dell'occorrenza e se l'ha raggiunta solo dopo il giro completo del
     /// documento.
-    Found(u64, bool),
+    Found(u64, u64, bool),
     /// Non trovata in nessuna delle due direzioni (un errore di lettura vale come non trovata).
     NotFound,
     /// Annullata con Esc mentre girava.
@@ -300,8 +321,110 @@ struct SearchJob {
     len: u64,
     /// L'ago cercato: il testo del prompt, per i messaggi.
     needle: String,
-    /// Quanti byte occupa l'ago nella codifica del documento: la fine dell'occorrenza trovata.
-    needle_len: u64,
+}
+
+/// Il massimo di occorrenze che una sostituzione conta o applica in una volta.
+pub const MAX_REPLACE: usize = 2_000_000;
+
+/// Cosa chiede il dialogo "Sostituisci": cosa cercare, con cosa, e come si legge il testo cercato.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplaceSpec {
+    pub find: String,
+    pub with: String,
+    pub mode: Mode,
+    /// Vero: le maiuscole contano.
+    pub case: bool,
+}
+
+/// La richiesta che esce dal dialogo con Invio: prima si conta (`apply` falso: l'anteprima), poi si applica.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ReplaceAsk {
+    pub spec: ReplaceSpec,
+    pub apply: bool,
+    /// Vero: su tutte le schede (lo esegue il `Workspace`).
+    pub all_tabs: bool,
+}
+
+/// L'esito di una sostituzione su un documento.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReplaceDone {
+    /// L'anteprima: quante occorrenze.
+    Counted(u64),
+    /// Piu' di `MAX_REPLACE`.
+    TooMany,
+    /// Applicata: quante occorrenze.
+    Applied(usize),
+    Cancelled,
+    Failed(String),
+}
+
+/// Cosa il thread della sostituzione consegna.
+enum ReplaceOutcome {
+    Count(u64),
+    Edits(Vec<Edit>),
+    TooMany,
+    Cancelled,
+    Failed(String),
+}
+
+/// La sostituzione in corso su questo documento.
+struct ReplaceJob {
+    rx: Receiver<ReplaceOutcome>,
+    progress: Arc<AtomicU64>,
+    cancel: Arc<AtomicBool>,
+    len: u64,
+}
+
+/// La ricerca pronta per una sostituzione: byte esatti o un `Pattern`.
+enum Resolved {
+    Literal { needle: Vec<u8>, with: Vec<u8> },
+    Pattern { p: Pattern, r: Replacement },
+}
+
+/// Il lavoro del thread della sostituzione: contare (`apply` falso) o preparare le sostituzioni.
+fn replace_work(
+    snap: &Snapshot,
+    ris: &Resolved,
+    apply: bool,
+    cancel: &AtomicBool,
+    progress: &AtomicU64,
+) -> ReplaceOutcome {
+    let fin = |e: SearchError| match e {
+        SearchError::Cancelled => ReplaceOutcome::Cancelled,
+        SearchError::Io(e) => ReplaceOutcome::Failed(e.to_string()),
+    };
+    match ris {
+        Resolved::Literal { needle, with } => {
+            match snap.find_all_literal(needle, MAX_REPLACE, cancel, progress) {
+                Err(e) => fin(e),
+                Ok(Err(_)) => ReplaceOutcome::TooMany,
+                Ok(Ok(v)) if !apply => ReplaceOutcome::Count(v.len() as u64),
+                Ok(Ok(v)) => ReplaceOutcome::Edits(
+                    v.into_iter()
+                        .map(|start| Edit {
+                            start,
+                            len: needle.len() as u64,
+                            new: with.clone(),
+                        })
+                        .collect(),
+                ),
+            }
+        }
+        Resolved::Pattern { p, r } => {
+            if !apply {
+                return match snap.count_pattern(p, MAX_REPLACE as u64, cancel, progress) {
+                    Err(e) => fin(e),
+                    Ok(n) if n > MAX_REPLACE as u64 => ReplaceOutcome::TooMany,
+                    Ok(n) => ReplaceOutcome::Count(n),
+                };
+            }
+            match snap.replace_edits(p, r, MAX_REPLACE, cancel, progress) {
+                Err(e) => fin(e),
+                Ok(Err(_)) => ReplaceOutcome::TooMany,
+                Ok(Ok(v)) => ReplaceOutcome::Edits(v),
+            }
+        }
+    }
 }
 
 /// Byte massimi che una copia (Ctrl+C / Ctrl+X) puo' mettere negli appunti interni: oltre, il messaggio
@@ -396,6 +519,20 @@ pub struct App {
     find_text: String,
     /// L'ultimo testo cercato: F3 e Maiusc+F3 lo cercano di nuovo, senza prompt.
     last_find: Option<String>,
+    /// Come si legge il testo cercato (testo, glob, regex) e se le maiuscole contano: vale per la ricerca e per Sostituisci.
+    search_mode: Mode,
+    search_case: bool,
+    /// Il dialogo "Sostituisci": i due campi, quale ha il cursore (0 cerca, 1 con), se vale per tutte le schede, lo
+    /// stato (l'anteprima) e se l'anteprima e' pronta (il prossimo Invio applica).
+    rep_find: String,
+    rep_with: String,
+    rep_field: u8,
+    rep_all: bool,
+    rep_status: String,
+    rep_ready: bool,
+    replace_job: Option<ReplaceJob>,
+    replace_ask: Option<ReplaceAsk>,
+    replace_done: Option<ReplaceDone>,
     /// Le lingue disponibili: il menu di F7 e i cambi del `Catalog`.
     langs: Vec<Lang>,
     /// Dove salvare le impostazioni quando si cambia tema o lingua; `None`: non si salva niente.
@@ -525,6 +662,17 @@ impl App {
             open_request: None,
             find_text: String::new(),
             last_find: None,
+            search_mode: Mode::Text,
+            search_case: true,
+            rep_find: String::new(),
+            rep_with: String::new(),
+            rep_field: 0,
+            rep_all: false,
+            rep_status: String::new(),
+            rep_ready: false,
+            replace_job: None,
+            replace_ask: None,
+            replace_done: None,
             langs: cfg.langs,
             settings_path: cfg.settings_path,
             lang_picked,
@@ -558,9 +706,12 @@ impl App {
         self.found = None;
         // Una ricerca in corso tiene TUTTI i tasti tranne Esc, che chiede al thread di
         // annullarla: finche' gira il documento non si tocca (la fotografia resta valida).
-        if self.search_job.is_some() {
+        if self.search_job.is_some() || self.replace_job.is_some() {
             if key.code == KeyCode::Esc {
                 if let Some(job) = &self.search_job {
+                    job.cancel.store(true, Ordering::Relaxed);
+                }
+                if let Some(job) = &self.replace_job {
                     job.cancel.store(true, Ordering::Relaxed);
                 }
             }
@@ -638,6 +789,7 @@ impl App {
             KeyCode::Char('f') if ctrl => self.open_dialog(DialogKind::Find),
             KeyCode::Char('g') if ctrl => self.open_dialog(DialogKind::Goto),
             KeyCode::Char('o') if ctrl => self.open_dialog(DialogKind::Open),
+            KeyCode::Char('h') if ctrl => self.open_dialog(DialogKind::Replace),
             KeyCode::Char('q') if ctrl => self.quit_request(),
             // Ctrl+A seleziona tutto; Ctrl+C copia, Ctrl+X taglia e Ctrl+V incolla gli appunti interni.
             KeyCode::Char('a') if ctrl => self.select_all(),
@@ -772,6 +924,12 @@ impl App {
             }
             DialogKind::Goto => self.goto_text.clear(),
             DialogKind::Open => self.open_text.clear(),
+            DialogKind::Replace => {
+                self.rep_find = self.last_find.clone().unwrap_or_default();
+                self.rep_field = 0;
+                self.rep_status.clear();
+                self.rep_ready = false;
+            }
             // Il prompt di ricerca riparte dall'ultimo testo cercato (vuoto se non c'e').
             DialogKind::Find => self.find_text = self.last_find.clone().unwrap_or_default(),
             _ => {}
@@ -852,8 +1010,59 @@ impl App {
             },
             // Prompt di ricerca: gli stessi tasti del "vai a"; Enter ricorda il testo e fa
             // partire la ricerca in avanti, Esc chiude senza toccare l'ultimo testo cercato.
+            // Sostituisci: Tab cambia campo; Alt+M cambia modo, Alt+C le maiuscole, Alt+A l'ambito; Invio fa l'anteprima e,
+            // se e' pronta, applica (ogni modifica al testo o alle opzioni toglie l'anteprima).
+            DialogKind::Replace => match key.code {
+                KeyCode::Esc => self.dialog = None,
+                KeyCode::Tab | KeyCode::Down | KeyCode::Up => self.rep_field ^= 1,
+                KeyCode::Enter => {
+                    if self.rep_find.is_empty() {
+                        self.rep_status = self.cat.t("replace.empty").to_string();
+                    } else {
+                        self.replace_ask = Some(ReplaceAsk {
+                            spec: self.replace_spec(),
+                            apply: self.rep_ready,
+                            all_tabs: self.rep_all,
+                        });
+                    }
+                }
+                KeyCode::Backspace => {
+                    let campo = if self.rep_field == 0 {
+                        &mut self.rep_find
+                    } else {
+                        &mut self.rep_with
+                    };
+                    campo.pop();
+                    self.rep_reset();
+                }
+                KeyCode::Char('m') | KeyCode::Char('M') if alt => {
+                    self.cycle_mode();
+                    self.rep_reset();
+                }
+                KeyCode::Char('c') | KeyCode::Char('C') if alt => {
+                    self.search_case = !self.search_case;
+                    self.rep_reset();
+                }
+                KeyCode::Char('a') | KeyCode::Char('A') if alt => {
+                    self.rep_all = !self.rep_all;
+                    self.rep_reset();
+                }
+                KeyCode::Char(c) if !ctrl && !alt => {
+                    if self.rep_field == 0 {
+                        self.rep_find.push(c);
+                    } else {
+                        self.rep_with.push(c);
+                    }
+                    self.rep_reset();
+                }
+                _ => {}
+            },
             DialogKind::Find => match key.code {
                 KeyCode::Esc => self.dialog = None,
+                KeyCode::Char('m') | KeyCode::Char('M') if alt => self.cycle_mode(),
+                KeyCode::Char('c') | KeyCode::Char('C') if alt => {
+                    self.search_case = !self.search_case
+                }
                 KeyCode::Enter => {
                     let testo = std::mem::take(&mut self.find_text);
                     self.dialog = None;
@@ -1790,6 +1999,213 @@ impl App {
 
     // ----- ricerca -----
 
+    // ----- sostituzione -----
+
+    /// Cambia il modo di leggere il testo cercato: testo, glob, regex, e da capo.
+    fn cycle_mode(&mut self) {
+        self.search_mode = match self.search_mode {
+            Mode::Text => Mode::Glob,
+            Mode::Glob => Mode::Regex,
+            Mode::Regex => Mode::Text,
+        };
+    }
+
+    /// Ogni modifica ai campi o alle opzioni toglie l'anteprima.
+    fn rep_reset(&mut self) {
+        self.rep_ready = false;
+        self.rep_status.clear();
+    }
+
+    /// Cosa chiede il dialogo adesso.
+    fn replace_spec(&self) -> ReplaceSpec {
+        ReplaceSpec {
+            find: self.rep_find.clone(),
+            with: self.rep_with.clone(),
+            mode: self.search_mode,
+            case: self.search_case,
+        }
+    }
+
+    /// La richiesta uscita dal dialogo con Invio, una volta sola: chi ospita l'app (il `Workspace`) la esegue.
+    pub fn take_replace_request(&mut self) -> Option<ReplaceAsk> {
+        self.replace_ask.take()
+    }
+
+    /// Ricorda `testo` come ultimo cercato (F3 e Maiusc+F3 lo cercano ancora).
+    pub fn remember_find(&mut self, testo: &str) {
+        self.last_find = Some(testo.to_string());
+    }
+
+    /// L'esito della sostituzione su questo documento, una volta sola.
+    pub fn take_replace_done(&mut self) -> Option<ReplaceDone> {
+        self.replace_done.take()
+    }
+
+    /// Vero mentre una sostituzione (anteprima o applicazione) gira su questo documento.
+    pub fn replace_busy(&self) -> bool {
+        self.replace_job.is_some()
+    }
+
+    /// Ferma la sostituzione in corso, se c'e'.
+    pub fn replace_cancel(&self) {
+        if let Some(job) = &self.replace_job {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Scrive lo stato del dialogo (l'anteprima o l'errore); `pronta`: il prossimo Invio applica.
+    pub fn set_replace_status(&mut self, testo: String, pronta: bool) {
+        self.rep_status = testo;
+        self.rep_ready = pronta;
+    }
+
+    /// Chiude il dialogo "Sostituisci" (finita la sostituzione) e mostra `messaggio` nella riga di stato.
+    pub fn finish_replace(&mut self, messaggio: String) {
+        if self.dialog == Some(DialogKind::Replace) {
+            self.dialog = None;
+        }
+        self.rep_ready = false;
+        self.rep_status.clear();
+        self.flash = Some(messaggio);
+    }
+
+    /// Come si legge il testo cercato (testo, glob, regex) e se le maiuscole contano.
+    pub fn search_options(&self) -> (Mode, bool) {
+        (self.search_mode, self.search_case)
+    }
+
+    /// Cambia come si legge il testo cercato (per i test e per chi ospita l'app).
+    pub fn set_search_options(&mut self, mode: Mode, case: bool) {
+        self.search_mode = mode;
+        self.search_case = case;
+    }
+
+    /// Prepara la ricerca per `spec`: byte esatti (testo con le maiuscole, anche nelle altre codifiche) o un `Pattern`
+    /// (solo UTF-8). L'errore e' gia' il messaggio da mostrare.
+    fn resolve(&self, spec: &ReplaceSpec) -> Result<Resolved, String> {
+        if spec.find.is_empty() {
+            return Err(self.cat.t("replace.empty").to_string());
+        }
+        if spec.mode == Mode::Text && spec.case {
+            let codifica = |s: &str| -> Result<Vec<u8>, String> {
+                if self.enc.is_utf8() {
+                    Ok(s.as_bytes().to_vec())
+                } else {
+                    self.enc
+                        .encode_str(s)
+                        .map_err(|_| self.cat.tf("flash.not_encodable", &[s, self.enc.name()]))
+                }
+            };
+            return Ok(Resolved::Literal {
+                needle: codifica(&spec.find)?,
+                with: codifica(&spec.with)?,
+            });
+        }
+        if !self.enc.is_utf8() {
+            return Err(self.cat.t("flash.regex_utf8").to_string());
+        }
+        let p = Pattern::new(&spec.find, spec.mode, spec.case)
+            .map_err(|e| self.cat.tf("replace.bad", &[&e.to_string()]))?;
+        Ok(Resolved::Pattern {
+            p,
+            r: Replacement::new(&spec.with, spec.mode),
+        })
+    }
+
+    /// Fa partire in background l'anteprima (`apply` falso: quante occorrenze) o la preparazione delle sostituzioni
+    /// (`apply` vero: alla fine le applica); l'esito si prende con `take_replace_done`. Errore (gia' messaggio) se la
+    /// ricerca non e' valida o il documento e' occupato.
+    pub fn replace_start(&mut self, spec: &ReplaceSpec, apply: bool) -> Result<(), String> {
+        if self.replace_job.is_some() || self.search_job.is_some() {
+            return Err(self.cat.t("replace.counting").to_string());
+        }
+        let ris = self.resolve(spec)?;
+        let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
+            return Err(self.cat.t("replace.counting").to_string());
+        };
+        let snap = snap.with_boundary(self.enc);
+        let (tx, rx) = mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        let (c, p) = (Arc::clone(&cancel), Arc::clone(&progress));
+        let len = snap.len();
+        std::thread::spawn(move || {
+            let _ = tx.send(replace_work(&snap, &ris, apply, &c, &p));
+        });
+        self.replace_job = Some(ReplaceJob {
+            rx,
+            progress,
+            cancel,
+            len,
+        });
+        Ok(())
+    }
+
+    /// La fine della sostituzione (la chiama `tick`): l'anteprima lascia il conteggio; le sostituzioni pronte si
+    /// applicano al documento come un solo passo (un solo annulla le toglie) e il documento passa in modifica.
+    fn tick_replace(&mut self) {
+        let Some(job) = self.replace_job.as_ref() else {
+            return;
+        };
+        let esito = match job.rx.try_recv() {
+            Ok(e) => e,
+            Err(mpsc::TryRecvError::Empty) => return,
+            Err(mpsc::TryRecvError::Disconnected) => ReplaceOutcome::Cancelled,
+        };
+        self.replace_job = None;
+        self.replace_done = Some(match esito {
+            ReplaceOutcome::Count(n) => ReplaceDone::Counted(n),
+            ReplaceOutcome::TooMany => ReplaceDone::TooMany,
+            ReplaceOutcome::Cancelled => ReplaceDone::Cancelled,
+            ReplaceOutcome::Failed(e) => ReplaceDone::Failed(e),
+            ReplaceOutcome::Edits(edits) => self.apply_replace(&edits),
+        });
+    }
+
+    /// Applica le sostituzioni al documento (un solo passo) e rimette a posto cursore e selezione.
+    fn apply_replace(&mut self, edits: &[Edit]) -> ReplaceDone {
+        let Some(doc) = self.doc.as_mut() else {
+            return ReplaceDone::Failed("documento occupato".to_string());
+        };
+        doc.seal();
+        match doc.apply_edits(edits) {
+            Ok(n) => {
+                self.edit = true;
+                // il cursore segue il testo: sposta di quanto e' cambiato prima di lui
+                let c = self.cursor;
+                let mut spostamento: i128 = 0;
+                let mut nuovo = None;
+                for e in edits {
+                    let fine = e.start + e.len;
+                    if fine <= c {
+                        spostamento += e.new.len() as i128 - e.len as i128;
+                    } else if e.start < c {
+                        nuovo = Some(e.start as i128 + spostamento + e.new.len() as i128);
+                        break;
+                    } else {
+                        break;
+                    }
+                }
+                let nuovo = nuovo.unwrap_or(c as i128 + spostamento).max(0) as u64;
+                self.anchor = None;
+                self.block = None;
+                self.found = None;
+                self.cursor = nuovo.min(self.max_cursor());
+                self.remember_col();
+                self.scroll_adjust();
+                ReplaceDone::Applied(n)
+            }
+            Err(e) => ReplaceDone::Failed(format!("{e:?}")),
+        }
+    }
+
+    /// I byte esaminati dall'anteprima o dalla sostituzione in corso e la lunghezza del documento (per la percentuale).
+    pub fn replace_progress(&self) -> Option<(u64, u64)> {
+        self.replace_job
+            .as_ref()
+            .map(|j| (j.progress.load(Ordering::Relaxed), j.len))
+    }
+
     /// F3 / Maiusc+F3: con un testo cercato parte subito la ricerca (avanti o indietro); senza,
     /// si apre il prompt (e dopo Enter si cerca in avanti).
     fn find_key(&mut self, forward: bool) {
@@ -1820,15 +2236,29 @@ impl App {
         };
         // nelle multibyte asiatiche un'occorrenza nel mezzo di un carattere non conta
         let snap = snap.with_boundary(self.enc);
-        // L'ago nei byte della codifica del documento; un carattere che la code page non ha non puo'
-        // stare nel file: la ricerca non parte e l'esito e' il solito "non trovato".
-        let ago_bytes: Vec<u8> = if self.enc.is_utf8() {
-            ago.as_bytes().to_vec()
+        let needle = if self.search_mode == Mode::Text && self.search_case {
+            // L'ago nei byte della codifica del documento; un carattere che la code page non ha non puo'
+            // stare nel file: la ricerca non parte e l'esito e' il solito "non trovato".
+            let ago_bytes: Vec<u8> = if self.enc.is_utf8() {
+                ago.as_bytes().to_vec()
+            } else {
+                match self.enc.encode_str(ago) {
+                    Ok(b) => b,
+                    Err(_) => {
+                        self.flash = Some(self.cat.tf("flash.not_found", &[ago]));
+                        return;
+                    }
+                }
+            };
+            Needle::Literal(ago_bytes)
+        } else if !self.enc.is_utf8() {
+            self.flash = Some(self.cat.t("flash.regex_utf8").to_string());
+            return;
         } else {
-            match self.enc.encode_str(ago) {
-                Ok(b) => b,
-                Err(_) => {
-                    self.flash = Some(self.cat.tf("flash.not_found", &[ago]));
+            match Pattern::new(ago, self.search_mode, self.search_case) {
+                Ok(p) => Needle::Pattern(p),
+                Err(e) => {
+                    self.flash = Some(self.cat.tf("replace.bad", &[&e.to_string()]));
                     return;
                 }
             }
@@ -1841,7 +2271,7 @@ impl App {
             self.cursor
         };
         self.search_job = Some(spawn_search_job(
-            snap, &ago_bytes, ago, forward, da, &cancel, &progress,
+            snap, needle, ago, forward, da, &cancel, &progress,
         ));
     }
 
@@ -1853,8 +2283,8 @@ impl App {
             return;
         };
         match job.rx.try_recv() {
-            Ok(SearchOutcome::Found(inizio, giro_completo)) => {
-                let fine = inizio + job.needle_len;
+            Ok(SearchOutcome::Found(inizio, lunga, giro_completo)) => {
+                let fine = inizio + lunga;
                 self.search_job = None;
                 self.goto_move(inizio);
                 if giro_completo {
@@ -1887,6 +2317,7 @@ impl App {
             self.tick_save();
         }
         self.tick_search();
+        self.tick_replace();
         // Un cambio di forma dell'a-capo ha chiesto l'indice nuovo: parte adesso (il cambio di
         // codifica lascia il suo messaggio da solo nella riga di stato, senza l'indicatore).
         if self.index_pending {
@@ -1925,7 +2356,11 @@ impl App {
         let inizio = Instant::now();
         loop {
             self.tick();
-            if self.save_job.is_none() && self.index_job.is_none() && self.search_job.is_none() {
+            if self.save_job.is_none()
+                && self.index_job.is_none()
+                && self.search_job.is_none()
+                && self.replace_job.is_none()
+            {
                 return true;
             }
             if inizio.elapsed() >= timeout {
@@ -1984,9 +2419,10 @@ impl App {
     /// non si e' ancora disegnato. Nei prompt e' la posizione dentro il prompt, dopo il testo scritto.
     pub fn cursor_xy(&self) -> Option<(u16, u16)> {
         match self.dialog {
-            Some(DialogKind::Goto) | Some(DialogKind::Find) | Some(DialogKind::Open) => {
-                self.cursor_xy
-            }
+            Some(DialogKind::Goto)
+            | Some(DialogKind::Find)
+            | Some(DialogKind::Open)
+            | Some(DialogKind::Replace) => self.cursor_xy,
             Some(_) => None,
             None => self.cursor_xy,
         }
@@ -2267,6 +2703,31 @@ impl App {
     /// Le lingue disponibili (le righe del menu di F7).
     pub(crate) fn langs(&self) -> &[Lang] {
         &self.langs
+    }
+
+    /// Il testo del campo "cerca" del dialogo Sostituisci.
+    pub(crate) fn rep_find(&self) -> &str {
+        &self.rep_find
+    }
+
+    /// Il testo del campo "con" del dialogo Sostituisci.
+    pub(crate) fn rep_with(&self) -> &str {
+        &self.rep_with
+    }
+
+    /// Quale campo ha il cursore nel dialogo Sostituisci (0 cerca, 1 con).
+    pub(crate) fn rep_field(&self) -> u8 {
+        self.rep_field
+    }
+
+    /// Se Sostituisci vale per tutte le schede.
+    pub(crate) fn rep_all(&self) -> bool {
+        self.rep_all
+    }
+
+    /// Lo stato (anteprima o errore) del dialogo Sostituisci.
+    pub(crate) fn rep_status(&self) -> &str {
+        &self.rep_status
     }
 
     /// Il testo scritto nel prompt "apri".
@@ -3226,6 +3687,9 @@ impl Drop for App {
             job.cancel.store(true, Ordering::Relaxed);
         }
         if let Some(job) = &self.search_job {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+        if let Some(job) = &self.replace_job {
             job.cancel.store(true, Ordering::Relaxed);
         }
     }

@@ -5,6 +5,7 @@ use crate::theme::{Theme, ThemeId};
 use mrp_core::block::{block_spans, ColumnBlock};
 use mrp_core::encoding::Encoding;
 use mrp_core::lang::Catalog;
+use mrp_core::pattern::Mode;
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::Document;
 use ratatui::backend::TestBackend;
@@ -15,9 +16,9 @@ use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
 /// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l14` (l'ultima e' sempre Esc, `help.l10`).
-const HELP_KEYS: [&str; 14] = [
+const HELP_KEYS: [&str; 15] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
-    "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l10",
+    "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -531,14 +532,51 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             "prompt.open.hint",
             app.open_text(),
         ),
-        // Il prompt di ricerca: uguale al "vai a", cambia solo il vocabolario.
-        DialogKind::Find => prompt_contenuto(
-            cat,
-            t,
-            "prompt.find.title",
-            "prompt.find.hint",
-            app.find_text(),
-        ),
+        // Il prompt di ricerca: uguale al "vai a" (cambia il vocabolario), con in piu' la riga delle opzioni.
+        DialogKind::Find => {
+            let mut c = prompt_contenuto(
+                cat,
+                t,
+                "prompt.find.title",
+                "prompt.find.hint",
+                app.find_text(),
+            );
+            c.righe.insert(2, (opzioni_ricerca(app, false), t.hint));
+            c
+        }
+        // Sostituisci: cerca, con, le opzioni, lo stato (l'anteprima) e i tasti.
+        DialogKind::Replace => {
+            let etichetta_cerca = cat.t("prompt.replace.find").to_string();
+            let etichetta_con = cat.t("prompt.replace.with").to_string();
+            let larghezza = etichetta_cerca
+                .chars()
+                .count()
+                .max(etichetta_con.chars().count());
+            let riga = |etichetta: &str, testo: &str| {
+                let pad = larghezza - etichetta.chars().count();
+                format!("{}{}> {}", etichetta, " ".repeat(pad), testo)
+            };
+            let (campo, testo) = if app.rep_field() == 0 {
+                (0usize, app.rep_find())
+            } else {
+                (1usize, app.rep_with())
+            };
+            let colonna = larghezza + 2 + testo.chars().count();
+            let mut righe = vec![
+                (riga(&etichetta_cerca, app.rep_find()), t.dialog),
+                (riga(&etichetta_con, app.rep_with()), t.dialog),
+                (opzioni_ricerca(app, true), t.hint),
+            ];
+            if !app.rep_status().is_empty() {
+                righe.push((app.rep_status().to_string(), t.selected));
+            }
+            righe.push((cat.t("prompt.replace.keys").to_string(), t.hint));
+            ContenutoDialogo {
+                titolo: cat.t("prompt.replace.title").to_string(),
+                righe,
+                cursore: Some((campo, colonna)),
+            }
+        }
         // Conferma all'uscita con modifiche non salvate: il testo e le tre scelte.
         DialogKind::Confirm => ContenutoDialogo {
             titolo: cat.t("confirm.title").to_string(),
@@ -595,6 +633,34 @@ fn prompt_contenuto(
         ],
         cursore: Some((1, 2 + testo.chars().count())),
     }
+}
+
+/// La riga delle opzioni di ricerca: il modo, le maiuscole e (per Sostituisci) l'ambito.
+fn opzioni_ricerca(app: &App, con_ambito: bool) -> String {
+    let cat = app.catalog();
+    let (modo, maiuscole) = app.search_options();
+    let modo = match modo {
+        Mode::Text => cat.t("prompt.opt.text"),
+        Mode::Glob => cat.t("prompt.opt.glob"),
+        Mode::Regex => cat.t("prompt.opt.regex"),
+    };
+    let caso = if maiuscole {
+        cat.t("prompt.opt.case")
+    } else {
+        cat.t("prompt.opt.nocase")
+    };
+    let mut s = format!("{}: {} | {}", cat.t("prompt.opt.mode"), modo, caso);
+    if con_ambito {
+        s.push_str(" | ");
+        s.push_str(if app.rep_all() {
+            cat.t("prompt.opt.all")
+        } else {
+            cat.t("prompt.opt.one")
+        });
+    } else {
+        s.push_str("  (Alt+M, Alt+C)");
+    }
+    s
 }
 
 /// La dimensione leggibile del titolo: `N B` sotto 1024, altrimenti due decimali in `KiB`/`MiB`/`GiB`/`TiB`.

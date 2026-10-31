@@ -65,6 +65,7 @@ const MODIFICA: &[Option<Voce>] = &[
     None,
     voce("gui.find", "Ctrl+F", tasto(KeyCode::Char('f'), CTRL)),
     voce("gui.goto", "Ctrl+G", tasto(KeyCode::Char('g'), CTRL)),
+    voce("gui.replace", "Ctrl+H", tasto(KeyCode::Char('h'), CTRL)),
 ];
 
 const VISTA: &[Option<Voce>] = &[

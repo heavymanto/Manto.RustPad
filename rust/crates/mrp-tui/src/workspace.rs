@@ -7,10 +7,11 @@
 //! scheda, Alt+1..9 va alla scheda col numero; F10 e Ctrl+Q chiudono tutto, chiedendo scheda per scheda per quelle con
 //! modifiche.
 
-use crate::app::{App, AppConfig};
+use crate::app::{App, AppConfig, ReplaceAsk, ReplaceDone, ReplaceSpec, MAX_REPLACE};
 use crate::sessionstore;
 use crate::theme::{Theme, ThemeId};
 use crate::ui;
+use mrp_core::pattern::{Mode, Pattern};
 use mrp_core::session::TabRecord;
 use ratatui::backend::TestBackend;
 use ratatui::crossterm::event::{
@@ -75,6 +76,23 @@ impl Sessione {
     }
 }
 
+/// Una sostituzione in corso su una o piu' schede: l'anteprima (conta) o l'applicazione.
+struct ReplaceRun {
+    spec: ReplaceSpec,
+    apply: bool,
+    /// Le schede su cui gira e quante non hanno ancora finito.
+    schede: Vec<usize>,
+    pendenti: usize,
+    /// Le occorrenze contate (o sostituite) e in quante schede ce n'erano.
+    totale: u64,
+    schede_con: usize,
+    /// Schede saltate (per esempio una UTF-16 con una regex).
+    saltate: usize,
+    troppe: bool,
+    annullata: bool,
+    errore: Option<String>,
+}
+
 /// Piu' schede aperte, una attiva.
 pub struct Workspace {
     tabs: Vec<App>,
@@ -91,6 +109,8 @@ pub struct Workspace {
     spans: Vec<(u16, u16)>,
     /// La sessione su disco, se e' attiva: le schede (e le modifiche non salvate) sopravvivono alla chiusura.
     session: Option<Sessione>,
+    /// La sostituzione in corso (anteprima o applicazione), se c'e'.
+    replace: Option<ReplaceRun>,
 }
 
 impl Workspace {
@@ -109,6 +129,7 @@ impl Workspace {
             quit: false,
             spans: Vec::new(),
             session: None,
+            replace: None,
         }
     }
 
@@ -486,6 +507,10 @@ impl Workspace {
                 self.ask_next();
             }
         }
+        self.poll_replace();
+        if let Some(ask) = self.tabs[self.active].take_replace_request() {
+            self.start_replace(ask);
+        }
         if let Some(percorso) = self.tabs[self.active].take_open_request() {
             if let Err(e) = self.open(&percorso) {
                 let a = &mut self.tabs[self.active];
@@ -508,6 +533,143 @@ impl Workspace {
         }
     }
 
+    /// Vero mentre una sostituzione (anteprima o applicazione) gira.
+    pub fn replace_busy(&self) -> bool {
+        self.replace.is_some()
+    }
+
+    /// Ferma la sostituzione in corso: le schede che stanno ancora lavorando la lasciano a meta' (niente si applica).
+    fn cancel_replace(&mut self) {
+        if let Some(run) = &self.replace {
+            for &i in &run.schede {
+                if let Some(a) = self.tabs.get(i) {
+                    a.replace_cancel();
+                }
+            }
+        }
+    }
+
+    /// Fa partire l'anteprima o l'applicazione di `ask` sulle schede dell'ambito (la attiva, o tutte). Un testo cercato non
+    /// valido (regex sbagliata) si dice nello stato del dialogo e non parte niente; una scheda che non puo' farlo (una
+    /// codifica che non e' UTF-8 con una regex) si salta e si conta.
+    fn start_replace(&mut self, ask: ReplaceAsk) {
+        let attiva = self.active;
+        // il testo cercato si controlla una volta sola, qui, cosi' l'errore e' uno e le schede non lo ripetono
+        if !(ask.spec.mode == Mode::Text && ask.spec.case) {
+            if let Err(e) = Pattern::new(&ask.spec.find, ask.spec.mode, ask.spec.case) {
+                let testo = self.tabs[attiva].text_with("replace.bad", &[&e.to_string()]);
+                self.tabs[attiva].set_replace_status(testo, false);
+                return;
+            }
+        }
+        let indici: Vec<usize> = if ask.all_tabs {
+            (0..self.tabs.len()).collect()
+        } else {
+            vec![attiva]
+        };
+        let mut run = ReplaceRun {
+            spec: ask.spec.clone(),
+            apply: ask.apply,
+            schede: Vec::new(),
+            pendenti: 0,
+            totale: 0,
+            schede_con: 0,
+            saltate: 0,
+            troppe: false,
+            annullata: false,
+            errore: None,
+        };
+        let mut primo_errore: Option<String> = None;
+        for i in indici {
+            match self.tabs[i].replace_start(&ask.spec, ask.apply) {
+                Ok(()) => {
+                    run.schede.push(i);
+                    run.pendenti += 1;
+                }
+                Err(e) => {
+                    run.saltate += 1;
+                    primo_errore.get_or_insert(e);
+                }
+            }
+        }
+        if run.pendenti == 0 {
+            // nessuna scheda ha potuto: si dice il perche' della prima
+            let testo = primo_errore.unwrap_or_default();
+            self.tabs[attiva].set_replace_status(testo, false);
+            return;
+        }
+        let chiave = if ask.apply {
+            "replace.applying"
+        } else {
+            "replace.counting"
+        };
+        let testo = self.tabs[attiva].text(chiave).to_string();
+        self.tabs[attiva].set_replace_status(testo, false);
+        self.replace = Some(run);
+    }
+
+    /// Raccoglie gli esiti delle schede e, a lavoro finito, scrive l'anteprima nel dialogo o chiude con il riepilogo.
+    fn poll_replace(&mut self) {
+        let Some(mut run) = self.replace.take() else {
+            return;
+        };
+        for &i in &run.schede {
+            let Some(esito) = self.tabs.get_mut(i).and_then(|a| a.take_replace_done()) else {
+                continue;
+            };
+            run.pendenti = run.pendenti.saturating_sub(1);
+            match esito {
+                ReplaceDone::Counted(n) => {
+                    run.totale += n;
+                    run.schede_con += usize::from(n > 0);
+                }
+                ReplaceDone::Applied(n) => {
+                    run.totale += n as u64;
+                    run.schede_con += usize::from(n > 0);
+                }
+                ReplaceDone::TooMany => run.troppe = true,
+                ReplaceDone::Cancelled => run.annullata = true,
+                ReplaceDone::Failed(e) => run.errore = Some(e),
+            }
+        }
+        if run.pendenti > 0 {
+            self.replace = Some(run);
+            return;
+        }
+        let a = self.active;
+        let cat = |ws: &Workspace, chiave: &str, args: &[&str]| ws.tabs[a].text_with(chiave, args);
+        if run.annullata {
+            let t = cat(self, "replace.cancelled", &[]);
+            self.tabs[a].set_replace_status(t, false);
+        } else if let Some(e) = &run.errore {
+            let t = cat(self, "replace.fail", &[e]);
+            self.tabs[a].set_replace_status(t, false);
+        } else if run.troppe {
+            let t = cat(self, "replace.too_many", &[&MAX_REPLACE.to_string()]);
+            self.tabs[a].set_replace_status(t, false);
+        } else if !run.apply {
+            if run.totale == 0 {
+                let t = cat(self, "replace.none", &[]);
+                self.tabs[a].set_replace_status(t, false);
+            } else {
+                let t = cat(
+                    self,
+                    "replace.preview",
+                    &[&run.totale.to_string(), &run.schede_con.to_string()],
+                );
+                self.tabs[a].set_replace_status(t, true);
+            }
+        } else {
+            let t = cat(
+                self,
+                "replace.done",
+                &[&run.totale.to_string(), &run.schede_con.to_string()],
+            );
+            self.tabs[a].remember_find(&run.spec.find);
+            self.tabs[a].finish_replace(t);
+        }
+    }
+
     /// Il tema e la lingua della scheda attiva (quelli che le altre adottano).
     fn look(&self) -> (ThemeId, String) {
         let a = &self.tabs[self.active];
@@ -516,6 +678,13 @@ impl Workspace {
 
     /// Un tasto: quelli delle schede si tengono qui (se non c'e' un dialogo aperto), gli altri vanno alla scheda attiva.
     pub fn handle_key(&mut self, k: KeyEvent) {
+        // una sostituzione in corso tiene tutti i tasti: Esc la ferma
+        if self.replace.is_some() {
+            if k.code == KeyCode::Esc {
+                self.cancel_replace();
+            }
+            return;
+        }
         if self.tabs[self.active].dialog_kind().is_none() {
             let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
             let alt = k.modifiers.contains(KeyModifiers::ALT);
@@ -540,6 +709,9 @@ impl Workspace {
     /// Un evento del mouse: un clic sulla barra sceglie la scheda, il resto va alla scheda attiva (con la riga
     /// contata da sotto la barra).
     pub fn handle_mouse(&mut self, mut m: MouseEvent) {
+        if self.replace.is_some() {
+            return;
+        }
         if self.bar_height() == 1 && m.row == 0 {
             if let MouseEventKind::Down(MouseButton::Left) = m.kind {
                 if let Some(i) = self
@@ -559,6 +731,9 @@ impl Workspace {
 
     /// Un testo incollato dal terminale.
     pub fn paste_text(&mut self, testo: &str) {
+        if self.replace.is_some() {
+            return;
+        }
         self.tabs[self.active].paste_text(testo);
     }
 
