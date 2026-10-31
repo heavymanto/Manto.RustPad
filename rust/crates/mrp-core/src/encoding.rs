@@ -114,6 +114,25 @@ impl Encoding {
         matches!(self, Encoding::Utf16Le | Encoding::Utf16Be)
     }
 
+    /// Quanti byte ha il BOM all'inizio di `start` per questa codifica (0 se non c'e'): `EF BB BF` in UTF-8, `FF FE` o
+    /// `FE FF` in UTF-16 LE o BE, `FF FE 00 00` o `00 00 FE FF` in UTF-32 LE o BE; le code page e le multibyte non hanno
+    /// BOM. Il BOM e' un carattere come gli altri nei byte del documento, ma un editor non deve scriverci davanti.
+    pub fn bom_len(self, start: &[u8]) -> usize {
+        let bom: &[u8] = match self {
+            Encoding::Utf8 => &[0xEF, 0xBB, 0xBF],
+            Encoding::Utf16Le => &[0xFF, 0xFE],
+            Encoding::Utf16Be => &[0xFE, 0xFF],
+            Encoding::Utf32Le => &[0xFF, 0xFE, 0x00, 0x00],
+            Encoding::Utf32Be => &[0x00, 0x00, 0xFE, 0xFF],
+            Encoding::Single(_) | Encoding::Multi(_) => return 0,
+        };
+        if start.starts_with(bom) {
+            bom.len()
+        } else {
+            0
+        }
+    }
+
     /// Vero per `Utf32Le` e `Utf32Be`.
     pub fn is_utf32(self) -> bool {
         matches!(self, Encoding::Utf32Le | Encoding::Utf32Be)

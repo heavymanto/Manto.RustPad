@@ -77,7 +77,7 @@ for _n, _c, _a in CHARSETS:
         _visti[_nome] = _n
 
 
-def table(codec):
+def table(codec, nome=""):
     # la meta' bassa deve essere ASCII: il resto del programma (righe, ricerca) conta su '\n' = 0x0A
     for b in range(0x80):
         assert bytes([b]).decode(codec) == chr(b), (codec, b)
@@ -88,7 +88,12 @@ def table(codec):
             assert len(s) == 1, (codec, b, s)
             out.append(s)
         except UnicodeDecodeError:
-            out.append("�")
+            # Windows-125x: un byte 0x80-0x9F che la code page non definisce vale il controllo C1 con lo stesso numero
+            # (come fanno Windows e i browser, WHATWG): scritto e riletto lascia il byte com'era, invece di perderlo
+            if nome.startswith("windows-125") and b < 0xA0:
+                out.append(chr(b))
+            else:
+                out.append("�")
     # ogni carattere definito vale per un solo byte: serve perche' scrivere un carattere sia univoco
     definiti = [c for c in out if c != "�"]
     assert len(definiti) == len(set(definiti)), codec
@@ -116,7 +121,7 @@ def main():
         "pub static CHARSETS: [Charset; %d] = [" % len(CHARSETS),
     ]
     for name, codec, aliases in CHARSETS:
-        t = table(codec)
+        t = table(codec, name)
         lines.append("    Charset {")
         lines.append('        name: "%s",' % name)
         lines.append("        aliases: &[%s]," % ", ".join('"%s"' % a for a in aliases))

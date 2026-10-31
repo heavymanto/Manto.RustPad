@@ -75,12 +75,12 @@ fn utf8_bytes_read_as_a_code_page_are_two_characters() {
 
 #[test]
 fn undefined_and_control_bytes_in_a_code_page() {
-    // 0x81 non e' definito in windows-1252 (U+FFFD) e 0x85 e' "…"; in ISO-8859-1 sono entrambi controlli C1,
-    // che la vista mostra come il punto mediano
+    // 0x81 non e' definito in windows-1252 e vale il controllo C1 U+0081 (come in Windows), che la vista mostra come il
+    // punto mediano, mentre 0x85 e' "…"; in ISO-8859-1 sono entrambi controlli C1
     let (_f, d) = open(b"a\x81b\x85c\n");
     assert_eq!(
         first_row_text(&d, &opts("windows-1252")),
-        "a\u{fffd}b\u{2026}c"
+        "a\u{b7}b\u{2026}c"
     );
     assert_eq!(first_row_text(&d, &opts("iso-8859-1")), "a\u{b7}b\u{b7}c");
 }

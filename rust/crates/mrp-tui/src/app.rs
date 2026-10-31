@@ -393,6 +393,9 @@ pub struct App {
     enc: Encoding,
     /// Lo stile di fine riga del file (da un campione dell'inizio, all'apertura): lo scrive Invio e lo mostra la riga di stato.
     eol: LineEnding,
+    /// Quanti byte ha il BOM all'inizio del file nella codifica attiva (0 se non c'e'): il cursore puo' stargli davanti
+    /// in lettura, ma scrivere o cancellare davanti al BOM non si fa (lo romperebbe).
+    bom: u64,
 }
 
 /// Un movimento del cursore: quello del tasto senza Maiusc. La selezione con Maiusc fa lo stesso movimento
@@ -456,6 +459,7 @@ impl App {
         // Lo stile di fine riga (LF, CRLF, CR da solo) dal campione e dalla codifica: decide la forma
         // dell'a-capo del documento (il CR da solo ha la sua) e cosa scrive Invio.
         let eol = LineEnding::detect(&campione, enc).for_encoding(enc);
+        let bom = enc.bom_len(&campione) as u64;
         // La forma dell'a-capo della codifica, al documento appena aperto: senza storia di
         // modifiche non puo' fallire (il risultato bool si ignora per quello).
         let newline = eol.newline_for(enc);
@@ -506,6 +510,7 @@ impl App {
             index: cfg.index,
             enc,
             eol,
+            bom,
         })
     }
 
@@ -1959,6 +1964,10 @@ impl App {
         }
         self.enc = e;
         self.eol = eol_nuovo;
+        self.bom = self
+            .doc
+            .as_ref()
+            .map_or(0, |d| e.bom_len(&d.read_range(0, 4)) as u64);
         self.anchor = None;
         self.block = None;
         self.found = None;
@@ -2722,6 +2731,10 @@ impl App {
         if self.selection().is_some() && !self.delete_selection() {
             return false;
         }
+        // davanti al BOM non si scrive: il testo va subito dopo
+        if self.cursor < self.bom {
+            self.cursor = self.bom;
+        }
         self.insert_at_cursor(testo)
     }
 
@@ -2796,7 +2809,7 @@ impl App {
             self.refuse_write();
             return;
         }
-        if self.cursor == 0 {
+        if self.cursor <= self.bom {
             return;
         }
         let Some(doc) = self.doc.as_mut() else {
@@ -2824,6 +2837,10 @@ impl App {
         if !self.edit {
             self.refuse_write();
             return;
+        }
+        // il BOM non si cancella: Delete davanti ad esso toglie il primo carattere dopo
+        if self.cursor < self.bom {
+            self.cursor = self.bom;
         }
         let Some(doc) = self.doc.as_mut() else {
             return;

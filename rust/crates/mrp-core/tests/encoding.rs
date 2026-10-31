@@ -134,11 +134,27 @@ fn well_known_bytes_of_the_code_pages() {
 
 #[test]
 fn undefined_bytes_are_replacement_characters_and_cannot_be_written() {
-    let w = enc("windows-1252");
-    for b in [0x81u8, 0x8d, 0x8f, 0x90, 0x9d] {
+    // ibm857 non definisce 0xD5, 0xE7 e 0xF2: sono U+FFFD e U+FFFD non si scrive
+    let w = enc("ibm857");
+    for b in [0xd5u8, 0xe7, 0xf2] {
         assert_eq!(ch(w, b), '\u{fffd}', "{b:#04x}");
     }
     assert_eq!(w.encode('\u{fffd}'), None);
+    assert_eq!(enc("windows-1252").encode('\u{fffd}'), None);
+}
+
+#[test]
+fn windows_125x_undefined_c1_bytes_are_the_c1_controls() {
+    // come Windows e i browser: 0x81, 0x8D, 0x8F, 0x90, 0x9D di windows-1252 sono U+0081 ecc., e si riscrivono uguali
+    // (prima erano U+FFFD: un file con quei byte, salvato dopo una modifica, li perdeva)
+    let w = enc("windows-1252");
+    for b in [0x81u8, 0x8d, 0x8f, 0x90, 0x9d] {
+        assert_eq!(ch(w, b), char::from(b), "{b:#04x}");
+        assert_eq!(w.encode(char::from(b)), Some(vec![b]), "{b:#04x}");
+    }
+    // vale per tutte le windows-125x nella zona 0x80-0x9F; fuori da li' un byte indefinito resta U+FFFD
+    assert_eq!(ch(enc("windows-1255"), 0x81), '\u{81}');
+    assert_eq!(ch(enc("windows-1255"), 0xd9), '\u{fffd}');
 }
 
 #[test]
@@ -190,7 +206,7 @@ fn single_byte_encode_and_decode_strings() {
     assert_eq!(w.encode_str("a \u{3a9} b \u{4e2d}"), Err('\u{3a9}'));
     assert_eq!(w.encode_str(""), Ok(Vec::new()));
     assert_eq!(w.decode_lossy(b"caff\xe8 \x80\n"), "caff\u{e8} \u{20ac}\n");
-    assert_eq!(w.decode_lossy(b"a\x81b"), "a\u{fffd}b");
+    assert_eq!(w.decode_lossy(b"a\x81b"), "a\u{81}b");
     assert_eq!(
         enc("ibm437").decode_lossy(b"\xc9\xcd\xbb"),
         "\u{2554}\u{2550}\u{2557}"
