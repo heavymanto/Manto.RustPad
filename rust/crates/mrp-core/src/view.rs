@@ -316,13 +316,13 @@ impl<'a> Caratteri<'a> {
             // offset del carattere dentro il blocco: e' un offset di blocco, sempre piccolo
             let i = usize::try_from(self.pos - self.blocco).ok()?;
             let disponibili = self.buf.len() - i;
-            // UTF-16: il carattere sono una o due unita' da 2 byte, decodificate da `first_char`
-            // su una finestra di fino a 4 byte. Se i byte disponibili nel blocco sono meno di 4 e
+            // UTF-16 e UTF-32: il carattere sono una o due unita' da 2 byte, o una da 4, decodificate da
+            // `first_char` su una finestra di fino a 4 byte. Se i byte disponibili nel blocco sono meno di 4 e
             // il blocco non arriva a fine, il carattere puo' stare a cavallo del confine e si
             // rilegge il blocco che parte da lui (stessa idea dell'UTF-8); il blocco comunque non
             // passa mai fine, quindi una finestra corta vuol dire che e' fine a tagliare il
             // carattere, che vale U+FFFD per i byte che restano
-            if self.encoding.is_utf16() {
+            if self.encoding.unit() > 1 {
                 if disponibili < 4 && fine_blocco < self.fine {
                     self.buf.clear();
                     self.blocco = self.pos;

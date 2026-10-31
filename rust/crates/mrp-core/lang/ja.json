@@ -22,7 +22,7 @@
   "flash.index_failed": "インデックス作成に失敗: {}",
   "flash.read_only": "読み取り専用: 編集するにはF4",
   "flash.encoding": "文字コード: {}",
-  "flash.encoding_locked": "UTF-16 との切り替えの前に保存してください",
+  "flash.encoding_locked": "UTF-16/32 との切り替えの前に保存してください",
   "flash.not_encodable": "'{}' は {} で書き込めません",
   "footer.f9": "文字",
   "help.l13": "F9                         文字コード(エンコーディング)",

@@ -1,7 +1,8 @@
 //! Come si scrive l'a-capo `\n` nei byte di un documento, e come lo si cerca.
 //!
-//! In una codifica compatibile con l'ASCII (UTF-8, code page) l'a-capo e' il byte 0x0A e `memchr` lo trova. In UTF-16
-//! e' una unita' di 2 byte (`0A 00` in little endian, `00 0A` in big endian) e il solo byte 0x0A non basta: il byte
+//! In una codifica compatibile con l'ASCII (UTF-8, code page) l'a-capo e' il byte 0x0A e `memchr` lo trova. In UTF-32
+//! e' una unita' di 4 byte (`0A 00 00 00` o `00 00 00 0A`) e vale lo stesso ragionamento di UTF-16, con allineamento a 4.
+//! In UTF-16 e' una unita' di 2 byte (`0A 00` in little endian, `00 0A` in big endian) e il solo byte 0x0A non basta: il byte
 //! 0x0A compare anche dentro altri caratteri (U+010A e' `0A 01`, U+0A41 e' `41 0A`) e due unita' vicine possono
 //! formare per caso la coppia dell'a-capo SFASATA di un byte (`41 0A` seguito da `00 01` contiene `0A 00` al byte 1).
 //! Un a-capo e' quindi un'unita' ALLINEATA: la fetta che si esamina deve cominciare a una posizione multipla della
@@ -23,14 +24,19 @@ pub enum Newline {
     Le16,
     /// L'unita' UTF-16 big endian: `00 0A`.
     Be16,
+    /// L'unita' UTF-32 little endian: `0A 00 00 00`.
+    Le32,
+    /// L'unita' UTF-32 big endian: `00 00 00 0A`.
+    Be32,
 }
 
 impl Newline {
-    /// Quanti byte occupa un'unita' (e quindi l'allineamento): 1 per `Byte`, 2 per `Le16` e `Be16`.
+    /// Quanti byte occupa un'unita' (e quindi l'allineamento): 1 per `Byte`, 2 per `Le16` e `Be16`, 4 per `Le32` e `Be32`.
     pub fn unit(self) -> usize {
         match self {
             Newline::Byte => 1,
             Newline::Le16 | Newline::Be16 => 2,
+            Newline::Le32 | Newline::Be32 => 4,
         }
     }
 
@@ -40,6 +46,8 @@ impl Newline {
             Newline::Byte => b"\n",
             Newline::Le16 => b"\n\0",
             Newline::Be16 => b"\0\n",
+            Newline::Le32 => b"\n\0\0\0",
+            Newline::Be32 => b"\0\0\0\n",
         }
     }
 
@@ -101,6 +109,18 @@ impl Positions<'_> {
             Newline::Be16 => {
                 if !p.is_multiple_of(2) && self.hay[p - 1] == 0 {
                     Some(p - 1)
+                } else {
+                    None
+                }
+            }
+            // `0A 00 00 00`: il 0x0A sta in una posizione multipla di 4 e seguono tre byte 0
+            Newline::Le32 => (p.is_multiple_of(4)
+                && self.hay.get(p + 1..p + 4) == Some(&[0, 0, 0][..]))
+            .then_some(p),
+            // `00 00 00 0A`: il 0x0A sta in una posizione che e' 3 modulo 4 e precedono tre byte 0
+            Newline::Be32 => {
+                if p % 4 == 3 && self.hay[p - 3..p] == [0, 0, 0] {
+                    Some(p - 3)
                 } else {
                     None
                 }

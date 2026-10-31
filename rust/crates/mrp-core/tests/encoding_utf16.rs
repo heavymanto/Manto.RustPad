@@ -59,10 +59,10 @@ fn utf16_names_resolve() {
 #[test]
 fn all_lists_utf8_then_utf16_then_the_code_pages() {
     let all = Encoding::all();
-    assert_eq!(all.len(), 3 + CHARSETS.len());
+    assert_eq!(all.len(), 5 + CHARSETS.len());
     assert_eq!(&all[..3], &[Encoding::Utf8, LE, BE]);
-    for (i, e) in all.iter().enumerate().skip(3) {
-        assert_eq!(e.name(), CHARSETS[i - 3].name);
+    for (i, e) in all.iter().enumerate().skip(5) {
+        assert_eq!(e.name(), CHARSETS[i - 5].name);
     }
     let mut nomi: Vec<&str> = all.iter().map(|e| e.name()).collect();
     nomi.sort_unstable();
@@ -291,10 +291,10 @@ fn detect_utf16_by_bom() {
     assert_eq!(Encoding::detect(&[0xFE, 0xFF, 0x00, 0x61, 0x00, 0x62]), BE);
     assert_eq!(Encoding::detect(&[0xFF, 0xFE]), LE);
     assert_eq!(Encoding::detect(&[0xFE, 0xFF]), BE);
-    // FF FE 00 00 e' il BOM di UTF-32 LE: non e' UTF-16 (e non lo si legge: resta com'era)
+    // FF FE 00 00 e' il BOM di UTF-32 LE: non e' UTF-16 (dalla E26 lo si riconosce come UTF-32 LE)
     assert_eq!(
         Encoding::detect(&[0xFF, 0xFE, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00]),
-        Encoding::Utf8
+        Encoding::Utf32Le
     );
     // il BOM UTF-8 e' sempre UTF-8
     assert_eq!(Encoding::detect(b"\xef\xbb\xbfabc"), Encoding::Utf8);

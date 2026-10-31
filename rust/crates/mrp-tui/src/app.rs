@@ -953,20 +953,21 @@ impl App {
         pos
     }
 
-    /// Porta `pos` sul confine di unita' UTF-16 piu' vicino non oltre `pos` (la codifica attiva e'
-    /// UTF-16): prima si arrotonda per difetto a un multiplo di 2 (un'unita' comincia sempre a una
-    /// posizione pari), poi, se `pos` sta sul surrogato BASSO di una coppia (il carattere che
-    /// finisce li' e' lungo 4), si torna indietro di 2, al suo inizio.
+    /// Porta `pos` sul confine di unita' piu' vicino non oltre `pos` (la codifica attiva e' a 16 o a
+    /// 32 bit): prima si arrotonda per difetto a un multiplo della dimensione dell'unita' (un'unita'
+    /// comincia sempre a una posizione multipla), poi, in UTF-16, se `pos` sta sul surrogato BASSO di
+    /// una coppia (il carattere che finisce li' e' lungo 4), si torna indietro di 2, al suo inizio.
+    /// In UTF-32 ogni carattere e' una sola unita'.
     fn snap_to_unita(&self, pos: u64) -> u64 {
         let Some(doc) = self.doc.as_ref() else {
             return pos;
         };
         let mut pos = pos.min(doc.len());
-        pos -= pos % 2;
+        pos -= pos % self.enc.unit() as u64;
         // La coppia che contiene l'unita' di `pos` comincia 2 byte prima: se c'e' davvero (un'alta
         // seguita da una bassa, come la vede `first_char`), `pos` sta a meta' del carattere e si
         // torna al suo inizio.
-        if pos >= 2 && pos + 2 <= doc.len() {
+        if self.enc.is_utf16() && pos >= 2 && pos + 2 <= doc.len() {
             let buf = doc.read_range(pos - 2, 4);
             if self.enc.first_char(&buf).is_some_and(|(_, n)| n == 4) {
                 pos -= 2;
@@ -1931,7 +1932,7 @@ impl App {
         // offset e' un confine, in UTF-8 e in UTF-16 no.
         if self.enc.is_utf8() {
             self.cursor = self.snap_to_char(self.cursor);
-        } else if self.enc.unit() == 2 {
+        } else if self.enc.unit() > 1 {
             self.cursor = self.snap_to_unita(self.cursor);
         }
         self.remember_col();

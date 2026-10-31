@@ -384,7 +384,7 @@ fn with_unsaved_changes_the_switch_is_refused_until_saved() {
     type_text(&mut a, "x");
     a.set_encoding(LE);
     assert_eq!(a.encoding(), Encoding::Utf8, "la codifica non cambia");
-    assert_eq!(status(&mut a), " save before switching to or from UTF-16");
+    assert_eq!(status(&mut a), " save before switching to/from UTF-16/32");
     assert_eq!(a.document_text(), b"xabc\n");
     // una code page si puo' sempre scegliere: stessa forma di a-capo
     let w = Encoding::by_name("windows-1252").unwrap();

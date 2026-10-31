@@ -22,7 +22,7 @@
   "flash.index_failed": "Indizierung fehlgeschlagen: {}",
   "flash.read_only": "Schreibschutz: zum Bearbeiten F4 drücken",
   "flash.encoding": "Kodierung: {}",
-  "flash.encoding_locked": "Zuerst speichern, bevor zu oder von UTF-16 gewechselt wird",
+  "flash.encoding_locked": "Erst speichern, dann zu/von UTF-16/32 wechseln",
   "flash.not_encodable": "'{}' lässt sich in {} nicht schreiben",
   "footer.f9": "Kod",
   "help.l13": "F9                         Textkodierung (Zeichensatz)",

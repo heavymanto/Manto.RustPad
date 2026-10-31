@@ -53,12 +53,12 @@ fn unknown_names_are_none() {
 #[test]
 fn all_lists_utf8_then_utf16_then_every_code_page_with_distinct_names() {
     let all = Encoding::all();
-    assert_eq!(all.len(), 3 + CHARSETS.len());
+    assert_eq!(all.len(), 5 + CHARSETS.len());
     assert_eq!(all[0], Encoding::Utf8);
     assert_eq!(Encoding::Utf8.name(), "utf-8");
     let mut names: Vec<&str> = all.iter().map(|e| e.name()).collect();
-    for (i, e) in all.iter().enumerate().skip(3) {
-        assert_eq!(e.name(), CHARSETS[i - 3].name);
+    for (i, e) in all.iter().enumerate().skip(5) {
+        assert_eq!(e.name(), CHARSETS[i - 5].name);
     }
     names.sort_unstable();
     names.dedup();
@@ -72,7 +72,7 @@ fn all_lists_utf8_then_utf16_then_every_code_page_with_distinct_names() {
 #[test]
 fn every_alias_resolves_to_its_own_code_page() {
     for (i, cs) in CHARSETS.iter().enumerate() {
-        let e = Encoding::all()[i + 3];
+        let e = Encoding::all()[i + 5];
         assert_eq!(e.name(), cs.name);
         for a in cs.aliases {
             assert_eq!(Encoding::by_name(a), Some(e), "alias {a}");
@@ -153,7 +153,7 @@ fn latin1_c1_range_is_controls_not_windows_1252_punctuation() {
 
 #[test]
 fn every_code_page_keeps_ascii_and_round_trips_every_defined_byte() {
-    for e in Encoding::all().into_iter().skip(3) {
+    for e in Encoding::all().into_iter().skip(5) {
         for b in 0u8..=255 {
             let (c, n) = e.first_char(&[b]).unwrap();
             assert_eq!(n, 1, "{} {b:#04x}", e.name());

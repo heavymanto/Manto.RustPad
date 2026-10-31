@@ -240,6 +240,8 @@ fn inserisci_riga(
         Newline::Byte => b" ",
         Newline::Le16 => b" \0",
         Newline::Be16 => b"\0 ",
+        Newline::Le32 => b" \0\0\0",
+        Newline::Be32 => b"\0\0\0 ",
     };
     let capacita = spazi
         .saturating_mul(spazio.len())
