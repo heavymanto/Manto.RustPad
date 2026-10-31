@@ -860,12 +860,37 @@ impl Document {
     ///
     /// Non si conserva il proprietario del file (solo i permessi).
     pub fn save(&mut self, cancel: &AtomicBool, progress: &AtomicU64) -> Result<(), SaveError> {
-        // 1. Chiuso, senza modifiche, gia' annullato: in quest'ordine, senza toccare nulla.
+        self.save_inner(None, cancel, progress)
+    }
+
+    /// Salva con nome: scrive il contenuto attuale in `target` (con gli stessi passi di `save`, il temporaneo sta nella
+    /// cartella di `target` e una rinomina lo mette al suo posto: un file che c'e' gia' si sostituisce, chiedere conferma
+    /// spetta a chi chiama). A riuscita il documento e' quel file: `path()` e' `target` (canonico), nessuna modifica,
+    /// storia svuotata. Il file di partenza non si tocca. Con `target` uguale al percorso attuale e' un `save`, ma anche
+    /// senza modifiche (come "salva una copia sopra se stesso"). Su errore o annullamento il documento resta com'era.
+    pub fn save_as(
+        &mut self,
+        target: &Path,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<(), SaveError> {
+        self.save_inner(Some(target), cancel, progress)
+    }
+
+    fn save_inner(
+        &mut self,
+        target: Option<&Path>,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<(), SaveError> {
+        // 1. Chiuso, senza modifiche, gia' annullato: in quest'ordine, senza toccare nulla. Salvare con nome scrive
+        //    anche un documento senza modifiche (e' una copia).
         let source = match &self.source {
             None => return Err(SaveError::Closed),
             Some(source) => source,
         };
-        if self.version == self.saved_version {
+        let target: PathBuf = target.map_or_else(|| self.path.clone(), Path::to_path_buf);
+        if self.version == self.saved_version && target == self.path {
             return Ok(());
         }
         if cancel.load(Ordering::Relaxed) {
@@ -887,7 +912,7 @@ impl Document {
 
         // 3. Temporaneo nella stessa cartella: se non si arriva alla rinomina lo cancella il
         //    `TempGuard` all'uscita da qui.
-        let tmp = temp_path(&self.path);
+        let tmp = temp_path(&target);
         let mut file = File::create_new(&tmp)?;
         let mut guard = TempGuard {
             path: tmp,
@@ -961,12 +986,14 @@ impl Document {
         // 6. La rinomina sostituisce l'originale con la mappatura ancora attiva (su Windows si
         //    puo' rinominare sopra un file mappato, non troncarlo). Se fallisce, il guard ancora
         //    armato cancella il temporaneo: il documento resta com'era, modificato.
-        if let Err(e) = std::fs::rename(&guard.path, &self.path) {
+        if let Err(e) = std::fs::rename(&guard.path, &target) {
             return Err(SaveError::Io(e));
         }
 
         // 7. Rinomina riuscita: il temporaneo non esiste piu', il guard si disarma.
         guard.armed = false;
+        // da qui il documento e' il file nuovo (per un salvataggio normale e' lo stesso percorso)
+        self.path = target.canonicalize().unwrap_or(target);
         #[cfg(unix)]
         {
             // Su Unix si sincronizza anche la cartella, perché la rinomina risulti duratura; se
