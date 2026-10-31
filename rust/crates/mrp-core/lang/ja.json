@@ -186,5 +186,7 @@
   "gui.save_as": "名前を付けて保存…",
   "gui.save_as_title": "名前を付けて保存",
   "gui.home": "先頭へ",
-  "gui.end": "末尾へ"
+  "gui.end": "末尾へ",
+  "gui.ok": "OK",
+  "gui.cancel": "キャンセル"
 }

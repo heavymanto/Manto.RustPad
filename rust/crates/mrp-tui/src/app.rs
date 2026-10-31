@@ -1,6 +1,8 @@
 //! L'app del TUI: una macchina a stati testabile senza terminale (il contratto sta in `docs/TEAM/DESIGN_TUI.md`).
 //! Riceve tasti, mouse e dimensioni dello schermo; non disegna (lo fa `ui.rs`); tutta la logica di testo e' nel core.
 
+pub mod dialogs;
+
 use crate::settings::{Settings, JUMP_PAGES};
 use crate::theme::ThemeId;
 use mrp_core::block::{

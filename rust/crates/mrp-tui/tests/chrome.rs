@@ -112,12 +112,16 @@ fn without_chrome_a_page_is_the_whole_height_minus_one_row() {
 }
 
 #[test]
-fn a_dialog_still_shows_without_chrome() {
+fn a_dialog_without_a_view_still_shows_as_text_without_chrome() {
+    // i dialoghi che hanno una vista (aiuto, menu, vai a...) li disegna la finestra; Cerca non ce l'ha ancora
     let (mut a, p) = app(false, 60, 22);
-    a.handle_key(k(KeyCode::F(1)));
-    assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
-    let tutto = render_lines(&mut a, 60, 22).join("\n");
-    assert!(tutto.contains("KEYS"), "{tutto}");
+    a.handle_key(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL));
+    assert_eq!(a.dialog_kind(), Some(DialogKind::Find));
+    let tutto = render_lines(&mut a, 60, 22).join(
+        "
+",
+    );
+    assert!(tutto.contains("FIND"), "{tutto}");
     let _ = std::fs::remove_file(p);
 }
 

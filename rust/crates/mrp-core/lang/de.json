@@ -186,5 +186,7 @@
   "gui.save_as": "Speichern unter…",
   "gui.save_as_title": "Speichern unter",
   "gui.home": "Zum Anfang",
-  "gui.end": "Zum Ende"
+  "gui.end": "Zum Ende",
+  "gui.ok": "OK",
+  "gui.cancel": "Abbrechen"
 }

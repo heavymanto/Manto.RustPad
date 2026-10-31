@@ -185,5 +185,7 @@
   "gui.save_as": "Salva con nome…",
   "gui.save_as_title": "Salva con nome",
   "gui.home": "Vai all'inizio",
-  "gui.end": "Vai alla fine"
+  "gui.end": "Vai alla fine",
+  "gui.ok": "OK",
+  "gui.cancel": "Annulla"
 }
