@@ -3,6 +3,7 @@
 //! che l'`App` produce (`mrp_tui::cells::render_grid_workspace`) e si mandano agli appunti di sistema le copie.
 
 use crate::barre::{self, TestiStato, POLLICE_MINIMO};
+use crate::dialoghi::{self, StatoDialogo};
 use crate::fonts::{self, Scrittura};
 use crate::input;
 use crate::menu;
@@ -94,6 +95,9 @@ pub struct Finestra {
     pulsanti_salti_v: Vec<(Rect, SaltoVoce)>,
     /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
     rettangolo_salti: Option<Rect>,
+    /// Lo stato del dialogo disegnato nell'ultimo giro (B4b): i rettangoli per i test e i ricordi fra un giro e l'altro
+    /// (si azzera quando non c'e' un dialogo da disegnare).
+    dialogo: StatoDialogo,
 }
 
 impl Finestra {
@@ -160,6 +164,7 @@ impl Finestra {
             rettangolo_strumenti: None,
             pulsanti_salti_v: Vec::new(),
             rettangolo_salti: None,
+            dialogo: StatoDialogo::default(),
         }
     }
 
@@ -204,9 +209,15 @@ impl Finestra {
         if (zoom - 1.0).abs() > f32::EPSILON {
             self.corpo = (self.corpo * zoom).clamp(CORPO_MIN, CORPO_MAX);
         }
+        // un dialogo con vista aperto (senza la cornice) tiene per se' tastiera, testo, incolla, copie e clic: li
+        // prendono i widget della sua finestra (il tasto che l'ha aperto e' gia' arrivato all'App)
+        let dialogo = !self.ws.active().chrome() && self.ws.active().dialog_has_view();
         for e in eventi {
             match e {
                 Event::Text(t) => {
+                    if dialogo {
+                        continue;
+                    }
                     for k in input::testo(&t) {
                         self.ws.handle_key(k);
                         tocco = true;
@@ -218,6 +229,9 @@ impl Finestra {
                     modifiers,
                     ..
                 } => {
+                    if dialogo {
+                        continue;
+                    }
                     // F2: salvare un documento senza nome chiede il nome col dialogo di sistema
                     if key == egui::Key::F2 && !modifiers.any() && self.salva_chiede_il_nome() {
                         self.salva_con_nome();
@@ -283,6 +297,11 @@ impl Finestra {
                     pressed,
                     modifiers,
                 } => {
+                    // un dialogo aperto (senza cornice) tiene i clic per la sua finestra: alla griglia non arrivano (il
+                    // rilascio di un trascinamento cominciato prima passa, come per i menu aperti)
+                    if dialogo && pressed {
+                        continue;
+                    }
                     if let Some((o, c, colonne, righe)) = self.geometria {
                         if pressed {
                             // un menu aperto sta sopra la griglia: il clic e' suo
@@ -327,14 +346,23 @@ impl Finestra {
                     }
                 }
                 Event::Copy => {
+                    if dialogo {
+                        continue;
+                    }
                     self.ws.handle_key(ctrl('c'));
                     tocco = true;
                 }
                 Event::Cut => {
+                    if dialogo {
+                        continue;
+                    }
                     self.ws.handle_key(ctrl('x'));
                     tocco = true;
                 }
                 Event::Paste(s) => {
+                    if dialogo {
+                        continue;
+                    }
                     if s.is_empty() {
                         // gli appunti di sistema sono vuoti o illeggibili: restano quelli interni dell'app
                         self.ws.handle_key(ctrl('v'));
@@ -731,6 +759,33 @@ impl Finestra {
         &self.pulsanti_salti_v
     }
 
+    /// Il rettangolo della finestra del dialogo disegnato nell'ultimo giro (per i test, B4b); `None` se non c'e'.
+    pub fn dialogo_rect(&self) -> Option<Rect> {
+        self.dialogo.rect
+    }
+
+    /// Il titolo della finestra del dialogo disegnato nell'ultimo giro (per i test); `None` se non c'e'.
+    pub fn dialogo_titolo(&self) -> Option<&str> {
+        self.dialogo.titolo.as_deref()
+    }
+
+    /// I pulsanti della finestra del dialogo nell'ultimo disegno, da sinistra a destra, col loro testo (per i test);
+    /// vuoti se non c'e'.
+    pub fn dialogo_pulsanti(&self) -> &[(Rect, String)] {
+        &self.dialogo.pulsanti
+    }
+
+    /// I rettangoli delle righe del menu del dialogo nell'ultimo disegno, nell'ordine delle voci (per i test); vuoti
+    /// se non c'e'.
+    pub fn dialogo_voci(&self) -> &[Rect] {
+        &self.dialogo.voci
+    }
+
+    /// Il rettangolo del campo di testo del prompt del dialogo nell'ultimo disegno (per i test); `None` se non c'e'.
+    pub fn dialogo_campo(&self) -> Option<Rect> {
+        self.dialogo.campo
+    }
+
     /// Esegue il comando scelto (menu o pulsante): quelli della finestra (aprire, salvare con nome, zoom) li fa lei, gli altri
     /// vanno al `Workspace` (`exec`: spenti non fanno niente).
     pub fn azione(&mut self, a: Cmd) {
@@ -920,6 +975,13 @@ impl Finestra {
                 );
                 risposta.on_hover_cursor(CursorIcon::Text);
             });
+        // i dialoghi con una vista (B4b), solo senza la cornice del terminale: una finestra egui al centro, sopra la
+        // griglia, che guida l'App con le azioni dialog_*; senza (o con la cornice) lo stato del disegno si azzera
+        if !self.ws.active().chrome() && self.ws.active().dialog_has_view() {
+            dialoghi::disegna(ctx, &mut self.ws, &mut self.dialogo);
+        } else {
+            self.dialogo = StatoDialogo::default();
+        }
         // le copie vanno agli appunti di sistema
         if let Some(byte) = self.ws.take_copied() {
             ctx.copy_text(String::from_utf8_lossy(&byte).into_owned());

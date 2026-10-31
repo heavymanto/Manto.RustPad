@@ -5,6 +5,7 @@
 //! (`mrp_tui::cells`). Tastiera, incolla e rotella di egui diventano i tasti e gli eventi che l'`App` gia' conosce.
 
 pub mod barre;
+pub mod dialoghi;
 pub mod fonts;
 pub mod gui;
 pub mod input;
