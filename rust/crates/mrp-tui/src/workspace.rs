@@ -111,11 +111,28 @@ pub struct Workspace {
     session: Option<Sessione>,
     /// La sostituzione in corso (anteprima o applicazione), se c'e'.
     replace: Option<ReplaceRun>,
+    /// La barra dei salti (Ctrl+B) e' visibile: una riga sotto la barra delle schede, disegnata da questo `Workspace`
+    /// anche nella GUI (e' nella griglia di celle).
+    nav: bool,
+    /// Dove sta ogni pulsante della barra dei salti dopo l'ultimo disegno: colonne da..a (escluso) e cosa fa.
+    nav_spans: Vec<(u16, u16, NavAzione)>,
+}
+
+/// Cosa fa un pulsante della barra dei salti.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum NavAzione {
+    /// Inizio del file.
+    Home,
+    /// Fine del file.
+    End,
+    /// `(avanti, pagine)`: salta di tante pagine.
+    Salto(bool, usize),
 }
 
 impl Workspace {
     /// Un `Workspace` con una sola scheda, `app`; `cfg` serve ad aprire le altre.
     pub fn new(app: App, cfg: AppConfig) -> Workspace {
+        let nav = cfg.nav_bar;
         Workspace {
             tabs: vec![app],
             active: 0,
@@ -130,6 +147,8 @@ impl Workspace {
             spans: Vec::new(),
             session: None,
             replace: None,
+            nav,
+            nav_spans: Vec::new(),
         }
     }
 
@@ -397,10 +416,37 @@ impl Workspace {
         u16::from(self.bar && self.tabs.len() > 1)
     }
 
-    /// Adatta la scheda attiva allo spazio (meno la barra).
+    /// Quante righe prende la barra dei salti: una se e' visibile, altrimenti nessuna.
+    fn nav_height(&self) -> u16 {
+        u16::from(self.nav)
+    }
+
+    /// Le righe sopra la scheda attiva: la barra delle schede e quella dei salti.
+    fn top_height(&self) -> u16 {
+        self.bar_height() + self.nav_height()
+    }
+
+    /// La barra dei salti e' visibile.
+    pub fn nav_bar(&self) -> bool {
+        self.nav
+    }
+
+    /// Ctrl+B: mostra o nasconde la barra dei salti; la scelta si salva nelle impostazioni e vale per le schede nuove.
+    pub fn toggle_nav(&mut self) {
+        self.nav = !self.nav;
+        self.cfg.nav_bar = self.nav;
+        let (nav, attiva) = (self.nav, self.active);
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_nav_bar(nav, i == attiva);
+        }
+        self.apply_size();
+    }
+
+    /// Adatta la scheda attiva allo spazio (meno le barre).
     fn apply_size(&mut self) {
         let (w, h) = self.size;
-        let barra = self.bar_height();
+        let barra = self.top_height();
         let h = if h > barra { h - barra } else { h };
         self.tabs[self.active].resize(w, h);
     }
@@ -702,6 +748,7 @@ impl Workspace {
                 KeyCode::Char(c @ '1'..='9') if alt => {
                     return self.select(usize::from(c as u8 - b'1'));
                 }
+                KeyCode::Char('b') | KeyCode::Char('B') if ctrl => return self.toggle_nav(),
                 KeyCode::Char('w') | KeyCode::Char('W') if ctrl => return self.close(self.active),
                 KeyCode::F(10) => return self.close_all(),
                 KeyCode::Char('q') | KeyCode::Char('Q') if ctrl => return self.close_all(),
@@ -718,21 +765,47 @@ impl Workspace {
         if self.replace.is_some() {
             return;
         }
-        if self.bar_height() == 1 && m.row == 0 {
+        let sopra = self.top_height();
+        if sopra > 0 && m.row < sopra {
+            // un clic sulle barre; gli altri eventi li' arrivano alla scheda come sono
             if let MouseEventKind::Down(MouseButton::Left) = m.kind {
-                if let Some(i) = self
-                    .spans
-                    .iter()
-                    .position(|&(da, a)| a > da && m.column >= da && m.column < a)
-                {
-                    self.select(i);
+                if self.bar_height() == 1 && m.row == 0 {
+                    if let Some(i) = self
+                        .spans
+                        .iter()
+                        .position(|&(da, a)| a > da && m.column >= da && m.column < a)
+                    {
+                        self.select(i);
+                    }
+                } else {
+                    self.nav_click(m.column);
                 }
                 return;
             }
-        } else if self.bar_height() == 1 {
-            m.row -= 1;
+        } else if sopra > 0 {
+            m.row -= sopra;
         }
         self.tabs[self.active].handle_mouse(m);
+    }
+
+    /// Un clic sulla colonna `col` della barra dei salti: il pulsante che la copre agisce sulla scheda attiva.
+    fn nav_click(&mut self, col: u16) {
+        let Some(&(_, _, azione)) = self
+            .nav_spans
+            .iter()
+            .find(|&&(da, a, _)| col >= da && col < a)
+        else {
+            return;
+        };
+        let attiva = &mut self.tabs[self.active];
+        match azione {
+            NavAzione::Home => {
+                attiva.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL))
+            }
+            NavAzione::End => attiva.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL)),
+            NavAzione::Salto(avanti, pagine) => attiva.page_jump(avanti, pagine),
+        }
+        self.settle();
     }
 
     /// Un testo incollato dal terminale.
@@ -771,34 +844,87 @@ impl Workspace {
     pub fn draw(&mut self, f: &mut Frame) {
         let area = f.area();
         let (w, h) = (area.width, area.height);
-        if self.bar_height() == 0 || w == 0 || h < 5 {
+        let sopra = self.top_height();
+        if sopra == 0 || w == 0 || h < 4 + sopra {
             self.spans.clear();
+            self.nav_spans.clear();
             ui::draw(f, &mut self.tabs[self.active]);
             return;
         }
-        // la scheda attiva su un terminale di prova alto una riga di meno, poi copiato sotto la barra
-        let Ok(mut prova) = Terminal::new(TestBackend::new(w, h - 1));
+        // la scheda attiva su un terminale di prova piu' basso delle barre, poi copiato sotto di loro
+        let Ok(mut prova) = Terminal::new(TestBackend::new(w, h - sopra));
         let attiva = &mut self.tabs[self.active];
         if prova.draw(|g| ui::draw(g, attiva)).is_err() {
             return;
         }
         let sorgente = prova.backend().buffer();
         let buf = f.buffer_mut();
-        for y in 0..h - 1 {
+        for y in 0..h - sopra {
             for x in 0..w {
                 if let (Some(da), Some(a)) = (
                     sorgente.cell((x, y)),
-                    buf.cell_mut((area.x + x, area.y + y + 1)),
+                    buf.cell_mut((area.x + x, area.y + y + sopra)),
                 ) {
                     *a = da.clone();
                 }
             }
         }
         if let Some((x, y)) = attiva.cursor_xy() {
-            f.set_cursor_position((area.x + x, area.y + y + 1));
-            attiva.set_cursor_xy(Some((x, y + 1)));
+            f.set_cursor_position((area.x + x, area.y + y + sopra));
+            attiva.set_cursor_xy(Some((x, y + sopra)));
         }
-        self.draw_bar(f, Rect::new(area.x, area.y, w, 1));
+        let schede = self.bar_height();
+        if schede == 1 {
+            self.draw_bar(f, Rect::new(area.x, area.y, w, 1));
+        } else {
+            self.spans.clear();
+        }
+        if self.nav {
+            self.draw_nav(f, Rect::new(area.x, area.y + schede, w, 1));
+        } else {
+            self.nav_spans.clear();
+        }
+    }
+
+    /// La barra dei salti: `[Home] [-1000] [-100] [-10] [-1] [+1] [+10] [+100] [+1000] [End]`, con i numeri delle
+    /// impostazioni (le pagine); i pulsanti che non entrano interi nella larghezza non si disegnano.
+    fn draw_nav(&mut self, f: &mut Frame, area: Rect) {
+        let attiva = &self.tabs[self.active];
+        let t = Theme::for_id(attiva.theme_id());
+        let [a, b, c] = attiva.jump_pages();
+        let voci = [
+            ("Home".to_string(), NavAzione::Home),
+            (format!("-{c}"), NavAzione::Salto(false, c)),
+            (format!("-{b}"), NavAzione::Salto(false, b)),
+            (format!("-{a}"), NavAzione::Salto(false, a)),
+            ("-1".to_string(), NavAzione::Salto(false, 1)),
+            ("+1".to_string(), NavAzione::Salto(true, 1)),
+            (format!("+{a}"), NavAzione::Salto(true, a)),
+            (format!("+{b}"), NavAzione::Salto(true, b)),
+            (format!("+{c}"), NavAzione::Salto(true, c)),
+            ("End".to_string(), NavAzione::End),
+        ];
+        self.nav_spans.clear();
+        let larghezza = usize::from(area.width);
+        let mut spans: Vec<Span> = Vec::new();
+        let mut x = 0usize;
+        for (etichetta, azione) in voci {
+            let testo = format!("[{etichetta}]");
+            let n = testo.chars().count();
+            let sep = usize::from(x > 0);
+            if x + sep + n > larghezza {
+                break;
+            }
+            if sep == 1 {
+                spans.push(Span::styled(" ", t.status));
+                x += 1;
+            }
+            self.nav_spans
+                .push((area.x + x as u16, area.x + (x + n) as u16, azione));
+            spans.push(Span::styled(testo, t.key));
+            x += n;
+        }
+        f.render_widget(Paragraph::new(Line::from(spans)).style(t.status), area);
     }
 
     /// La barra: un riquadro " nome* " per scheda, quella attiva evidenziata; se non ci stanno tutte parte dalla piu'
@@ -843,7 +969,7 @@ impl Workspace {
 
     /// Lo schermo come testo, una stringa per riga (come `ui::render_lines`, ma con la barra delle schede).
     pub fn render_lines(&mut self, w: u16, h: u16) -> Vec<String> {
-        if self.bar_height() == 0 {
+        if self.top_height() == 0 {
             return ui::render_lines(&mut self.tabs[self.active], w, h);
         }
         let Ok(mut prova) = Terminal::new(TestBackend::new(w, h));

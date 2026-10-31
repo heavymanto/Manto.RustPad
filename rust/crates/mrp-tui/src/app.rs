@@ -239,6 +239,8 @@ pub struct AppConfig {
     pub encoding: Option<Encoding>,
     /// Di quante pagine saltano Alt+PgUp/PgDn, Alt+Maiusc+PgUp/PgDn e Ctrl+Alt+PgUp/PgDn (vedi `Settings`).
     pub jump_pages: [usize; 3],
+    /// Vero: la barra dei salti (Ctrl+B) e' visibile all'avvio (vedi `Settings::nav_bar`).
+    pub nav_bar: bool,
 }
 
 impl Default for AppConfig {
@@ -251,6 +253,7 @@ impl Default for AppConfig {
             index: true,
             encoding: Some(Encoding::Utf8),
             jump_pages: JUMP_PAGES,
+            nav_bar: false,
         }
     }
 }
@@ -548,6 +551,8 @@ pub struct App {
     settings_path: Option<PathBuf>,
     /// I moltiplicatori dei salti di pagina (vedi `AppConfig::jump_pages`).
     jump_pages: [usize; 3],
+    /// La barra dei salti e' visibile (la scelta si salva nelle impostazioni; la disegna il `Workspace`).
+    nav_bar: bool,
     /// Il codice della lingua scelta dall'utente (`None`: l'inglese incorporato): e' la `lang` delle impostazioni.
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
@@ -688,6 +693,7 @@ impl App {
             langs: cfg.langs,
             settings_path: cfg.settings_path,
             jump_pages: cfg.jump_pages,
+            nav_bar: cfg.nav_bar,
             lang_picked,
             index: cfg.index,
             enc,
@@ -1294,6 +1300,7 @@ impl App {
             theme: self.theme,
             lang: self.lang_picked.clone(),
             jump_pages: self.jump_pages,
+            nav_bar: self.nav_bar,
         };
         let _ = s.save(&path);
     }
@@ -2678,6 +2685,19 @@ impl App {
         match self.block.as_ref() {
             Some(b) => b.vcol,
             None => self.cursor_col() as u64,
+        }
+    }
+
+    /// La barra dei salti e' visibile.
+    pub fn nav_bar(&self) -> bool {
+        self.nav_bar
+    }
+
+    /// Ricorda se la barra dei salti e' visibile; con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_nav_bar(&mut self, visibile: bool, salva: bool) {
+        self.nav_bar = visibile;
+        if salva {
+            self.save_settings();
         }
     }
 

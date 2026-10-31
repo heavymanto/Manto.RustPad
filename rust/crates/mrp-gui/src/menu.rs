@@ -72,6 +72,8 @@ const VISTA: &[Option<Voce>] = &[
     voce("gui.next_tab", "Ctrl+PgDn", tasto(KeyCode::PageDown, CTRL)),
     voce("gui.prev_tab", "Ctrl+PgUp", tasto(KeyCode::PageUp, CTRL)),
     None,
+    voce("gui.nav_bar", "Ctrl+B", tasto(KeyCode::Char('b'), CTRL)),
+    None,
     voce("gui.column_mode", "F8", tasto(KeyCode::F(8), NIENTE)),
     None,
     voce("gui.theme", "F6", tasto(KeyCode::F(6), NIENTE)),

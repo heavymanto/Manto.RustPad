@@ -170,5 +170,7 @@
   "flash.regex_utf8": "正则、glob 和忽略大小写仅适用于 UTF-8 文档",
   "gui.replace": "替换…",
   "help.l15": "Ctrl+H                     替换（文本、glob、正则；当前或所有标签页）",
-  "help.l16": "Alt+PgUp / Alt+PgDn        翻页跳转（x10；+Shift x100；+Ctrl x1000）"
+  "help.l16": "Alt+PgUp / Alt+PgDn        翻页跳转（x10；+Shift x100；+Ctrl x1000）",
+  "help.l17": "Ctrl+B                     跳转栏：开头、结尾、翻页按钮",
+  "gui.nav_bar": "跳转栏"
 }

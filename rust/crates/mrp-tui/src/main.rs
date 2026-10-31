@@ -109,6 +109,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             .settings
             .as_ref()
             .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
+        nav_bar: profilo.settings.as_ref().is_some_and(|s| s.nav_bar),
         settings_path: profilo.path,
         index: true,
         encoding,

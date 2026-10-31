@@ -170,5 +170,7 @@
   "flash.regex_utf8": "正規表現・glob・大小無視は UTF-8 の文書でのみ使えます",
   "gui.replace": "置換…",
   "help.l15": "Ctrl+H                     置換 (テキスト・glob・正規表現、このタブ/全タブ)",
-  "help.l16": "Alt+PgUp / Alt+PgDn        ページジャンプ (x10、+Shift x100、+Ctrl x1000)"
+  "help.l16": "Alt+PgUp / Alt+PgDn        ページジャンプ (x10、+Shift x100、+Ctrl x1000)",
+  "help.l17": "Ctrl+B                     ジャンプバー: 先頭・末尾・ページ送り",
+  "gui.nav_bar": "ジャンプバー"
 }

@@ -7,10 +7,11 @@
 
 use crate::app::App;
 use crate::ui;
+use crate::workspace::Workspace;
 use ratatui::backend::TestBackend;
 use ratatui::style::{Color, Modifier};
 use ratatui::text::Span;
-use ratatui::Terminal;
+use ratatui::{Frame, Terminal};
 
 /// Il colore di primo piano predefinito (`Reset`): grigio chiaro.
 pub const FG_PREDEFINITO: [u8; 3] = [204, 204, 204];
@@ -135,6 +136,21 @@ fn verso(a: [u8; 3], b: [u8; 3]) -> [u8; 3] {
 /// Disegna l'app su un terminale di prova `w` x `h` (come `ui::render_lines`) e restituisce le celle e il cursore.
 /// Le celle di un carattere largo sono due: la prima ha il simbolo, la seconda e' vuota.
 pub fn render_grid(app: &mut App, w: u16, h: u16) -> Griglia {
+    let mut g = griglia(w, h, |f| ui::draw(f, app));
+    g.cursore = app.cursor_xy();
+    g
+}
+
+/// Come `render_grid`, ma disegna con il `Workspace`: la barra delle schede (se la disegna lui) e la barra dei salti
+/// (Ctrl+B) stanno sopra la scheda attiva. E' quello che usa la GUI.
+pub fn render_grid_workspace(ws: &mut Workspace, w: u16, h: u16) -> Griglia {
+    let mut g = griglia(w, h, |f| ws.draw(f));
+    g.cursore = ws.active().cursor_xy();
+    g
+}
+
+/// Le celle di un disegno `w` x `h` fatto da `disegna` (senza il cursore, che lo sa chi chiama).
+fn griglia(w: u16, h: u16, disegna: impl FnOnce(&mut Frame)) -> Griglia {
     let vuota = Griglia {
         w,
         h,
@@ -146,7 +162,7 @@ pub fn render_grid(app: &mut App, w: u16, h: u16) -> Griglia {
     }
     // il terminale di prova non fallisce mai (l'errore e' `Infallible`)
     let Ok(mut terminale) = Terminal::new(TestBackend::new(w, h));
-    if terminale.draw(|f| ui::draw(f, app)).is_err() {
+    if terminale.draw(disegna).is_err() {
         return vuota;
     }
     let mut celle: Vec<Cell> = terminale
@@ -185,6 +201,6 @@ pub fn render_grid(app: &mut App, w: u16, h: u16) -> Griglia {
         w,
         h,
         celle,
-        cursore: app.cursor_xy(),
+        cursore: None,
     }
 }

@@ -478,3 +478,37 @@ fn closing_the_window_with_changes_in_a_background_tab_asks_about_that_tab() {
         let _ = std::fs::remove_file(x);
     }
 }
+
+#[test]
+fn ctrl_b_shows_the_jump_bar_in_the_window_and_its_buttons_work_with_the_mouse() {
+    let dati: Vec<u8> = (0..1000)
+        .flat_map(|i| format!("riga {i:04}\n").into_bytes())
+        .collect();
+    let (mut f, ctx, p) = finestra(&dati);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![tasto(Key::B, ctrl())]);
+    giro(&mut f, &ctx, vec![]);
+    assert!(f.workspace().nav_bar());
+    let (_, _, _, righe) = f.geometria().expect("un giro e' stato fatto");
+    // la barra prende una riga; il testo ne ha altre 3 in meno (titolo, stato, tasti): una pagina e' una riga meno
+    let pagina = u64::from(righe) - 5;
+    // [+1] comincia alla colonna 33 ("[Home] [-1000] [-100] [-10] [-1] " sono 33 caratteri)
+    let clic = vec![
+        premi(centro(&f, 34, 0), true, Modifiers::NONE),
+        premi(centro(&f, 34, 0), false, Modifiers::NONE),
+    ];
+    giro(&mut f, &ctx, clic);
+    assert_eq!(f.app().top(), pagina * 10, "un clic su [+1]: una pagina");
+    // [+10]: "[+1] " e' lungo 5, quindi comincia alla colonna 38
+    let clic = vec![
+        premi(centro(&f, 39, 0), true, Modifiers::NONE),
+        premi(centro(&f, 39, 0), false, Modifiers::NONE),
+    ];
+    giro(&mut f, &ctx, clic);
+    // 1 + 10 pagine in tutto, ancora lontano dalla fine delle 1000 righe
+    assert_eq!(f.app().top(), 11 * pagina * 10);
+    // ancora Ctrl+B: la barra sparisce
+    giro(&mut f, &ctx, vec![tasto(Key::B, ctrl())]);
+    assert!(!f.workspace().nav_bar());
+    let _ = std::fs::remove_file(p);
+}

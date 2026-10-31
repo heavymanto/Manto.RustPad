@@ -1,6 +1,6 @@
 //! La finestra: un `App` del TUI mostrato come griglia di celle. Ogni giro: si misura la cella, si adatta l'`App` allo
 //! spazio (colonne e righe), si portano all'`App` tastiera, incolla e rotella, si fa un `tick`, si disegna la griglia
-//! che l'`App` produce (`mrp_tui::cells::render_grid`) e si mandano agli appunti di sistema le copie.
+//! che l'`App` produce (`mrp_tui::cells::render_grid_workspace`) e si mandano agli appunti di sistema le copie.
 
 use crate::fonts::{self, Scrittura};
 use crate::input;
@@ -10,7 +10,7 @@ use eframe::egui::{
     self, Context, CursorIcon, Event, FontId, Frame, Pos2, Sense, Vec2, ViewportCommand,
 };
 use mrp_tui::app::{App, AppConfig};
-use mrp_tui::cells::{render_grid, BG_PREDEFINITO};
+use mrp_tui::cells::{render_grid_workspace, BG_PREDEFINITO};
 use mrp_tui::workspace::Workspace;
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
@@ -543,7 +543,7 @@ impl Finestra {
                     self.dimensione = (colonne, righe);
                 }
                 self.ws.tick();
-                let griglia = render_grid(self.ws.active_mut(), colonne, righe);
+                let griglia = render_grid_workspace(&mut self.ws, colonne, righe);
                 // testo asiatico in un file che non lo dichiara (UTF-8, UTF-16...): il font si carica al primo che si vede
                 let mut nuova = false;
                 for c in griglia.celle.iter().flat_map(|c| c.simbolo.chars()) {

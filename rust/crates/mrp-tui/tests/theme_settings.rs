@@ -285,3 +285,33 @@ fn bad_jump_pages_fall_back_to_the_defaults_as_a_whole() {
     let t = Settings::from_text("jump_pages=4,40,400\njump_pages=x\n");
     assert_eq!(t.jump_pages, [4, 40, 400]);
 }
+
+#[test]
+fn nav_bar_is_off_by_default_written_only_when_on_and_read_back() {
+    assert!(!Settings::default().nav_bar);
+    assert!(!Settings::default().to_text().contains("nav_bar"));
+    let s = Settings {
+        nav_bar: true,
+        ..Settings::default()
+    };
+    assert_eq!(dati(&s.to_text()), vec!["theme=console", "nav_bar=1"]);
+    assert_eq!(Settings::from_text(&s.to_text()), s);
+    for si in ["nav_bar=1", "nav_bar = on", "nav_bar=true"] {
+        assert!(Settings::from_text(si).nav_bar, "{si}");
+    }
+    // la chiave e' minuscola: la maiuscola e' sconosciuta
+    assert!(!Settings::from_text("NAV_BAR=1").nav_bar);
+    for no in [
+        "nav_bar=0",
+        "nav_bar=off",
+        "nav_bar=false",
+        "nav_bar=",
+        "nav_bar=2",
+        "nav_bar=si",
+    ] {
+        assert!(!Settings::from_text(no).nav_bar, "{no}");
+    }
+    // l'ultima valida vince
+    assert!(!Settings::from_text("nav_bar=1\nnav_bar=0\n").nav_bar);
+    assert!(Settings::from_text("nav_bar=1\nnav_bar=boh\n").nav_bar);
+}

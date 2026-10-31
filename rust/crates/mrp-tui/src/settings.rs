@@ -16,6 +16,8 @@ pub struct Settings {
     pub lang: Option<String>,
     /// Di quante pagine saltano Alt+PgUp/PgDn, Alt+Maiusc+PgUp/PgDn e Ctrl+Alt+PgUp/PgDn.
     pub jump_pages: [usize; 3],
+    /// La barra dei salti (Ctrl+B) sotto la barra delle schede.
+    pub nav_bar: bool,
 }
 
 /// I salti di pagina di fabbrica: 10, 100 e 1000 pagine.
@@ -30,6 +32,7 @@ impl Default for Settings {
             theme: ThemeId::DEFAULT,
             lang: None,
             jump_pages: JUMP_PAGES,
+            nav_bar: false,
         }
     }
 }
@@ -60,6 +63,9 @@ impl Settings {
         if self.jump_pages != JUMP_PAGES {
             let [a, b, c] = self.jump_pages;
             out.push_str(&format!("jump_pages={a},{b},{c}\n"));
+        }
+        if self.nav_bar {
+            out.push_str("nav_bar=1\n");
         }
         out
     }
@@ -99,6 +105,12 @@ impl Settings {
                         s.jump_pages = j;
                     }
                 }
+                "nav_bar" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.nav_bar = true,
+                    "0" | "off" | "false" => s.nav_bar = false,
+                    // un valore che non si capisce si salta
+                    _ => {}
+                },
                 _ => {}
             }
         }

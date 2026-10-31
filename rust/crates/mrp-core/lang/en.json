@@ -169,5 +169,7 @@
   "flash.regex_utf8": "regex, glob and ignore-case need a UTF-8 document",
   "gui.replace": "Replace…",
   "help.l15": "Ctrl+H                     replace (text, glob, regex; this or all tabs)",
-  "help.l16": "Alt+PgUp / Alt+PgDn        jump pages (x10; +Shift x100; +Ctrl x1000)"
+  "help.l16": "Alt+PgUp / Alt+PgDn        jump pages (x10; +Shift x100; +Ctrl x1000)",
+  "help.l17": "Ctrl+B                     jump bar: Home, End, page buttons",
+  "gui.nav_bar": "Page-jump bar"
 }
