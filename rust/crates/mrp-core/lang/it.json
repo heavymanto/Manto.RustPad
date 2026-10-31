@@ -171,5 +171,12 @@
   "help.l15": "Ctrl+H                     sostituisci (testo, glob, regex; scheda o tutte)",
   "help.l16": "Alt+PgUp / Alt+PgDn        salta di pagine (x10; +Maiusc x100; +Ctrl x1000)",
   "help.l17": "Ctrl+B                     barra dei salti: inizio, fine, pagine",
-  "gui.nav_bar": "Barra dei salti"
+  "gui.nav_bar": "Barra dei salti",
+  "untitled.name": "Senza nome {}",
+  "prompt.saveas.title": "SALVA CON NOME",
+  "prompt.saveas.hint": "percorso del nuovo file",
+  "overwrite.title": "IL FILE ESISTE",
+  "overwrite.text": "{} esiste già. Sostituirlo?",
+  "overwrite.keys": "Invio Sostituisci   Esc Annulla",
+  "help.l18": "Ctrl+N / Ctrl+Maiusc+S      documento nuovo / salva con nome"
 }

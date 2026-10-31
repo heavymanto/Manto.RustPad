@@ -281,6 +281,10 @@ pub enum DialogKind {
     Confirm,
     /// Salvataggio in corso (avanzamento, Esc annulla).
     Saving,
+    /// Ctrl+Maiusc+S (e Ctrl+S su un documento senza nome): prompt del percorso con cui salvare ("salva con nome").
+    SaveAs,
+    /// Il file scelto per "salva con nome" esiste gia': Invio lo sostituisce, Esc rinuncia.
+    Overwrite,
 }
 
 /// L'indicizzazione in corso: il canale col thread che costruisce l'indice e i byte gia' esaminati.
@@ -305,6 +309,8 @@ struct SaveJob {
     len: u64,
     /// Vero: dopo un salvataggio riuscito l'app esce (la 'S' del dialogo di uscita).
     quit_after: bool,
+    /// Il file scelto, se e' un "salva con nome": a riuscita il documento diventa quel file.
+    target: Option<PathBuf>,
 }
 
 /// L'esito della ricerca in background, consegnato dal thread su `tick`.
@@ -527,6 +533,13 @@ pub struct App {
     /// Il testo del prompt "apri" e la richiesta confermata (percorso) che l'ospite deve ancora raccogliere.
     open_text: String,
     open_request: Option<PathBuf>,
+    /// Il numero del documento senza nome ("Untitled 1"); `None` per un file vero. Il suo file vuoto di appoggio e' `path`.
+    untitled: Option<u32>,
+    /// Il testo del prompt "salva con nome", il file scelto che esiste gia' (aspetta la conferma) e se dopo il salvataggio
+    /// l'app deve uscire (vengono dalla 'S' del dialogo di uscita).
+    save_as_text: String,
+    save_as_pending: Option<PathBuf>,
+    save_as_quit_after: bool,
     /// Il testo scritto nel prompt di ricerca.
     find_text: String,
     /// L'ultimo testo cercato: F3 e Maiusc+F3 lo cercano di nuovo, senza prompt.
@@ -677,6 +690,10 @@ impl App {
             goto_text: String::new(),
             open_text: String::new(),
             open_request: None,
+            untitled: None,
+            save_as_text: String::new(),
+            save_as_pending: None,
+            save_as_quit_after: false,
             find_text: String::new(),
             last_find: None,
             search_mode: Mode::Text,
@@ -807,6 +824,10 @@ impl App {
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl && !shift => self.undo(),
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl => self.redo(),
             KeyCode::Char('y') | KeyCode::Char('Y') if ctrl => self.redo(),
+            // Ctrl+Maiusc+S: salva con nome (con Maiusc arriva anche la 'S' maiuscola)
+            KeyCode::Char('s') | KeyCode::Char('S') if ctrl && shift => {
+                self.open_dialog(DialogKind::SaveAs)
+            }
             KeyCode::Char('s') if ctrl => self.start_save(false),
             // Ctrl+F apre sempre il prompt di ricerca, con l'ultimo testo cercato gia' scritto.
             KeyCode::Char('f') if ctrl => self.open_dialog(DialogKind::Find),
@@ -1068,6 +1089,14 @@ impl App {
             }
             DialogKind::Goto => self.goto_text.clear(),
             DialogKind::Open => self.open_text.clear(),
+            // salva con nome: parte dalla cartella del file (con il separatore in fondo, si scrive solo il nome); un
+            // documento senza nome parte vuoto
+            DialogKind::SaveAs => {
+                self.save_as_text = match (self.untitled, self.path.parent()) {
+                    (None, Some(dir)) => format!("{}{}", dir.display(), std::path::MAIN_SEPARATOR),
+                    _ => String::new(),
+                };
+            }
             DialogKind::Replace => {
                 self.rep_find = self.last_find.clone().unwrap_or_default();
                 self.rep_field = 0;
@@ -1152,6 +1181,40 @@ impl App {
                 KeyCode::Char(c) if !ctrl && !alt => self.open_text.push(c),
                 _ => {}
             },
+            // Prompt "salva con nome": Invio sceglie il file (se esiste chiede conferma, altrimenti salva), Esc rinuncia (e
+            // annulla anche l'uscita che l'aveva chiesto).
+            DialogKind::SaveAs => match key.code {
+                KeyCode::Esc => {
+                    self.dialog = None;
+                    self.save_as_quit_after = false;
+                }
+                KeyCode::Enter => self.save_as_enter(),
+                KeyCode::Backspace => {
+                    self.save_as_text.pop();
+                }
+                KeyCode::Char(c) if !ctrl && !alt => self.save_as_text.push(c),
+                _ => {}
+            },
+            // Il file scelto esiste: Invio (o S) lo sostituisce, Esc (o N) rinuncia.
+            DialogKind::Overwrite => match key.code {
+                KeyCode::Enter
+                | KeyCode::Char('s')
+                | KeyCode::Char('S')
+                | KeyCode::Char('y')
+                | KeyCode::Char('Y') => {
+                    self.dialog = None;
+                    if let Some(p) = self.save_as_pending.take() {
+                        let esci = std::mem::take(&mut self.save_as_quit_after);
+                        self.start_save_as(p, esci);
+                    }
+                }
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
+                    self.dialog = None;
+                    self.save_as_pending = None;
+                    self.save_as_quit_after = false;
+                }
+                _ => {}
+            },
             // Prompt di ricerca: gli stessi tasti del "vai a"; Enter ricorda il testo e fa
             // partire la ricerca in avanti, Esc chiude senza toccare l'ultimo testo cercato.
             // Sostituisci: Tab cambia campo; Alt+M cambia modo, Alt+C le maiuscole, Alt+A l'ambito; Invio fa l'anteprima e,
@@ -1223,6 +1286,7 @@ impl App {
             DialogKind::Confirm => match key.code {
                 KeyCode::Char('s') | KeyCode::Char('S') => {
                     self.dialog = None;
+                    // un documento senza nome chiede prima il nome (lo fa `start_save`), poi esce
                     self.start_save(true);
                 }
                 KeyCode::Char('d') | KeyCode::Char('D') => {
@@ -2840,6 +2904,10 @@ impl App {
         if let (Some(stato), Some(doc)) = (&rec.state, app.doc.as_mut()) {
             esito = doc.restore_edits(stato).err();
         }
+        // un documento senza nome (il file vuoto sta nella cartella `untitled` della sessione) torna senza nome
+        if let Some(n) = untitled_number_of(Path::new(&rec.path)) {
+            app.adopt_untitled(n);
+        }
         app.edit = rec.edit && esito.is_none();
         app.cursor = rec.cursor.min(app.max_cursor());
         app.scroll_adjust();
@@ -2851,9 +2919,91 @@ impl App {
         &self.path
     }
 
-    /// Il nome del file aperto (senza cartella).
+    /// Il nome del file aperto (senza cartella); per un documento senza nome "Untitled N" (nella lingua attiva).
     pub fn file_name(&self) -> &str {
         &self.file_name
+    }
+
+    /// Un documento nuovo, vuoto e in modifica, senza nome: il suo file vuoto di appoggio sta in `dir` come
+    /// `untitled-N.txt` (il primo numero libero da `n` in su: un file che c'e' gia' non si tocca mai). Salvandolo si sceglie
+    /// il nome (`Ctrl+S`, o `save_as_path`) e il file di appoggio sparisce. A capo come la piattaforma (CRLF su Windows).
+    pub fn new_untitled(dir: &Path, n: u32, cfg: AppConfig) -> io::Result<App> {
+        std::fs::create_dir_all(dir)?;
+        let mut n = n.max(1);
+        let file = loop {
+            let p = dir.join(format!("untitled-{n}.txt"));
+            match std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&p)
+            {
+                Ok(_) => break p,
+                Err(e) if e.kind() == io::ErrorKind::AlreadyExists && n < 100_000 => n += 1,
+                Err(e) => return Err(e),
+            }
+        };
+        let mut app = App::open(&file, cfg)?;
+        app.adopt_untitled(n);
+        app.edit = true;
+        Ok(app)
+    }
+
+    /// Fa di questa scheda il documento senza nome numero `n` (il suo file e' quello di appoggio): il nome mostrato e
+    /// l'a-capo; con del testo gia' dentro (una sessione ripristinata) l'a-capo e' quello che il testo ha.
+    pub fn adopt_untitled(&mut self, n: u32) {
+        self.untitled = Some(n);
+        self.refresh_untitled_name();
+        let predefinito = if cfg!(windows) {
+            LineEnding::CrLf
+        } else {
+            LineEnding::Lf
+        };
+        let campione = self
+            .doc
+            .as_ref()
+            .map(|d| d.read_range(0, d.len().min(65536)))
+            .unwrap_or_default();
+        self.eol = if campione.is_empty() {
+            predefinito
+        } else {
+            LineEnding::detect(&campione, self.enc).for_encoding(self.enc)
+        };
+    }
+
+    /// Il nome "Untitled N" nella lingua attiva.
+    fn refresh_untitled_name(&mut self) {
+        if let Some(n) = self.untitled {
+            self.file_name = self.cat.tf("untitled.name", &[&n.to_string()]);
+        }
+    }
+
+    /// Vero per un documento senza nome.
+    pub fn is_untitled(&self) -> bool {
+        self.untitled.is_some()
+    }
+
+    /// Il numero di un documento senza nome.
+    pub fn untitled_number(&self) -> Option<u32> {
+        self.untitled
+    }
+
+    /// Il file vuoto che regge un documento senza nome (`None` per un file vero).
+    pub fn scratch_path(&self) -> Option<&Path> {
+        self.untitled.map(|_| self.path.as_path())
+    }
+
+    /// Il testo scritto nel prompt "salva con nome".
+    pub fn save_as_text(&self) -> &str {
+        &self.save_as_text
+    }
+
+    /// Il nome (senza cartella) del file che "salva con nome" sta per sostituire.
+    pub(crate) fn save_as_pending_name(&self) -> String {
+        self.save_as_pending
+            .as_deref()
+            .and_then(Path::file_name)
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
     }
 
     /// Il messaggio transitorio della riga di stato, se c'e'.
@@ -3789,6 +3939,54 @@ impl App {
             self.flash = Some(self.cat.t("flash.nothing_to_save").to_string());
             return;
         }
+        if self.untitled.is_some() {
+            // senza nome non c'e' un file su cui salvare: si chiede il nome
+            self.save_as_quit_after = quit_after;
+            self.open_dialog(DialogKind::SaveAs);
+            return;
+        }
+        self.spawn_save(None, quit_after);
+    }
+
+    /// Salva con nome in `path` (senza chiedere conferma: lo fa il prompt, o il dialogo di sistema della finestra). Vale
+    /// per qualunque documento, anche senza modifiche (e' una copia); a riuscita il documento e' quel file.
+    pub fn save_as_path(&mut self, path: PathBuf) {
+        self.start_save_as(path, false);
+    }
+
+    fn start_save_as(&mut self, path: PathBuf, quit_after: bool) {
+        self.spawn_save(Some(path), quit_after);
+    }
+
+    /// Invio nel prompt "salva con nome": un testo vuoto non fa niente, un percorso relativo parte dalla cartella
+    /// corrente, un file che esiste gia' (e non e' questo) chiede conferma.
+    fn save_as_enter(&mut self) {
+        let testo = std::mem::take(&mut self.save_as_text);
+        self.dialog = None;
+        let testo = testo.trim();
+        if testo.is_empty() {
+            self.save_as_quit_after = false;
+            return;
+        }
+        let mut p = PathBuf::from(testo);
+        if p.is_relative() {
+            if let Ok(cwd) = std::env::current_dir() {
+                p = cwd.join(p);
+            }
+        }
+        let esiste_altro =
+            p.exists() && p.canonicalize().ok().as_deref() != Some(self.path.as_path());
+        if esiste_altro {
+            self.save_as_pending = Some(p);
+            self.dialog = Some(DialogKind::Overwrite);
+        } else {
+            let esci = std::mem::take(&mut self.save_as_quit_after);
+            self.start_save_as(p, esci);
+        }
+    }
+
+    /// Fa partire il thread di salvataggio (a `target`, oppure sul file stesso).
+    fn spawn_save(&mut self, target: Option<PathBuf>, quit_after: bool) {
         let len = self.document_len();
         let Some(mut doc) = self.doc.take() else {
             return;
@@ -3798,8 +3996,12 @@ impl App {
         let (tx, rx) = mpsc::channel();
         let cancel_thread = Arc::clone(&cancel);
         let progress_thread = Arc::clone(&progress);
+        let target_thread = target.clone();
         std::thread::spawn(move || {
-            let esito = doc.save(&cancel_thread, &progress_thread);
+            let esito = match &target_thread {
+                Some(t) => doc.save_as(t, &cancel_thread, &progress_thread),
+                None => doc.save(&cancel_thread, &progress_thread),
+            };
             // Il documento torna comunque: anche con errore non si perde.
             let _ = tx.send((doc, esito));
         });
@@ -3809,6 +4011,7 @@ impl App {
             cancel,
             len,
             quit_after,
+            target,
         });
         self.dialog = Some(DialogKind::Saving);
     }
@@ -3823,6 +4026,7 @@ impl App {
         match job.rx.try_recv() {
             Ok((doc, esito)) => {
                 let quit_after = job.quit_after;
+                let con_nome = job.target.is_some();
                 self.save_job = None;
                 // Il dialogo si chiude col lavoro: finche' girava teneva tutti i tasti.
                 self.dialog = None;
@@ -3831,6 +4035,9 @@ impl App {
                 self.scroll_adjust();
                 match esito {
                     Ok(()) => {
+                        if con_nome {
+                            self.adopt_saved_path();
+                        }
                         self.flash = Some(self.cat.tf("flash.saved", &[&self.file_name]));
                         self.rebuild_index();
                         // "Salva ed esci": solo un salvataggio riuscito fa uscire.
@@ -3855,6 +4062,24 @@ impl App {
                 self.save_job = None;
                 self.dialog = None;
             }
+        }
+    }
+
+    /// Dopo un "salva con nome" riuscito: il documento e' il file nuovo (nome e percorso), non e' piu' senza nome e il suo
+    /// file vuoto di appoggio si cancella.
+    fn adopt_saved_path(&mut self) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let nuovo = doc.path().to_path_buf();
+        let vecchio = std::mem::replace(&mut self.path, nuovo);
+        self.file_name = self
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        if self.untitled.take().is_some() && vecchio != self.path {
+            let _ = std::fs::remove_file(vecchio);
         }
     }
 
@@ -3897,6 +4122,18 @@ impl Drop for App {
             job.cancel.store(true, Ordering::Relaxed);
         }
     }
+}
+
+/// Il numero di un documento senza nome dal percorso del suo file vuoto (`.../untitled/untitled-N.txt`).
+fn untitled_number_of(p: &Path) -> Option<u32> {
+    if p.parent()?.file_name()? != "untitled" {
+        return None;
+    }
+    p.file_stem()?
+        .to_str()?
+        .strip_prefix("untitled-")?
+        .parse()
+        .ok()
 }
 
 /// La specie di un carattere per il doppio clic: 0 parola (lettere, cifre, '_'), 1 spazio, 2 segno.

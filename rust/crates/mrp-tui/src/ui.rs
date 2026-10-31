@@ -15,11 +15,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l17` (l'ultima e' sempre Esc, `help.l10`).
-const HELP_KEYS: [&str; 17] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l18` (l'ultima e' sempre Esc, `help.l10`).
+const HELP_KEYS: [&str; 18] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l10",
+    "help.l18", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -578,6 +578,25 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                 cursore: Some((campo, colonna)),
             }
         }
+        DialogKind::SaveAs => prompt_contenuto(
+            cat,
+            t,
+            "prompt.saveas.title",
+            "prompt.saveas.hint",
+            app.save_as_text(),
+        ),
+        // Il file scelto esiste gia': si chiede se sostituirlo.
+        DialogKind::Overwrite => ContenutoDialogo {
+            titolo: cat.t("overwrite.title").to_string(),
+            righe: vec![
+                (
+                    cat.tf("overwrite.text", &[&app.save_as_pending_name()]),
+                    t.dialog,
+                ),
+                (cat.t("overwrite.keys").to_string(), t.hint),
+            ],
+            cursore: None,
+        },
         // Conferma all'uscita con modifiche non salvate: il testo e le tre scelte.
         DialogKind::Confirm => ContenutoDialogo {
             titolo: cat.t("confirm.title").to_string(),

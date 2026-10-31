@@ -172,5 +172,12 @@
   "help.l15": "Strg+H                     ersetzen (Text, Glob, Regex; dieser oder alle Tabs)",
   "help.l16": "Alt+PgUp / Alt+PgDn        Seiten springen (x10; +Umschalt x100; +Strg x1000)",
   "help.l17": "Strg+B                     Sprungleiste: Anfang, Ende, Seitentasten",
-  "gui.nav_bar": "Sprungleiste"
+  "gui.nav_bar": "Sprungleiste",
+  "untitled.name": "Unbenannt {}",
+  "prompt.saveas.title": "SPEICHERN UNTER",
+  "prompt.saveas.hint": "Pfad der neuen Datei",
+  "overwrite.title": "DATEI VORHANDEN",
+  "overwrite.text": "{} existiert bereits. Ersetzen?",
+  "overwrite.keys": "Enter Ersetzen   Esc Abbrechen",
+  "help.l18": "Strg+N / Strg+Umschalt+S  neues Dokument / speichern unter"
 }

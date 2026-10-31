@@ -172,5 +172,12 @@
   "help.l15": "Ctrl+H                     substituir (texto, glob, regex; esta ou todas)",
   "help.l16": "Alt+PgUp / Alt+PgDn        saltar páginas (x10; +Shift x100; +Ctrl x1000)",
   "help.l17": "Ctrl+B                     barra de saltos: início, fim, páginas",
-  "gui.nav_bar": "Barra de saltos"
+  "gui.nav_bar": "Barra de saltos",
+  "untitled.name": "Sem título {}",
+  "prompt.saveas.title": "SALVAR COMO",
+  "prompt.saveas.hint": "caminho do novo arquivo",
+  "overwrite.title": "O ARQUIVO JÁ EXISTE",
+  "overwrite.text": "{} já existe. Substituir?",
+  "overwrite.keys": "Enter Substituir   Esc Cancelar",
+  "help.l18": "Ctrl+N / Ctrl+Shift+S      novo documento / salvar como"
 }

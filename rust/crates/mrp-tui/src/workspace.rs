@@ -490,9 +490,54 @@ impl Workspace {
             ..self.cfg.clone()
         };
         let app = App::open(&canon, cfg)?;
+        // una scheda senza nome ancora vuota e intatta lascia il posto al file (come negli altri editor)
+        let vuota = {
+            let a = &self.tabs[self.active];
+            a.is_untitled() && !a.is_modified() && a.document_len() == 0
+        };
+        let vecchia = self.active;
+        self.tabs.push(app);
+        if vuota {
+            let tolta = self.tabs.remove(vecchia);
+            Workspace::pulisci_scheda(&tolta);
+        }
+        self.select(self.tabs.len() - 1);
+        Ok(())
+    }
+
+    /// La cartella dei file vuoti che reggono i documenti senza nome: `untitled` dentro la cartella della sessione (cosi'
+    /// tornano con la sessione) oppure, senza sessione, una cartella fra i temporanei.
+    pub fn untitled_dir(sessione: Option<&Path>) -> PathBuf {
+        match sessione {
+            Some(d) => d.join("untitled"),
+            None => std::env::temp_dir().join(format!("mrp-untitled-{}", std::process::id())),
+        }
+    }
+
+    /// Ctrl+N: apre un documento nuovo, vuoto e in modifica, in una scheda nuova (la porta avanti). Il numero e' il piu' piccolo
+    /// libero fra le schede aperte ("Untitled 1", "Untitled 2"...). Prende il tema e la lingua della scheda attiva.
+    pub fn new_tab(&mut self) -> io::Result<()> {
+        let usati: Vec<u32> = self.tabs.iter().filter_map(App::untitled_number).collect();
+        let n = (1u32..).find(|n| !usati.contains(n)).unwrap_or(1);
+        let dir = Workspace::untitled_dir(self.session.as_ref().map(|s| s.dir.as_path()));
+        let attiva = &self.tabs[self.active];
+        let cfg = AppConfig {
+            theme: attiva.theme_id(),
+            lang_code: Some(attiva.lang_code().to_string()),
+            ..self.cfg.clone()
+        };
+        let app = App::new_untitled(&dir, n, cfg)?;
         self.tabs.push(app);
         self.select(self.tabs.len() - 1);
         Ok(())
+    }
+
+    /// Una scheda che si toglie davvero (chiusa a mano, non l'uscita con la sessione): il file vuoto che reggeva un
+    /// documento senza nome non serve piu'.
+    fn pulisci_scheda(a: &App) {
+        if let Some(p) = a.scratch_path() {
+            let _ = std::fs::remove_file(p);
+        }
     }
 
     /// Chiede di chiudere la scheda `i`: senza modifiche si chiude subito, con modifiche la porta avanti e apre il
@@ -537,13 +582,15 @@ impl Workspace {
             if self.tabs.len() == 1 {
                 // l'ultima scheda: non si toglie (il `Workspace` non resta mai vuoto), si esce; chiusa a mano, non deve
                 // tornare alla prossima apertura
+                Workspace::pulisci_scheda(&self.tabs[0]);
                 if let Some(s) = &self.session {
                     let _ = sessionstore::azzera(&s.dir);
                 }
                 self.quit = true;
                 return;
             }
-            self.tabs.remove(i);
+            let tolta = self.tabs.remove(i);
+            Workspace::pulisci_scheda(&tolta);
             if i < self.active {
                 self.active -= 1;
             }
@@ -749,6 +796,15 @@ impl Workspace {
                     return self.select(usize::from(c as u8 - b'1'));
                 }
                 KeyCode::Char('b') | KeyCode::Char('B') if ctrl => return self.toggle_nav(),
+                // Ctrl+N: un documento nuovo e vuoto in una scheda nuova
+                KeyCode::Char('n') | KeyCode::Char('N') if ctrl => {
+                    if let Err(e) = self.new_tab() {
+                        let a = &mut self.tabs[self.active];
+                        let testo = a.text_with("cli.err.open", &["", &e.to_string()]);
+                        a.set_flash(testo);
+                    }
+                    return;
+                }
                 KeyCode::Char('w') | KeyCode::Char('W') if ctrl => return self.close(self.active),
                 KeyCode::F(10) => return self.close_all(),
                 KeyCode::Char('q') | KeyCode::Char('Q') if ctrl => return self.close_all(),

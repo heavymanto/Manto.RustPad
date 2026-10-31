@@ -172,5 +172,12 @@
   "help.l15": "Ctrl+H                     置換 (テキスト・glob・正規表現、このタブ/全タブ)",
   "help.l16": "Alt+PgUp / Alt+PgDn        ページジャンプ (x10、+Shift x100、+Ctrl x1000)",
   "help.l17": "Ctrl+B                     ジャンプバー: 先頭・末尾・ページ送り",
-  "gui.nav_bar": "ジャンプバー"
+  "gui.nav_bar": "ジャンプバー",
+  "untitled.name": "無題 {}",
+  "prompt.saveas.title": "名前を付けて保存",
+  "prompt.saveas.hint": "新しいファイルのパス",
+  "overwrite.title": "ファイルが存在します",
+  "overwrite.text": "{} は既に存在します。置き換えますか?",
+  "overwrite.keys": "Enter 置換   Esc キャンセル",
+  "help.l18": "Ctrl+N / Ctrl+Shift+S      新規 / 名前を付けて保存"
 }
