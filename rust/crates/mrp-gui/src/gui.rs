@@ -4,6 +4,7 @@
 
 use crate::fonts::{self, Scrittura};
 use crate::input;
+use crate::menu::{self, Azione};
 use crate::paint;
 use eframe::egui::{
     self, Context, CursorIcon, Event, FontId, Frame, Pos2, Sense, Vec2, ViewportCommand,
@@ -13,6 +14,7 @@ use mrp_tui::cells::{render_grid, BG_PREDEFINITO};
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Il corpo del testo di partenza, in punti.
@@ -29,6 +31,9 @@ const FISSO: Duration = Duration::from_millis(700);
 const LAMPEGGIO: Duration = Duration::from_millis(530);
 /// Ogni quanto si ridisegna anche senza eventi (i lavori in background: indice, ricerca, salvataggio).
 const RIDISEGNO: Duration = Duration::from_millis(60);
+
+/// Come si sceglie un file da aprire: riceve il titolo del dialogo, restituisce il percorso o `None` se si annulla.
+pub type Selettore = Box<dyn FnMut(&str) -> Option<PathBuf>>;
 
 /// La finestra dell'editor.
 pub struct Finestra {
@@ -51,6 +56,8 @@ pub struct Finestra {
     geometria: Option<(Pos2, Vec2, u16, u16)>,
     /// Il tasto sinistro e' premuto (si sta trascinando).
     premuto: bool,
+    /// Come si sceglie un file da aprire: riceve il titolo del dialogo, restituisce il percorso o `None` se si annulla.
+    selettore: Selettore,
 }
 
 impl Finestra {
@@ -93,7 +100,14 @@ impl Finestra {
             scatto_chiesto: false,
             geometria: None,
             premuto: false,
+            selettore: Box::new(|_| None),
         }
+    }
+
+    /// Imposta come si sceglie un file da aprire (il dialogo nativo, o un finto nei test).
+    pub fn con_selettore(mut self, selettore: Selettore) -> Finestra {
+        self.selettore = selettore;
+        self
     }
 
     /// Fa salvare la schermata in `percorso` (PNG) dopo qualche giro e poi chiude la finestra: serve a guardare il
@@ -134,19 +148,24 @@ impl Finestra {
                     modifiers,
                     ..
                 } => {
-                    // Ctrl+'+' / Ctrl+'-' / Ctrl+0: il corpo del testo
+                    // Ctrl+'+' / Ctrl+'-' / Ctrl+0: il corpo del testo; Ctrl+O: apre un file
                     if modifiers.command || modifiers.ctrl {
                         match key {
                             egui::Key::Plus | egui::Key::Equals => {
-                                self.corpo = (self.corpo + 1.0).min(CORPO_MAX);
+                                self.zoom(Azione::ZoomPiu);
                                 continue;
                             }
                             egui::Key::Minus => {
-                                self.corpo = (self.corpo - 1.0).max(CORPO_MIN);
+                                self.zoom(Azione::ZoomMeno);
                                 continue;
                             }
                             egui::Key::Num0 => {
-                                self.corpo = CORPO;
+                                self.zoom(Azione::ZoomNormale);
+                                continue;
+                            }
+                            egui::Key::O => {
+                                self.apri();
+                                tocco = true;
                                 continue;
                             }
                             _ => {}
@@ -174,6 +193,13 @@ impl Finestra {
                 } => {
                     if let Some((o, c, colonne, righe)) = self.geometria {
                         if pressed {
+                            // un menu aperto sta sopra la griglia: il clic e' suo
+                            let sul_testo = ctx
+                                .layer_id_at(pos)
+                                .is_none_or(|l| l.order == egui::Order::Background);
+                            if !sul_testo {
+                                continue;
+                            }
                             if let Some((x, y)) = input::cella_sotto(pos, o, c, colonne, righe) {
                                 self.premuto = true;
                                 self.app.handle_mouse(MouseEvent {
@@ -273,20 +299,73 @@ impl Finestra {
         });
     }
 
-    /// Apre un file trascinato sulla finestra, se non c'e' nulla da salvare.
+    /// Apre un file trascinato sulla finestra.
     fn file_trascinato(&mut self, ctx: &Context) {
         let file = ctx.input(|i| i.raw.dropped_files.iter().find_map(|f| f.path.clone()));
-        let Some(percorso) = file else {
-            return;
-        };
+        if let Some(percorso) = file {
+            self.apri_file(&percorso);
+        }
+    }
+
+    /// Apre `percorso` al posto del documento attuale. Con modifiche non salvate non lo apre e lo dice nella riga di
+    /// stato; se il file non si apre lo dice e resta il documento di prima.
+    fn apri_file(&mut self, percorso: &Path) {
         if self.app.is_modified() {
+            let testo = self.app.text("gui.open_unsaved").to_string();
+            self.app.set_flash(testo);
             return;
         }
-        if let Ok(nuova) = App::open(&percorso, (self.nuova_config)()) {
-            self.app = nuova;
-            self.dimensione = (0, 0);
-            self.titolo.clear();
+        match App::open(percorso, (self.nuova_config)()) {
+            Ok(nuova) => {
+                self.app = nuova;
+                self.dimensione = (0, 0);
+                self.titolo.clear();
+            }
+            Err(e) => {
+                let testo = self.app.text_with(
+                    "cli.err.open",
+                    &[&percorso.display().to_string(), &e.to_string()],
+                );
+                self.app.set_flash(testo);
+            }
         }
+    }
+
+    /// Fa scegliere un file (Ctrl+O, menu File) e lo apre. Senza modifiche da salvare: altrimenti non chiede nemmeno.
+    fn apri(&mut self) {
+        if self.app.is_modified() {
+            let testo = self.app.text("gui.open_unsaved").to_string();
+            self.app.set_flash(testo);
+            return;
+        }
+        let titolo = self.app.text("gui.open_title").to_string();
+        if let Some(percorso) = (self.selettore)(&titolo) {
+            self.apri_file(&percorso);
+        }
+    }
+
+    /// Cambia il corpo del testo: `Azione::ZoomPiu`, `ZoomMeno` o `ZoomNormale`.
+    fn zoom(&mut self, a: Azione) {
+        self.corpo = match a {
+            Azione::ZoomPiu => (self.corpo + 1.0).min(CORPO_MAX),
+            Azione::ZoomMeno => (self.corpo - 1.0).max(CORPO_MIN),
+            _ => CORPO,
+        };
+    }
+
+    /// Il corpo del testo in punti (per i test).
+    pub fn corpo(&self) -> f32 {
+        self.corpo
+    }
+
+    /// Esegue la voce di menu scelta.
+    pub fn azione(&mut self, a: Azione) {
+        match a {
+            Azione::Apri => self.apri(),
+            Azione::Tasto(k) => self.app.handle_key(k),
+            z => self.zoom(z),
+        }
+        self.ultimo_input = Instant::now();
     }
 
     /// La chiusura della finestra: con modifiche non salvate si chiede all'`App` (il suo dialogo), senza si chiude.
@@ -346,10 +425,18 @@ impl eframe::App for Finestra {
 impl Finestra {
     /// Un giro della finestra (un `update`): si puo' fare anche in un contesto di egui senza finestra, per i test.
     pub fn giro(&mut self, ctx: &Context) {
-        // il font per la scrittura della codifica attuale (F9 la puo' cambiare)
-        let s = fonts::scrittura_di(self.app.encoding());
-        if s != Scrittura::Nessuna && !self.scritture.contains(&s) {
-            self.scritture.push(s);
+        // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7)
+        let mut nuova = false;
+        for s in [
+            fonts::scrittura_di(self.app.encoding()),
+            fonts::scrittura_della_lingua(self.app.lang_code()),
+        ] {
+            if s != Scrittura::Nessuna && !self.scritture.contains(&s) {
+                self.scritture.push(s);
+                nuova = true;
+            }
+        }
+        if nuova {
             fonts::installa(ctx, &self.scritture);
         }
         let font = FontId::monospace(self.corpo);
@@ -367,6 +454,12 @@ impl Finestra {
         }
         self.chiusura(ctx);
         self.titolo(ctx);
+        let scelta = egui::TopBottomPanel::top("menu")
+            .show(ctx, |ui| menu::disegna(ui, &self.app))
+            .inner;
+        if let Some(a) = scelta {
+            self.azione(a);
+        }
         egui::CentralPanel::default()
             .frame(Frame::NONE.fill(paint::colore(BG_PREDEFINITO)))
             .show(ctx, |ui| {

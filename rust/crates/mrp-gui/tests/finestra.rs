@@ -273,6 +273,7 @@ fn a_dropped_file_opens_unless_there_are_unsaved_changes() {
         f.app().file_name(),
         q.file_name().unwrap().to_string_lossy()
     );
+    assert_eq!(f.app().flash(), Some("save before opening another file"));
     for x in [p, q, r] {
         let _ = std::fs::remove_file(x);
     }

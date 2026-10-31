@@ -7,4 +7,5 @@
 pub mod fonts;
 pub mod gui;
 pub mod input;
+pub mod menu;
 pub mod paint;

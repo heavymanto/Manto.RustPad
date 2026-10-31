@@ -24,12 +24,18 @@ fn run() -> i32 {
         Ok(None) | Err(_) => Catalog::english(),
     };
     if a.help {
-        println!("mrpg FILE [--encoding NAME] [--theme NAME] [--lang CODE]");
+        println!("mrpg [FILE] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
-    let Some(file) = &a.file else {
-        return uso(&cat);
+    // senza file nella riga di comando si sceglie con il dialogo; annullare non e' un errore
+    let file = match &a.file {
+        Some(f) => f.clone(),
+        None => match scegli(cat.t("gui.open_title")) {
+            Some(f) => f,
+            None => return 0,
+        },
     };
+    let file = &file;
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => {
@@ -90,7 +96,8 @@ fn run() -> i32 {
         "Manto.RustPad",
         opzioni,
         Box::new(move |cc| {
-            let finestra = Finestra::new(cc, app, Box::new(move || nuova.clone()));
+            let finestra = Finestra::new(cc, app, Box::new(move || nuova.clone()))
+                .con_selettore(Box::new(|t: &str| scegli(t)));
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => finestra.con_scatto(p.into()),
@@ -107,7 +114,12 @@ fn run() -> i32 {
     }
 }
 
-/// Manca il file: l'uso, nella lingua scelta.
+/// Il dialogo nativo di apertura file: il percorso scelto, o `None` se si annulla.
+fn scegli(titolo: &str) -> Option<std::path::PathBuf> {
+    rfd::FileDialog::new().set_title(titolo).pick_file()
+}
+
+/// Gli argomenti non sono validi: l'uso, nella lingua scelta.
 fn uso(cat: &Catalog) -> i32 {
     eprintln!("{}", cat.tf("cli.err.no_file", &[]));
     2

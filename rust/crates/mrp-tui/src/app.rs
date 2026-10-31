@@ -2153,13 +2153,28 @@ impl App {
     }
 
     /// Il messaggio transitorio della riga di stato, se c'e'.
-    pub(crate) fn flash(&self) -> Option<&str> {
+    pub fn flash(&self) -> Option<&str> {
         self.flash.as_deref()
     }
 
     /// Il vocabolario attivo (ogni stringa visibile viene da qui).
     pub(crate) fn catalog(&self) -> &Catalog {
         &self.cat
+    }
+
+    /// Il testo di `key` nella lingua attiva (per la GUI: menu e dialoghi suoi).
+    pub fn text<'a>(&'a self, key: &'a str) -> &'a str {
+        self.cat.t(key)
+    }
+
+    /// Come `text`, con i segnaposto `{}` riempiti da `args`.
+    pub fn text_with(&self, key: &str, args: &[&str]) -> String {
+        self.cat.tf(key, args)
+    }
+
+    /// Mostra `testo` nella riga di stato fino al prossimo tasto (per la GUI).
+    pub fn set_flash(&mut self, testo: String) {
+        self.flash = Some(testo);
     }
 
     /// Le lingue disponibili (le righe del menu di F7).

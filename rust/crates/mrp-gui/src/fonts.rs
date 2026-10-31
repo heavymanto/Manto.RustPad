@@ -40,6 +40,15 @@ pub fn scrittura_di(enc: Encoding) -> Scrittura {
     }
 }
 
+/// La scrittura che serve ai menu nella lingua `code` (le interfacce giapponese e cinese).
+pub fn scrittura_della_lingua(code: &str) -> Scrittura {
+    match code {
+        "ja" => Scrittura::Giapponese,
+        c if c.starts_with("zh") => Scrittura::CineseSemplificato,
+        _ => Scrittura::Nessuna,
+    }
+}
+
 /// I file dei font di sistema da provare per una scrittura, in ordine di preferenza (Windows, macOS, Linux).
 pub fn candidati(s: Scrittura) -> &'static [&'static str] {
     match s {
