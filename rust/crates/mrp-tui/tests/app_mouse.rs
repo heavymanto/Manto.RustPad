@@ -251,3 +251,263 @@ fn a_click_on_a_horizontally_scrolled_line_counts_the_hidden_columns() {
     assert_eq!(a.cursor(), (h + 3) as u64);
     let _ = std::fs::remove_file(p);
 }
+
+// ----- doppio e triplo clic (E38): la parola e la riga sotto il puntatore -----
+// Gli istanti sono passati a mano (`handle_mouse_at`): i test non dipendono dall'orologio.
+// "foo bar_1  +x\n": f0 o1 o2 ' '3 b4 a5 r6 _7 '1'8 ' '9 ' '10 '+'11 x12 a-capo 13 (len 14)
+
+use std::time::Instant;
+
+fn premi(a: &mut App, col: u16, row: u16, t: Instant, mods: KeyModifiers) {
+    a.handle_mouse_at(
+        mouse(MouseEventKind::Down(MouseButton::Left), col, row, mods),
+        t,
+    );
+    a.handle_mouse_at(
+        mouse(MouseEventKind::Up(MouseButton::Left), col, row, mods),
+        t,
+    );
+    let _ = render_lines(a, 40, 10);
+}
+
+fn doppio(a: &mut App, col: u16, row: u16) {
+    let t = Instant::now();
+    premi(a, col, row, t, KeyModifiers::NONE);
+    premi(
+        a,
+        col,
+        row,
+        t + Duration::from_millis(200),
+        KeyModifiers::NONE,
+    );
+}
+
+#[test]
+fn a_double_click_selects_the_word_under_the_pointer() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
+    // in mezzo a "bar_1" (il trattino basso fa parte della parola)
+    doppio(&mut a, g + 5, 1);
+    assert_eq!(a.selection(), Some((4, 9)));
+    // la prima lettera e l'ultima cifra della stessa parola
+    doppio(&mut a, g + 4, 1);
+    assert_eq!(a.selection(), Some((4, 9)));
+    doppio(&mut a, g + 8, 1);
+    assert_eq!(a.selection(), Some((4, 9)));
+    doppio(&mut a, g + 1, 1);
+    assert_eq!(a.selection(), Some((0, 3)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_double_click_on_spaces_or_punctuation_selects_that_run() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
+    doppio(&mut a, g + 10, 1);
+    assert_eq!(a.selection(), Some((9, 11)), "i due spazi");
+    doppio(&mut a, g + 11, 1);
+    assert_eq!(a.selection(), Some((11, 12)), "il '+'");
+    doppio(&mut a, g + 3, 1);
+    assert_eq!(a.selection(), Some((3, 4)), "lo spazio singolo");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_double_click_past_the_end_of_the_row_takes_the_last_word() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
+    doppio(&mut a, g + 30, 1);
+    assert_eq!(
+        a.selection(),
+        Some((12, 13)),
+        "la 'x' in fondo, non l'a-capo"
+    );
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_double_click_keeps_to_the_row_and_to_whole_characters() {
+    // a0 ñ1-2 b3 ' '4 ü5-6 a-capo 7; "añb" sono 4 byte
+    let (mut a, p, g) = app("añb ü\nxy\n".as_bytes(), None, false);
+    doppio(&mut a, g + 1, 1);
+    assert_eq!(a.selection(), Some((0, 4)));
+    doppio(&mut a, g + 4, 1);
+    assert_eq!(a.selection(), Some((5, 7)), "ü e' di due byte");
+    // la parola non attraversa l'a-capo: "xy" comincia dopo
+    doppio(&mut a, g, 2);
+    assert_eq!(a.selection(), Some((8, 10)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_double_click_works_in_a_multibyte_encoding() {
+    let sj = Encoding::by_name("shift-jis").unwrap();
+    // "ab 日本\n": a0 b1 ' '2 日3-4 本5-6 a-capo 7; 日本 sono due lettere di una parola
+    let dati = sj.encode_str("ab 日本\n").unwrap();
+    let (mut a, p, g) = app(&dati, Some(sj), false);
+    doppio(&mut a, g + 5, 1);
+    assert_eq!(a.selection(), Some((3, 7)));
+    doppio(&mut a, g, 1);
+    assert_eq!(a.selection(), Some((0, 2)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_triple_click_selects_the_row_and_a_fourth_starts_over() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\nsecond\n", None, false);
+    let t = Instant::now();
+    premi(&mut a, g + 5, 1, t, KeyModifiers::NONE);
+    assert_eq!(a.selection(), None);
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(150),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), Some((4, 9)));
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(300),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), Some((0, 13)), "la riga, senza l'a-capo");
+    // il quarto clic ricomincia da uno: solo il cursore
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(450),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), None);
+    assert_eq!(a.cursor(), 5);
+    // e il quinto e' il secondo della nuova serie
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(600),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), Some((4, 9)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_slow_or_moved_second_click_is_not_a_double_click() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
+    let t = Instant::now();
+    premi(&mut a, g + 5, 1, t, KeyModifiers::NONE);
+    // troppo tardi
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(900),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), None);
+    // abbastanza presto ma in un'altra cella
+    premi(
+        &mut a,
+        g + 6,
+        1,
+        t + Duration::from_millis(1000),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), None);
+    assert_eq!(a.cursor(), 6);
+    // e il clic lento non conta come primo di una serie lunga: il terzo qui e' un secondo
+    premi(
+        &mut a,
+        g + 6,
+        1,
+        t + Duration::from_millis(1100),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), Some((4, 9)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn shift_click_and_dialogs_and_column_mode_never_select_words() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
+    let t = Instant::now();
+    premi(&mut a, g + 1, 1, t, KeyModifiers::NONE);
+    // Maiusc+clic nella stessa cella, subito dopo: estende, non e' un doppio clic
+    premi(
+        &mut a,
+        g + 1,
+        1,
+        t + Duration::from_millis(100),
+        KeyModifiers::SHIFT,
+    );
+    assert_eq!(a.selection(), None);
+    // dialogo aperto
+    a.handle_key(k(KeyCode::F(1)));
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(200),
+        KeyModifiers::NONE,
+    );
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(300),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), None);
+    a.handle_key(k(KeyCode::Esc));
+    // modalita' colonna
+    a.handle_key(k(KeyCode::F(8)));
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(5000),
+        KeyModifiers::NONE,
+    );
+    premi(
+        &mut a,
+        g + 5,
+        1,
+        t + Duration::from_millis(5100),
+        KeyModifiers::NONE,
+    );
+    assert_eq!(a.selection(), None);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn typing_over_a_double_clicked_word_replaces_it() {
+    let (mut a, p, g) = app(b"foo bar_1  +x\n", None, true);
+    doppio(&mut a, g + 5, 1);
+    a.handle_key(k(KeyCode::Char('Z')));
+    assert_eq!(a.document_text(), b"foo Z  +x\n");
+    // un solo Ctrl+Z rimette la parola
+    a.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
+    assert_eq!(a.document_text(), b"foo bar_1  +x\n");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_run_of_spaces_stops_at_the_row_edges_not_at_the_newlines() {
+    // ab 0-1, spazi 2-3, a-capo 4, spazi 5-6, cd 7-8, a-capo 9
+    let (mut a, p, g) = app(b"ab  \n  cd\n", None, false);
+    doppio(&mut a, g + 3, 1);
+    assert_eq!(
+        a.selection(),
+        Some((2, 4)),
+        "gli spazi in fondo, non l'a-capo"
+    );
+    doppio(&mut a, g + 1, 2);
+    assert_eq!(
+        a.selection(),
+        Some((5, 7)),
+        "gli spazi in testa, non l'a-capo prima"
+    );
+    let _ = std::fs::remove_file(p);
+}

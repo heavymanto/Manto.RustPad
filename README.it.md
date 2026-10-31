@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-725-brightgreen" alt="725 test" />
+        <img src="https://img.shields.io/badge/test-735-brightgreen" alt="735 test" />
         <img src="https://img.shields.io/badge/programmi-mrp%20%C2%B7%20mrpg-blue" alt="mrp e mrpg" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -87,7 +87,7 @@ compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido
 | **Avvio** | `mrp file...` | `mrpg file...` (senza file apre il dialogo di apertura) |
 | **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Aiuto) e il dialogo nativo di apertura |
 | **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
-| **Il mouse** | posiziona il cursore, seleziona, sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
+| **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
 
 Sono **lo stesso codice**: la logica dell'editor sta in un posto solo e `mrpg` si limita a disegnarne la griglia di celle. Una funzione aggiunta a uno c'è anche nell'altro.
 
@@ -145,7 +145,7 @@ Per provare le funzioni a più file: `mrp a.txt b.txt c.txt`, poi `Ctrl+H`, scri
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 725 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
+- **Sviluppo iniziale.** L'editor funziona ed è coperto da 735 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
   la finestra `mrpg` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.

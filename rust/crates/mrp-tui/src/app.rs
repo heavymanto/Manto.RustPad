@@ -30,6 +30,10 @@ use std::time::{Duration, Instant};
 
 /// Quanto si guarda avanti e indietro per gli a-capo: il limite di scansione del core.
 const MAX_SCAN: u64 = scan::DEFAULT_MAX_SCAN;
+/// Il tempo massimo fra due clic perche' siano un doppio clic.
+const MULTI_CLICK: Duration = Duration::from_millis(500);
+/// Quanti caratteri al massimo una parola selezionata con il doppio clic si allarga per lato (righe enormi).
+const MAX_WORD_CHARS: usize = 100_000;
 
 /// Le righe della rotella per scatto.
 const WHEEL_ROWS: usize = 3;
@@ -502,6 +506,8 @@ pub struct App {
     row_starts: Vec<u64>,
     /// Dove e' cominciato il trascinamento del mouse con il tasto sinistro (l'ancora della selezione che si fa).
     drag_from: Option<u64>,
+    /// L'ultimo clic sinistro (istante, colonna, riga, quanti di fila): serve al doppio e al triplo clic.
+    last_click: Option<(Instant, u16, u16, u8)>,
     /// Vero quando si e' chiesto di uscire.
     quit: bool,
     /// Dove sta il cursore sullo schermo dopo l'ultimo disegno (lo scrive `ui::draw`).
@@ -653,6 +659,7 @@ impl App {
             drawn_rows: Vec::new(),
             row_starts: Vec::new(),
             drag_from: None,
+            last_click: None,
             quit: false,
             cursor_xy: None,
             dialog: None,
@@ -811,18 +818,28 @@ impl App {
         }
     }
 
-    /// Un evento del mouse (per ora solo la rotella); anche il mouse chiude il passo della storia.
+    /// Un evento del mouse; anche il mouse chiude il passo della storia.
     pub fn handle_mouse(&mut self, m: MouseEvent) {
+        self.handle_mouse_at(m, Instant::now());
+    }
+
+    /// Come `handle_mouse`, con l'istante dell'evento (i test lo passano a mano; i clic ravvicinati nella stessa
+    /// cella fanno il doppio e il triplo clic).
+    pub fn handle_mouse_at(&mut self, m: MouseEvent, adesso: Instant) {
         self.seal_history();
         match m.kind {
             MouseEventKind::ScrollDown => self.wheel(true),
             MouseEventKind::ScrollUp => self.wheel(false),
-            // il tasto sinistro: un clic porta il cursore li' (con Maiusc estende la selezione), trascinare seleziona
+            // il tasto sinistro: un clic porta il cursore li' (con Maiusc estende la selezione), trascinare seleziona;
+            // il secondo clic di fila seleziona la parola, il terzo la riga
             MouseEventKind::Down(MouseButton::Left) => {
                 let maiusc = m.modifiers.contains(KeyModifiers::SHIFT);
-                self.click(m.column, m.row, maiusc, false);
+                let posato = self.click(m.column, m.row, maiusc, false);
+                self.multi_click(m.column, m.row, maiusc, adesso, posato);
             }
-            MouseEventKind::Drag(MouseButton::Left) => self.click(m.column, m.row, true, true),
+            MouseEventKind::Drag(MouseButton::Left) => {
+                self.click(m.column, m.row, true, true);
+            }
             MouseEventKind::Up(MouseButton::Left) => self.drag_from = None,
             _ => {}
         }
@@ -834,22 +851,22 @@ impl App {
     /// di prima (dal punto del clic, trascinando) e arriva li'. Senza testo disegnato sotto il punto un clic non fa
     /// niente; un trascinamento oltre l'ultima riga arriva all'ultima. Ignorato con un dialogo aperto e in modalita'
     /// colonna.
-    fn click(&mut self, col: u16, riga: u16, estendi: bool, trascina: bool) {
+    fn click(&mut self, col: u16, riga: u16, estendi: bool, trascina: bool) -> bool {
         if self.dialog.is_some() || self.col_mode || self.row_starts.is_empty() {
-            return;
+            return false;
         }
         let Some(doc) = self.doc.as_ref() else {
-            return;
+            return false;
         };
         // la riga 0 e' il titolo (un clic li' non fa niente, un trascinamento che ci arriva sta sulla prima riga);
         // le righe di testo cominciano alla 1
         if riga == 0 && !trascina {
-            return;
+            return false;
         }
         let mut indice = usize::from(riga).saturating_sub(1);
         if indice >= self.row_starts.len() {
             if !trascina {
-                return;
+                return false;
             }
             indice = self.row_starts.len() - 1;
         }
@@ -873,6 +890,117 @@ impl App {
             self.drag_from = Some(offset);
         }
         self.cursor = offset;
+        self.found = None;
+        self.remember_col();
+        self.scroll_adjust();
+        true
+    }
+
+    /// Il secondo clic sinistro di fila nella stessa cella (entro `MULTI_CLICK`) seleziona la parola sotto il cursore, il
+    /// terzo la riga; il quarto ricomincia da uno. Un clic che non porta il cursore (fuori dal testo, con un dialogo aperto,
+    /// in modalita' colonna) o con Maiusc (estende) non conta e azzera la serie.
+    fn multi_click(&mut self, col: u16, riga: u16, maiusc: bool, adesso: Instant, posato: bool) {
+        if maiusc || !posato {
+            self.last_click = None;
+            return;
+        }
+        let n = match self.last_click {
+            Some((t, c, r, n))
+                if c == col
+                    && r == riga
+                    && n < 3
+                    && adesso.saturating_duration_since(t) <= MULTI_CLICK =>
+            {
+                n + 1
+            }
+            _ => 1,
+        };
+        self.last_click = Some((adesso, col, riga, n));
+        match n {
+            2 => self.select_word(),
+            3 => self.select_row(),
+            _ => {}
+        }
+    }
+
+    /// Il carattere che comincia a `off` e la sua lunghezza in byte (`None` oltre la fine del documento).
+    fn char_after(&self, off: u64) -> Option<(char, u64)> {
+        let doc = self.doc.as_ref()?;
+        let restanti = doc.len().checked_sub(off)?.min(4);
+        let buf = doc.read_range(off, restanti);
+        self.enc.first_char(&buf).map(|(c, n)| (c, n as u64))
+    }
+
+    /// Il carattere che finisce a `off` e la sua lunghezza in byte (`None` all'inizio del documento).
+    fn char_before(&self, off: u64) -> Option<(char, u64)> {
+        let doc = self.doc.as_ref()?;
+        if off == 0 {
+            return None;
+        }
+        let da = off.saturating_sub(self.enc.back_window() as u64);
+        let buf = doc.read_range(da, off - da);
+        let n = self.enc.last_char_len(&buf);
+        let (c, _) = self.enc.first_char(&buf[buf.len() - n..])?;
+        Some((c, n as u64))
+    }
+
+    /// Doppio clic: seleziona la parola (lettere, cifre e '_') sotto il cursore; su spazi o segni la sequenza di
+    /// caratteri della stessa specie; a fine riga l'ultima parola. Resta sulla riga e su caratteri interi.
+    fn select_word(&mut self) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let off = self.cursor;
+        let riga = scan::row_start(doc, off, MAX_SCAN).0;
+        let fine = scan::row_end(doc, riga, MAX_SCAN);
+        let dopo = if off < fine {
+            self.char_after(off)
+        } else {
+            None
+        };
+        let prima = if off > riga {
+            self.char_before(off)
+        } else {
+            None
+        };
+        let Some((c, _)) = dopo.or(prima) else {
+            return;
+        };
+        let classe = char_class(c);
+        let (mut da, mut a) = (off, off);
+        for _ in 0..MAX_WORD_CHARS {
+            match self.char_before(da) {
+                Some((c, n)) if da > riga && char_class(c) == classe => da -= n,
+                _ => break,
+            }
+        }
+        for _ in 0..MAX_WORD_CHARS {
+            match self.char_after(a) {
+                Some((c, n)) if a < fine && char_class(c) == classe => a += n,
+                _ => break,
+            }
+        }
+        self.select_span(da, a);
+    }
+
+    /// Triplo clic: seleziona la riga sotto il cursore, senza il suo a-capo.
+    fn select_row(&mut self) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let riga = scan::row_start(doc, self.cursor, MAX_SCAN).0;
+        let fine = scan::row_end(doc, riga, MAX_SCAN);
+        self.select_span(riga, fine);
+    }
+
+    /// Mette la selezione su `da..a` (il cursore alla fine); vuota non fa niente.
+    fn select_span(&mut self, da: u64, a: u64) {
+        let a = a.min(self.max_cursor());
+        if da >= a {
+            return;
+        }
+        self.anchor = Some(da);
+        self.cursor = a;
         self.found = None;
         self.remember_col();
         self.scroll_adjust();
@@ -3692,5 +3820,16 @@ impl Drop for App {
         if let Some(job) = &self.replace_job {
             job.cancel.store(true, Ordering::Relaxed);
         }
+    }
+}
+
+/// La specie di un carattere per il doppio clic: 0 parola (lettere, cifre, '_'), 1 spazio, 2 segno.
+fn char_class(c: char) -> u8 {
+    if c.is_alphanumeric() || c == '_' {
+        0
+    } else if c.is_whitespace() {
+        1
+    } else {
+        2
     }
 }

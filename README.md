@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-725-brightgreen" alt="725 tests" />
+        <img src="https://img.shields.io/badge/tests-735-brightgreen" alt="735 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp%20%C2%B7%20mrpg-blue" alt="mrp and mrpg" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -87,7 +87,7 @@ The packages (a ZIP for Windows, a tar.gz for Linux and macOS, each with its SHA
 | **Start it** | `mrp file...` | `mrpg file...` (without a file it opens the file dialog) |
 | **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Help) and the native open dialog |
 | **Tabs** | a bar on the first row, one tab per file | a strip with a close button per tab |
-| **The mouse** | positions the cursor, selects, picks a tab | the same, and middle-click closes a tab |
+| **The mouse** | positions the cursor, selects (double click: word, triple click: row), picks a tab | the same, and middle-click closes a tab |
 
 Both are the **same code**: the editor's logic lives in one place and `mrpg` just draws its cell grid. A feature added to one is in the other.
 
@@ -145,7 +145,7 @@ Try the multi-file features: `mrp a.txt b.txt c.txt`, then `Ctrl+H`, type a patt
 
 ## Known limitations
 
-- **Early development.** The editor works and is covered by 725 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
+- **Early development.** The editor works and is covered by 735 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
   the Linux/macOS desktop window (`mrpg`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.
