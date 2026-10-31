@@ -140,6 +140,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     }
     if dal_documento {
         app.set_drawn_rows(&righe);
+        app.set_row_starts(rows.iter().map(|r| r.start).collect());
     } else {
         // La copia dell'ultimo disegno: mai piu' righe di quante ne stiano nello schermo di adesso.
         righe = app.drawn_rows().to_vec();

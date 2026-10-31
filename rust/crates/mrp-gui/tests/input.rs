@@ -265,3 +265,34 @@ fn definitions_load_one_font_per_script_and_none_for_latin() {
     assert_eq!(def3.font_data.len(), base + caricati3.len());
     assert!(caricati3.len() <= 2);
 }
+
+#[test]
+fn the_nearest_cell_clamps_to_the_grid() {
+    use mrp_gui::input::cella_vicina;
+    let origine = Pos2::new(10.0, 20.0);
+    let cella = Vec2::new(8.0, 16.0);
+    assert_eq!(
+        cella_vicina(Pos2::new(10.0, 20.0), origine, cella, 80, 24),
+        (0, 0)
+    );
+    assert_eq!(
+        cella_vicina(Pos2::new(0.0, 0.0), origine, cella, 80, 24),
+        (0, 0)
+    );
+    assert_eq!(
+        cella_vicina(Pos2::new(5000.0, 5000.0), origine, cella, 80, 24),
+        (79, 23)
+    );
+    assert_eq!(
+        cella_vicina(Pos2::new(18.0, 36.0), origine, cella, 80, 24),
+        (1, 1)
+    );
+    assert_eq!(
+        cella_vicina(Pos2::new(11.0, 21.0), origine, Vec2::ZERO, 80, 24),
+        (0, 0)
+    );
+    assert_eq!(
+        cella_vicina(Pos2::new(11.0, 21.0), origine, cella, 0, 24),
+        (0, 0)
+    );
+}

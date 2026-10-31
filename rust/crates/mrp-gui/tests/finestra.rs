@@ -4,8 +4,8 @@
 //! celle vengano da `render_grid` (provate in mrp-tui).
 
 use eframe::egui::{
-    Context, DroppedFile, Event, FullOutput, Key, Modifiers, MouseWheelUnit, OutputCommand, Pos2,
-    RawInput, Rect, Vec2, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo,
+    self, Context, DroppedFile, Event, FullOutput, Key, Modifiers, MouseWheelUnit, OutputCommand,
+    Pos2, RawInput, Rect, Vec2, ViewportCommand, ViewportEvent, ViewportId, ViewportInfo,
 };
 use mrp_gui::gui::Finestra;
 use mrp_tui::app::{App, AppConfig, DialogKind};
@@ -286,5 +286,80 @@ fn ctrl_plus_and_minus_change_the_text_size_without_reaching_the_app() {
         giro(&mut f, &ctx, vec![tasto(k, ctrl())]);
     }
     assert_eq!(f.app().document_text(), b"\n");
+    let _ = std::fs::remove_file(p);
+}
+
+/// Il centro della cella (colonna, riga) della griglia dell'ultimo giro.
+fn centro(f: &Finestra, colonna: u16, riga: u16) -> Pos2 {
+    let (o, c, _, _) = f.geometria().expect("un giro e' stato fatto");
+    Pos2::new(
+        o.x + c.x * (f32::from(colonna) + 0.5),
+        o.y + c.y * (f32::from(riga) + 0.5),
+    )
+}
+
+fn premi(pos: Pos2, premuto: bool, modifiers: Modifiers) -> Event {
+    Event::PointerButton {
+        pos,
+        button: egui::PointerButton::Primary,
+        pressed: premuto,
+        modifiers,
+    }
+}
+
+#[test]
+fn a_click_moves_the_cursor_and_dragging_selects() {
+    let (mut f, ctx, p) = finestra(b"abc\ndef\n");
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
+    // il gutter e' di 2 celle ("abc\ndef\n" ha 8 byte: 1 cifra + il separatore)
+    let g = 2;
+    let clic = vec![
+        premi(centro(&f, g + 2, 2), true, Modifiers::NONE),
+        premi(centro(&f, g + 2, 2), false, Modifiers::NONE),
+    ];
+    giro(&mut f, &ctx, clic);
+    assert_eq!(f.app().cursor(), 6);
+    // trascinando: dalla prima riga alla seconda
+    let trascina = vec![
+        premi(centro(&f, g, 1), true, Modifiers::NONE),
+        Event::PointerMoved(centro(&f, g + 2, 2)),
+        premi(centro(&f, g + 2, 2), false, Modifiers::NONE),
+    ];
+    giro(&mut f, &ctx, trascina);
+    assert_eq!(f.app().selection(), Some((0, 6)));
+    // Maiusc+clic estende
+    let estendi = vec![
+        premi(centro(&f, g + 1, 1), true, Modifiers::NONE),
+        premi(centro(&f, g + 1, 1), false, Modifiers::NONE),
+        premi(centro(&f, g + 1, 2), true, Modifiers::SHIFT),
+        premi(centro(&f, g + 1, 2), false, Modifiers::SHIFT),
+    ];
+    giro(&mut f, &ctx, estendi);
+    assert_eq!(f.app().selection(), Some((1, 5)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn pointer_events_outside_the_grid_or_before_the_first_frame_do_nothing() {
+    let (mut f, ctx, p) = finestra(b"abc\ndef\n");
+    // prima del primo giro la geometria non c'e': il clic si ignora senza panico
+    giro(
+        &mut f,
+        &ctx,
+        vec![premi(Pos2::new(50.0, 50.0), true, Modifiers::NONE)],
+    );
+    giro(&mut f, &ctx, vec![]);
+    giro(
+        &mut f,
+        &ctx,
+        vec![
+            premi(Pos2::new(-5.0, -5.0), true, Modifiers::NONE),
+            premi(Pos2::new(-5.0, -5.0), false, Modifiers::NONE),
+            Event::PointerMoved(Pos2::new(5.0, 5.0)),
+        ],
+    );
+    assert_eq!(f.app().cursor(), 0);
+    assert_eq!(f.app().selection(), None);
     let _ = std::fs::remove_file(p);
 }

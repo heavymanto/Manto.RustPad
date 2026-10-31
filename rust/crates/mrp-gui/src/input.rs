@@ -116,6 +116,20 @@ pub fn cella_sotto(
     }
 }
 
+/// La cella piu' vicina a `pos` dentro la griglia (per il trascinamento: fuori dalla griglia si resta sul bordo).
+pub fn cella_vicina(pos: Pos2, origine: Pos2, cella: Vec2, colonne: u16, righe: u16) -> (u16, u16) {
+    if cella.x <= 0.0 || cella.y <= 0.0 || colonne == 0 || righe == 0 {
+        return (0, 0);
+    }
+    let c = ((pos.x - origine.x) / cella.x)
+        .floor()
+        .clamp(0.0, f32::from(colonne - 1));
+    let r = ((pos.y - origine.y) / cella.y)
+        .floor()
+        .clamp(0.0, f32::from(righe - 1));
+    (c as u16, r as u16)
+}
+
 /// Quante celle per quante ne stanno in `spazio` pixel: almeno `minimo`.
 pub fn celle_in(spazio: f32, cella: f32, minimo: u16) -> u16 {
     if cella <= 0.0 || !spazio.is_finite() {

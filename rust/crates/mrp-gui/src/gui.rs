@@ -5,10 +5,14 @@
 use crate::fonts::{self, Scrittura};
 use crate::input;
 use crate::paint;
-use eframe::egui::{self, Context, CursorIcon, Event, FontId, Frame, Sense, Vec2, ViewportCommand};
+use eframe::egui::{
+    self, Context, CursorIcon, Event, FontId, Frame, Pos2, Sense, Vec2, ViewportCommand,
+};
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::cells::{render_grid, BG_PREDEFINITO};
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use std::time::{Duration, Instant};
 
 /// Il corpo del testo di partenza, in punti.
@@ -43,6 +47,10 @@ pub struct Finestra {
     scatto: Option<std::path::PathBuf>,
     giri: u32,
     scatto_chiesto: bool,
+    /// Dove sta la griglia nell'ultimo disegno: l'angolo, la cella, colonne e righe (serve a portare il mouse alle celle).
+    geometria: Option<(Pos2, Vec2, u16, u16)>,
+    /// Il tasto sinistro e' premuto (si sta trascinando).
+    premuto: bool,
 }
 
 impl Finestra {
@@ -83,6 +91,8 @@ impl Finestra {
             scatto: None,
             giri: 0,
             scatto_chiesto: false,
+            geometria: None,
+            premuto: false,
         }
     }
 
@@ -91,6 +101,11 @@ impl Finestra {
     pub fn con_scatto(mut self, percorso: std::path::PathBuf) -> Finestra {
         self.scatto = Some(percorso);
         self
+    }
+
+    /// Dove sta la griglia nell'ultimo disegno: (angolo, cella, colonne, righe), per i test e per portare il mouse alle celle.
+    pub fn geometria(&self) -> Option<(Pos2, Vec2, u16, u16)> {
+        self.geometria
     }
 
     /// L'`App` sotto la finestra (per i test).
@@ -149,6 +164,48 @@ impl Finestra {
                         }
                         self.chiusura = true;
                         ctx.send_viewport_cmd(ViewportCommand::Close);
+                    }
+                }
+                Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed,
+                    modifiers,
+                } => {
+                    if let Some((o, c, colonne, righe)) = self.geometria {
+                        if pressed {
+                            if let Some((x, y)) = input::cella_sotto(pos, o, c, colonne, righe) {
+                                self.premuto = true;
+                                self.app.handle_mouse(MouseEvent {
+                                    kind: MouseEventKind::Down(MouseButton::Left),
+                                    column: x,
+                                    row: y,
+                                    modifiers: input::modificatori(modifiers),
+                                });
+                                tocco = true;
+                            }
+                        } else if self.premuto {
+                            self.premuto = false;
+                            let (x, y) = input::cella_vicina(pos, o, c, colonne, righe);
+                            self.app.handle_mouse(MouseEvent {
+                                kind: MouseEventKind::Up(MouseButton::Left),
+                                column: x,
+                                row: y,
+                                modifiers: KeyModifiers::NONE,
+                            });
+                        }
+                    }
+                }
+                Event::PointerMoved(pos) => {
+                    if let (true, Some((o, c, colonne, righe))) = (self.premuto, self.geometria) {
+                        let (x, y) = input::cella_vicina(pos, o, c, colonne, righe);
+                        self.app.handle_mouse(MouseEvent {
+                            kind: MouseEventKind::Drag(MouseButton::Left),
+                            column: x,
+                            row: y + u16::from(pos.y >= o.y),
+                            modifiers: KeyModifiers::NONE,
+                        });
+                        tocco = true;
                     }
                 }
                 Event::Copy => {
@@ -340,6 +397,7 @@ impl Finestra {
                     da < FISSO || ((da - FISSO).as_millis() / LAMPEGGIO.as_millis()) % 2 == 1
                 };
                 let (rect, risposta) = ui.allocate_exact_size(area.size(), Sense::hover());
+                self.geometria = Some((rect.min, cella, colonne, righe));
                 paint::disegna(
                     ui.painter(),
                     rect.min,

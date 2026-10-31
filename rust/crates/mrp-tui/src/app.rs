@@ -15,7 +15,9 @@ use mrp_core::newline::Newline;
 use mrp_core::scan::{self, Next};
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::{Document, FileSource, LineIndex, SaveError};
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseEvent, MouseEventKind};
+use ratatui::crossterm::event::{
+    KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
+};
 use ratatui::text::Span;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -367,6 +369,11 @@ pub struct App {
     /// Le righe di testo dell'ultimo disegno (gutter e testo, gia' pronte): le ridisegna `ui::draw`
     /// mentre un salvataggio tiene il documento nel suo thread.
     drawn_rows: Vec<(String, String)>,
+    /// Dove comincia ogni riga disegnata (lo stesso ordine di `drawn_rows`): serve a portare un clic del mouse a un
+    /// offset del documento.
+    row_starts: Vec<u64>,
+    /// Dove e' cominciato il trascinamento del mouse con il tasto sinistro (l'ancora della selezione che si fa).
+    drag_from: Option<u64>,
     /// Vero quando si e' chiesto di uscire.
     quit: bool,
     /// Dove sta il cursore sullo schermo dopo l'ultimo disegno (lo scrive `ui::draw`).
@@ -497,6 +504,8 @@ impl App {
             save_job: None,
             search_job: None,
             drawn_rows: Vec::new(),
+            row_starts: Vec::new(),
+            drag_from: None,
             quit: false,
             cursor_xy: None,
             dialog: None,
@@ -643,8 +652,65 @@ impl App {
         match m.kind {
             MouseEventKind::ScrollDown => self.wheel(true),
             MouseEventKind::ScrollUp => self.wheel(false),
+            // il tasto sinistro: un clic porta il cursore li' (con Maiusc estende la selezione), trascinare seleziona
+            MouseEventKind::Down(MouseButton::Left) => {
+                let maiusc = m.modifiers.contains(KeyModifiers::SHIFT);
+                self.click(m.column, m.row, maiusc, false);
+            }
+            MouseEventKind::Drag(MouseButton::Left) => self.click(m.column, m.row, true, true),
+            MouseEventKind::Up(MouseButton::Left) => self.drag_from = None,
             _ => {}
         }
+    }
+
+    /// Un clic (o un trascinamento) del tasto sinistro sulla cella (`col`, `riga`) dello schermo: il cursore va al
+    /// carattere che sta li' (una colonna dentro un carattere largo da' il suo inizio, una oltre la fine della riga la fine
+    /// della riga, il gutter l'inizio della riga). Con `estendi` (Maiusc, o trascinando) la selezione parte dal cursore
+    /// di prima (dal punto del clic, trascinando) e arriva li'. Senza testo disegnato sotto il punto un clic non fa
+    /// niente; un trascinamento oltre l'ultima riga arriva all'ultima. Ignorato con un dialogo aperto e in modalita'
+    /// colonna.
+    fn click(&mut self, col: u16, riga: u16, estendi: bool, trascina: bool) {
+        if self.dialog.is_some() || self.col_mode || self.row_starts.is_empty() {
+            return;
+        }
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        // la riga 0 e' il titolo (un clic li' non fa niente, un trascinamento che ci arriva sta sulla prima riga);
+        // le righe di testo cominciano alla 1
+        if riga == 0 && !trascina {
+            return;
+        }
+        let mut indice = usize::from(riga).saturating_sub(1);
+        if indice >= self.row_starts.len() {
+            if !trascina {
+                return;
+            }
+            indice = self.row_starts.len() - 1;
+        }
+        let colonna = self.hscroll + usize::from(col).saturating_sub(self.gutter_w());
+        let opts = ViewOptions {
+            show_eof_row: self.edit,
+            ..self.view_opts()
+        };
+        let offset = view::offset_at_col(doc, self.row_starts[indice], colonna as u64, &opts)
+            .min(self.max_cursor());
+        if trascina {
+            if self.anchor.is_none() {
+                self.anchor = Some(self.drag_from.unwrap_or(self.cursor));
+            }
+        } else if estendi {
+            if self.anchor.is_none() {
+                self.anchor = Some(self.cursor);
+            }
+        } else {
+            self.anchor = None;
+            self.drag_from = Some(offset);
+        }
+        self.cursor = offset;
+        self.found = None;
+        self.remember_col();
+        self.scroll_adjust();
     }
 
     /// Si esce subito (niente modifiche da salvare): il documento si rilascia e il file torna libero,
@@ -2148,6 +2214,11 @@ impl App {
     /// Ricorda le righe di testo di questo disegno (lo chiama `ui::draw`).
     pub(crate) fn set_drawn_rows(&mut self, righe: &[(String, String)]) {
         self.drawn_rows = righe.to_vec();
+    }
+
+    /// Ricorda dove comincia ogni riga di questo disegno (lo chiama `ui::draw`), per i clic del mouse.
+    pub(crate) fn set_row_starts(&mut self, starts: Vec<u64>) {
+        self.row_starts = starts;
     }
 
     /// Larghezza del gutter: le cifre della lunghezza del documento piu' il separatore.
