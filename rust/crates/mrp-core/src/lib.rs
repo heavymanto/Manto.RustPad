@@ -16,6 +16,7 @@ pub mod lineending;
 pub mod lines;
 pub mod multibyte;
 pub mod newline;
+pub mod pattern;
 pub mod scan;
 pub mod search;
 pub mod session;

@@ -1,0 +1,23 @@
+// Generato da tools/gen_replace_oracle.py: non si modifica a mano.
+pub const CASI: &[(&str, &str, &str, &str)] = &[
+    ("\\d+", "N", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "tel N N N, cap N\nvN.N.N vN.N.N\ncittà è caffè\nÈ la città\n"),
+    ("\\d+", "<${0}>", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "tel <0123> <456> <7890>, cap <20100>\nv<1>.<2>.<3> v<10>.<20>.<30>\ncittà è caffè\nÈ la città\n"),
+    ("(\\w+)@(\\w+)\\.(com|it)", "${2}:${1}", "Mario Rossi <mario@rossi.com>\nluigi.verdi@verdi.it e anna@bianchi.com\nnessuna mail qui\n  rientrata  \nfine", "Mario Rossi <rossi:mario>\nluigi.verdi:verdi e bianchi:anna\nnessuna mail qui\n  rientrata  \nfine"),
+    ("^\\s+", "", "Mario Rossi <mario@rossi.com>\nluigi.verdi@verdi.it e anna@bianchi.com\nnessuna mail qui\n  rientrata  \nfine", "Mario Rossi <mario@rossi.com>\nluigi.verdi@verdi.it e anna@bianchi.com\nnessuna mail qui\nrientrata  \nfine"),
+    ("\\s+$", "", "Mario Rossi <mario@rossi.com>\nluigi.verdi@verdi.it e anna@bianchi.com\nnessuna mail qui\n  rientrata  \nfine", "Mario Rossi <mario@rossi.com>\nluigi.verdi@verdi.it e anna@bianchi.com\nnessuna mail qui\n  rientrata\nfine"),
+    ("[aeiou]", "_", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "c_l__r c_l_r COLOUR\nth_ c_t s_t _n th_ c_nc_t_n_t_ c_t\nxx xxx xxxx x\n_b_b _b_b_b b_\n"),
+    ("colou?r", "C", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "C C COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n"),
+    ("(?i)colou?r", "C", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "C C C\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n"),
+    ("\\bcat\\b", "dog", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "colour color COLOUR\nthe dog sat on the concatenate dog\nxx xxx xxxx x\nabab ababab ba\n"),
+    ("x{2,3}", "Y", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "colour color COLOUR\nthe cat sat on the concatenate cat\nY Y Yx x\nabab ababab ba\n"),
+    ("(ab)+", "[${0}]", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\n[abab] [ababab] ba\n"),
+    ("(a|b)+", "-", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "colour color COLOUR\nthe c-t s-t on the conc-ten-te c-t\nxx xxx xxxx x\n- - -\n"),
+    ("x.*?x", "Z", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "colour color COLOUR\nthe cat sat on the concatenate cat\nZ ZZZZ\nabab ababab ba\n"),
+    ("\\w+", "w", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "w w w w, w w\nw.w.w w.w.w\nw w w\nw w w\n"),
+    ("(?i)è", "e", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà e caffe\ne la città\n"),
+    ("v(\\d+)\\.(\\d+)\\.(\\d+)", "${3}.${2}.${1}", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "tel 0123 456 7890, cap 20100\n3.2.1 30.20.10\ncittà è caffè\nÈ la città\n"),
+    ("[^ ]+@[^ ]+", "MAIL", "Mario Rossi <mario@rossi.com>\nluigi.verdi@verdi.it e anna@bianchi.com\nnessuna mail qui\n  rientrata  \nfine", "Mario Rossi MAIL\nMAIL e MAIL\nnessuna mail qui\n  rientrata  \nfine"),
+    ("\\.", "!", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "tel 0123 456 7890, cap 20100\nv1!2!3 v10!20!30\ncittà è caffè\nÈ la città\n"),
+    ("(?P<a>\\d)(?P<b>\\d)", "${b}${a}", "tel 0123 456 7890, cap 20100\nv1.2.3 v10.20.30\ncittà è caffè\nÈ la città\n", "tel 1032 546 8709, cap 02010\nv1.2.3 v01.02.03\ncittà è caffè\nÈ la città\n"),
+    ("a|b", "", "colour color COLOUR\nthe cat sat on the concatenate cat\nxx xxx xxxx x\nabab ababab ba\n", "colour color COLOUR\nthe ct st on the conctente ct\nxx xxx xxxx x\n  \n"),
+];

@@ -6,6 +6,7 @@
 use crate::edit::{Buf, EditError, Piece, PieceTable, Splice, DEFAULT_CHUNK_CAPACITY};
 use crate::lines::{BuildOptions, Cancelled, LineIndex};
 use crate::newline::Newline;
+use crate::pattern::Edit;
 use crate::session::EditState;
 use crate::source::FileSource;
 use std::collections::{HashMap, HashSet};
@@ -323,6 +324,41 @@ impl Document {
     /// sapere se il documento e' cambiato dall'ultima volta che l'ha guardato).
     pub fn version(&self) -> u64 {
         self.version
+    }
+
+    /// Applica tutte le sostituzioni di `edits` (in ordine di documento, senza sovrapposizioni, dentro il documento) come UN
+    /// solo passo della storia: un solo annulla le toglie tutte. Si applicano dall'ultima alla prima, cosi' le posizioni
+    /// delle altre non si spostano. Se la lista non e' valida non cambia nulla e dice dove (`OutOfRange` con la
+    /// posizione dell'occorrenza sbagliata). Restituisce quante ne ha applicate.
+    pub fn apply_edits(&mut self, edits: &[Edit]) -> Result<usize, EditError> {
+        let len = self.len();
+        let mut fine_prec = 0u64;
+        for e in edits {
+            let fine = e.start.checked_add(e.len);
+            if e.start < fine_prec || fine.is_none_or(|f| f > len) {
+                return Err(EditError::OutOfRange {
+                    pos: e.start,
+                    len: e.len,
+                    doc_len: len,
+                });
+            }
+            fine_prec = e.start + e.len;
+        }
+        if edits.is_empty() {
+            return Ok(0);
+        }
+        // il passo aperto si chiude: le sostituzioni sono un passo a parte, con tutto quello che serve per annullarlo
+        self.seal();
+        for e in edits.iter().rev() {
+            if e.len > 0 {
+                self.delete(e.start, e.len)?;
+            }
+            if !e.new.is_empty() {
+                self.insert(e.start, &e.new)?;
+            }
+        }
+        self.seal();
+        Ok(edits.len())
     }
 
     /// Le modifiche non salvate, abbastanza per rifarle su un `Document` nuovo dello stesso file (`restore_edits`); `None`

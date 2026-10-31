@@ -1996,6 +1996,7 @@ dependencies = [
  "memchr",
  "memmap2",
  "rayon",
+ "regex",
  "unicode-width",
 ]
 

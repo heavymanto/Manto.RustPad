@@ -99,6 +99,70 @@ impl Snapshot {
         i >= ctx.len() || enc.char_start(&ctx, i) == i
     }
 
+    /// I byte `[pos, pos + len)` della fotografia (quelli che ci sono: oltre la fine si taglia).
+    pub(crate) fn read_range(&self, pos: u64, len: u64) -> Vec<u8> {
+        self.table.read_range(&self.source, pos, len)
+    }
+
+    /// I byte letti per volta.
+    pub(crate) fn chunk_size(&self) -> usize {
+        self.chunk
+    }
+
+    /// Tutti gli inizi di `needle` (byte esatti, senza sovrapposizioni, solo se allineati e a un confine di carattere
+    /// della codifica), in ordine; si ferma con `Ok(Err(n))` appena sono piu' di `max`. Serve alle sostituzioni di testo
+    /// semplice, che nelle codifiche diverse da UTF-8 non passano dal motore delle regole (`pattern`).
+    pub fn find_all_literal(
+        &self,
+        needle: &[u8],
+        max: usize,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<Result<Vec<u64>, usize>, SearchError> {
+        let mut v: Vec<u64> = Vec::new();
+        if needle.is_empty() {
+            return Ok(Ok(v));
+        }
+        let len = self.len();
+        let n = needle.len() as u64;
+        let chunk = self.chunk as u64;
+        let align = self.align as u64;
+        let mut pos = 0u64;
+        // fino a dove si e' arrivati con l'ultima occorrenza accettata: la prossima non puo' cominciare prima
+        let mut libero = 0u64;
+        while pos < len {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(SearchError::Cancelled);
+            }
+            let next = pos.saturating_add(chunk).min(len);
+            let fine = next.saturating_add(n - 1).min(len);
+            let block = self.table.read_range(&self.source, pos, fine - pos);
+            let mut da = 0usize;
+            while let Some(i) = memmem::find(&block[da..], needle) {
+                let rel = da + i;
+                let inizio = pos + rel as u64;
+                // un inizio da `next` in poi lo vede il blocco dopo
+                if inizio >= next {
+                    break;
+                }
+                // uno dentro l'occorrenza di prima, sfasato o a meta' di un carattere non conta: si riprova dal byte dopo
+                if inizio >= libero && inizio.is_multiple_of(align) && self.is_boundary(inizio) {
+                    v.push(inizio);
+                    if v.len() > max {
+                        return Ok(Err(v.len()));
+                    }
+                    libero = inizio + n;
+                    da = rel + needle.len();
+                } else {
+                    da = rel + 1;
+                }
+            }
+            progress.fetch_add(next - pos, Ordering::Relaxed);
+            pos = next;
+        }
+        Ok(Ok(v))
+    }
+
     /// Lunghezza della fotografia in byte.
     pub fn len(&self) -> u64 {
         self.table.len()
