@@ -1,0 +1,114 @@
+# Release: al push di un tag v* compila in release e pubblica la GitHub Release.
+# Ogni archivio contiene i due eseguibili (mrp: terminale, mrpg: finestra), le sette
+# lingue in lang/, la licenza e il README; con lang/ accanto agli eseguibili il
+# programma e' "portatile" (impostazioni e sessione restano nella stessa cartella).
+# Windows crea la Release (con le note prese dal CHANGELOG), Linux e macOS caricano
+# il loro archivio sulla Release gia' creata. Ogni archivio ha il suo SHA256.
+name: Release
+on:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build (release)
+        run: cargo build --release --workspace --manifest-path rust/Cargo.toml
+      - name: Package
+        shell: pwsh
+        run: |
+          $ver = "${{ github.ref_name }}".TrimStart("v")
+          $name = "manto-rustpad-$ver-win-x64"
+          $dir = "dist/$name"
+          New-Item -ItemType Directory -Force -Path "$dir/lang" | Out-Null
+          Copy-Item rust/target/release/mrp.exe $dir
+          Copy-Item rust/target/release/mrpg.exe $dir
+          Copy-Item rust/crates/mrp-core/lang/*.json "$dir/lang/"
+          Copy-Item LICENSE $dir
+          Copy-Item README.md $dir
+          Compress-Archive -Path $dir -DestinationPath "dist/$name.zip"
+          $hash = (Get-FileHash "dist/$name.zip" -Algorithm SHA256).Hash
+          "$hash  $name.zip" | Out-File "dist/$name.zip.sha256" -Encoding ascii
+          "$name.zip" | Out-File dist/zip-name.txt -Encoding ascii
+      - name: Release notes (dal CHANGELOG)
+        shell: pwsh
+        run: |
+          # la sezione della versione; se non c'e' ancora, quella [Unreleased]
+          $ver = "${{ github.ref_name }}".TrimStart("v")
+          $lines = Get-Content CHANGELOG.md
+          $start = ($lines | Select-String -Pattern "^## \[$ver\]" | Select-Object -First 1).LineNumber
+          if (-not $start) { $start = ($lines | Select-String -Pattern '^## \[Unreleased\]' | Select-Object -First 1).LineNumber }
+          if (-not $start) { throw "ne' la sezione [$ver] ne' [Unreleased] nel CHANGELOG" }
+          $next = ($lines | Select-String -Pattern '^## \[' | Where-Object { $_.LineNumber -gt $start } | Select-Object -First 1).LineNumber
+          if (-not $next) { $next = $lines.Count + 1 }
+          $body = $lines[$start..($next-2)] -join "`n"
+          $intro = "Downloads: the Assets section below has the ZIP (Windows x64), the tar.gz (Linux x64) and the tar.gz (macOS), each with its SHA256."
+          $intro + "`n`n---`n`n" + $body | Out-File dist/notes.md -Encoding utf8
+      - name: Create release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $zip = (Get-Content dist/zip-name.txt -Raw).Trim()
+          gh release create "${{ github.ref_name }}" "dist/$zip" "dist/$zip.sha256" --title "Manto.RustPad ${{ github.ref_name }}" --notes-file dist/notes.md
+
+  release-linux:
+    needs: release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build (release)
+        run: cargo build --release --workspace --manifest-path rust/Cargo.toml
+      - name: Package
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          NAME="manto-rustpad-$VER-linux-x64"
+          DIR="dist/$NAME"
+          mkdir -p "$DIR/lang"
+          cp rust/target/release/mrp rust/target/release/mrpg "$DIR/"
+          chmod +x "$DIR/mrp" "$DIR/mrpg"
+          cp rust/crates/mrp-core/lang/*.json "$DIR/lang/"
+          cp LICENSE README.md "$DIR/"
+          tar -czf "dist/$NAME.tar.gz" -C "dist" "$NAME"
+          (cd dist && sha256sum "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+          echo "$NAME.tar.gz" > dist/tar-name.txt
+      - name: Upload to existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAR=$(cat dist/tar-name.txt)
+          gh release upload "${{ github.ref_name }}" "dist/$TAR" "dist/$TAR.sha256" --clobber
+
+  release-macos:
+    needs: release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build (release)
+        run: cargo build --release --workspace --manifest-path rust/Cargo.toml
+      - name: Package
+        run: |
+          VER="${GITHUB_REF_NAME#v}"
+          ARCH=$(rustc -vV | grep host | cut -d' ' -f2 | cut -d- -f1)
+          NAME="manto-rustpad-$VER-macos-$ARCH"
+          DIR="dist/$NAME"
+          mkdir -p "$DIR/lang"
+          cp rust/target/release/mrp rust/target/release/mrpg "$DIR/"
+          chmod +x "$DIR/mrp" "$DIR/mrpg"
+          cp rust/crates/mrp-core/lang/*.json "$DIR/lang/"
+          cp LICENSE README.md "$DIR/"
+          tar -czf "dist/$NAME.tar.gz" -C "dist" "$NAME"
+          (cd dist && shasum -a 256 "$NAME.tar.gz" > "$NAME.tar.gz.sha256")
+          echo "$NAME.tar.gz" > dist/tar-name.txt
+      - name: Upload to existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAR=$(cat dist/tar-name.txt)
+          gh release upload "${{ github.ref_name }}" "dist/$TAR" "dist/$TAR.sha256" --clobber
