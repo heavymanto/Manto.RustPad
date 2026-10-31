@@ -11,7 +11,7 @@ truncates your data, and that opens a multi-gigabyte file like a viewer and beco
 
 > **Status: early development — a first terminal editor (`mrp`) runs.** Memory-mapped file source, sparse line index, search,
 > a piece-table edit layer with undo/redo, a crash-safe save and a terminal UI (view, edit, find, go to, selection and clipboard, column mode, themes, 7 languages) are
-> implemented and tested (543 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
+> implemented and tested (575 tests + 3 tests on 6 GB files beyond 4 GiB). It has only been tried on Windows. On a 6 GB file it opens at
 > once and keeps about 13–35 MiB of private memory, even while saving (it grows slowly with the file, about 3.7 MB per GB: ~410 MiB on a 100 GiB sparse file, whose working set stays under 20 MiB) (one machine, one HDD, a handful of runs: see
 > [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux and macOS are untried. The evidence that the gap is real:
 > [market survey](docs/MARKET.md) and [reproducible benchmarks](docs/BENCHMARKS.md) of four tools on a 6 GB file.
@@ -43,7 +43,7 @@ navigate **and** editable — and did not find it ([survey](docs/MARKET.md)).
 - **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included) and 52 single-byte code pages (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) and the East-Asian multi-byte encodings (Shift_JIS, EUC-JP, GBK, GB18030, Big5, EUC-KR) on files larger than RAM, chosen with `F9` or `--encoding` or recognised at open (the multi-byte ones are never guessed: choose them by hand).
 - **Streaming whole-file operations** (replace-all, sort, split) with progress and cancel.
 - **Cross-platform.** Windows, Linux, macOS.
-- **One core, several front ends** — terminal (TUI) first, desktop GUI after.
+- **One core, several front ends** — terminal (`mrp`) and a first desktop GUI (`mrpg`, egui: the same editor drawn in a window, with the system clipboard, a resizable window, CJK fonts and drag-and-drop; menus and mouse selection are next).
 
 Non-goals: a log analyser (use lnav, logana, klogg) and a plugin/IDE platform.
 

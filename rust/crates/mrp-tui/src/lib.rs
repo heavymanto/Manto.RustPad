@@ -2,6 +2,7 @@
 
 pub mod app;
 pub mod args;
+pub mod cells;
 pub mod clip;
 pub mod keys;
 pub mod settings;

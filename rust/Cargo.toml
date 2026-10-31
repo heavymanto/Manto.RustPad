@@ -9,3 +9,8 @@ members = ["crates/*"]
 [profile.release]
 lto = true
 codegen-units = 1
+
+# Il toolchain windows-gnu di rustup non ha la libreria di import shlwapi che la vera `webbrowser` collega: egui-winit la
+# usa solo per aprire un indirizzo, e il sostituto locale lo fa con il comando del sistema.
+[patch.crates-io]
+webbrowser = { path = "vendor/webbrowser" }

@@ -2082,7 +2082,7 @@ impl App {
     }
 
     /// Il nome del file per il titolo.
-    pub(crate) fn file_name(&self) -> &str {
+    pub fn file_name(&self) -> &str {
         &self.file_name
     }
 

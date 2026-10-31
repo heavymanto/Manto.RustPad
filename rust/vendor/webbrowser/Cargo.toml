@@ -1,0 +1,7 @@
+[package]
+name = "webbrowser"
+version = "1.0.4"
+edition = "2021"
+license = "AGPL-3.0-only"
+publish = false
+description = "Sostituto locale minimo della crate webbrowser: solo `open(url)`, senza dipendere da shlwapi (il toolchain windows-gnu di rustup non ha quella libreria di import)"

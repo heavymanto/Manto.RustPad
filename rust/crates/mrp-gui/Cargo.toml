@@ -1,0 +1,25 @@
+[package]
+name = "mrp-gui"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/heavymanto/Manto.RustPad"
+publish = false
+description = "Manto.RustPad GUI: editor grafico per file piu' grandi della RAM (egui sul motore mrp-core e sulla logica di mrp-tui)"
+
+[lib]
+name = "mrp_gui"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mrpg"
+path = "src/main.rs"
+
+[dependencies]
+mrp-core = { path = "../mrp-core" }
+mrp-tui = { path = "../mrp-tui" }
+# per i tipi di tastiera e mouse (crossterm) che l`App` vuole: la stessa versione di mrp-tui
+ratatui = "0.30"
+# per salvare la schermata (MRPG_SCREENSHOT, uso da sviluppatore): la stessa versione che eframe usa gia'
+png = "0.18"
+eframe = { version = "0.32", default-features = false, features = ["default_fonts", "glow", "x11", "wayland"] }

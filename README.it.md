@@ -10,7 +10,7 @@
 che non tronca mai i dati in silenzio e che apre un file da molti gigabyte come un viewer, diventando modificabile a richiesta.*
 
 > **Stato: sviluppo iniziale — gira un primo editor da terminale (`mrp`).** File mappato in
-> memoria, indice righe sparso, ricerca, livello di modifica a piece table con annulla/ripeti, salvataggio a prova di interruzione e interfaccia da terminale (lettura, modifica, ricerca, vai a, selezione e appunti, modalità colonna, temi, 7 lingue) sono realizzati e testati (543 test più 3 su file da 6 GB oltre 4 GiB). Finora è stato provato solo su Windows. Su un file da 6 GB si apre subito e tiene circa 13–35 MiB di memoria privata, anche durante il salvataggio (cresce piano con il file, circa 3,7 MB per GB: ~410 MiB su un file sparso da 100 GiB, il cui working set resta sotto i 20 MiB) (una macchina, un solo disco meccanico, poche misure: vedi [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux e macOS non sono provati. La prova che il vuoto è reale:
+> memoria, indice righe sparso, ricerca, livello di modifica a piece table con annulla/ripeti, salvataggio a prova di interruzione e interfaccia da terminale (lettura, modifica, ricerca, vai a, selezione e appunti, modalità colonna, temi, 7 lingue) sono realizzati e testati (575 test più 3 su file da 6 GB oltre 4 GiB). Finora è stato provato solo su Windows. Su un file da 6 GB si apre subito e tiene circa 13–35 MiB di memoria privata, anche durante il salvataggio (cresce piano con il file, circa 3,7 MB per GB: ~410 MiB su un file sparso da 100 GiB, il cui working set resta sotto i 20 MiB) (una macchina, un solo disco meccanico, poche misure: vedi [docs/BENCHMARKS.md](docs/BENCHMARKS.md)); Linux e macOS non sono provati. La prova che il vuoto è reale:
 > [indagine di mercato](docs/MARKET.md) e [benchmark riproducibili](docs/BENCHMARKS.md) di quattro programmi su un file da 6 GB.
 > 🇬🇧 [Read in English](README.md)
 
@@ -40,7 +40,7 @@ navigare **e** modificabile, e non l'abbiamo trovato ([indagine](docs/MARKET.md)
 - **Codifiche rispettate**: UTF-8, UTF-16 e UTF-32 (little e big endian, coppie di surrogati comprese) e 52 code page a byte singolo (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, le Mac, US-ASCII) e le codifiche multibyte dell’Asia orientale (Shift_JIS, EUC-JP, GBK, GB18030, Big5, EUC-KR) anche su file più grandi della RAM, scelte con `F9` o `--encoding` o riconosciute all’apertura (le multibyte non si indovinano: si scelgono a mano).
 - **Operazioni a flusso su tutto il file** (sostituisci tutto, ordina, dividi), con avanzamento e annulla.
 - **Multipiattaforma**: Windows, Linux, macOS.
-- **Un solo core, più interfacce**: prima da terminale (TUI), poi GUI.
+- **Un solo core, più interfacce**: da terminale (`mrp`) e una prima GUI da desktop (`mrpg`, egui: lo stesso editor disegnato in una finestra, con gli appunti di sistema, la finestra ridimensionabile, i font asiatici e il trascinamento dei file; menu e selezione col mouse sono i prossimi passi).
 
 Non-obiettivi: analizzatore di log (esistono lnav, logana, klogg) e piattaforma a plugin.
 
