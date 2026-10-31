@@ -608,3 +608,19 @@ fn a_tab_that_finishes_saving_while_not_active_closes_and_the_active_one_stays()
     assert_eq!(std::fs::read(d.join("a.txt")).unwrap(), b"Xuno\n");
     pulisci(d);
 }
+
+#[test]
+fn ctrl_alt_page_keys_jump_pages_and_do_not_switch_tabs() {
+    // Ctrl+PgUp/PgDn sono le schede; con Alt in piu' diventano il salto x1000 e restano alla scheda attiva
+    let (d, mut ws) = due();
+    assert_eq!(nome_attivo(&ws), "a.txt");
+    let m = KeyModifiers::CONTROL | KeyModifiers::ALT;
+    ws.handle_key(mod_k(KeyCode::PageDown, m));
+    assert_eq!(nome_attivo(&ws), "a.txt");
+    ws.handle_key(mod_k(KeyCode::PageUp, m));
+    assert_eq!(nome_attivo(&ws), "a.txt");
+    // senza Alt cambiano ancora scheda
+    ws.handle_key(mod_k(KeyCode::PageDown, KeyModifiers::CONTROL));
+    assert_eq!(nome_attivo(&ws), "b.txt");
+    pulisci(d);
+}

@@ -54,6 +54,10 @@ fn run() -> i32 {
         theme,
         lang_code,
         langs: profilo.langs,
+        jump_pages: profilo
+            .settings
+            .as_ref()
+            .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
         settings_path: profilo.path,
         index: true,
         encoding,

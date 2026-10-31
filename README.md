@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-735-brightgreen" alt="735 tests" />
+        <img src="https://img.shields.io/badge/tests-749-brightgreen" alt="749 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp%20%C2%B7%20mrpg-blue" alt="mrp and mrpg" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -145,7 +145,7 @@ Try the multi-file features: `mrp a.txt b.txt c.txt`, then `Ctrl+H`, type a patt
 
 ## Known limitations
 
-- **Early development.** The editor works and is covered by 735 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
+- **Early development.** The editor works and is covered by 749 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
   the Linux/macOS desktop window (`mrpg`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.

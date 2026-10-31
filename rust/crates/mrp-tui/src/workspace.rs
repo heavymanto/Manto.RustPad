@@ -689,8 +689,8 @@ impl Workspace {
             let ctrl = k.modifiers.contains(KeyModifiers::CONTROL);
             let alt = k.modifiers.contains(KeyModifiers::ALT);
             match k.code {
-                KeyCode::PageDown if ctrl => return self.next(),
-                KeyCode::PageUp if ctrl => return self.prev(),
+                KeyCode::PageDown if ctrl && !alt => return self.next(),
+                KeyCode::PageUp if ctrl && !alt => return self.prev(),
                 // Ctrl+Tab e Ctrl+Maiusc+Tab, come nella GUI (non tutti i terminali li lasciano arrivare)
                 KeyCode::Tab if ctrl && k.modifiers.contains(KeyModifiers::SHIFT) => {
                     return self.prev();

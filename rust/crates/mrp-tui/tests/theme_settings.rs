@@ -152,6 +152,7 @@ fn to_text_is_key_value_lines_with_comments() {
     let s = Settings {
         theme: ThemeId::Debian,
         lang: Some("it".to_string()),
+        ..Settings::default()
     };
     let t = s.to_text();
     assert!(t.starts_with('#'), "un commento in testa spiega il file");
@@ -169,7 +170,11 @@ fn to_text_is_key_value_lines_with_comments() {
 fn round_trip_text_to_settings() {
     for t in ThemeId::ALL {
         for lang in [None, Some("it".to_string()), Some("pt-BR".to_string())] {
-            let s = Settings { theme: t, lang };
+            let s = Settings {
+                theme: t,
+                lang,
+                ..Settings::default()
+            };
             assert_eq!(Settings::from_text(&s.to_text()), s);
         }
     }
@@ -208,6 +213,7 @@ fn save_and_load_through_a_file() {
     let s = Settings {
         theme: ThemeId::Minimal,
         lang: Some("ja".to_string()),
+        ..Settings::default()
     };
     s.save(&path).unwrap();
     assert!(path.is_file(), "save crea le cartelle del profilo");
@@ -226,4 +232,56 @@ fn default_path_lives_in_the_mrp_profile_folder() {
             Some("mrp")
         );
     }
+}
+
+#[test]
+fn jump_pages_default_to_ten_hundred_thousand_and_are_not_written() {
+    let s = Settings::default();
+    assert_eq!(s.jump_pages, [10, 100, 1000]);
+    assert!(
+        !s.to_text().contains("jump_pages"),
+        "il valore di fabbrica non si scrive"
+    );
+}
+
+#[test]
+fn jump_pages_round_trip_and_tolerate_spaces() {
+    let s = Settings {
+        jump_pages: [5, 50, 500],
+        ..Settings::default()
+    };
+    assert_eq!(
+        dati(&s.to_text()),
+        vec!["theme=console", "jump_pages=5,50,500"]
+    );
+    assert_eq!(Settings::from_text(&s.to_text()), s);
+    let t = Settings::from_text("jump_pages = 3 , 30 ,300 \r\n");
+    assert_eq!(t.jump_pages, [3, 30, 300]);
+    // i limiti: da 2 a 10000 pagine
+    let t = Settings::from_text("jump_pages=2,9999,10000");
+    assert_eq!(t.jump_pages, [2, 9999, 10_000]);
+}
+
+#[test]
+fn bad_jump_pages_fall_back_to_the_defaults_as_a_whole() {
+    for brutto in [
+        "jump_pages=",
+        "jump_pages=10,100",
+        "jump_pages=4,40,400,5",
+        "jump_pages=1,100,1000",
+        "jump_pages=10,100,10001",
+        "jump_pages=0,0,0",
+        "jump_pages=a,b,c",
+        "jump_pages=10;100;1000",
+        "jump_pages=-5,100,1000",
+    ] {
+        assert_eq!(
+            Settings::from_text(brutto).jump_pages,
+            [10, 100, 1000],
+            "{brutto}"
+        );
+    }
+    // una riga sbagliata dopo una buona non la cancella
+    let t = Settings::from_text("jump_pages=4,40,400\njump_pages=x\n");
+    assert_eq!(t.jump_pages, [4, 40, 400]);
 }

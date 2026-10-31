@@ -14,15 +14,37 @@ pub struct Settings {
     pub theme: ThemeId,
     /// Codice della lingua scelta (`it`, `pt-BR`...); `None`: l'inglese incorporato. Lo valida chi lo usa.
     pub lang: Option<String>,
+    /// Di quante pagine saltano Alt+PgUp/PgDn, Alt+Maiusc+PgUp/PgDn e Ctrl+Alt+PgUp/PgDn.
+    pub jump_pages: [usize; 3],
 }
+
+/// I salti di pagina di fabbrica: 10, 100 e 1000 pagine.
+pub const JUMP_PAGES: [usize; 3] = [10, 100, 1000];
+/// I limiti di un salto configurato: da 2 a 10000 pagine (oltre, il salto camminerebbe troppe righe sul thread dell'interfaccia).
+pub const JUMP_MIN: usize = 2;
+pub const JUMP_MAX: usize = 10_000;
 
 impl Default for Settings {
     fn default() -> Self {
         Settings {
             theme: ThemeId::DEFAULT,
             lang: None,
+            jump_pages: JUMP_PAGES,
         }
     }
+}
+
+/// `a,b,c` con tre numeri fra `JUMP_MIN` e `JUMP_MAX`; qualunque altra cosa: `None` (si resta ai valori di fabbrica).
+fn parse_jump(v: &str) -> Option<[usize; 3]> {
+    let mut it = v.split(',').map(|p| p.trim().parse::<usize>().ok());
+    let a = it.next()??;
+    let b = it.next()??;
+    let c = it.next()??;
+    if it.next().is_some() {
+        return None;
+    }
+    let ok = |n: usize| (JUMP_MIN..=JUMP_MAX).contains(&n);
+    (ok(a) && ok(b) && ok(c)).then_some([a, b, c])
 }
 
 impl Settings {
@@ -34,6 +56,10 @@ impl Settings {
         out.push_str(&format!("theme={}\n", self.theme.code()));
         if let Some(lang) = &self.lang {
             out.push_str(&format!("lang={}\n", lang));
+        }
+        if self.jump_pages != JUMP_PAGES {
+            let [a, b, c] = self.jump_pages;
+            out.push_str(&format!("jump_pages={a},{b},{c}\n"));
         }
         out
     }
@@ -66,6 +92,12 @@ impl Settings {
                 "lang" if !v.is_empty() => {
                     // una lingua vuota non si salva: si resta al fabbrica
                     s.lang = Some(v.to_string());
+                }
+                "jump_pages" => {
+                    // tre numeri validi, altrimenti la riga si salta (vale l'ultima buona)
+                    if let Some(j) = parse_jump(v) {
+                        s.jump_pages = j;
+                    }
                 }
                 _ => {}
             }

@@ -168,5 +168,6 @@
   "replace.cancelled": "sostituzione annullata",
   "flash.regex_utf8": "regex, glob e ignora maiuscole richiedono un documento UTF-8",
   "gui.replace": "Sostituisci…",
-  "help.l15": "Ctrl+H                     sostituisci (testo, glob, regex; scheda o tutte)"
+  "help.l15": "Ctrl+H                     sostituisci (testo, glob, regex; scheda o tutte)",
+  "help.l16": "Alt+PgUp / Alt+PgDn        salta di pagine (x10; +Maiusc x100; +Ctrl x1000)"
 }

@@ -1,7 +1,7 @@
 //! L'app del TUI: una macchina a stati testabile senza terminale (il contratto sta in `docs/TEAM/DESIGN_TUI.md`).
 //! Riceve tasti, mouse e dimensioni dello schermo; non disegna (lo fa `ui.rs`); tutta la logica di testo e' nel core.
 
-use crate::settings::Settings;
+use crate::settings::{Settings, JUMP_PAGES};
 use crate::theme::ThemeId;
 use mrp_core::block::{
     block_spans, block_text, delete_block, insert_block, nth_row, paste_block, BlockError,
@@ -237,6 +237,8 @@ pub struct AppConfig {
     /// La codifica dei caratteri: `Some(e)` quella, `None` la riconosce all'apertura dai primi byte del file
     /// (`Encoding::detect`).
     pub encoding: Option<Encoding>,
+    /// Di quante pagine saltano Alt+PgUp/PgDn, Alt+Maiusc+PgUp/PgDn e Ctrl+Alt+PgUp/PgDn (vedi `Settings`).
+    pub jump_pages: [usize; 3],
 }
 
 impl Default for AppConfig {
@@ -248,6 +250,7 @@ impl Default for AppConfig {
             settings_path: None,
             index: true,
             encoding: Some(Encoding::Utf8),
+            jump_pages: JUMP_PAGES,
         }
     }
 }
@@ -543,6 +546,8 @@ pub struct App {
     langs: Vec<Lang>,
     /// Dove salvare le impostazioni quando si cambia tema o lingua; `None`: non si salva niente.
     settings_path: Option<PathBuf>,
+    /// I moltiplicatori dei salti di pagina (vedi `AppConfig::jump_pages`).
+    jump_pages: [usize; 3],
     /// Il codice della lingua scelta dall'utente (`None`: l'inglese incorporato): e' la `lang` delle impostazioni.
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
@@ -682,6 +687,7 @@ impl App {
             replace_done: None,
             langs: cfg.langs,
             settings_path: cfg.settings_path,
+            jump_pages: cfg.jump_pages,
             lang_picked,
             index: cfg.index,
             enc,
@@ -755,6 +761,10 @@ impl App {
             KeyCode::Home if shift => self.extend_selection(Mov::Home),
             KeyCode::End if ctrl && shift => self.extend_selection(Mov::FileEnd),
             KeyCode::End if shift => self.extend_selection(Mov::End),
+            // Alt+Pag: salti di piu' pagine (x10; con Maiusc x100; con Ctrl x1000, i moltiplicatori sono nelle impostazioni).
+            // Sono spostamenti semplici: tolgono la selezione.
+            KeyCode::PageUp if alt => self.jump_key(false, ctrl, shift),
+            KeyCode::PageDown if alt => self.jump_key(true, ctrl, shift),
             KeyCode::PageUp if shift => self.extend_selection(Mov::PageUp),
             KeyCode::PageDown if shift => self.extend_selection(Mov::PageDown),
             // Senza Maiusc i movimenti tolgono l'ancora: Left e Right con una selezione ci collassano
@@ -1283,6 +1293,7 @@ impl App {
         let s = Settings {
             theme: self.theme,
             lang: self.lang_picked.clone(),
+            jump_pages: self.jump_pages,
         };
         let _ = s.save(&path);
     }
@@ -2670,6 +2681,39 @@ impl App {
         }
     }
 
+    /// I moltiplicatori dei salti di pagina: Alt+Pag, Alt+Maiusc+Pag e Ctrl+Alt+Pag.
+    pub fn jump_pages(&self) -> [usize; 3] {
+        self.jump_pages
+    }
+
+    /// Il tasto Alt+Pag: Ctrl sceglie il terzo moltiplicatore, Maiusc il secondo, altrimenti il primo.
+    fn jump_key(&mut self, avanti: bool, ctrl: bool, shift: bool) {
+        let i = if ctrl {
+            2
+        } else if shift {
+            1
+        } else {
+            0
+        };
+        self.page_jump(avanti, self.jump_pages[i]);
+    }
+
+    /// Salta di `pagine` pagine avanti o indietro (i pulsanti e i tasti Alt+Pag). Il cursore e l'inizio della vista si
+    /// muovono insieme come in Pag↑/Pag↓, la selezione e il blocco si tolgono, ai bordi del file ci si ferma.
+    pub fn page_jump(&mut self, avanti: bool, pagine: usize) {
+        if pagine == 0 {
+            return;
+        }
+        self.seal_history();
+        self.anchor = None;
+        self.block = None;
+        if avanti {
+            self.pages_down(pagine);
+        } else {
+            self.pages_up(pagine);
+        }
+    }
+
     /// La selezione normalizzata `(inizio, fine esclusa)`: l'ancora e il cursore nell'ordine; `None` se
     /// non c'e' ancora o coincide col cursore (selezione vuota). In modalita' colonna non esiste
     /// selezione di flusso: c'e' il blocco.
@@ -3230,7 +3274,14 @@ impl App {
     /// Pagina in giu': cursore e `top` si spostano dello stesso numero di righe, il cursore resta alla stessa riga
     /// dello schermo; ai bordi del file si ferma.
     fn page_down(&mut self) {
-        let page = self.text_rows().saturating_sub(1);
+        self.pages_down(1);
+    }
+
+    /// Salta `pagine` pagine in giu' (una pagina e' l'altezza del testo meno una riga). Pag↓ ne salta una; i salti
+    /// Alt+Pag↓ ne saltano di piu'. Cammina le righe una per una, quindi il costo e' proporzionale al salto (al massimo
+    /// `JUMP_MAX` pagine).
+    fn pages_down(&mut self, pagine: usize) {
+        let page = self.text_rows().saturating_sub(1).saturating_mul(pagine);
         if page == 0 {
             return;
         }
@@ -3252,7 +3303,12 @@ impl App {
 
     /// Pagina in su', come `page_down` all'indietro.
     fn page_up(&mut self) {
-        let page = self.text_rows().saturating_sub(1);
+        self.pages_up(1);
+    }
+
+    /// `pagine` pagine in su', come `pages_down` all'indietro.
+    fn pages_up(&mut self, pagine: usize) {
+        let page = self.text_rows().saturating_sub(1).saturating_mul(pagine);
         if page == 0 {
             return;
         }

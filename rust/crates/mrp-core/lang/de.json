@@ -169,5 +169,6 @@
   "replace.cancelled": "Ersetzen abgebrochen",
   "flash.regex_utf8": "Regex, Glob und Schreibung ignorieren brauchen ein UTF-8-Dokument",
   "gui.replace": "Ersetzen…",
-  "help.l15": "Strg+H                     ersetzen (Text, Glob, Regex; dieser oder alle Tabs)"
+  "help.l15": "Strg+H                     ersetzen (Text, Glob, Regex; dieser oder alle Tabs)",
+  "help.l16": "Alt+PgUp / Alt+PgDn        Seiten springen (x10; +Umschalt x100; +Strg x1000)"
 }
