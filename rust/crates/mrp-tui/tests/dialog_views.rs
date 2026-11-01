@@ -237,7 +237,7 @@ fn goto_is_a_prompt_with_a_hint_and_runs_the_text() {
     };
     assert_eq!(
         (title.as_str(), hint.as_str(), text.as_str()),
-        ("GO TO", "line number, @byte offset or %percent", "")
+        ("GO TO", "line number, @byte offset, %percent or ~time", "")
     );
     a.dialog_set_text("3");
     let DialogView::Prompt { text, .. } = a.dialog_view().unwrap() else {

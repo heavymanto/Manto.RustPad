@@ -1571,7 +1571,8 @@ impl App {
     }
 
     /// Esegue il testo del prompt "vai a" (il dialogo e' gia' chiuso): `N` = riga N (1-based, serve l'indice
-    /// pronto), `@N` = offset in byte, `%P` = percentuale 0..=100. Qualunque altra cosa, o in errore, il cursore
+    /// pronto), `@N` = offset in byte, `%P` = percentuale 0..=100, `~ORARIO` = la prima riga con quell'orario o uno dopo
+    /// (un log con gli orari in ordine crescente: ricerca binaria sui byte). Qualunque altra cosa, o in errore, il cursore
     /// non si muove.
     fn goto_run(&mut self, testo: &str) {
         // Testo vuoto: chiuso senza chiedere niente.
@@ -1582,6 +1583,21 @@ impl App {
             if let Some(n) = parse_cifre(resto) {
                 // Oltre la fine: l'ultima posizione consentita dal modo.
                 self.goto_move(n.min(self.max_cursor()));
+                return;
+            }
+        } else if let Some(resto) = testo.strip_prefix('~') {
+            if let Some(target) = mrp_core::timesearch::parse_target(resto) {
+                let Some(doc) = self.doc.as_ref() else {
+                    return;
+                };
+                let cancel = AtomicBool::new(false);
+                match mrp_core::timesearch::find_time(doc, &target, &cancel) {
+                    Ok(Some(pos)) => self.goto_move(pos),
+                    Ok(None) => {
+                        self.flash = Some(self.cat.t("flash.goto_time_none").to_string());
+                    }
+                    Err(_) => {}
+                }
                 return;
             }
         } else if let Some(resto) = testo.strip_prefix('%') {

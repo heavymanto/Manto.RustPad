@@ -284,7 +284,7 @@ fn goto_opens_a_prompt_with_title_and_hint_and_the_cursor_in_it() {
         &mut a,
         80,
         24,
-        "line number, @byte offset or %percent"
+        "line number, @byte offset, %percent or ~time"
     ));
     assert!(shows(&mut a, 80, 24, "Enter OK - Esc cancel"));
     type_text(&mut a, "12");
