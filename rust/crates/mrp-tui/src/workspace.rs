@@ -485,6 +485,21 @@ impl Workspace {
         }
     }
 
+    /// Il corpo del testo della finestra scelto dall'utente (in punti).
+    pub fn font_size(&self) -> Option<u16> {
+        self.cfg.font_size
+    }
+
+    /// Cambia il corpo del testo in tutte le schede (e nelle nuove) e lo salva nelle impostazioni.
+    pub fn set_font_size(&mut self, punti: u16) {
+        self.cfg.font_size = Some(punti);
+        let attiva = self.active;
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_font_size(Some(punti), i == attiva);
+        }
+    }
+
     /// I numeri di riga si vedono.
     pub fn line_numbers(&self) -> bool {
         self.cfg.line_numbers

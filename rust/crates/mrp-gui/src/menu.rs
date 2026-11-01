@@ -68,6 +68,8 @@ const MODIFICA: &[Option<Cmd>] = &[
 ];
 
 const VISTA: &[Option<Cmd>] = &[
+    Some(Cmd::Settings),
+    None,
     Some(Cmd::NextTab),
     Some(Cmd::PrevTab),
     None,

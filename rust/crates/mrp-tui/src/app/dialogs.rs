@@ -311,6 +311,12 @@ impl App {
         }
     }
 
+    /// Le righe dell'aiuto come (tasti, descrizione) nella lingua attiva: la stessa tabella di F1.
+    pub fn help_rows(&self) -> Vec<(String, String)> {
+        let cat = self.catalog();
+        HELP_KEYS.iter().map(|k| dividi_aiuto(cat.t(k))).collect()
+    }
+
     /// Imposta il testo di uno dei due campi di Sostituisci (0 = cosa cercare, 1 = con cosa sostituire; un altro numero non
     /// fa niente): toglie l'anteprima, come scrivere col tasto.
     pub fn dialog_set_field(&mut self, campo: u8, testo: &str) {

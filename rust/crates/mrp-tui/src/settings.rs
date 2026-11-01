@@ -24,6 +24,8 @@ pub struct Settings {
     pub log_colors: bool,
     /// I numeri di riga a sinistra del testo si vedono (di fabbrica si': nel file si scrive solo `line_numbers=0`).
     pub line_numbers: bool,
+    /// Il corpo del testo della finestra in punti (8..=48); `None`: quello di fabbrica.
+    pub font_size: Option<u16>,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
 }
@@ -44,6 +46,7 @@ impl Default for Settings {
             special_chars: false,
             log_colors: false,
             line_numbers: true,
+            font_size: None,
             theme_set: false,
         }
     }
@@ -87,6 +90,9 @@ impl Settings {
         }
         if !self.line_numbers {
             out.push_str("line_numbers=0\n");
+        }
+        if let Some(n) = self.font_size {
+            out.push_str(&format!("font_size={n}\n"));
         }
         out
     }
@@ -138,6 +144,11 @@ impl Settings {
                     "0" | "off" | "false" => s.special_chars = false,
                     _ => {}
                 },
+                "font_size" => {
+                    if let Some(n) = v.parse::<u16>().ok().filter(|n| (8..=48).contains(n)) {
+                        s.font_size = Some(n);
+                    }
+                }
                 "line_numbers" => match v.to_ascii_lowercase().as_str() {
                     "1" | "on" | "true" => s.line_numbers = true,
                     "0" | "off" | "false" => s.line_numbers = false,

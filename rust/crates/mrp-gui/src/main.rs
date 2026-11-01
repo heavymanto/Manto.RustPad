@@ -70,6 +70,7 @@ fn run() -> i32 {
         special_chars: profilo.settings.as_ref().is_some_and(|s| s.special_chars),
         log_colors: profilo.settings.as_ref().is_some_and(|s| s.log_colors),
         line_numbers: profilo.settings.as_ref().is_none_or(|s| s.line_numbers),
+        font_size: profilo.settings.as_ref().and_then(|s| s.font_size),
         chrome: false,
         eol,
         settings_path: profilo.path,
@@ -149,6 +150,11 @@ fn run() -> i32 {
             let finestra = finestra
                 .con_selettore(Box::new(|t: &str| scegli(t)))
                 .con_salvataggio(Box::new(|t: &str, nome: &str| scegli_dove_salvare(t, nome)));
+            // uso da sviluppatore: MRPG_IMPOSTAZIONI=1 apre la finestra delle impostazioni (per le schermate)
+            let mut finestra = finestra;
+            if std::env::var_os("MRPG_IMPOSTAZIONI").is_some() {
+                finestra.azione(mrp_tui::commands::Cmd::Settings);
+            }
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => finestra.con_scatto(p.into()),

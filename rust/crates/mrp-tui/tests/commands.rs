@@ -129,6 +129,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::ZoomIn, None, "Ctrl++"),
         (Cmd::ZoomOut, None, "Ctrl+-"),
         (Cmd::ZoomReset, None, "Ctrl+0"),
+        (Cmd::Settings, None, "Ctrl+,"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un comando in piu' o in meno");
     for (cmd, tasto, scritta) in attesi {

@@ -34,6 +34,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "filter" => "▽",
         "line_numbers" => "#",
         "jump_config" => "⚙",
+        "settings" => "⚙",
         "next_tab" => "▶",
         "prev_tab" => "◀",
         "jump_bar" => "⏩",

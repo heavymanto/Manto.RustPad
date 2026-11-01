@@ -329,6 +329,8 @@ pub struct AppConfig {
     pub log_colors: bool,
     /// Vero (predefinito): i numeri di riga si vedono a sinistra del testo (vedi `Settings::line_numbers`).
     pub line_numbers: bool,
+    /// Il corpo del testo della finestra in punti (vedi `Settings::font_size`).
+    pub font_size: Option<u16>,
     /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
     /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
     pub eol: Option<LineEnding>,
@@ -351,6 +353,7 @@ impl Default for AppConfig {
             special_chars: false,
             log_colors: false,
             line_numbers: true,
+            font_size: None,
             chrome: true,
             eol: None,
         }
@@ -790,6 +793,8 @@ pub struct App {
     log_colors: bool,
     /// I numeri di riga si vedono (la scelta si salva, vale per tutte le schede).
     line_numbers: bool,
+    /// Il corpo del testo della finestra (la scelta si salva, vale per tutte le schede).
+    font_size: Option<u16>,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
     /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
@@ -958,6 +963,7 @@ impl App {
             special: cfg.special_chars,
             log_colors: cfg.log_colors,
             line_numbers: cfg.line_numbers,
+            font_size: cfg.font_size,
             chrome: cfg.chrome,
             eol_forzato: cfg.eol,
             lang_picked,
@@ -1765,6 +1771,7 @@ impl App {
             special_chars: self.special,
             log_colors: self.log_colors,
             line_numbers: self.line_numbers,
+            font_size: self.font_size,
             theme_set: true,
         };
         let _ = s.save(&path);
@@ -3208,6 +3215,51 @@ impl App {
     /// Spazi, tabulazioni e fine riga si vedono.
     pub fn special_chars(&self) -> bool {
         self.special
+    }
+
+    /// Il corpo del testo della finestra in punti, se l'utente ne ha scelto uno.
+    pub fn font_size(&self) -> Option<u16> {
+        self.font_size
+    }
+
+    /// Ricorda il corpo del testo; con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_font_size(&mut self, punti: Option<u16>, salva: bool) {
+        self.font_size = punti;
+        if salva {
+            self.save_settings();
+        }
+    }
+
+    /// Sceglie il tema e lo salva (come la scelta nel menu di F6): le altre schede lo adottano dal `Workspace`.
+    pub fn choose_theme(&mut self, tema: ThemeId) {
+        self.theme = tema;
+        self.flash = Some(self.cat.tf("flash.theme", &[self.cat.t(tema.key())]));
+        self.save_settings();
+    }
+
+    /// Sceglie la lingua per codice e la salva (come la scelta nel menu di F7); un codice che non c'e' non fa niente.
+    pub fn choose_lang(&mut self, codice: &str) {
+        let Some(l) = self.langs.iter().find(|l| l.code == codice).cloned() else {
+            return;
+        };
+        let nome = l.name.clone();
+        self.cat = Catalog::with(l);
+        self.lang_picked = Some(self.cat.code().to_string());
+        self.flash = Some(self.cat.tf("flash.lang", &[&nome]));
+        self.save_settings();
+    }
+
+    /// Le lingue disponibili come (codice, nome), nell'ordine del menu di F7.
+    pub fn language_list(&self) -> Vec<(String, String)> {
+        self.langs
+            .iter()
+            .map(|l| (l.code.clone(), l.name.clone()))
+            .collect()
+    }
+
+    /// Dove si salvano le impostazioni, se c'e' un posto.
+    pub fn settings_file(&self) -> Option<&Path> {
+        self.settings_path.as_deref()
     }
 
     /// I numeri di riga si vedono.

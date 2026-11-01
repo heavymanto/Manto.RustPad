@@ -45,6 +45,7 @@ pub enum Cmd {
     ZoomIn,
     ZoomOut,
     ZoomReset,
+    Settings,
 }
 
 /// La scheda di un comando.
@@ -314,6 +315,7 @@ pub const COMMANDS: &[Command] = &[
         "Ctrl+0",
         "zoom_reset",
     ),
+    comando(Cmd::Settings, "gui.settings", None, "Ctrl+,", "settings"),
 ];
 
 impl Cmd {

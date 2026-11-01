@@ -5,6 +5,7 @@
 use crate::barre::{self, TestiStato, POLLICE_MINIMO};
 use crate::dialoghi::{self, StatoDialogo};
 use crate::fonts::{self, Scrittura};
+use crate::impostazioni::{self, Richiesta, StatoImpostazioni};
 use crate::input;
 use crate::menu;
 use crate::paint;
@@ -93,6 +94,8 @@ pub struct Finestra {
     /// I pulsanti della barra dei salti nell'ultimo disegno, da sinistra a destra, con la loro voce (vuoti: come
     /// sopra, o la barra spenta).
     pulsanti_salti_v: Vec<(Rect, SaltoVoce)>,
+    /// La finestra delle impostazioni (Ctrl+,).
+    impostazioni: StatoImpostazioni,
     /// L'ingranaggio in fondo alla barra dei salti nell'ultimo disegno (apre il dialogo dei salti).
     rettangolo_ingranaggio: Option<Rect>,
     /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
@@ -149,9 +152,14 @@ impl Finestra {
     /// La finestra per `ws`, senza toccare il contesto (i font si installano a parte).
     pub fn da_workspace(ws: Workspace) -> Finestra {
         let scritture = Finestra::scritture_iniziali(ws.active());
+        // il corpo scelto la volta scorsa, se c'e'
+        let corpo = ws
+            .font_size()
+            .map_or(CORPO, |n| f32::from(n).clamp(CORPO_MIN, CORPO_MAX));
         Finestra {
             ws: ws.senza_barra(),
-            corpo: CORPO,
+            corpo,
+            impostazioni: StatoImpostazioni::default(),
             scritture,
             dimensione: (0, 0),
             resto_rotella: 0.0,
@@ -248,6 +256,7 @@ impl Finestra {
         let mut tocco = false;
         if (zoom - 1.0).abs() > f32::EPSILON {
             self.corpo = (self.corpo * zoom).clamp(CORPO_MIN, CORPO_MAX);
+            self.ws.set_font_size(self.corpo.round() as u16);
         }
         // un dialogo con vista aperto (senza la cornice) tiene per se' tastiera, testo, incolla, copie e clic: li
         // prendono i widget della sua finestra (il tasto che l'ha aperto e' gia' arrivato all'App)
@@ -290,6 +299,10 @@ impl Finestra {
                             egui::Key::S if modifiers.shift || self.salva_chiede_il_nome() => {
                                 self.salva_con_nome();
                                 tocco = true;
+                                continue;
+                            }
+                            egui::Key::Comma => {
+                                self.impostazioni.aperta = !self.impostazioni.aperta;
                                 continue;
                             }
                             egui::Key::Plus | egui::Key::Equals => {
@@ -794,6 +807,28 @@ impl Finestra {
             Cmd::ZoomOut => (self.corpo - 1.0).max(CORPO_MIN),
             _ => CORPO,
         };
+        // il corpo scelto si ricorda per la prossima volta
+        self.ws.set_font_size(self.corpo.round() as u16);
+    }
+
+    /// La finestra delle impostazioni e' aperta (per i test).
+    pub fn impostazioni_aperta(&self) -> bool {
+        self.impostazioni.aperta
+    }
+
+    /// Il rettangolo della finestra delle impostazioni nell'ultimo disegno (per i test); `None` se e' chiusa.
+    pub fn impostazioni_rect(&self) -> Option<Rect> {
+        self.impostazioni.rect
+    }
+
+    /// I controlli della finestra delle impostazioni nell'ultimo disegno, col loro testo (per i test).
+    pub fn impostazioni_controlli(&self) -> &[(Rect, String)] {
+        &self.impostazioni.controlli
+    }
+
+    /// Le righe (nome, scorciatoia) della scheda dei tasti nell'ultimo disegno (per i test).
+    pub fn impostazioni_tasti(&self) -> &[(String, String)] {
+        &self.impostazioni.tasti
     }
 
     /// Il corpo del testo in punti (per i test).
@@ -897,6 +932,7 @@ impl Finestra {
             // il salvataggio di un documento senza nome passa dal dialogo di sistema, non dal prompt a testo dell'App
             Cmd::Save if self.salva_chiede_il_nome() => self.salva_con_nome(),
             Cmd::ZoomIn | Cmd::ZoomOut | Cmd::ZoomReset => self.zoom(a),
+            Cmd::Settings => self.impostazioni.aperta = !self.impostazioni.aperta,
             c => {
                 self.ws.exec(c);
             }
@@ -1109,6 +1145,16 @@ impl Finestra {
                 self.contestuale_voci.clear();
                 self.contestuale_rect = Rect::NOTHING;
             }
+        }
+        // la finestra delle impostazioni: i cambi del corpo del testo li fa chi disegna
+        if let Some(r) =
+            impostazioni::disegna(ctx, &mut self.ws, &mut self.impostazioni, self.corpo)
+        {
+            self.zoom(match r {
+                Richiesta::Piu => Cmd::ZoomIn,
+                Richiesta::Meno => Cmd::ZoomOut,
+                Richiesta::Predefinito => Cmd::ZoomReset,
+            });
         }
         // i dialoghi con una vista (B4b), solo senza la cornice del terminale: una finestra egui al centro, sopra la
         // griglia, che guida l'App con le azioni dialog_*; senza (o con la cornice) lo stato del disegno si azzera
