@@ -551,7 +551,8 @@ impl Finestra {
             a.file_name().to_string()
         };
         if let Some(percorso) = (self.salvataggio)(&titolo, &suggerito) {
-            self.ws.active_mut().save_as_path(percorso);
+            // scelto il nome, un dialogo chiede la codifica (e il BOM)
+            self.ws.active_mut().save_as_choose(percorso);
         }
     }
 

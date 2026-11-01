@@ -143,6 +143,9 @@ fn naming_it_saves_the_content_and_turns_it_into_a_normal_document() {
     let meta = d.join("nota.txt");
     scrivi(&mut a, meta.to_str().unwrap());
     a.handle_key(k(KeyCode::Enter));
+    // dopo il nome, la codifica (la stessa del documento: un salvataggio normale)
+    assert_eq!(a.dialog_kind(), Some(DialogKind::SaveEncoding));
+    a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert_eq!(
         std::fs::read(&meta).unwrap(),
@@ -189,6 +192,7 @@ fn an_existing_target_asks_before_replacing_it() {
     scrivi(&mut a, meta.to_str().unwrap());
     a.handle_key(k(KeyCode::Enter));
     a.handle_key(k(KeyCode::Enter));
+    a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert_eq!(std::fs::read(&meta).unwrap(), b"nuovo");
     assert!(!a.is_untitled());
@@ -203,6 +207,7 @@ fn a_target_in_a_missing_folder_fails_and_the_document_is_kept() {
     a.handle_key(ctrl('s'));
     let ko = d.join("non_esiste").join("x.txt");
     scrivi(&mut a, ko.to_str().unwrap());
+    a.handle_key(k(KeyCode::Enter));
     a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert!(a.is_untitled() && a.is_modified());
@@ -245,6 +250,7 @@ fn ctrl_shift_s_saves_any_document_under_a_new_name_and_leaves_the_old_file() {
     assert_eq!(a.save_as_text(), attesa);
     scrivi(&mut a, "b.txt");
     a.handle_key(k(KeyCode::Enter));
+    a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert_eq!(std::fs::read(d.join("b.txt")).unwrap(), b"+uno\n");
     assert_eq!(std::fs::read(&vecchio).unwrap(), b"uno\n");
@@ -285,6 +291,7 @@ fn closing_an_untitled_document_with_changes_asks_and_s_goes_through_the_name() 
     a.handle_key(k(KeyCode::Char('s')));
     let meta = d.join("fine.txt");
     scrivi(&mut a, meta.to_str().unwrap());
+    a.handle_key(k(KeyCode::Enter));
     a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert!(a.should_quit());
@@ -428,6 +435,7 @@ fn after_saving_with_a_name_the_session_points_to_the_real_file() {
     ws.handle_key(ctrl('s'));
     let meta = d.join("vero.txt");
     scrivi(ws.active_mut(), meta.to_str().unwrap());
+    ws.handle_key(k(KeyCode::Enter));
     ws.handle_key(k(KeyCode::Enter));
     assert!(ws.wait_idle(Duration::from_secs(20)));
     assert_eq!(std::fs::read(&meta).unwrap(), b"salvato");

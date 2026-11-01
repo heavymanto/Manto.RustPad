@@ -455,12 +455,15 @@ fn ctrl_s_on_an_untitled_document_asks_the_system_dialog_for_a_name_and_saves_th
     giro(&mut f, &ctx, vec![]);
     giro(&mut f, &ctx, vec![Event::Text("ciao".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::S, ctrl())]);
-    // il dialogo e' quello del sistema, non il prompt a testo dell'App (il salvataggio gia' gira)
+    // il dialogo e' quello del sistema, non il prompt a testo dell'App
     assert_ne!(f.app().dialog_kind(), Some(DialogKind::SaveAs));
     assert_eq!(
         chiamate.borrow().as_slice(),
         [("Save as".to_string(), "Untitled 1.txt".to_string())]
     );
+    // scelto il nome, il dialogo della codifica: la stessa del documento, si conferma
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::SaveEncoding));
+    f.workspace().active_mut().dialog_submit();
     assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
     assert_eq!(std::fs::read(&meta).unwrap(), b"ciao");
     assert!(!f.app().is_untitled());
@@ -478,6 +481,9 @@ fn f2_and_the_save_menu_entry_do_the_same_on_an_untitled_document() {
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::F2, Modifiers::NONE)]);
     assert_eq!(chiamate.borrow().len(), 1);
+    // scelto il nome, il dialogo della codifica: la stessa del documento, si conferma
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::SaveEncoding));
+    f.workspace().active_mut().dialog_submit();
     assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
     assert_eq!(std::fs::read(dir0.join("a.txt")).unwrap(), b"x");
     // una scheda nuova: la voce Salva del menu (che manda F2) passa dallo stesso dialogo
@@ -485,6 +491,9 @@ fn f2_and_the_save_menu_entry_do_the_same_on_an_untitled_document() {
     giro(&mut f, &ctx, vec![Event::Text("y".into())]);
     f.azione(voce("gui.save").azione);
     assert_eq!(chiamate.borrow().len(), 2);
+    // scelto il nome, il dialogo della codifica: la stessa del documento, si conferma
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::SaveEncoding));
+    f.workspace().active_mut().dialog_submit();
     assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
     assert_eq!(std::fs::read(dir0.join("b.txt")).unwrap(), b"y");
     let _ = std::fs::remove_dir_all(dir);
@@ -545,6 +554,9 @@ fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
     f.azione(Cmd::SaveAs);
     assert_eq!(chiamate.borrow().len(), 1);
     assert_eq!(chiamate.borrow()[0].1, nome(&p));
+    // scelto il nome, il dialogo della codifica: la stessa del documento, si conferma
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::SaveEncoding));
+    f.workspace().active_mut().dialog_submit();
     assert!(f.app().wait_idle(std::time::Duration::from_secs(20)));
     // il cursore era dopo il '+': il '!' sta li'
     assert_eq!(std::fs::read(&copia).unwrap(), b"+!uno\n");
@@ -560,6 +572,7 @@ fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
     };
     giro(&mut f, &ctx, vec![tasto(Key::S, maiusc)]);
     assert_eq!(chiamate.borrow().len(), 2);
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::SaveEncoding));
     let _ = std::fs::remove_file(p);
     let _ = std::fs::remove_dir_all(dir0);
 }
@@ -576,11 +589,7 @@ fn the_view_menu_is_about_the_current_work_and_theme_and_language_live_in_the_se
 
 #[test]
 fn the_toggle_entries_know_whether_they_are_on() {
-    let (mut f, ctx, p, _t) = finestra(
-        b"abc
-",
-        vec![],
-    );
+    let (mut f, ctx, p, _t) = finestra(b"abc\n", vec![]);
     giro(&mut f, &ctx, vec![]);
     // di fabbrica: numeri di riga accesi, il resto spento (la barra dei salti segue la scelta di chi apre)
     assert_eq!(acceso(f.workspace(), Cmd::LineNumbers), Some(true));

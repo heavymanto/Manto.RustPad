@@ -136,6 +136,14 @@ fn aperture() -> Vec<(&'static str, Apertura)> {
             }),
         ),
         (
+            "codifica del salvataggio",
+            Box::new(|f, ctx| {
+                f.app()
+                    .save_as_choose(std::env::temp_dir().join("mrp_finestrelle_dest.txt"));
+                giro(f, ctx, vec![]);
+            }),
+        ),
+        (
             "conferma",
             Box::new(|f, ctx| {
                 // una modifica non salvata e poi chiudere la scheda: chiede cosa fare
@@ -283,5 +291,97 @@ fn the_settings_window_has_the_same_close_button() {
     assert!(x.max.x >= finestra.max.x - 24.0 && x.min.y <= finestra.min.y + 44.0);
     clic(&mut f, &ctx, x.center());
     assert!(!f.impostazioni_aperta());
+    let _ = std::fs::remove_file(p);
+}
+
+// ---- la scelta della codifica di "salva con nome" ----
+
+#[test]
+fn the_save_encoding_window_lists_the_encodings_and_a_click_selects_without_saving() {
+    let (mut f, ctx, p) = finestra();
+    let dest = std::env::temp_dir().join(format!("mrp_finestrelle_se_{}.txt", std::process::id()));
+    f.app().save_as_choose(dest.clone());
+    disegna(&mut f, &ctx);
+    let tutte = mrp_core::encoding::Encoding::all();
+    assert_eq!(f.dialogo_voci().len(), tutte.len());
+    // il clic sulla voce di windows-1252 la evidenzia: il dialogo resta aperto e non si e' scritto niente
+    let i = tutte
+        .iter()
+        .position(|e| e.name() == "windows-1252")
+        .unwrap();
+    // la lista scorre: si porta in vista la voce con la tastiera (frecce) invece di cliccare fuori dallo schermo
+    f.app().dialog_select(i);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.app().menu_index(), Some(i));
+    assert_eq!(
+        f.app().dialog_kind(),
+        Some(mrp_tui::app::DialogKind::SaveEncoding)
+    );
+    assert!(!dest.exists());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_save_encoding_window_shows_the_bom_box_only_for_encodings_that_have_it() {
+    let (mut f, ctx, p) = finestra();
+    f.app()
+        .save_as_choose(std::env::temp_dir().join("mrp_finestrelle_bom.txt"));
+    disegna(&mut f, &ctx);
+    // UTF-8: la casella c'e' (spenta: il file non ha il BOM) e un clic la accende
+    assert_eq!(f.dialogo_opzioni().len(), 1);
+    assert!(!f.app().save_encoding_bom());
+    let casella = f.dialogo_opzioni()[0].0.center();
+    clic(&mut f, &ctx, casella);
+    assert!(f.app().save_encoding_bom());
+    // una code page: la casella non c'e'
+    let i = mrp_core::encoding::Encoding::all()
+        .iter()
+        .position(|e| e.name() == "windows-1252")
+        .unwrap();
+    f.app().dialog_select(i);
+    disegna(&mut f, &ctx);
+    assert!(f.dialogo_opzioni().is_empty());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_save_encoding_window_ok_converts_and_cancel_gives_up() {
+    let (mut f, ctx, p) = finestra();
+    let d = std::env::temp_dir().join(format!("mrp_finestrelle_ok_{}", std::process::id()));
+    std::fs::create_dir_all(&d).unwrap();
+    let dest = d.join("nuovo.txt");
+    f.app().save_as_choose(dest.clone());
+    disegna(&mut f, &ctx);
+    let i = mrp_core::encoding::Encoding::all()
+        .iter()
+        .position(|e| e.name() == "utf-16le")
+        .unwrap();
+    f.app().dialog_select(i);
+    disegna(&mut f, &ctx);
+    let testi: Vec<String> = f
+        .dialogo_pulsanti()
+        .iter()
+        .map(|(_, t)| t.clone())
+        .collect();
+    assert_eq!(testi, vec!["Save", "Cancel"]);
+    let ok = f.dialogo_pulsanti()[0].0.center();
+    clic(&mut f, &ctx, ok);
+    assert!(f.app().wait_idle(Duration::from_secs(20)));
+    // il testo in UTF-16LE senza BOM (il file di partenza non lo ha e la casella e' spenta)
+    let atteso: Vec<u8> = "uno\ndue\n"
+        .encode_utf16()
+        .flat_map(|u| u.to_le_bytes())
+        .collect();
+    assert_eq!(std::fs::read(&dest).unwrap(), atteso);
+    assert_eq!(f.app().encoding(), mrp_core::encoding::Encoding::Utf16Le);
+    // Annulla: niente
+    let altro = d.join("altro.txt");
+    f.app().save_as_choose(altro.clone());
+    disegna(&mut f, &ctx);
+    let annulla = f.dialogo_pulsanti()[1].0.center();
+    clic(&mut f, &ctx, annulla);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert!(!altro.exists());
+    let _ = std::fs::remove_dir_all(d);
     let _ = std::fs::remove_file(p);
 }

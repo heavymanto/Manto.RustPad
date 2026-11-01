@@ -674,6 +674,50 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             "prompt.saveas.hint",
             app.save_as_text(),
         ),
+        // La codifica del file da salvare: la lista (scorre come il menu delle codifiche), la casella del BOM e i tasti.
+        DialogKind::SaveEncoding => {
+            let selezione = app.menu_index().unwrap_or(0);
+            let tutte = Encoding::all();
+            // fuori dalla lista restano il titolo, il BOM e il suggerimento
+            let altezza = (h as usize).saturating_sub(5);
+            let quante = tutte.len().min(altezza);
+            let prima = if tutte.len() > altezza {
+                selezione
+                    .saturating_sub(altezza.saturating_sub(1))
+                    .min(tutte.len() - quante)
+            } else {
+                0
+            };
+            let mut righe: Vec<(String, Style)> = tutte[prima..prima + quante]
+                .iter()
+                .enumerate()
+                .map(|(i, e)| {
+                    let stile = if prima + i == selezione {
+                        t.selected
+                    } else {
+                        t.dialog
+                    };
+                    (e.name().to_string(), stile)
+                })
+                .collect();
+            let ha_bom = tutte
+                .get(selezione)
+                .is_some_and(|e| e.is_utf8() || e.is_utf16() || e.is_utf32());
+            if ha_bom {
+                let casella = if app.save_encoding_bom() {
+                    "[x]"
+                } else {
+                    "[ ]"
+                };
+                righe.push((format!("{casella} {}", cat.t("saveenc.bom")), t.dialog));
+            }
+            righe.push((cat.t("saveenc.hint").to_string(), t.hint));
+            ContenutoDialogo {
+                titolo: cat.t("saveenc.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
         // Il file scelto esiste gia': si chiede se sostituirlo.
         DialogKind::Overwrite => ContenutoDialogo {
             titolo: cat.t("overwrite.title").to_string(),

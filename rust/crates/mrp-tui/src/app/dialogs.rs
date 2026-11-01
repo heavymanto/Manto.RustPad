@@ -110,6 +110,18 @@ pub enum DialogView {
         discard: String,
         cancel: String,
     },
+    /// La codifica con cui scrivere il file di "salva con nome": le codifiche (quella evidenziata) e il BOM (la casella c'e' solo
+    /// per le codifiche che lo hanno).
+    SaveEncoding {
+        title: String,
+        items: Vec<MenuItem>,
+        selected: usize,
+        /// `Some(acceso)` se la codifica evidenziata puo' avere il BOM, `None` altrimenti (la casella non c'e').
+        bom: Option<bool>,
+        bom_label: String,
+        ok: String,
+        cancel: String,
+    },
     /// Il salvataggio in corso: il nome del file e la percentuale.
     Saving {
         title: String,
@@ -152,6 +164,7 @@ impl App {
                     | DialogKind::Open
                     | DialogKind::SaveAs
                     | DialogKind::Overwrite
+                    | DialogKind::SaveEncoding
                     | DialogKind::Confirm
                     | DialogKind::Saving
                     | DialogKind::Find
@@ -238,6 +251,27 @@ impl App {
                 hint: t("prompt.saveas.hint"),
                 text: self.save_as_text.clone(),
             },
+            DialogKind::SaveEncoding => {
+                let tutte = Encoding::all();
+                let scelta = tutte.get(self.menu_index).copied();
+                DialogView::SaveEncoding {
+                    title: t("saveenc.title"),
+                    items: tutte
+                        .iter()
+                        .map(|e| MenuItem {
+                            label: e.name().to_string(),
+                            detail: String::new(),
+                        })
+                        .collect(),
+                    selected: self.menu_index,
+                    bom: scelta
+                        .filter(|e| e.is_utf8() || e.is_utf16() || e.is_utf32())
+                        .map(|_| self.save_enc_bom),
+                    bom_label: t("saveenc.bom"),
+                    ok: t("saveenc.ok"),
+                    cancel: t("saveenc.cancel"),
+                }
+            }
             DialogKind::Overwrite => DialogView::Overwrite {
                 title: t("overwrite.title"),
                 text: cat.tf("overwrite.text", &[&self.save_as_pending_name()]),

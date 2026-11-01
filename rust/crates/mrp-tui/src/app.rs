@@ -9,6 +9,7 @@ use mrp_core::block::{
     block_spans, block_text, delete_block, insert_block, nth_row, paste_block, BlockError,
     ColumnBlock, RowSpan,
 };
+use mrp_core::convert::{convert_document, ConvertError, ConvertOptions};
 use mrp_core::docsearch::{SearchError, Snapshot};
 use mrp_core::encoding::Encoding;
 use mrp_core::lang::{Catalog, Lang};
@@ -27,7 +28,7 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 /// Quanto si guarda avanti e indietro per gli a-capo: il limite di scansione del core.
@@ -403,6 +404,9 @@ pub enum DialogKind {
     SaveAs,
     /// Il file scelto per "salva con nome" esiste gia': Invio lo sostituisce, Esc rinuncia.
     Overwrite,
+    /// Dopo il nome del file di "salva con nome": la codifica con cui scriverlo (e se scrivere il BOM). Se e' diversa da
+    /// quella del documento il file si converte.
+    SaveEncoding,
     /// Gli ingranaggi della barra dei salti: le pagine dei tre salti (Alt+Pag, con Maiusc, con Ctrl).
     Jumps,
 }
@@ -495,6 +499,16 @@ struct SaveJob {
     quit_after: bool,
     /// Il file scelto, se e' un "salva con nome": a riuscita il documento diventa quel file.
     target: Option<PathBuf>,
+    /// Se il salvataggio converte la codifica: quella di arrivo e dove il thread mette il primo carattere che non si
+    /// puo' scrivere (posizione nel documento, carattere).
+    convert: Option<ConvertPlan>,
+}
+
+/// Una conversione di codifica in corso (`SaveJob::convert`).
+struct ConvertPlan {
+    to: Encoding,
+    /// Il primo carattere non rappresentabile, se il thread lo ha trovato.
+    refused: Arc<Mutex<Option<(u64, char)>>>,
 }
 
 /// L'esito della ricerca in background, consegnato dal thread su `tick`.
@@ -783,6 +797,10 @@ pub struct App {
     save_as_text: String,
     save_as_pending: Option<PathBuf>,
     save_as_quit_after: bool,
+    /// Il file scelto in "salva con nome", in attesa della scelta della codifica (`DialogKind::SaveEncoding`).
+    save_enc_path: Option<PathBuf>,
+    /// Il BOM del dialogo della codifica.
+    save_enc_bom: bool,
     /// Il testo scritto nel prompt di ricerca.
     find_text: String,
     /// L'ultimo testo cercato: F3 e Maiusc+F3 lo cercano di nuovo, senza prompt.
@@ -967,6 +985,8 @@ impl App {
             save_as_text: String::new(),
             save_as_pending: None,
             save_as_quit_after: false,
+            save_enc_path: None,
+            save_enc_bom: false,
             find_text: String::new(),
             last_find: None,
             search_mode: Mode::Text,
@@ -1616,6 +1636,26 @@ impl App {
                 KeyCode::Char(c) if !ctrl && !alt => self.save_as_text.push(c),
                 _ => {}
             },
+            // La codifica del file da salvare: le frecce scelgono (Home e End agli estremi), Tab accende e spegne il BOM, Invio
+            // salva (convertendo se la codifica e' un'altra), Esc rinuncia.
+            DialogKind::SaveEncoding => match key.code {
+                KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
+                KeyCode::Down => {
+                    if self.menu_index + 1 < self.menu_len() {
+                        self.menu_index += 1;
+                    }
+                }
+                KeyCode::Home => self.menu_index = 0,
+                KeyCode::End => self.menu_index = self.menu_len().saturating_sub(1),
+                KeyCode::Tab => self.save_enc_bom = !self.save_enc_bom,
+                KeyCode::Enter => self.save_encoding_confirm(),
+                KeyCode::Esc => {
+                    self.dialog = None;
+                    self.save_enc_path = None;
+                    self.save_as_quit_after = false;
+                }
+                _ => {}
+            },
             // Il file scelto esiste: Invio (o S) lo sostituisce, Esc (o N) rinuncia.
             DialogKind::Overwrite => match key.code {
                 KeyCode::Enter
@@ -1626,7 +1666,7 @@ impl App {
                     self.dialog = None;
                     if let Some(p) = self.save_as_pending.take() {
                         let esci = std::mem::take(&mut self.save_as_quit_after);
-                        self.start_save_as(p, esci);
+                        self.ask_save_encoding(p, esci);
                     }
                 }
                 KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => {
@@ -1741,7 +1781,7 @@ impl App {
         match self.dialog {
             Some(DialogKind::Theme) => self.theme_choices().len(),
             Some(DialogKind::Lang) => self.langs.len(),
-            Some(DialogKind::Encoding) => Encoding::all().len(),
+            Some(DialogKind::Encoding) | Some(DialogKind::SaveEncoding) => Encoding::all().len(),
             _ => 0,
         }
     }
@@ -2997,6 +3037,18 @@ impl App {
         }
     }
 
+    /// Il BOM del dialogo della codifica di "salva con nome" e' acceso.
+    pub fn save_encoding_bom(&self) -> bool {
+        self.save_enc_bom
+    }
+
+    /// Accende o spegne il BOM nel dialogo della codifica di "salva con nome"; negli altri dialoghi non fa niente.
+    pub fn dialog_set_bom(&mut self, acceso: bool) {
+        if self.dialog == Some(DialogKind::SaveEncoding) {
+            self.save_enc_bom = acceso;
+        }
+    }
+
     /// L'indicizzazione e' in pausa perche' l'utente sta saltando nel file (per i test).
     pub fn index_paused(&self) -> bool {
         self.index_job
@@ -3149,9 +3201,10 @@ impl App {
     /// La voce selezionata di un menu (tema, lingua) aperto; `None` se non c'e' un menu.
     pub fn menu_index(&self) -> Option<usize> {
         match self.dialog {
-            Some(DialogKind::Theme) | Some(DialogKind::Lang) | Some(DialogKind::Encoding) => {
-                Some(self.menu_index)
-            }
+            Some(DialogKind::Theme)
+            | Some(DialogKind::Lang)
+            | Some(DialogKind::Encoding)
+            | Some(DialogKind::SaveEncoding) => Some(self.menu_index),
             _ => None,
         }
     }
@@ -5114,7 +5167,7 @@ impl App {
             self.dialog = Some(DialogKind::Overwrite);
         } else {
             let esci = std::mem::take(&mut self.save_as_quit_after);
-            self.start_save_as(p, esci);
+            self.ask_save_encoding(p, esci);
         }
     }
 
@@ -5145,8 +5198,128 @@ impl App {
             len,
             quit_after,
             target,
+            convert: None,
         });
         self.dialog = Some(DialogKind::Saving);
+    }
+
+    /// "Salva con nome" scelto il file: la codifica e il BOM si chiedono in un dialogo (parte dalla codifica del documento e,
+    /// per il BOM, da come e' il file adesso). Un documento senza nome parte da UTF-8 senza BOM.
+    fn ask_save_encoding(&mut self, path: PathBuf, quit_after: bool) {
+        self.save_as_quit_after = quit_after;
+        self.save_enc_path = Some(path);
+        self.save_enc_bom = self.bom > 0;
+        self.menu_index = Encoding::all()
+            .iter()
+            .position(|&e| e == self.enc)
+            .unwrap_or(0);
+        self.dialog = Some(DialogKind::SaveEncoding);
+    }
+
+    /// "Salva con nome" in `path`, chiedendo la codifica (per la finestra, dopo il selettore di file del sistema).
+    pub fn save_as_choose(&mut self, path: PathBuf) {
+        self.ask_save_encoding(path, false);
+    }
+
+    /// La codifica scelta nel dialogo: la stessa del documento (e lo stesso BOM) e' un salvataggio normale, un'altra
+    /// converte il contenuto mentre lo scrive.
+    fn save_encoding_confirm(&mut self) {
+        let Some(path) = self.save_enc_path.take() else {
+            self.dialog = None;
+            return;
+        };
+        let esci = std::mem::take(&mut self.save_as_quit_after);
+        let Some(&to) = Encoding::all().get(self.menu_index) else {
+            self.dialog = None;
+            return;
+        };
+        let bom = self.save_enc_bom && encoding_has_bom(to);
+        let bom_attuale = self.bom > 0;
+        if to == self.enc && (!encoding_has_bom(to) || bom == bom_attuale) {
+            self.dialog = None;
+            self.start_save_as(path, esci);
+        } else {
+            self.spawn_convert(path, to, bom, esci);
+        }
+    }
+
+    /// Fa partire il thread che scrive il documento in `target` convertito in `to`.
+    fn spawn_convert(&mut self, target: PathBuf, to: Encoding, bom: bool, quit_after: bool) {
+        let len = self.document_len();
+        let Some(doc) = self.doc.take() else {
+            return;
+        };
+        let from = self.enc;
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        let refused: Arc<Mutex<Option<(u64, char)>>> = Arc::new(Mutex::new(None));
+        let (tx, rx) = mpsc::channel();
+        let (cancel_thread, progress_thread, refused_thread) = (
+            Arc::clone(&cancel),
+            Arc::clone(&progress),
+            Arc::clone(&refused),
+        );
+        let target_thread = target.clone();
+        std::thread::spawn(move || {
+            let esito = match convert_document(
+                &doc,
+                from,
+                to,
+                bom,
+                &target_thread,
+                &ConvertOptions::default(),
+                &cancel_thread,
+                &progress_thread,
+            ) {
+                Ok(_) => Ok(()),
+                Err(ConvertError::Cancelled) => Err(SaveError::Cancelled),
+                Err(ConvertError::Unrepresentable { offset, ch }) => {
+                    if let Ok(mut r) = refused_thread.lock() {
+                        *r = Some((offset, ch));
+                    }
+                    Err(SaveError::Io(io::Error::other(
+                        "carattere non rappresentabile",
+                    )))
+                }
+                Err(ConvertError::Io(e)) => Err(SaveError::Io(e)),
+            };
+            let _ = tx.send((doc, esito));
+        });
+        self.save_job = Some(SaveJob {
+            rx,
+            progress,
+            cancel,
+            len,
+            quit_after,
+            target: Some(target),
+            convert: Some(ConvertPlan { to, refused }),
+        });
+        self.dialog = Some(DialogKind::Saving);
+    }
+
+    /// Dopo una conversione riuscita: il documento diventa il file convertito (storia svuotata, cursore all'inizio) con la
+    /// codifica nuova. Se il file nuovo non si riapre, il documento resta com'era e il messaggio lo dice.
+    fn adopt_converted(&mut self, to: Encoding, target: &Path) {
+        match Document::open(target) {
+            Ok(nuovo) => {
+                self.doc = Some(nuovo);
+                self.adopt_saved_path();
+                self.top = 0;
+                self.cursor = 0;
+                self.hscroll = 0;
+                self.anchor = None;
+                self.block = None;
+                self.found = None;
+                self.set_encoding(to);
+                self.flash = Some(
+                    self.cat
+                        .tf("flash.converted", &[&self.file_name, to.name()]),
+                );
+            }
+            Err(e) => {
+                self.flash = Some(self.cat.tf("flash.save_failed", &[&e.to_string()]));
+            }
+        }
     }
 
     /// La fine del salvataggio (la chiama `tick`): il documento torna al suo posto con l'esito e il
@@ -5160,6 +5333,8 @@ impl App {
             Ok((doc, esito)) => {
                 let quit_after = job.quit_after;
                 let con_nome = job.target.is_some();
+                let destinazione = job.target.clone();
+                let conversione = job.convert.take();
                 self.save_job = None;
                 // Il dialogo si chiude col lavoro: finche' girava teneva tutti i tasti.
                 self.dialog = None;
@@ -5168,10 +5343,15 @@ impl App {
                 self.scroll_adjust();
                 match esito {
                     Ok(()) => {
-                        if con_nome {
-                            self.adopt_saved_path();
+                        if let (Some(piano), Some(path)) = (&conversione, &destinazione) {
+                            // il documento e' il file convertito, aperto da capo
+                            self.adopt_converted(piano.to, path);
+                        } else {
+                            if con_nome {
+                                self.adopt_saved_path();
+                            }
+                            self.flash = Some(self.cat.tf("flash.saved", &[&self.file_name]));
                         }
-                        self.flash = Some(self.cat.tf("flash.saved", &[&self.file_name]));
                         self.rebuild_index();
                         // "Salva ed esci": solo un salvataggio riuscito fa uscire.
                         if quit_after {
@@ -5183,6 +5363,16 @@ impl App {
                     }
                     Err(SaveError::SourceChanged) => {
                         self.flash = Some(self.cat.t("flash.source_changed").to_string());
+                    }
+                    Err(_) if rifiutato(&conversione).is_some() => {
+                        // un carattere che la codifica di arrivo non sa scrivere: non si e' scritto niente, il cursore va li'
+                        let (offset, ch) = rifiutato(&conversione).unwrap_or((0, '?'));
+                        self.goto_move(offset);
+                        let nome = conversione.as_ref().map_or("", |p| p.to.name());
+                        self.flash = Some(self.cat.tf(
+                            "flash.convert_refused",
+                            &[&format!("U+{:04X}", ch as u32), nome, &offset.to_string()],
+                        ));
                     }
                     Err(e) => {
                         self.flash = Some(self.cat.tf("flash.save_failed", &[&e.to_string()]));
@@ -5239,6 +5429,18 @@ impl App {
             &progress,
         ));
     }
+}
+
+/// Il primo carattere che la codifica di arrivo non sa scrivere, se la conversione lo ha trovato.
+fn rifiutato(piano: &Option<ConvertPlan>) -> Option<(u64, char)> {
+    piano
+        .as_ref()
+        .and_then(|p| p.refused.lock().ok().and_then(|r| *r))
+}
+
+/// La codifica puo' avere un BOM (UTF-8, UTF-16, UTF-32).
+fn encoding_has_bom(e: Encoding) -> bool {
+    e.is_utf8() || e.is_utf16() || e.is_utf32()
 }
 
 impl Drop for App {

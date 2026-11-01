@@ -120,6 +120,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::Find { title, .. }
         | DialogView::Jumps { title, .. }
         | DialogView::Replace { title, .. }
+        | DialogView::SaveEncoding { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
     // il rettangolo della finestra: lo danno le varianti (una per una), lo legge la fine
@@ -237,6 +238,60 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     }
                 },
             );
+        }
+        // la codifica del file di "salva con nome": la lista delle codifiche (un clic evidenzia la voce, non salva), la casella
+        // del BOM (solo per le codifiche che lo hanno) e i due pulsanti
+        DialogView::SaveEncoding {
+            items,
+            selected,
+            bom,
+            bom_label,
+            ok,
+            cancel,
+            ..
+        } => {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                420.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
+                    ScrollArea::vertical()
+                        .max_height(altezza * 0.5)
+                        .show(ui, |ui| {
+                            for (i, voce) in items.iter().enumerate() {
+                                let r = ui.selectable_label(i == *selected, &voce.label);
+                                // la voce evidenziata si porta in vista quando cambia
+                                if i == *selected && stato.ultima_voce != Some(*selected) {
+                                    r.scroll_to_me(None);
+                                }
+                                if r.clicked() {
+                                    ws.active_mut().dialog_select(i);
+                                }
+                                stato.voci.push(r.rect);
+                            }
+                        });
+                    if let Some(acceso) = bom {
+                        let mut v = *acceso;
+                        let r = ui.checkbox(&mut v, bom_label.as_str());
+                        stato.opzioni.push((r.rect, bom_label.clone()));
+                        if r.changed() {
+                            ws.active_mut().dialog_set_bom(v);
+                        }
+                    }
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[ok.as_str(), cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
+            stato.ultima_voce = Some(*selected);
         }
         // il file scelto per "salva con nome" esiste gia': la domanda e i due pulsanti
         DialogView::Overwrite { text, .. } => {

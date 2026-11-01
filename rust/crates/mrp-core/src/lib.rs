@@ -7,6 +7,7 @@
 
 pub mod block;
 pub mod charsets;
+pub mod convert;
 pub mod docsearch;
 pub mod document;
 pub mod edit;
