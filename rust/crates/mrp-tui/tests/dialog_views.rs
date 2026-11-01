@@ -74,8 +74,8 @@ fn help_is_a_table_of_keys_and_descriptions() {
         "follow the end of the file (like tail -f)".to_string()
     )));
     assert!(rows.contains(&(
-        "Alt+W / Alt+L".to_string(),
-        "show spaces and tabs / colour log lines".to_string()
+        "Alt+W / Alt+L / Alt+N".to_string(),
+        "spaces and tabs / log colours / line numbers".to_string()
     )));
     assert_eq!(
         rows.last().unwrap(),

@@ -37,17 +37,39 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
                 Some(n) => n.to_string(),
                 None => cat.t("status.unknown_line").to_string(),
             };
-            cat.tf(
-                "status.pos",
-                &[
-                    &riga,
-                    &s.column.to_string(),
-                    &s.offset.to_string(),
-                    &s.percent.to_string(),
-                ],
-            )
-            .trim()
-            .to_string()
+            let totale = match s.line_count {
+                Some(n) => n.to_string(),
+                None => cat.t("status.unknown_line").to_string(),
+            };
+            let mut testo = cat
+                .tf(
+                    "gui.status.pos",
+                    &[
+                        &riga,
+                        &totale,
+                        &s.column.to_string(),
+                        &s.offset.to_string(),
+                        &s.percent.to_string(),
+                    ],
+                )
+                .trim()
+                .to_string();
+            // la selezione, subito dopo la posizione: un blocco (righe x colonne) o quanti byte e quante righe
+            if let Some(sel) = s.selection {
+                let aggiunta = match (sel.block, sel.lines) {
+                    (Some((r, c)), _) => {
+                        cat.tf("gui.status.block", &[&r.to_string(), &c.to_string()])
+                    }
+                    (None, Some(l)) => cat.tf(
+                        "gui.status.sel_lines",
+                        &[&sel.bytes.to_string(), &l.to_string()],
+                    ),
+                    (None, None) => cat.tf("gui.status.sel_bytes", &[&sel.bytes.to_string()]),
+                };
+                testo.push_str("   ");
+                testo.push_str(&aggiunta);
+            }
+            testo
         }
     };
     let mut destra = Vec::new();
@@ -80,6 +102,19 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
         destra.push(Pezzo {
             testo: cat.t("mode.column").to_string(),
             comando: Some(Cmd::ColumnMode),
+        });
+    }
+    // gli interruttori accesi, a colpo d'occhio: caratteri speciali e colori dei log (un clic li spegne)
+    if s.special {
+        destra.push(Pezzo {
+            testo: "\u{b6}".to_string(),
+            comando: Some(Cmd::Special),
+        });
+    }
+    if s.log_colors {
+        destra.push(Pezzo {
+            testo: cat.t("status.log").to_string(),
+            comando: Some(Cmd::LogColors),
         });
     }
     destra.push(Pezzo {

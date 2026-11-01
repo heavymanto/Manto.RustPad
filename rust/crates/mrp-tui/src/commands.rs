@@ -30,6 +30,7 @@ pub enum Cmd {
     Filter,
     ColumnMode,
     Special,
+    LineNumbers,
     Follow,
     LogColors,
     NextTab,
@@ -219,6 +220,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('w'), ALT),
         "Alt+W",
         "special",
+    ),
+    comando(
+        Cmd::LineNumbers,
+        "gui.line_numbers",
+        tasto(KeyCode::Char('n'), ALT),
+        "Alt+N",
+        "line_numbers",
     ),
     comando(
         Cmd::Follow,

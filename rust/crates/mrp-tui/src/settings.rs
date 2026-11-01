@@ -22,6 +22,8 @@ pub struct Settings {
     pub special_chars: bool,
     /// La colorazione dei log (livelli, orari, indirizzi) e' accesa (Alt+L).
     pub log_colors: bool,
+    /// I numeri di riga a sinistra del testo si vedono (di fabbrica si': nel file si scrive solo `line_numbers=0`).
+    pub line_numbers: bool,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
 }
@@ -41,6 +43,7 @@ impl Default for Settings {
             nav_bar: false,
             special_chars: false,
             log_colors: false,
+            line_numbers: true,
             theme_set: false,
         }
     }
@@ -81,6 +84,9 @@ impl Settings {
         }
         if self.log_colors {
             out.push_str("log_colors=1\n");
+        }
+        if !self.line_numbers {
+            out.push_str("line_numbers=0\n");
         }
         out
     }
@@ -130,6 +136,11 @@ impl Settings {
                 "special" => match v.to_ascii_lowercase().as_str() {
                     "1" | "on" | "true" => s.special_chars = true,
                     "0" | "off" | "false" => s.special_chars = false,
+                    _ => {}
+                },
+                "line_numbers" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.line_numbers = true,
+                    "0" | "off" | "false" => s.line_numbers = false,
                     _ => {}
                 },
                 "log_colors" => match v.to_ascii_lowercase().as_str() {

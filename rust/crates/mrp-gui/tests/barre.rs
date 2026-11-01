@@ -26,6 +26,10 @@ fn info() -> StatusInfo {
         column_mode: false,
         untitled: false,
         follow: false,
+        line_count: Some(120),
+        selection: None,
+        log_colors: false,
+        special: false,
         line: Some(3),
         column: 4,
         offset: 23,
@@ -47,7 +51,7 @@ fn pezzo(testo: &str, comando: Option<Cmd>) -> Pezzo {
 #[test]
 fn the_status_text_in_english() {
     let t = testi_stato(&info(), &Catalog::english());
-    assert_eq!(t.sinistra, "Ln 3  Col 4  byte 23  2%");
+    assert_eq!(t.sinistra, "Ln 3 / 120   Col 4   byte 23   2%");
     assert_eq!(
         t.destra,
         vec![
@@ -86,7 +90,7 @@ fn an_unknown_line_is_a_question_mark() {
     s.line = None;
     assert_eq!(
         testi_stato(&s, &Catalog::english()).sinistra,
-        "Ln ?  Col 4  byte 23  2%"
+        "Ln ? / 120   Col 4   byte 23   2%"
     );
 }
 
@@ -139,7 +143,7 @@ fn the_status_speaks_the_chosen_language() {
         .find(|l| l.code == "it")
         .expect("c'e' l'italiano");
     let t = testi_stato(&info(), &Catalog::with(it));
-    assert_eq!(t.sinistra, "Rg 3  Col 4  byte 23  2%");
+    assert_eq!(t.sinistra, "Rg 3 / 120   Col 4   byte 23   2%");
     assert_eq!(t.destra[0], pezzo("LETTURA", Some(Cmd::EditMode)));
 }
 
@@ -296,13 +300,13 @@ fn the_status_text_follows_the_cursor() {
     disegna(&mut f, &ctx);
     assert_eq!(
         f.stato_disegnato().unwrap().sinistra,
-        "Ln 1  Col 1  byte 0  0%"
+        "Ln 1 / 3   Col 1   byte 0   0%"
     );
     giro(&mut f, &ctx, vec![tasto(Key::ArrowDown)]);
     giro(&mut f, &ctx, vec![]);
     assert_eq!(
         f.stato_disegnato().unwrap().sinistra,
-        "Ln 2  Col 1  byte 4  33%"
+        "Ln 2 / 3   Col 1   byte 4   33%"
     );
     let _ = std::fs::remove_file(p);
 }

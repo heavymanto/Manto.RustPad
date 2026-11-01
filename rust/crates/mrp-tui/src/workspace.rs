@@ -485,6 +485,22 @@ impl Workspace {
         }
     }
 
+    /// I numeri di riga si vedono.
+    pub fn line_numbers(&self) -> bool {
+        self.cfg.line_numbers
+    }
+
+    /// Alt+N: mostra o nasconde i numeri di riga in tutte le schede; la scelta si salva nelle impostazioni e vale per le
+    /// schede nuove.
+    pub fn toggle_line_numbers(&mut self) {
+        self.cfg.line_numbers = !self.cfg.line_numbers;
+        let (visibili, attiva) = (self.cfg.line_numbers, self.active);
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_line_numbers(visibili, i == attiva);
+        }
+    }
+
     /// La colorazione dei log e' accesa.
     pub fn log_colors(&self) -> bool {
         self.cfg.log_colors
@@ -961,6 +977,9 @@ impl Workspace {
                 }
                 KeyCode::Char('l') | KeyCode::Char('L') if alt && !ctrl => {
                     return self.toggle_log_colors()
+                }
+                KeyCode::Char('n') | KeyCode::Char('N') if alt && !ctrl => {
+                    return self.toggle_line_numbers()
                 }
                 // Ctrl+N: un documento nuovo e vuoto in una scheda nuova
                 KeyCode::Char('n') | KeyCode::Char('N') if ctrl => {

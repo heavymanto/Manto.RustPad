@@ -327,6 +327,8 @@ pub struct AppConfig {
     pub special_chars: bool,
     /// Vero: la colorazione dei log e' accesa all'avvio (vedi `Settings::log_colors`).
     pub log_colors: bool,
+    /// Vero (predefinito): i numeri di riga si vedono a sinistra del testo (vedi `Settings::line_numbers`).
+    pub line_numbers: bool,
     /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
     /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
     pub eol: Option<LineEnding>,
@@ -348,6 +350,7 @@ impl Default for AppConfig {
             nav_bar: false,
             special_chars: false,
             log_colors: false,
+            line_numbers: true,
             chrome: true,
             eol: None,
         }
@@ -393,6 +396,18 @@ pub enum Busy {
     Indexing,
 }
 
+/// Cio' che e' selezionato (`StatusInfo::selection`): una selezione di flusso (byte e, con l'indice righe, quante righe tocca)
+/// o un blocco della modalita' colonna (righe per colonne).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SelInfo {
+    /// I byte selezionati (0 per un blocco).
+    pub bytes: u64,
+    /// Le righe toccate dalla selezione di flusso (`None` senza l'indice righe).
+    pub lines: Option<u64>,
+    /// Righe e colonne del blocco, se e' un blocco.
+    pub block: Option<(u64, u64)>,
+}
+
 /// Lo stato del documento per una riga di stato disegnata dalla finestra (`App::status`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StatusInfo {
@@ -407,6 +422,13 @@ pub struct StatusInfo {
     pub untitled: bool,
     /// Si segue la coda del file (Alt+F).
     pub follow: bool,
+    /// Quante righe ha il documento (`None` finche' l'indice non e' pronto).
+    pub line_count: Option<u64>,
+    /// Cio' che e' selezionato, se c'e' qualcosa.
+    pub selection: Option<SelInfo>,
+    /// La colorazione dei log e i caratteri speciali sono accesi.
+    pub log_colors: bool,
+    pub special: bool,
     /// La riga del cursore (da 1; `None` finche' l'indice non e' pronto), la colonna (da 1), il byte e la percentuale.
     pub line: Option<u64>,
     pub column: usize,
@@ -766,6 +788,8 @@ pub struct App {
     special: bool,
     /// La colorazione dei log (livelli, orari, indirizzi) e' accesa (la scelta si salva, vale per tutte le schede).
     log_colors: bool,
+    /// I numeri di riga si vedono (la scelta si salva, vale per tutte le schede).
+    line_numbers: bool,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
     /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
@@ -933,6 +957,7 @@ impl App {
             nav_bar: cfg.nav_bar,
             special: cfg.special_chars,
             log_colors: cfg.log_colors,
+            line_numbers: cfg.line_numbers,
             chrome: cfg.chrome,
             eol_forzato: cfg.eol,
             lang_picked,
@@ -1739,6 +1764,7 @@ impl App {
             nav_bar: self.nav_bar,
             special_chars: self.special,
             log_colors: self.log_colors,
+            line_numbers: self.line_numbers,
             theme_set: true,
         };
         let _ = s.save(&path);
@@ -3184,6 +3210,19 @@ impl App {
         self.special
     }
 
+    /// I numeri di riga si vedono.
+    pub fn line_numbers(&self) -> bool {
+        self.line_numbers
+    }
+
+    /// Ricorda se i numeri di riga si vedono; con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_line_numbers(&mut self, visibili: bool, salva: bool) {
+        self.line_numbers = visibili;
+        if salva {
+            self.save_settings();
+        }
+    }
+
     /// La colorazione dei log e' accesa.
     pub fn log_colors(&self) -> bool {
         self.log_colors
@@ -3260,7 +3299,13 @@ impl App {
         };
         let size = self.document_len();
         let offset = self.cursor;
+        let line_count = self.doc.as_mut().and_then(|d| d.line_count());
+        let selection = self.selection_info();
         StatusInfo {
+            line_count,
+            selection,
+            log_colors: self.log_colors,
+            special: self.special,
             file_name: self.file_name.clone(),
             size,
             edit: self.edit,
@@ -3285,6 +3330,35 @@ impl App {
             flash: self.flash.clone(),
             busy,
         }
+    }
+
+    /// Cio' che e' selezionato: un blocco (righe per colonne) o una selezione di flusso (byte e righe toccate).
+    fn selection_info(&mut self) -> Option<SelInfo> {
+        if let Some(b) = self.column_block() {
+            let righe = self.block.map_or(1, |b| b.rows);
+            return Some(SelInfo {
+                bytes: 0,
+                lines: None,
+                block: Some((righe, b.col_b - b.col_a)),
+            });
+        }
+        let (da, a) = self.selection()?;
+        if a <= da {
+            return None;
+        }
+        let righe = self.doc.as_mut().and_then(|d| {
+            if !d.has_lines() {
+                return None;
+            }
+            let prima = d.line_at_offset(da)?;
+            let ultima = d.line_at_offset(a - 1)?;
+            Some(ultima - prima + 1)
+        });
+        Some(SelInfo {
+            bytes: a - da,
+            lines: righe,
+            block: None,
+        })
     }
 
     /// Dove sta la finestra nel documento, come frazioni da 0 a 1: da dove comincia e quanta parte ne mostra (serve alla
@@ -3714,6 +3788,9 @@ impl App {
 
     /// Larghezza del gutter: le cifre della lunghezza del documento piu' il separatore.
     pub(crate) fn gutter_w(&self) -> usize {
+        if !self.line_numbers {
+            return 0;
+        }
         cifre(self.document_len()) + 1
     }
 

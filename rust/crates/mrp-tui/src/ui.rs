@@ -136,11 +136,17 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         } else {
             None
         };
-        let mut gutter = match num {
-            Some(n) => format!("{:>width$}", n, width = gutter_w - 1),
-            None => " ".repeat(gutter_w - 1),
+        // senza i numeri di riga il margine non c'e' proprio (ne' i numeri ne' il filetto)
+        let gutter = if gutter_w == 0 {
+            String::new()
+        } else {
+            let mut g = match num {
+                Some(n) => format!("{:>width$}", n, width = gutter_w - 1),
+                None => " ".repeat(gutter_w - 1),
+            };
+            g.push('│');
+            g
         };
-        gutter.push('│');
         let mut text = row.text.clone();
         if row.more_left {
             replace_first(&mut text, '«');
