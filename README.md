@@ -2,11 +2,12 @@
   <tr>
     <td valign="middle">
       <h1>Manto.RustPad</h1>
-      <h3>The editor for files that don't fit in RAM</h3>
-      <p><strong><em>A familiar, non-modal text editor in Rust whose memory use does not depend on file size, that never silently truncates your data, and that opens a multi-gigabyte file like a viewer and becomes editable on demand.</em></strong></p>
+      <h3>A log viewer for files that don't fit in RAM, with column editing</h3>
+      <p><strong><em>Open and scroll through a file of 100 GB, instantly, like a log viewer — line numbers, jump to a line or a time, follow the end, filter, colours — and when you need to change something, edit it in place, with column (block) editing. A familiar, non-modal editor in Rust whose memory use does not depend on file size and that never silently truncates your data.</em></strong></p>
       <p>
         <img src="https://img.shields.io/badge/OPENS-INSTANTLY-e3b341?style=for-the-badge" alt="opens instantly" />
-        <img src="https://img.shields.io/badge/MEMORY-NOT%20THE%20FILE%20SIZE-e3b341?style=for-the-badge" alt="memory independent of file size" />
+        <img src="https://img.shields.io/badge/SCROLLS-100%20GB%20FILES-e3b341?style=for-the-badge" alt="scrolls files of 100 GB" />
+        <img src="https://img.shields.io/badge/COLUMN--MODE-EDITING-e3b341?style=for-the-badge" alt="column mode editing" />
         <img src="https://img.shields.io/badge/NEVER-TRUNCATES-e3b341?style=for-the-badge" alt="never truncates" />
       </p>
       <p>
@@ -30,6 +31,8 @@
 ---
 
 ## The idea
+
+**What it is for.** Reading a huge log the way a log viewer does — open it at once, drag the scrollbar anywhere, jump to a line or to a time, follow the end, filter the lines that matter — and then, in the same program and on the same file, **editing it, column (block) editing included**: the thing the read-only log viewers cannot do and the editors that load the whole file cannot afford. A file of 100 GB opens in milliseconds; its line numbers fill in from a background index while you already read.
 
 Large text files — logs, SQL dumps, CSV exports, XML — are routine, and the tools around them fall into two camps:
 
@@ -85,16 +88,17 @@ The packages (a ZIP for Windows, a tar.gz for Linux and macOS, each with its SHA
 | --- | --- | --- |
 | **What it is** | a full-screen editor for any terminal (ratatui), made for servers and SSH | a desktop application (egui): real menus, toolbar, status bar, scrollbar and dialogs, the system clipboard, CJK fonts and drag-and-drop |
 | **Start it** | `mrp-tui file...` | `mrp-gui file...` (without a file it restores the last session, or opens an empty "Untitled 1") |
-| **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Help), a toolbar with icons, a right-click menu and the native open / save dialogs |
+| **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Log, Help), a toolbar with icons, a right-click menu and the native open / save dialogs |
 | **Tabs** | a bar on the first row, one tab per file | a strip with a close button per tab |
-| **Look** | four terminal themes | six themes; follows the system light / dark setting until you pick one |
+| **Look** | four terminal themes | Automatic (follows the system light / dark setting), Light or Dark |
 | **The mouse** | positions the cursor, selects (double click: word, triple click: row), picks a tab | the same, and middle-click closes a tab |
 
 Both share **one engine**: the editor's logic (documents, tabs, search, edits, sessions) lives in one place; `mrp-gui` draws the text as the same cell grid but wraps it in its own native controls. A feature added to the engine is in both.
 
 ## What it does
 
-- **Opens like a viewer, edits when you ask.** Instant, memory-mapped, read-only navigation; press `F4` and the same file becomes editable.
+- **A log viewer for huge files.** Opens instantly (memory-mapped, read-only) and scrolls with the wheel, the scrollbar, `PgUp/PgDn` and the page-jump bar (`Alt+PgUp/PgDn` jump 10 pages, with Shift 100, with Ctrl 1000: configurable with the gear). The line numbers (on by default, `Alt+N`) come from a sparse index built in the background — the status bar shows the progress and says you can keep working, and the index **pauses while you jump** so the disk stays free. Go to a line (`Ctrl+G`) or to a time, follow the end like `tail -f`, filter lines like `grep`, colour the log levels; the status bar always shows line / total, column, byte, percent and the selection. On a 100 GB file on a hard disk it opens in 36 ms ([measured](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
+- **…and you can edit it, with column editing.** Press `F4` and the same file becomes editable — no reload, no copy. **Column (block) mode** is a first-class selection type in the core (`F8`), also with the mouse: `Alt`+drag draws the block (and turns the mode on); with the mode on, a plain drag is enough. Typing, `Tab`, `Backspace`, `Delete`, copy, cut and paste act on every row of the block at once (up to 200,000 rows), in a file of any size.
 - **Memory independent of file size.** Tens of MiB, whatever the file. Never the whole file in memory.
 - **Never loses data.** 64-bit offsets throughout, tests on files above 4 GiB, loud failure instead of silent truncation, crash-safe save.
 - **Tabs.** Several files at once, each with its own search, edit history and cursor. `Ctrl+O` opens (a file already open just comes
@@ -105,7 +109,6 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
 - **Find and Replace with glob and regex.** `Ctrl+F` / `F3` search; `Ctrl+H` replaces. Three modes — plain **text**, **glob** (`*`, `?`, `[abc]`)
   and **regex** (with `$1` and `${name}` in the replacement) — plus match case and a scope: this tab or **all open tabs**.
   `Enter` first shows a **preview** (*"9 matches in 2 tab(s)"*, nothing touched), a second `Enter` applies it, and one `Ctrl+Z` undoes the whole thing.
-- **Column (block) mode**, a first-class selection type in the core (`F8`), also with the mouse: `Alt`+drag draws the block (and turns the mode on); with the mode on, a plain drag is enough.
 - **Filter lines** (`Alt+G`, like `grep`): shows only the lines that match (text, glob or regex, with or without case; `Alt+I` shows the ones that do NOT match) in a new read-only tab `[filter] text`. It runs in the background on a file of any size (progress in the status line, `Esc` cancels), never holds more than a block in memory, and `Enter` on a result jumps to that line in the real file.
 - **Log colouring** (`Alt+L`, off by default): the level of a line (ERROR/FATAL in red, WARN in yellow, INFO in green, DEBUG in grey), dates and times, and IPv4 addresses get their own colours in every theme; error and warning lines are tinted whole. Found by hand-written scanning of the visible text, so it costs nothing on a huge file. ![log colours](docs/img/gui-log-colors.png)
 - **Jump to a time** (`Ctrl+G`, then `~03:20` or `~2026-10-31 09:00`): in a log whose times only go up, a binary search over the bytes finds the first line at or after that time in a few dozen reads, with no index, even in a file of hundreds of GB. Lines without a time (stack traces, headers) are crossed.
@@ -113,8 +116,8 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
 - **Visible whitespace** (`Alt+W`): spaces as `·`, tabs as `→`, line ends as `¶`, control characters as `¤`; columns and mouse positions do not move. Saved with your settings.
 - **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included), 53 single-byte code pages
   (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) and the East-Asian multi-byte encodings (Shift_JIS, EUC-JP,
-  GBK, GB18030, Big5, EUC-KR) — on files larger than RAM. Chosen with `F9` or `--encoding`, or recognised at open (the multi-byte ones are never guessed: pick them by hand).
-- **Six themes and seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
+  GBK, GB18030, Big5, EUC-KR) — on files larger than RAM. Chosen with `F9` or `--encoding`, or recognised at open (the multi-byte ones are never guessed: pick them by hand). **Save As** can write the file in another encoding (and with or without a BOM), converting it in blocks while it writes.
+- **A Settings window** (`Ctrl+,`) collecting every option with its key written beside it, **themes** (six in the terminal; in the window *Automatic* — it follows the system light / dark setting — *Light* and *Dark*) and **seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
 
 Non-goals: a log analyser (use lnav, logana, klogg: the log aids here — follow, colours, jump to a time, filter — are what a viewer needs, not an analysis) and a plugin/IDE platform.
 
@@ -122,12 +125,10 @@ Non-goals: a log analyser (use lnav, logana, klogg: the log aids here — follow
 
 | | |
 |:---:|:---:|
-| ![night](docs/img/gui-night.png) | ![debian](docs/img/gui-debian.png) |
-| `night` | `debian` |
-| ![console](docs/img/gui-console.png) | ![minimal](docs/img/gui-minimal.png) |
-| `console` (the default in the terminal) | `minimal` |
 | ![dark](docs/img/gui-dark.png) | ![light](docs/img/gui-light.png) |
 | `dark` | `light` |
+
+The window follows the system: light if the system is light, dark otherwise, and it follows it live if it changes. Choosing Light or Dark in the Settings pins it; *Automatic* gives the choice back to the system. The terminal editor has four themes of its own (`night`, `debian`, `console`, the default, and `minimal`; `F6`).
 
 The terminal picture in *Two front ends* is Replace showing its preview before anything changes (`Ctrl+H`, then `Alt+M` for the mode, `Alt+C` for case, `Alt+A` for the scope).
 <sub>It is rendered from the editor's own `--dump` text output, so it has no colours; the real terminal uses the theme's.</sub>

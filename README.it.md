@@ -2,11 +2,12 @@
   <tr>
     <td valign="middle">
       <h1>Manto.RustPad</h1>
-      <h3>L'editor per i file che non stanno in RAM</h3>
-      <p><strong><em>Un editor di testo in Rust, con comandi familiari (non modale), la cui memoria non dipende dalla dimensione del file, che non tronca mai i dati in silenzio e che apre un file da molti gigabyte come un viewer, diventando modificabile a richiesta.</em></strong></p>
+      <h3>Un viewer di log per i file che non stanno in RAM, con la modifica a colonna</h3>
+      <p><strong><em>Apri e scorri un file da 100 GB, subito, come un viewer di log — numeri di riga, salto a una riga o a un orario, segui la fine, filtro, colori — e quando serve cambiare qualcosa lo modifichi sul posto, con la modifica a colonna (a blocchi). Un editor familiare, non modale, in Rust, la cui memoria non dipende dalla dimensione del file e che non tronca mai i dati in silenzio.</em></strong></p>
       <p>
         <img src="https://img.shields.io/badge/SI%20APRE-SUBITO-e3b341?style=for-the-badge" alt="si apre subito" />
-        <img src="https://img.shields.io/badge/MEMORIA-NON%20DIPENDE%20DAL%20FILE-e3b341?style=for-the-badge" alt="memoria indipendente dalla dimensione del file" />
+        <img src="https://img.shields.io/badge/SCORRE-FILE%20DA%20100%20GB-e3b341?style=for-the-badge" alt="scorre file da 100 GB" />
+        <img src="https://img.shields.io/badge/MODIFICA-A%20COLONNA-e3b341?style=for-the-badge" alt="modifica a colonna" />
         <img src="https://img.shields.io/badge/NON-TRONCA%20MAI-e3b341?style=for-the-badge" alt="non tronca mai" />
       </p>
       <p>
@@ -30,6 +31,8 @@
 ---
 
 ## L'idea
+
+**A cosa serve.** Leggere un log enorme come fa un viewer di log — aprirlo subito, trascinare la scrollbar dove vuoi, saltare a una riga o a un orario, seguire la fine, filtrare le righe che contano — e poi, nello stesso programma e sullo stesso file, **modificarlo, anche a colonna (a blocchi)**: quello che i viewer di sola lettura non sanno fare e che gli editor che caricano tutto il file non possono permettersi. Un file da 100 GB si apre in millisecondi; i numeri di riga si riempiono da un indice in background mentre già leggi.
 
 I file di testo enormi (log, dump SQL, esportazioni CSV, XML) sono routine, e gli strumenti si dividono in due campi:
 
@@ -85,16 +88,17 @@ compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido
 | --- | --- | --- |
 | **Cos'è** | un editor a tutto schermo per qualsiasi terminale (ratatui), pensato per server e SSH | un'applicazione desktop (egui): menu, barra degli strumenti, barra di stato, scorrimento e dialoghi veri, gli appunti di sistema, i caratteri CJK e il trascinamento dei file |
 | **Avvio** | `mrp-tui file...` | `mrp-gui file...` (senza file riprende l'ultima sessione, o apre un "Senza nome 1" vuoto) |
-| **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Aiuto), una barra degli strumenti con le icone, il menu del tasto destro e i dialoghi nativi di apertura e salvataggio |
+| **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Log, Aiuto), una barra degli strumenti con le icone, il menu del tasto destro e i dialoghi nativi di apertura e salvataggio |
 | **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
-| **Aspetto** | quattro temi da terminale | sei temi; segue l'impostazione chiaro / scuro del sistema finché non ne scegli uno |
+| **Aspetto** | quattro temi da terminale | Automatico (segue l'impostazione chiaro / scuro del sistema), Chiaro o Scuro |
 | **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
 
 Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerca, modifiche, sessioni) sta in un posto solo; `mrp-gui` disegna il testo come la stessa griglia di celle, ma la avvolge nei propri controlli nativi. Una funzione aggiunta al motore c'è in entrambi.
 
 ## Cosa fa
 
-- **Si apre come un viewer, si modifica a richiesta.** Navigazione istantanea, mappata in memoria, in sola lettura; premi `F4` e lo stesso file diventa modificabile.
+- **Un viewer di log per file enormi.** Si apre subito (mappato in memoria, in sola lettura) e scorre con la rotella, la scrollbar, `PgSu/PgGiù` e la barra dei salti (`Alt+PgSu/PgGiù` saltano di 10 pagine, con Maiusc 100, con Ctrl 1000: configurabili con l'ingranaggio). I numeri di riga (accesi di fabbrica, `Alt+N`) vengono da un indice sparso costruito in background: la barra di stato mostra l'avanzamento e dice che puoi continuare a lavorare, e l'indice **si ferma mentre salti**, così il disco resta libero. Vai a una riga (`Ctrl+G`) o a un orario, segui la fine come `tail -f`, filtra le righe come `grep`, colora i livelli del log; la barra di stato mostra sempre riga / totale, colonna, byte, percentuale e selezione. Su un file da 100 GB su disco meccanico si apre in 36 ms ([misurato](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
+- **…e lo puoi modificare, anche a colonna.** Premi `F4` e lo stesso file diventa modificabile, senza ricaricare e senza copie. La **modalità colonna (a blocchi)** è un tipo di selezione di prima classe nel motore (`F8`), anche col mouse: `Alt`+trascinamento disegna il blocco (e accende la modalità); con la modalità accesa basta trascinare. Scrittura, `Tab`, `Backspace`, `Canc`, copia, taglia e incolla agiscono su tutte le righe del blocco insieme (fino a 200.000 righe), in un file di qualsiasi dimensione.
 - **Memoria indipendente dalla dimensione del file.** Decine di MiB, qualunque sia il file. Mai l'intero file in memoria.
 - **Non perde mai dati.** Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore chiaro invece di troncamento silenzioso, salvataggio a prova di interruzione.
 - **Schede.** Più file insieme, ciascuno con la propria ricerca, cronologia delle modifiche e cursore. `Ctrl+O` apre (un file già aperto torna solo in primo piano),
@@ -105,7 +109,6 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
 - **Cerca e Sostituisci con glob e regex.** `Ctrl+F` / `F3` cercano; `Ctrl+H` sostituisce. Tre modi — **testo** semplice, **glob** (`*`, `?`, `[abc]`)
   e **regex** (con `$1` e `${nome}` nella sostituzione) — più maiuscole/minuscole e un ambito: questa scheda o **tutte le schede aperte**.
   Il primo `Invio` mostra l'**anteprima** (*"9 occorrenze in 2 scheda/e"*, senza toccare niente), il secondo applica, e un solo `Ctrl+Z` annulla tutto.
-- **Modalità colonna (a blocchi)**, un tipo di selezione di prima classe nel motore (`F8`), anche col mouse: `Alt`+trascinamento disegna il blocco (e accende la modalità); con la modalità accesa basta trascinare.
 - **Filtra le righe** (`Alt+G`, come `grep`): mostra solo le righe che corrispondono (testo, glob o regex, con o senza maiuscole; `Alt+I` mostra quelle che NON corrispondono) in una scheda nuova di sola lettura `[filtro] testo`. Gira in background su un file di qualsiasi dimensione (avanzamento nella riga di stato, `Esc` annulla), non tiene mai in memoria più di un blocco, e `Invio` su un risultato salta a quella riga nel file vero.
 - **Colori dei log** (`Alt+L`, spenti di fabbrica): il livello di una riga (ERROR/FATAL in rosso, WARN in giallo, INFO in verde, DEBUG in grigio), le date e gli orari e gli indirizzi IPv4 hanno ciascuno il proprio colore in ogni tema; le righe di errore e di avviso si tingono per intero. Si trovano scorrendo a mano il solo testo visibile, quindi non costano nulla su un file enorme. ![colori dei log](docs/img/gui-log-colors.png)
 - **Salta a un orario** (`Ctrl+G`, poi `~03:20` o `~2026-10-31 09:00`): in un log con gli orari che solo crescono, una ricerca binaria sui byte trova la prima riga da quell'orario in poi in poche decine di letture, senza indice, anche in un file di centinaia di GB. Le righe senza orario (tracce, intestazioni) si attraversano.
@@ -113,8 +116,8 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
 - **Caratteri speciali visibili** (`Alt+W`): spazi come `·`, tabulazioni come `→`, fine riga come `¶`, caratteri di controllo come `¤`; le colonne e le posizioni del mouse non si spostano. Si salva con le impostazioni.
 - **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 53 tabelle di caratteri a byte singolo
   (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, i set Mac, US-ASCII) e le codifiche asiatiche a più byte (Shift_JIS, EUC-JP,
-  GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano).
-- **Sei temi e sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
+  GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano). **Salva con nome** può scrivere il file in un'altra codifica (con o senza BOM), convertendolo a blocchi mentre scrive.
+- **Una finestra Impostazioni** (`Ctrl+,`) che raccoglie ogni opzione col suo tasto scritto accanto, i **temi** (sei nel terminale; nella finestra *Automatico* — segue l'impostazione chiaro / scuro del sistema — *Chiaro* e *Scuro*) e **sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
 
 Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg: gli aiuti per i log che ci sono qui — seguire, colori, salto a un orario, filtro — sono quelli che servono a un lettore, non un'analisi) e una piattaforma di plugin/IDE.
 
@@ -122,12 +125,10 @@ Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg: gli aiut
 
 | | |
 |:---:|:---:|
-| ![night](docs/img/gui-night.png) | ![debian](docs/img/gui-debian.png) |
-| `night` | `debian` |
-| ![console](docs/img/gui-console.png) | ![minimal](docs/img/gui-minimal.png) |
-| `console` (il predefinito nel terminale) | `minimal` |
 | ![dark](docs/img/gui-dark.png) | ![light](docs/img/gui-light.png) |
 | `dark` (scuro) | `light` (chiaro) |
+
+La finestra segue il sistema: chiara se il sistema è chiaro, scura altrimenti, e lo segue dal vivo se cambia. Scegliere Chiaro o Scuro nelle Impostazioni lo fissa; *Automatico* restituisce la scelta al sistema. L'editor da terminale ha quattro temi suoi (`night`, `debian`, `console`, il predefinito, e `minimal`; `F6`).
 
 L'immagine del terminale in *Due programmi* mostra Sostituisci con la sua anteprima prima che cambi qualcosa (`Ctrl+H`, poi `Alt+M` per il modo, `Alt+C` per le maiuscole, `Alt+A` per l'ambito).
 <sub>È generata dal testo dell'opzione `--dump` dell'editor, quindi è senza colori; il terminale vero usa quelli del tema.</sub>

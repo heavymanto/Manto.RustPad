@@ -213,6 +213,19 @@ Same driver ([`bench/mrp_bench.py`](../bench/mrp_bench.py)), cache flushed (a 30
 
 The edit lands on the right byte and the file grows by exactly 3 bytes in every edit run. Caveats: the "line jump usable" time has a granularity of about 3.8 s (the driver retries every 1 s, waiting up to 2.5 s for the "still building" message); `Ctrl+End`/`Ctrl+Home` are "time until the screen stops changing" and depend on whether the index is still reading the disk; one run each, shared machine. The 66.6 s save on the mechanical disk compares with 153.6 s measured earlier with the build before E21 while the machine was busy: do not read it as an improvement. An earlier version of the driver took the line number echoed by the "go to" prompt as "arrived" and could edit at offset 0 when the index was not ready; the raw lines in `*_pre_e21.jsonl` from that version are marked by `edit_applied: false` where it happened. A real (non-sparse) 100 GB file was not tried.
 
+### A 100 GB file on a hard disk
+
+2026-11-01, the editor itself (`mrp-gui` engine, release build), a real file of 100 GiB (not sparse: written with `cp --sparse=never`, zeros) on the mechanical disk `D:`, Windows file cache **not** emptied (the file had just been written, so the first measurements are optimistic for the cache and pessimistic for the disk, which was still writing). Timed by an ignored test, [`crates/mrp-gui/tests/grande_prova.rs`](../rust/crates/mrp-gui/tests/grande_prova.rs) (`MRP_BIG=<file>`).
+
+| | Result |
+|---|---|
+| Open (`App::open`) | 36 ms |
+| First frame drawn | 3.1 s (the disk was busy flushing the copy; to be measured again with the disk idle) |
+| One scrollbar jump to the middle of the file, then the frame | 14–170 ms, frames around 50 ms |
+| Line index, speed | about 2 % of 100 GiB in 30 s (≈ 70 MB/s) while the disk was busy; ≈ 145 MB/s on a 30 GiB file the run before — 12 to 25 minutes for 100 GiB |
+
+Two fixes came out of the first tests with a file of zeros (one single line without a line break): a screen cost up to 40 MiB of reads because every row looked for its line break up to the 1 MiB scan limit (one frame ≈ 120 ms; the limit is now 128 KiB: ≈ 17 ms), and the index now **pauses while you jump** (scrollbar, Go to, `Alt+PgUp/PgDn`, `Ctrl+Home/End`) and resumes 0.4 s after the last jump. The pause was not measured on a cold disk: after the first run the pages were in the file cache.
+
 ## What this means for Manto.RustPad
 
 These are **targets** derived from the tables above. The first three are now met for the line index (previous section); the rest are still open:
