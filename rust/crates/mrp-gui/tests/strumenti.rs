@@ -95,7 +95,9 @@ fn a_tooltip_is_the_name_and_the_shortcut() {
         (Cmd::Save, "Save (F2)"),
         (Cmd::SaveAs, "Save as… (Ctrl+Shift+S)"),
         (Cmd::Undo, "Undo (Ctrl+Z)"),
-        (Cmd::Find, "Find… (Ctrl+F)"),
+        (Cmd::Find, "Find… (F3)"),
+        (Cmd::Replace, "Replace… (F4)"),
+        (Cmd::EditMode, "Edit mode (F12)"),
         (Cmd::NavBar, "Page-jump bar (Ctrl+B)"),
         (Cmd::ZoomIn, "Zoom in (Ctrl++)"),
         (Cmd::Home, "Go to start (Ctrl+Home)"),
@@ -339,7 +341,7 @@ fn buttons_are_grey_when_the_command_makes_no_sense_and_toggles_light_up() {
         assert!(!pulsante(&f, c).1, "{c:?} parte non premuto");
     }
     // F4: modifica; un carattere: salva e annulla si accendono; F8: colonna; Ctrl+B: salti
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::F8, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![tasto(Key::B, ctrl())]);

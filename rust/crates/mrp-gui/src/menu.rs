@@ -17,12 +17,23 @@ pub struct Voce {
     pub azione: Cmd,
 }
 
+/// La scorciatoia di un comando come la scrive la finestra: quella del registro, tranne Trova (F3), Sostituisci (F4) e
+/// Lettura / modifica (F12), che nella finestra hanno i tasti standard (`input::tasto` li traduce).
+pub fn scorciatoia(cmd: Cmd) -> &'static str {
+    match cmd {
+        Cmd::Find => "F3",
+        Cmd::Replace => "F4",
+        Cmd::EditMode => "F12",
+        _ => cmd.info().shortcut,
+    }
+}
+
 /// La voce di un comando, dalla sua scheda nel registro.
 pub fn voce_di(cmd: Cmd) -> Voce {
     let i = cmd.info();
     Voce {
         chiave: i.label,
-        scorciatoia: i.shortcut,
+        scorciatoia: scorciatoia(cmd),
         azione: cmd,
     }
 }

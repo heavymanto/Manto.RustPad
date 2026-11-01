@@ -70,6 +70,13 @@ pub fn tasto(key: Key, m: Modifiers) -> Option<KeyEvent> {
         Key::Enter => KeyCode::Enter,
         Key::Escape => KeyCode::Esc,
         Key::Tab if m.shift => return Some(KeyEvent::new(KeyCode::BackTab, mods)),
+        // i tasti standard della finestra: F4 = Sostituisci (come Ctrl+H), F12 = lettura / modifica (nel terminale e' F4)
+        Key::F4 if mods == KeyModifiers::NONE => {
+            return Some(KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL))
+        }
+        Key::F12 if mods == KeyModifiers::NONE => {
+            return Some(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE))
+        }
         Key::Tab => KeyCode::Tab,
         k if funzione(k).is_some() => KeyCode::F(funzione(k)?),
         k => {

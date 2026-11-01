@@ -196,7 +196,7 @@ fn the_goto_field_starts_fresh_on_each_open_and_escape_cancels() {
 #[test]
 fn the_dialog_buttons_lie_left_to_right() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F4);
+    premi(&mut f, &ctx, Key::F12);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     f.workspace().active_mut().request_close();
     disegna(&mut f, &ctx);

@@ -990,20 +990,20 @@ impl Finestra {
             self.pulsanti.clear();
             self.rettangolo_strumenti = None;
         }
+        // la barra dei salti, senza la cornice e solo se accesa (Ctrl+B): sta sotto gli strumenti e sopra le schede, al
+        // posto della barra a celle del terminale
+        if !self.ws.active().chrome() && self.ws.nav_bar() {
+            self.salti(ctx);
+        } else {
+            self.pulsanti_salti_v.clear();
+            self.rettangolo_salti = None;
+        }
         if let Some(s) = self.schede(ctx) {
             match s {
                 Scheda::Seleziona(i) => self.ws.select(i),
                 Scheda::Chiudi(i) => self.ws.close(i),
             }
             self.ultimo_input = Instant::now();
-        }
-        // la barra dei salti, senza la cornice e solo se accesa (Ctrl+B): sta sotto la barra delle schede, sopra il
-        // testo, al posto della barra a celle del terminale
-        if !self.ws.active().chrome() && self.ws.nav_bar() {
-            self.salti(ctx);
-        } else {
-            self.pulsanti_salti_v.clear();
-            self.rettangolo_salti = None;
         }
         // la barra di stato e la scrollbar, solo senza la cornice del terminale (con la cornice le disegna l'App
         // nella sua griglia): la barra resta il pannello piu' esterno in basso, la scrollbar prende il lato destro

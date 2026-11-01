@@ -62,7 +62,11 @@ pub fn gruppi() -> Vec<Vec<Cmd>> {
 /// Il tooltip di un pulsante: il nome del comando nella lingua attiva e la sua scorciatoia, `nome (scorciatoia)`.
 pub fn tooltip(cmd: Cmd, cat: &Catalog) -> String {
     let info = cmd.info();
-    format!("{} ({})", cat.t(info.label), info.shortcut)
+    format!(
+        "{} ({})",
+        cat.t(info.label),
+        crate::menu::scorciatoia(info.cmd)
+    )
 }
 
 /// Cosa fa un pulsante della barra dei salti.

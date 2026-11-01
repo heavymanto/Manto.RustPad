@@ -122,7 +122,7 @@ fn typed_text_and_keys_reach_the_app() {
     let (mut f, ctx, p) = finestra(b"abc\n");
     giro(&mut f, &ctx, vec![]);
     // F4: modifica; poi il testo digitato
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     assert!(f.app().is_edit());
     let out = giro(&mut f, &ctx, vec![Event::Text("xy".into())]);
     assert_eq!(f.app().document_text(), b"xyabc\n");
@@ -150,7 +150,7 @@ fn typed_text_and_keys_reach_the_app() {
 fn a_letter_key_without_ctrl_does_not_type_twice() {
     // egui manda il tasto e il testo: solo il testo scrive
     let (mut f, ctx, p) = finestra(b"\n");
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(
         &mut f,
         &ctx,
@@ -168,7 +168,7 @@ fn copy_goes_to_the_system_clipboard_and_paste_comes_from_it() {
     // in lettura Ctrl+A non arriva oltre l'ultimo a-capo: l'a-capo finale non e nella copia
     assert_eq!(copie(&out), vec!["caff\u{e8} \u{65e5}\u{672c}".to_string()]);
     // incolla: in modifica, il testo degli appunti di sistema
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Paste("ZZ".into())]);
     assert!(f.app().document_text().windows(2).any(|w| w == b"ZZ"));
     let _ = std::fs::remove_file(p);
@@ -209,7 +209,7 @@ fn the_wheel_scrolls_the_text() {
 #[test]
 fn closing_a_modified_document_asks_first() {
     let (mut f, ctx, p) = finestra(b"abc\n");
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     let out = giro_con_chiusura(&mut f, &ctx);
     assert!(comandi(&out)
@@ -257,7 +257,7 @@ fn giro_con_file_trascinato(f: &mut Finestra, ctx: &Context, percorso: &std::pat
 #[test]
 fn a_dropped_file_opens_in_a_new_tab_even_with_unsaved_changes() {
     let (mut f, ctx, p) = finestra(b"uno\n");
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     let q = file(b"due\n");
     giro_con_file_trascinato(&mut f, &ctx, &q);
@@ -285,7 +285,7 @@ fn a_dropped_file_opens_in_a_new_tab_even_with_unsaved_changes() {
 #[test]
 fn ctrl_plus_and_minus_change_the_text_size_without_reaching_the_app() {
     let (mut f, ctx, p) = finestra(b"\n");
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     for k in [Key::Plus, Key::Minus, Key::Num0, Key::Equals] {
         giro(&mut f, &ctx, vec![tasto(k, ctrl())]);
     }
@@ -409,7 +409,7 @@ fn ctrl_w_closes_the_active_tab_and_asks_when_it_has_changes() {
         f.app().file_name(),
         file[0].file_name().unwrap().to_string_lossy()
     );
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::W, ctrl())]);
     // l'ultima scheda con modifiche: chiede, non chiude
@@ -463,7 +463,7 @@ fn clicking_a_tab_label_brings_that_tab_forward() {
 #[test]
 fn closing_the_window_with_changes_in_a_background_tab_asks_about_that_tab() {
     let (mut f, ctx, file) = finestra_con_schede();
-    giro(&mut f, &ctx, vec![tasto(Key::F4, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     f.workspace().select(0);
     assert!(!f.app().is_modified());

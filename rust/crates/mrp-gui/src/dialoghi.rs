@@ -122,7 +122,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             rect = egui::Window::new(titolo.as_str())
                 .collapsible(false)
                 .resizable(false)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ScrollArea::vertical()
                         .max_height(altezza * 0.7)
@@ -152,7 +153,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             rect = egui::Window::new(titolo.as_str())
                 .collapsible(false)
                 .resizable(false)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ScrollArea::vertical()
                         .max_height(altezza * 0.6)
@@ -195,7 +197,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collapsible(false)
                 .resizable(false)
                 .min_width(360.0)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ui.label(RichText::new(hint).weak());
                     let r =
@@ -229,7 +232,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collapsible(false)
                 .resizable(false)
                 .min_width(360.0)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ui.label(text.as_str());
                     ui.horizontal(|ui| {
@@ -255,7 +259,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collapsible(false)
                 .resizable(false)
                 .min_width(360.0)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ui.label(text.as_str());
                     ui.horizontal(|ui| {
@@ -292,7 +297,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collapsible(false)
                 .resizable(false)
                 .min_width(420.0)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ui.label(RichText::new(hint).weak());
                     let r =
@@ -366,7 +372,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collapsible(false)
                 .resizable(false)
                 .min_width(420.0)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     egui::Grid::new("sostituisci")
                         .num_columns(2)
@@ -437,7 +444,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collapsible(false)
                 .resizable(false)
                 .min_width(360.0)
-                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
                 .show(ctx, |ui| {
                     ui.label(text.as_str());
                     ui.add(egui::ProgressBar::new(f32::from(*percent) / 100.0));

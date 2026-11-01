@@ -159,7 +159,7 @@ fn help_has_one_button_and_it_closes_the_window() {
 #[test]
 fn keys_and_text_go_to_the_window_not_to_the_document_while_a_dialog_is_open() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F4);
+    premi(&mut f, &ctx, Key::F12);
     premi(&mut f, &ctx, Key::F1);
     disegna(&mut f, &ctx);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
@@ -302,7 +302,7 @@ fn goto_buttons_ok_runs_and_cancel_does_not() {
 #[test]
 fn the_exit_confirmation_has_three_buttons() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F4);
+    premi(&mut f, &ctx, Key::F12);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     f.workspace().active_mut().request_close();
     disegna(&mut f, &ctx);
@@ -327,7 +327,7 @@ fn the_exit_confirmation_has_three_buttons() {
 #[test]
 fn saving_and_quitting_from_the_confirmation_writes_the_file() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F4);
+    premi(&mut f, &ctx, Key::F12);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     f.workspace().active_mut().request_close();
     disegna(&mut f, &ctx);
