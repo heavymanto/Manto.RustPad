@@ -6,6 +6,7 @@ use super::{App, DialogKind};
 use crate::theme::ThemeId;
 use crate::ui::HELP_KEYS;
 use mrp_core::encoding::Encoding;
+pub use mrp_core::pattern::Mode;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 /// Una voce di un menu: il nome e un'annotazione (la descrizione di un tema, il marchio AI di una lingua; vuota per le
@@ -25,6 +26,18 @@ pub enum ConfirmChoice {
     Discard,
     /// Torna al documento.
     Cancel,
+}
+
+/// I testi delle opzioni di ricerca (Cerca e Sostituisci): il modo e le sue tre scelte, le maiuscole, l'ambito.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SearchLabels {
+    pub mode: String,
+    pub text: String,
+    pub glob: String,
+    pub regex: String,
+    pub case: String,
+    pub scope_one: String,
+    pub scope_all: String,
 }
 
 /// Un dialogo aperto, con i suoi testi nella lingua attiva.
@@ -47,6 +60,34 @@ pub enum DialogView {
         title: String,
         hint: String,
         text: String,
+    },
+    /// Cerca: il testo, il modo (testo, glob, regex), se le maiuscole contano, i testi delle opzioni e del pulsante.
+    Find {
+        title: String,
+        hint: String,
+        text: String,
+        mode: Mode,
+        case: bool,
+        labels: SearchLabels,
+        go: String,
+    },
+    /// Sostituisci: i due campi (e quale ha il fuoco), le opzioni, l'ambito, il messaggio e se l'anteprima e' pronta (il
+    /// pulsante diventa "applica").
+    Replace {
+        title: String,
+        find_label: String,
+        with_label: String,
+        find: String,
+        with: String,
+        field: u8,
+        mode: Mode,
+        case: bool,
+        all_tabs: bool,
+        status: String,
+        ready: bool,
+        labels: SearchLabels,
+        preview: String,
+        apply: String,
     },
     /// Il file scelto per "salva con nome" esiste gia': il titolo e la domanda.
     Overwrite { title: String, text: String },
@@ -102,6 +143,8 @@ impl App {
                     | DialogKind::Overwrite
                     | DialogKind::Confirm
                     | DialogKind::Saving
+                    | DialogKind::Find
+                    | DialogKind::Replace
             )
         )
     }
@@ -191,14 +234,102 @@ impl App {
                 text: cat.tf("save.text", &[&self.file_name]),
                 percent: self.save_progress().unwrap_or(0).min(100) as u8,
             },
-            // Cerca e Sostituisci non hanno ancora la vista
-            DialogKind::Find | DialogKind::Replace => return None,
+            DialogKind::Find => DialogView::Find {
+                title: t("prompt.find.title"),
+                hint: t("prompt.find.hint"),
+                text: self.find_text.clone(),
+                mode: self.search_mode,
+                case: self.search_case,
+                labels: self.search_labels(),
+                go: t("gui.find_go"),
+            },
+            DialogKind::Replace => DialogView::Replace {
+                title: t("prompt.replace.title"),
+                find_label: t("prompt.replace.find").trim().to_string(),
+                with_label: t("prompt.replace.with").trim().to_string(),
+                find: self.rep_find.clone(),
+                with: self.rep_with.clone(),
+                field: self.rep_field,
+                mode: self.search_mode,
+                case: self.search_case,
+                all_tabs: self.rep_all,
+                status: self.rep_status.clone(),
+                ready: self.rep_ready,
+                labels: self.search_labels(),
+                preview: t("gui.replace_preview"),
+                apply: t("gui.replace_apply"),
+            },
         })
     }
 
-    /// Imposta il testo del campo del dialogo aperto (vai a, apri, salva con nome); negli altri non fa niente.
+    /// I testi delle opzioni di ricerca nella lingua attiva.
+    fn search_labels(&self) -> SearchLabels {
+        let cat = self.catalog();
+        let t = |k: &str| cat.t(k).to_string();
+        SearchLabels {
+            mode: t("prompt.opt.mode"),
+            text: t("prompt.opt.text"),
+            glob: t("prompt.opt.glob"),
+            regex: t("prompt.opt.regex"),
+            case: t("prompt.opt.case"),
+            scope_one: t("prompt.opt.one"),
+            scope_all: t("prompt.opt.all"),
+        }
+    }
+
+    /// Imposta il testo di uno dei due campi di Sostituisci (0 = cosa cercare, 1 = con cosa sostituire; un altro numero non
+    /// fa niente): toglie l'anteprima, come scrivere col tasto.
+    pub fn dialog_set_field(&mut self, campo: u8, testo: &str) {
+        if self.dialog != Some(DialogKind::Replace) {
+            return;
+        }
+        match campo {
+            0 => self.rep_find = testo.to_string(),
+            1 => self.rep_with = testo.to_string(),
+            _ => return,
+        }
+        self.rep_reset();
+    }
+
+    /// Porta il fuoco di Sostituisci su un campo (0 o 1); un altro numero non fa niente.
+    pub fn dialog_focus(&mut self, campo: u8) {
+        if self.dialog == Some(DialogKind::Replace) && campo < 2 {
+            self.rep_field = campo;
+        }
+    }
+
+    /// Il modo di ricerca (testo, glob, regex) di Cerca o Sostituisci; in Sostituisci toglie l'anteprima.
+    pub fn dialog_set_mode(&mut self, modo: Mode) {
+        if matches!(self.dialog, Some(DialogKind::Find | DialogKind::Replace)) {
+            self.search_mode = modo;
+            if self.dialog == Some(DialogKind::Replace) {
+                self.rep_reset();
+            }
+        }
+    }
+
+    /// Se le maiuscole contano, in Cerca o Sostituisci (qui toglie l'anteprima).
+    pub fn dialog_set_case(&mut self, maiuscole: bool) {
+        if matches!(self.dialog, Some(DialogKind::Find | DialogKind::Replace)) {
+            self.search_case = maiuscole;
+            if self.dialog == Some(DialogKind::Replace) {
+                self.rep_reset();
+            }
+        }
+    }
+
+    /// L'ambito di Sostituisci: vero su tutte le schede, falso su questa (toglie l'anteprima).
+    pub fn dialog_set_scope_all(&mut self, tutte: bool) {
+        if self.dialog == Some(DialogKind::Replace) {
+            self.rep_all = tutte;
+            self.rep_reset();
+        }
+    }
+
+    /// Imposta il testo del campo del dialogo aperto (vai a, apri, salva con nome, cerca); negli altri non fa niente.
     pub fn dialog_set_text(&mut self, testo: &str) {
         match self.dialog {
+            Some(DialogKind::Find) => self.find_text = testo.to_string(),
             Some(DialogKind::Goto) => self.goto_text = testo.to_string(),
             Some(DialogKind::Open) => self.open_text = testo.to_string(),
             Some(DialogKind::SaveAs) => self.save_as_text = testo.to_string(),

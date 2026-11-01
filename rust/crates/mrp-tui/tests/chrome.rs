@@ -2,7 +2,7 @@
 //! finestra), espone lo stato (`status`) e la posizione per la scrollbar (`scroll_info`, `scroll_to_fraction`). Scritti da
 //! ARCH: gli attesi sono calcolati a mano. Il file ha 100 righe di 10 byte ("l00000000\n"...): 1000 byte, gutter di 5 celle.
 
-use mrp_tui::app::{App, AppConfig, DialogKind};
+use mrp_tui::app::{App, AppConfig};
 use mrp_tui::ui::render_lines;
 use mrp_tui::workspace::Workspace;
 use ratatui::crossterm::event::{
@@ -108,20 +108,6 @@ fn without_chrome_a_page_is_the_whole_height_minus_one_row() {
     a.handle_key(k(KeyCode::PageDown));
     // 6 righe di testo: una pagina e' 5 righe, cioe' 50 byte
     assert_eq!((a.top(), a.cursor()), (50, 50));
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn a_dialog_without_a_view_still_shows_as_text_without_chrome() {
-    // i dialoghi che hanno una vista (aiuto, menu, vai a...) li disegna la finestra; Cerca non ce l'ha ancora
-    let (mut a, p) = app(false, 60, 22);
-    a.handle_key(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::CONTROL));
-    assert_eq!(a.dialog_kind(), Some(DialogKind::Find));
-    let tutto = render_lines(&mut a, 60, 22).join(
-        "
-",
-    );
-    assert!(tutto.contains("FIND"), "{tutto}");
     let _ = std::fs::remove_file(p);
 }
 

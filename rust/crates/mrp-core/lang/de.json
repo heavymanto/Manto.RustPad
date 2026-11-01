@@ -188,5 +188,8 @@
   "gui.home": "Zum Anfang",
   "gui.end": "Zum Ende",
   "gui.ok": "OK",
-  "gui.cancel": "Abbrechen"
+  "gui.cancel": "Abbrechen",
+  "gui.find_go": "Suchen",
+  "gui.replace_preview": "Vorschau",
+  "gui.replace_apply": "Alle ersetzen"
 }

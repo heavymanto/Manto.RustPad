@@ -359,16 +359,3 @@ fn a_dialog_with_a_view_is_not_drawn_as_text_without_the_terminal_chrome() {
     let _ = std::fs::remove_file(p);
     let _ = std::fs::remove_file(q);
 }
-
-#[test]
-fn a_dialog_without_a_view_keeps_its_text_drawing_and_has_no_view() {
-    // Cerca e Sostituisci non hanno ancora la vista (B4a-2): senza cornice si disegnano ancora a testo
-    let (mut a, p) = app(b"uno\n", false);
-    a.handle_key(ctrl('f'));
-    assert_eq!(a.dialog_kind(), Some(DialogKind::Find));
-    assert!(!a.dialog_has_view());
-    assert!(a.dialog_view().is_none());
-    let tutto = render_lines(&mut a, 70, 24).join("\n");
-    assert!(tutto.contains("FIND"), "{tutto}");
-    let _ = std::fs::remove_file(p);
-}

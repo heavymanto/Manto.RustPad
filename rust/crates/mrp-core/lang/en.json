@@ -187,5 +187,8 @@
   "gui.home": "Go to start",
   "gui.end": "Go to end",
   "gui.ok": "OK",
-  "gui.cancel": "Cancel"
+  "gui.cancel": "Cancel",
+  "gui.find_go": "Find",
+  "gui.replace_preview": "Preview",
+  "gui.replace_apply": "Replace all"
 }

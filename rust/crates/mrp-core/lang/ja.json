@@ -188,5 +188,8 @@
   "gui.home": "先頭へ",
   "gui.end": "末尾へ",
   "gui.ok": "OK",
-  "gui.cancel": "キャンセル"
+  "gui.cancel": "キャンセル",
+  "gui.find_go": "検索",
+  "gui.replace_preview": "プレビュー",
+  "gui.replace_apply": "すべて置換"
 }

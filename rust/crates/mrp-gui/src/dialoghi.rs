@@ -98,6 +98,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::Prompt { title, .. }
         | DialogView::Overwrite { title, .. }
         | DialogView::Confirm { title, .. }
+        | DialogView::Find { title, .. }
+        | DialogView::Replace { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
     // il rettangolo della finestra: lo danno le varianti (una per una), lo legge la fine
@@ -255,6 +257,19 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                             ws.active_mut().dialog_confirm(ConfirmChoice::Cancel);
                         }
                     });
+                })
+                .map(|w| w.response.rect);
+        }
+        // Cerca e Sostituisci: provvisorio (la finestra vera e' il task B4c); intanto un'etichetta e annulla
+        DialogView::Find { .. } | DialogView::Replace { .. } => {
+            rect = egui::Window::new(titolo.as_str())
+                .collapsible(false)
+                .resizable(false)
+                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
+                        ws.active_mut().dialog_cancel();
+                    }
                 })
                 .map(|w| w.response.rect);
         }

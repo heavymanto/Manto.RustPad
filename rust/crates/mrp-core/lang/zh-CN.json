@@ -188,5 +188,8 @@
   "gui.home": "转到开头",
   "gui.end": "转到结尾",
   "gui.ok": "确定",
-  "gui.cancel": "取消"
+  "gui.cancel": "取消",
+  "gui.find_go": "查找",
+  "gui.replace_preview": "预览",
+  "gui.replace_apply": "全部替换"
 }
