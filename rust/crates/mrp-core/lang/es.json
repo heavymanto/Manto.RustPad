@@ -15,6 +15,7 @@
   "footer.f10": "Salir",
   "status.pos": " Ln {}  Col {}  byte {}  {}%",
   "status.indexing": "indexando {}%",
+  "status.indexing_hint": "Contando las líneas del archivo en segundo plano: los números de línea aparecen al terminar. Puedes seguir trabajando.",
   "status.searching": "buscando {}%",
   "status.saving": "salvando {}%",
   "status.unknown_line": "?",

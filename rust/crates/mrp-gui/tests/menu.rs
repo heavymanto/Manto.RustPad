@@ -6,7 +6,7 @@ use eframe::egui::{Context, Event, FullOutput, Key, Modifiers, Pos2, RawInput, R
 use mrp_core::lang::Lang;
 use mrp_gui::fonts::{scrittura_della_lingua, Scrittura};
 use mrp_gui::gui::Finestra;
-use mrp_gui::menu::{voce_di, Voce, MENU};
+use mrp_gui::menu::{acceso, voce_di, Voce, MENU};
 use mrp_tui::app::{App, AppConfig, DialogKind};
 use mrp_tui::commands::{shortcut_text, Cmd};
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -55,7 +55,7 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
         assert!(en.get(t).is_some(), "{t} non e' nel catalogo");
     }
     let tutte = voci();
-    assert_eq!(tutte.len(), 6 + 10 + 13 + 3 + 1);
+    assert_eq!(tutte.len(), 6 + 10 + 11 + 3 + 1);
     for v in &tutte {
         assert!(
             en.get(v.chiave).is_some(),
@@ -243,8 +243,6 @@ fn the_menu_entries_do_what_their_shortcuts_do() {
     for (chiave, dialogo) in [
         ("gui.find", DialogKind::Find),
         ("gui.goto", DialogKind::Goto),
-        ("gui.theme", DialogKind::Theme),
-        ("gui.language", DialogKind::Lang),
         ("gui.encoding", DialogKind::Encoding),
     ] {
         esegui(&mut f, chiave);
@@ -564,4 +562,41 @@ fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
     assert_eq!(chiamate.borrow().len(), 2);
     let _ = std::fs::remove_file(p);
     let _ = std::fs::remove_dir_all(dir0);
+}
+
+#[test]
+fn the_view_menu_is_about_the_current_work_and_theme_and_language_live_in_the_settings() {
+    let vista: Vec<Cmd> = MENU[2].1.iter().flatten().copied().collect();
+    assert!(!vista.contains(&Cmd::Theme));
+    assert!(!vista.contains(&Cmd::Language));
+    for c in [Cmd::Settings, Cmd::Encoding, Cmd::ZoomIn, Cmd::LineNumbers] {
+        assert!(vista.contains(&c), "{c:?} resta in Visualizza");
+    }
+}
+
+#[test]
+fn the_toggle_entries_know_whether_they_are_on() {
+    let (mut f, ctx, p, _t) = finestra(
+        b"abc
+",
+        vec![],
+    );
+    giro(&mut f, &ctx, vec![]);
+    // di fabbrica: numeri di riga accesi, il resto spento (la barra dei salti segue la scelta di chi apre)
+    assert_eq!(acceso(f.workspace(), Cmd::LineNumbers), Some(true));
+    let barra = f.workspace().nav_bar();
+    assert_eq!(acceso(f.workspace(), Cmd::NavBar), Some(barra));
+    f.azione(Cmd::NavBar);
+    assert_eq!(acceso(f.workspace(), Cmd::NavBar), Some(!barra));
+    assert_eq!(acceso(f.workspace(), Cmd::ColumnMode), Some(false));
+    assert_eq!(acceso(f.workspace(), Cmd::Special), Some(false));
+    f.azione(Cmd::LineNumbers);
+    f.azione(Cmd::ColumnMode);
+    f.azione(Cmd::Special);
+    assert_eq!(acceso(f.workspace(), Cmd::LineNumbers), Some(false));
+    assert_eq!(acceso(f.workspace(), Cmd::ColumnMode), Some(true));
+    assert_eq!(acceso(f.workspace(), Cmd::Special), Some(true));
+    // un comando qualunque non e' un interruttore
+    assert_eq!(acceso(f.workspace(), Cmd::Find), None);
+    let _ = std::fs::remove_file(p);
 }

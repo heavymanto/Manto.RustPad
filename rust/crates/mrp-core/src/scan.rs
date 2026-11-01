@@ -9,8 +9,9 @@
 
 use crate::document::Document;
 
-/// Quanti byte al massimo si esaminano per cercare un a-capo (1 MiB).
-pub const DEFAULT_MAX_SCAN: u64 = 1 << 20;
+/// Quanti byte al massimo si esaminano per cercare un a-capo (128 KiB).
+/// Una riga piu' lunga si spezza in righe visuali: con 1 MiB un file senza a-capo costava 40 MiB di letture a schermata.
+pub const DEFAULT_MAX_SCAN: u64 = 1 << 17;
 
 /// Dove comincia la riga dopo quella che inizia in `pos`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

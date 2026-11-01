@@ -14,6 +14,7 @@
   "footer.f10": "Quit",
   "status.pos": " Ln {}  Col {}  byte {}  {}%",
   "status.indexing": "indexing {}%",
+  "status.indexing_hint": "Counting the lines of the file in the background: line numbers appear when it is done. You can keep working.",
   "status.searching": "searching {}%",
   "status.saving": "saving {}%",
   "status.unknown_line": "?",

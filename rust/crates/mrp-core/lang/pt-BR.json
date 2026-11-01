@@ -15,6 +15,7 @@
   "footer.f10": "Sair",
   "status.pos": " Ln {}  Col {}  byte {}  {}%",
   "status.indexing": "indexando {}%",
+  "status.indexing_hint": "Contando as linhas do arquivo em segundo plano: os números de linha aparecem ao terminar. Você pode continuar trabalhando.",
   "status.searching": "pesquisando {}%",
   "status.saving": "salvando {}%",
   "status.unknown_line": "?",

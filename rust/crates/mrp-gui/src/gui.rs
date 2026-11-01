@@ -14,7 +14,7 @@ use eframe::egui::{
     self, Align, Context, CursorIcon, Event, FontId, Frame, Label, Layout, Pos2, Rect, Sense, Vec2,
     ViewportCommand,
 };
-use mrp_tui::app::{App, AppConfig};
+use mrp_tui::app::{App, AppConfig, Busy};
 use mrp_tui::cells::{render_grid_workspace, BG_PREDEFINITO};
 use mrp_tui::commands::Cmd;
 use mrp_tui::workspace::Workspace;
@@ -726,6 +726,22 @@ impl Finestra {
                             }
                             None => ui.label(&pezzo.testo),
                         };
+                        // il lavoro in corso (e' il primo pezzo) si nota: una barretta di avanzamento a sinistra del testo; per
+                        // l'indicizzazione un suggerimento spiega che si puo' continuare e quando arrivano i numeri di riga
+                        if i == 0 {
+                            if let Some((lavoro, percento)) = stato.busy {
+                                ui.add(
+                                    egui::ProgressBar::new(f32::from(percento) / 100.0)
+                                        .desired_width(90.0)
+                                        .desired_height(10.0),
+                                );
+                                if lavoro == Busy::Indexing {
+                                    r.clone().on_hover_text(
+                                        self.ws.active().catalog().t("status.indexing_hint"),
+                                    );
+                                }
+                            }
+                        }
                         rettangoli.push((r.rect, pezzo.comando));
                     }
                 });

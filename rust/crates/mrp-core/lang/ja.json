@@ -15,6 +15,7 @@
   "footer.f10": "終了",
   "status.pos": " 行 {}  列 {}  バイト {}  {}%",
   "status.indexing": "インデックス作成中 {}%",
+  "status.indexing_hint": "バックグラウンドでファイルの行数を数えています。完了すると行番号が表示されます。作業は続けられます。",
   "status.searching": "検索中 {}%",
   "status.saving": "保存中 {}%",
   "status.unknown_line": "?",

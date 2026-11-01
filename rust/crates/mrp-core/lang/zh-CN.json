@@ -15,6 +15,7 @@
   "footer.f10": "退出",
   "status.pos": " 行 {}  列 {}  字节 {}  {}%",
   "status.indexing": "正在建立索引 {}%",
+  "status.indexing_hint": "正在后台统计文件行数,完成后将显示行号。您可以继续工作。",
   "status.searching": "正在搜索 {}%",
   "status.saving": "正在保存 {}%",
   "status.unknown_line": "?",

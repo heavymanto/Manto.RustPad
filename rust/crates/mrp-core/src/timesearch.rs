@@ -22,7 +22,7 @@ const RIGHE_MAX: u32 = 4096;
 /// Il passo della scansione in avanti: le righe piu' lunghe si attraversano a pezzi di questo passo (i `Cut` di
 /// `scan`), come le righe visuali del resto del progetto.
 const PASSO: u64 = 512;
-/// Il limite di scansione per trovare gli inizi di riga veri (come altrove nel progetto: 1 MiB): una riga piu'
+/// Il limite di scansione per trovare gli inizi di riga veri (come altrove nel progetto: 128 KiB): una riga piu'
 /// lunga di cosi' resta a pezzi.
 const MAX_SCAN: u64 = scan::DEFAULT_MAX_SCAN;
 

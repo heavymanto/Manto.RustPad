@@ -79,8 +79,6 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::Special),
     Some(Cmd::LineNumbers),
     None,
-    Some(Cmd::Theme),
-    Some(Cmd::Language),
     Some(Cmd::Encoding),
     None,
     Some(Cmd::ZoomIn),
@@ -107,6 +105,42 @@ pub const MENU: [Menu; 5] = [
     ("gui.menu.help", AIUTO),
 ];
 
+/// La voce e' un interruttore: `Some(acceso)`; `None` se e' un comando qualunque. Nel menu Visualizza gli interruttori
+/// parlano del lavoro attuale (le impostazioni di tema e lingua stanno nella finestra delle impostazioni).
+pub fn acceso(ws: &Workspace, cmd: Cmd) -> Option<bool> {
+    let a = ws.active();
+    match cmd {
+        Cmd::NavBar => Some(ws.nav_bar()),
+        Cmd::ColumnMode => Some(a.column_mode()),
+        Cmd::Special => Some(ws.special_chars()),
+        Cmd::LineNumbers => Some(a.line_numbers()),
+        Cmd::LogColors => Some(a.log_colors()),
+        Cmd::Follow => Some(a.follow()),
+        _ => None,
+    }
+}
+
+/// La spunta di una voce accesa, disegnata a mano (il glifo non e' nel font), nel margine a sinistra del bottone.
+fn spunta(ui: &Ui, r: egui::Rect) {
+    let colore = ui.visuals().text_color();
+    let c = egui::Pos2::new(r.min.x + 14.0, r.center().y);
+    let tratto = egui::Stroke::new(1.6_f32, colore);
+    ui.painter().line_segment(
+        [
+            c + egui::Vec2::new(-4.0, 0.0),
+            c + egui::Vec2::new(-1.0, 3.5),
+        ],
+        tratto,
+    );
+    ui.painter().line_segment(
+        [
+            c + egui::Vec2::new(-1.0, 3.5),
+            c + egui::Vec2::new(5.0, -4.0),
+        ],
+        tratto,
+    );
+}
+
 /// Disegna la barra dei menu e restituisce il comando scelto in questo giro, se c'e'. Il testo viene dal catalogo della
 /// scheda attiva (la lingua attiva); le voci che non hanno senso adesso sono spente.
 pub fn disegna(ui: &mut Ui, ws: &Workspace) -> Option<Cmd> {
@@ -122,9 +156,18 @@ pub fn disegna(ui: &mut Ui, ws: &Workspace) -> Option<Cmd> {
                         }
                         Some(cmd) => {
                             let v = voce_di(*cmd);
-                            let b =
-                                egui::Button::new(app.text(v.chiave)).shortcut_text(v.scorciatoia);
-                            if ui.add_enabled(commands::enabled(ws, *cmd), b).clicked() {
+                            let acceso = acceso(ws, *cmd);
+                            // le voci che si accendono e spengono hanno un margine per la spunta, che c'e' solo se sono accese
+                            let testo = match acceso {
+                                Some(_) => format!("      {}", app.text(v.chiave)),
+                                None => app.text(v.chiave).to_string(),
+                            };
+                            let b = egui::Button::new(testo).shortcut_text(v.scorciatoia);
+                            let r = ui.add_enabled(commands::enabled(ws, *cmd), b);
+                            if acceso == Some(true) {
+                                spunta(ui, r.rect);
+                            }
+                            if r.clicked() {
                                 scelta = Some(*cmd);
                                 ui.close();
                             }
