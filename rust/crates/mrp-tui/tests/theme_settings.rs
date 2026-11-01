@@ -30,19 +30,24 @@ impl Drop for TestDir {
 // ---------- temi ----------
 
 #[test]
-fn the_four_themes_in_menu_order_with_their_codes() {
+fn the_six_themes_in_menu_order_with_their_codes() {
     assert_eq!(
         ThemeId::ALL,
         [
             ThemeId::Night,
             ThemeId::Debian,
             ThemeId::Console,
-            ThemeId::Minimal
+            ThemeId::Minimal,
+            ThemeId::Dark,
+            ThemeId::Light
         ]
     );
     assert_eq!(ThemeId::DEFAULT, ThemeId::Console);
     let codici: Vec<&str> = ThemeId::ALL.iter().map(|t| t.code()).collect();
-    assert_eq!(codici, vec!["night", "debian", "console", "minimal"]);
+    assert_eq!(
+        codici,
+        vec!["night", "debian", "console", "minimal", "dark", "light"]
+    );
     let chiavi: Vec<&str> = ThemeId::ALL.iter().map(|t| t.key()).collect();
     assert_eq!(
         chiavi,
@@ -50,7 +55,9 @@ fn the_four_themes_in_menu_order_with_their_codes() {
             "theme.night",
             "theme.debian",
             "theme.console",
-            "theme.minimal"
+            "theme.minimal",
+            "theme.dark",
+            "theme.light"
         ]
     );
     let descr: Vec<&str> = ThemeId::ALL.iter().map(|t| t.blurb_key()).collect();
@@ -60,9 +67,35 @@ fn the_four_themes_in_menu_order_with_their_codes() {
             "theme.night.b",
             "theme.debian.b",
             "theme.console.b",
-            "theme.minimal.b"
+            "theme.minimal.b",
+            "theme.dark.b",
+            "theme.light.b"
         ]
     );
+}
+
+#[test]
+fn dark_and_light_are_the_window_themes_with_true_colours() {
+    use mrp_tui::theme::Theme;
+    use ratatui::style::Color;
+    assert!(ThemeId::Dark.is_dark() && !ThemeId::Light.is_dark());
+    // gli altri quattro sono scuri (le finestre li disegnano con i controlli scuri)
+    for t in [
+        ThemeId::Night,
+        ThemeId::Debian,
+        ThemeId::Console,
+        ThemeId::Minimal,
+    ] {
+        assert!(t.is_dark(), "{t:?}");
+    }
+    let d = Theme::for_id(ThemeId::Dark);
+    assert_eq!(d.screen.bg, Some(Color::Rgb(0x1e, 0x1e, 0x1e)));
+    assert_eq!(d.fg.fg, Some(Color::Rgb(0xd4, 0xd4, 0xd4)));
+    assert_eq!(d.selection.bg, Some(Color::Rgb(0x26, 0x4f, 0x78)));
+    let l = Theme::for_id(ThemeId::Light);
+    assert_eq!(l.screen.bg, Some(Color::Rgb(0xff, 0xff, 0xff)));
+    assert_eq!(l.fg.fg, Some(Color::Rgb(0x1f, 0x1f, 0x1f)));
+    assert_eq!(l.selection.bg, Some(Color::Rgb(0xad, 0xd6, 0xff)));
 }
 
 #[test]
@@ -152,6 +185,7 @@ fn to_text_is_key_value_lines_with_comments() {
     let s = Settings {
         theme: ThemeId::Debian,
         lang: Some("it".to_string()),
+        theme_set: true,
         ..Settings::default()
     };
     let t = s.to_text();
@@ -173,6 +207,7 @@ fn round_trip_text_to_settings() {
             let s = Settings {
                 theme: t,
                 lang,
+                theme_set: true,
                 ..Settings::default()
             };
             assert_eq!(Settings::from_text(&s.to_text()), s);
@@ -213,6 +248,7 @@ fn save_and_load_through_a_file() {
     let s = Settings {
         theme: ThemeId::Minimal,
         lang: Some("ja".to_string()),
+        theme_set: true,
         ..Settings::default()
     };
     s.save(&path).unwrap();
@@ -248,6 +284,7 @@ fn jump_pages_default_to_ten_hundred_thousand_and_are_not_written() {
 fn jump_pages_round_trip_and_tolerate_spaces() {
     let s = Settings {
         jump_pages: [5, 50, 500],
+        theme_set: true,
         ..Settings::default()
     };
     assert_eq!(
@@ -292,6 +329,7 @@ fn nav_bar_is_off_by_default_written_only_when_on_and_read_back() {
     assert!(!Settings::default().to_text().contains("nav_bar"));
     let s = Settings {
         nav_bar: true,
+        theme_set: true,
         ..Settings::default()
     };
     assert_eq!(dati(&s.to_text()), vec!["theme=console", "nav_bar=1"]);
@@ -314,4 +352,44 @@ fn nav_bar_is_off_by_default_written_only_when_on_and_read_back() {
     // l'ultima valida vince
     assert!(!Settings::from_text("nav_bar=1\nnav_bar=0\n").nav_bar);
     assert!(Settings::from_text("nav_bar=1\nnav_bar=boh\n").nav_bar);
+}
+
+#[test]
+fn a_theme_in_the_file_means_the_user_chose_one() {
+    assert!(!Settings::default().theme_set);
+    assert!(!Settings::from_text("").theme_set);
+    assert!(!Settings::from_text("lang=it\n").theme_set);
+    assert!(
+        !Settings::from_text("theme=arcobaleno\n").theme_set,
+        "un tema che non esiste non conta"
+    );
+    assert!(Settings::from_text("theme=light\n").theme_set);
+    assert_eq!(Settings::from_text("theme=light\n").theme, ThemeId::Light);
+    assert!(
+        Settings::from_text("theme=console\n").theme_set,
+        "anche il predefinito, se scelto"
+    );
+    // uscendo da un file scritto dal programma la scelta c'e'
+    let s = Settings::from_text("theme=dark\n");
+    assert!(Settings::from_text(&s.to_text()).theme_set);
+}
+
+#[test]
+fn the_theme_is_explicit_with_the_option_or_with_a_saved_choice() {
+    use mrp_tui::args::{self, Args};
+    let nessuno = Args::default();
+    assert!(!args::theme_is_explicit(&nessuno, &None));
+    assert!(!args::theme_is_explicit(
+        &nessuno,
+        &Some(Settings::default())
+    ));
+    let con_opzione = Args {
+        theme: Some("night".to_string()),
+        ..Args::default()
+    };
+    assert!(args::theme_is_explicit(&con_opzione, &None));
+    assert!(args::theme_is_explicit(
+        &nessuno,
+        &Some(Settings::from_text("theme=dark\n"))
+    ));
 }

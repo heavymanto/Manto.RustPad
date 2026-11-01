@@ -82,7 +82,7 @@ fn help_is_a_table_of_keys_and_descriptions() {
 // ----- i menu -----
 
 #[test]
-fn the_theme_menu_lists_the_four_themes_with_their_blurb_and_the_current_one_is_selected() {
+fn the_theme_menu_lists_the_six_themes_with_their_blurb_and_the_current_one_is_selected() {
     let (mut a, p) = app(b"uno\n", false);
     a.handle_key(k(KeyCode::F(6)));
     let DialogView::Menu {
@@ -102,6 +102,8 @@ fn the_theme_menu_lists_the_four_themes_with_their_blurb_and_the_current_one_is_
             voce("Debian (blue)", "installer blue, red selection"),
             voce("Console (default)", "white on black, yellow accents"),
             voce("Minimal", "your terminal's own colors"),
+            voce("Dark", "soft dark gray, easy on the eyes"),
+            voce("Light", "white page, dark text"),
         ]
     );
     assert_eq!(selected, 2, "il tema di partenza e' Console, il terzo");

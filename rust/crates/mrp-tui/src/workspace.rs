@@ -926,6 +926,14 @@ impl Workspace {
         self.tabs[self.active].jump_pages()
     }
 
+    /// Cambia il tema di tutte le schede (senza salvare: e' il tema del sistema, non una scelta dell'utente).
+    pub fn set_theme(&mut self, tema: crate::theme::ThemeId) {
+        let lingua = self.tabs[self.active].lang_code().to_string();
+        for a in &mut self.tabs {
+            a.adopt_look(tema, &lingua);
+        }
+    }
+
     /// Un clic sulla colonna `col` della barra dei salti: il pulsante che la copre agisce sulla scheda attiva.
     fn nav_click(&mut self, col: u16) {
         let Some(&(_, _, azione)) = self

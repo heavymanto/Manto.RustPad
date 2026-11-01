@@ -18,6 +18,8 @@ pub struct Settings {
     pub jump_pages: [usize; 3],
     /// La barra dei salti (Ctrl+B) sotto la barra delle schede.
     pub nav_bar: bool,
+    /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
+    pub theme_set: bool,
 }
 
 /// I salti di pagina di fabbrica: 10, 100 e 1000 pagine.
@@ -33,6 +35,7 @@ impl Default for Settings {
             lang: None,
             jump_pages: JUMP_PAGES,
             nav_bar: false,
+            theme_set: false,
         }
     }
 }
@@ -93,6 +96,7 @@ impl Settings {
                     // una chiave doppia: vale l'ultima valida
                     if let Some(t) = ThemeId::parse(v) {
                         s.theme = t;
+                        s.theme_set = true;
                     }
                 }
                 "lang" if !v.is_empty() => {

@@ -1427,6 +1427,7 @@ impl App {
             lang: self.lang_picked.clone(),
             jump_pages: self.jump_pages,
             nav_bar: self.nav_bar,
+            theme_set: true,
         };
         let _ = s.save(&path);
     }

@@ -180,6 +180,20 @@ impl Finestra {
         self
     }
 
+    /// Se l'utente non ha scelto un tema (`Some(scuro)`: com'e' il sistema), la finestra parte con Scuro o Chiaro secondo il
+    /// sistema; con `None` (il sistema non lo dice) resta il tema com'e'. Vale per tutte le schede, senza salvare niente.
+    pub fn con_tema_di_sistema(mut self, scuro: Option<bool>) -> Finestra {
+        if let Some(scuro) = scuro {
+            let tema = if scuro {
+                mrp_tui::theme::ThemeId::Dark
+            } else {
+                mrp_tui::theme::ThemeId::Light
+            };
+            self.ws.set_theme(tema);
+        }
+        self
+    }
+
     /// Fa salvare la schermata in `percorso` (PNG) dopo qualche giro e poi chiude la finestra: serve a guardare il
     /// disegno senza una persona davanti.
     pub fn con_scatto(mut self, percorso: std::path::PathBuf) -> Finestra {
@@ -875,6 +889,15 @@ impl Finestra {
         // senza la cornice del terminale la barra dei salti la disegna questa finestra, con i suoi pulsanti: quella a
         // celle si spegne (con la cornice resta a celle, come oggi, e la disegna l'App nella sua griglia)
         self.ws.set_nav_cells(self.ws.active().chrome());
+        // i controlli di egui seguono il tema: chiari solo con Chiaro
+        let scuro = self.ws.active().theme_id().is_dark();
+        if ctx.style().visuals.dark_mode != scuro {
+            ctx.set_visuals(if scuro {
+                egui::Visuals::dark()
+            } else {
+                egui::Visuals::light()
+            });
+        }
         // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7)
         let mut nuova = false;
         for s in [

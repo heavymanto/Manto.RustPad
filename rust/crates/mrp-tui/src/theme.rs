@@ -14,16 +14,28 @@ pub enum ThemeId {
     Debian,
     Console,
     Minimal,
+    /// Scuro: grigio scuro morbido, colori veri (RGB); il tema della finestra.
+    Dark,
+    /// Chiaro: pagina bianca, testo scuro, colori veri (RGB); il tema della finestra.
+    Light,
 }
 
 impl ThemeId {
-    /// I quattro temi, nell'ordine del menu.
-    pub const ALL: [ThemeId; 4] = [
+    /// I sei temi, nell'ordine del menu (i quattro del terminale, poi Scuro e Chiaro).
+    pub const ALL: [ThemeId; 6] = [
         ThemeId::Night,
         ThemeId::Debian,
         ThemeId::Console,
         ThemeId::Minimal,
+        ThemeId::Dark,
+        ThemeId::Light,
     ];
+
+    /// Il tema e' scuro? Decide se i controlli della finestra (menu, pulsanti, finestre) sono scuri o chiari: solo Chiaro e'
+    /// chiaro.
+    pub fn is_dark(self) -> bool {
+        self != ThemeId::Light
+    }
 
     /// Il tema di partenza e di fabbrica: Console.
     pub const DEFAULT: ThemeId = ThemeId::Console;
@@ -35,6 +47,8 @@ impl ThemeId {
             ThemeId::Debian => "theme.debian",
             ThemeId::Console => "theme.console",
             ThemeId::Minimal => "theme.minimal",
+            ThemeId::Dark => "theme.dark",
+            ThemeId::Light => "theme.light",
         }
     }
 
@@ -45,6 +59,8 @@ impl ThemeId {
             ThemeId::Debian => "theme.debian.b",
             ThemeId::Console => "theme.console.b",
             ThemeId::Minimal => "theme.minimal.b",
+            ThemeId::Dark => "theme.dark.b",
+            ThemeId::Light => "theme.light.b",
         }
     }
 
@@ -55,6 +71,8 @@ impl ThemeId {
             ThemeId::Debian => "debian",
             ThemeId::Console => "console",
             ThemeId::Minimal => "minimal",
+            ThemeId::Dark => "dark",
+            ThemeId::Light => "light",
         }
     }
 
@@ -65,6 +83,8 @@ impl ThemeId {
             "debian" => Some(ThemeId::Debian),
             "console" => Some(ThemeId::Console),
             "minimal" => Some(ThemeId::Minimal),
+            "dark" => Some(ThemeId::Dark),
+            "light" => Some(ThemeId::Light),
             _ => None,
         }
     }
@@ -116,6 +136,8 @@ impl Theme {
             ThemeId::Debian => Theme::debian(),
             ThemeId::Console => Theme::console(),
             ThemeId::Minimal => Theme::minimal(),
+            ThemeId::Dark => Theme::dark(),
+            ThemeId::Light => Theme::light(),
         }
     }
 
@@ -190,6 +212,78 @@ impl Theme {
             mode_edit: Style::new().fg(Color::White).bg(Color::Red),
             shadow_fg: Color::DarkGray,
             shadow_bg: Some(Color::Black),
+        }
+    }
+
+    /// Scuro: grigio scuro morbido (#1e1e1e), testo grigio chiaro, accenti azzurri, selezione blu scuro, trovato giallo.
+    fn dark() -> Theme {
+        let rgb = |r, g, b| Color::Rgb(r, g, b);
+        Theme {
+            screen: Style::new()
+                .bg(rgb(0x1e, 0x1e, 0x1e))
+                .fg(rgb(0xd4, 0xd4, 0xd4)),
+            dialog: Style::new()
+                .bg(rgb(0x25, 0x25, 0x26))
+                .fg(rgb(0xd4, 0xd4, 0xd4)),
+            fg: Style::new().fg(rgb(0xd4, 0xd4, 0xd4)),
+            title: Style::new().fg(rgb(0x9c, 0xdc, 0xfe)).bold(),
+            hint: Style::new().fg(rgb(0x80, 0x80, 0x80)),
+            key: Style::new().fg(rgb(0xdc, 0xdc, 0xaa)).bold(),
+            status: Style::new().fg(rgb(0xcc, 0xcc, 0xcc)),
+            selected: Style::new()
+                .fg(rgb(0xff, 0xff, 0xff))
+                .bg(rgb(0x09, 0x47, 0x71)),
+            border: Style::new().fg(rgb(0x56, 0x9c, 0xd6)),
+            gutter: Style::new().fg(rgb(0x85, 0x85, 0x85)),
+            found: Style::new()
+                .fg(rgb(0x00, 0x00, 0x00))
+                .bg(rgb(0xff, 0xd8, 0x66)),
+            selection: Style::new()
+                .fg(rgb(0xff, 0xff, 0xff))
+                .bg(rgb(0x26, 0x4f, 0x78)),
+            more: Style::new().fg(rgb(0x56, 0x9c, 0xd6)).bold(),
+            mode_view: Style::new().fg(rgb(0x9c, 0xdc, 0xfe)),
+            mode_edit: Style::new()
+                .fg(rgb(0x1e, 0x1e, 0x1e))
+                .bg(rgb(0xdc, 0xdc, 0xaa)),
+            shadow_fg: rgb(0x55, 0x55, 0x55),
+            shadow_bg: Some(rgb(0x10, 0x10, 0x10)),
+        }
+    }
+
+    /// Chiaro: pagina bianca, testo quasi nero (#1f1f1f), accenti blu, selezione azzurra, trovato giallo chiaro.
+    fn light() -> Theme {
+        let rgb = |r, g, b| Color::Rgb(r, g, b);
+        Theme {
+            screen: Style::new()
+                .bg(rgb(0xff, 0xff, 0xff))
+                .fg(rgb(0x1f, 0x1f, 0x1f)),
+            dialog: Style::new()
+                .bg(rgb(0xf3, 0xf3, 0xf3))
+                .fg(rgb(0x1f, 0x1f, 0x1f)),
+            fg: Style::new().fg(rgb(0x1f, 0x1f, 0x1f)),
+            title: Style::new().fg(rgb(0x04, 0x51, 0xa5)).bold(),
+            hint: Style::new().fg(rgb(0x6e, 0x6e, 0x6e)),
+            key: Style::new().fg(rgb(0x79, 0x5e, 0x26)).bold(),
+            status: Style::new().fg(rgb(0x33, 0x33, 0x33)),
+            selected: Style::new()
+                .fg(rgb(0xff, 0xff, 0xff))
+                .bg(rgb(0x00, 0x60, 0xc0)),
+            border: Style::new().fg(rgb(0x04, 0x51, 0xa5)),
+            gutter: Style::new().fg(rgb(0x8a, 0x8a, 0x8a)),
+            found: Style::new()
+                .fg(rgb(0x00, 0x00, 0x00))
+                .bg(rgb(0xff, 0xe5, 0x8f)),
+            selection: Style::new()
+                .fg(rgb(0x00, 0x00, 0x00))
+                .bg(rgb(0xad, 0xd6, 0xff)),
+            more: Style::new().fg(rgb(0x04, 0x51, 0xa5)).bold(),
+            mode_view: Style::new().fg(rgb(0x04, 0x51, 0xa5)),
+            mode_edit: Style::new()
+                .fg(rgb(0xff, 0xff, 0xff))
+                .bg(rgb(0xa3, 0x15, 0x15)),
+            shadow_fg: rgb(0xb0, 0xb0, 0xb0),
+            shadow_bg: Some(rgb(0xe8, 0xe8, 0xe8)),
         }
     }
 

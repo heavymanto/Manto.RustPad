@@ -28,6 +28,7 @@ fn run() -> i32 {
         println!("mrp-gui [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
+    let tema_scelto = args::theme_is_explicit(&a, &profilo.settings);
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => {
@@ -133,7 +134,16 @@ fn run() -> i32 {
         "Manto.RustPad",
         opzioni,
         Box::new(move |cc| {
-            let finestra = Finestra::new_ws(cc, ws)
+            let mut finestra = Finestra::new_ws(cc, ws);
+            // senza un tema scelto dall'utente la finestra segue il sistema (chiaro o scuro)
+            if !tema_scelto {
+                finestra = finestra.con_tema_di_sistema(
+                    cc.egui_ctx
+                        .system_theme()
+                        .map(|t| t == eframe::egui::Theme::Dark),
+                );
+            }
+            let finestra = finestra
                 .con_selettore(Box::new(|t: &str| scegli(t)))
                 .con_salvataggio(Box::new(|t: &str, nome: &str| scegli_dove_salvare(t, nome)));
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce

@@ -176,6 +176,12 @@ pub fn resolve_theme(args: &Args, settings: &Option<Settings>) -> Result<ThemeId
         .unwrap_or(ThemeId::DEFAULT))
 }
 
+/// L'utente ha scelto un tema? Con `--theme`, o con un tema salvato nelle impostazioni. Altrimenti la finestra segue il tema
+/// chiaro o scuro del sistema.
+pub fn theme_is_explicit(args: &Args, settings: &Option<Settings>) -> bool {
+    args.theme.is_some() || settings.as_ref().is_some_and(|s| s.theme_set)
+}
+
 /// Lo stile di fine riga di `--eol` (`lf`, `crlf`, `cr`, in qualunque maiuscola); nessuna opzione vale `None` (lo
 /// stile lo decide il file, o la piattaforma per un documento nuovo). `Err` col testo quando non si riconosce.
 pub fn resolve_eol(args: &Args) -> Result<Option<LineEnding>, String> {

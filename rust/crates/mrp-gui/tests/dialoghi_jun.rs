@@ -91,7 +91,7 @@ fn premi(f: &mut Finestra, ctx: &Context, key: Key) {
     giro(f, ctx, vec![]);
 }
 
-/// Home e End portano l'evidenza alla prima e all'ultima voce del menu del tema (parte da Console, la terza di quattro).
+/// Home e End portano l'evidenza alla prima e all'ultima voce del menu del tema (parte da Console, la terza di sei).
 #[test]
 fn home_and_end_go_to_the_first_and_last_menu_voice() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
@@ -105,7 +105,7 @@ fn home_and_end_go_to_the_first_and_last_menu_voice() {
     premi(&mut f, &ctx, Key::Home);
     assert_eq!(selezionata(&mut f), 0, "Home: la prima voce");
     premi(&mut f, &ctx, Key::End);
-    assert_eq!(selezionata(&mut f), 3, "End: l'ultima voce (quattro temi)");
+    assert_eq!(selezionata(&mut f), 5, "End: l'ultima voce (sei temi)");
     let _ = std::fs::remove_file(p);
 }
 
