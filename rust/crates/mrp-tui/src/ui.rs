@@ -15,11 +15,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l21` (l'ultima e' sempre Esc, `help.l10`).
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l22` (senza la 21) (l'ultima e' sempre Esc, `help.l10`).
 pub(crate) const HELP_KEYS: [&str; 21] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l18", "help.l19", "help.l20", "help.l21", "help.l10",
+    "help.l18", "help.l19", "help.l20", "help.l22", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -582,14 +582,21 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
         ),
         // Il prompt di ricerca: uguale al "vai a" (cambia il vocabolario), con in piu' la riga delle opzioni.
         DialogKind::Find => {
-            let mut c = prompt_contenuto(
-                cat,
-                t,
-                "prompt.find.title",
-                "prompt.find.hint",
-                app.find_text(),
-            );
-            c.righe.insert(2, (opzioni_ricerca(app, false), t.hint));
+            let (titolo, suggerimento) = if app.filter_mode() {
+                ("prompt.filter.title", "prompt.filter.hint")
+            } else {
+                ("prompt.find.title", "prompt.find.hint")
+            };
+            let mut c = prompt_contenuto(cat, t, titolo, suggerimento, app.find_text());
+            let mut opzioni = opzioni_ricerca(app, false);
+            if app.filter_mode() {
+                opzioni.push_str(&format!(
+                    " | Alt+I {} {}",
+                    cat.t("filter.invert"),
+                    if app.find_invert() { "[x]" } else { "[ ]" }
+                ));
+            }
+            c.righe.insert(2, (opzioni, t.hint));
             c
         }
         // Sostituisci: cerca, con, le opzioni, lo stato (l'anteprima) e i tasti.

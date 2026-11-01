@@ -366,3 +366,38 @@ fn the_scope_radio_goes_both_ways() {
     assert!(!scope(&mut f), "tornare a questa scheda");
     let _ = std::fs::remove_file(p);
 }
+
+// ---- il filtro (Alt+G) ----
+
+#[test]
+fn the_filter_is_the_find_window_with_one_more_option_and_the_invert_box_is_clickable() {
+    let (mut f, ctx, p) = finestra(b"uno ERROR\ndue\ntre ERROR\n");
+    giro(&mut f, &ctx, vec![tasto(Key::G, Modifiers::ALT)]);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.dialogo_titolo(), Some("FILTER LINES"));
+    assert_eq!(
+        opzioni(&f),
+        vec![
+            "text",
+            "glob",
+            "regex",
+            "match case",
+            "Hide the lines that match instead"
+        ]
+    );
+    assert_eq!(etichette(&f), vec!["Filter", "Cancel"]);
+    assert!(!f.app().find_invert());
+    // il testo si scrive prima: il clic sulla casella toglie il fuoco al campo
+    scrivi(&mut f, &ctx, "ERROR");
+    let pos = opzione(&f, "Hide the lines that match instead");
+    clic(&mut f, &ctx, pos);
+    assert!(f.app().find_invert());
+    // il pulsante filtra: il lavoro parte e finisce in una scheda nuova con le righe che NON corrispondono
+    let pos = bottone(&f, "Filter");
+    clic(&mut f, &ctx, pos);
+    aspetta(&mut f, &ctx);
+    aspetta(&mut f, &ctx);
+    assert_eq!(f.workspace().len(), 2);
+    assert_eq!(f.app().document_text(), b"due\n");
+    let _ = std::fs::remove_file(p);
+}

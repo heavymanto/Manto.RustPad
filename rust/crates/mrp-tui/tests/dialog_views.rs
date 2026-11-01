@@ -70,16 +70,12 @@ fn help_is_a_table_of_keys_and_descriptions() {
         "replace (text, glob, regex; this or all tabs)".to_string()
     )));
     assert!(rows.contains(&(
-        "Alt+L".to_string(),
-        "colour log lines (levels, times, IPs)".to_string()
-    )));
-    assert!(rows.contains(&(
         "Alt+F".to_string(),
         "follow the end of the file (like tail -f)".to_string()
     )));
     assert!(rows.contains(&(
-        "Alt+W".to_string(),
-        "show spaces, tabs and line ends".to_string()
+        "Alt+W / Alt+L".to_string(),
+        "show spaces and tabs / colour log lines".to_string()
     )));
     assert_eq!(
         rows.last().unwrap(),

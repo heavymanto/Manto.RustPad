@@ -225,6 +225,82 @@ fn spawn_search_job(
     }
 }
 
+/// Il contatore dei file di appoggio dei filtri del processo.
+static FILTER_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Fa partire il thread del filtro: scrive le righe che corrispondono in un file di appoggio fra i temporanei e consegna
+/// l'esito sul canale (il meccanismo della ricerca: cancel e progress condivisi).
+#[allow(clippy::too_many_arguments)]
+fn spawn_filter_job(
+    snap: Snapshot,
+    pattern: Pattern,
+    invert: bool,
+    max_lines: u64,
+    testo: &str,
+    origin: PathBuf,
+    cancel: &Arc<AtomicBool>,
+    progress: &Arc<AtomicU64>,
+) -> SearchJob {
+    let (tx, rx) = mpsc::channel();
+    let cancel_thread = Arc::clone(cancel);
+    let progress_thread = Arc::clone(progress);
+    let len = snap.len();
+    let n = FILTER_COUNTER.fetch_add(1, Ordering::SeqCst);
+    let path = std::env::temp_dir().join(format!("mrp-filter-{}-{}.log", std::process::id(), n));
+    let pattern_testo = testo.to_string();
+    std::thread::spawn(move || {
+        let esito = (|| {
+            let file = match std::fs::File::create(&path) {
+                Ok(f) => f,
+                Err(e) => return SearchOutcome::FilterFailed(e.to_string()),
+            };
+            let mut out = std::io::BufWriter::new(file);
+            let mut offsets = Vec::new();
+            let r = snap.filter_lines(
+                &pattern,
+                invert,
+                max_lines,
+                &mut out,
+                &mut offsets,
+                &cancel_thread,
+                &progress_thread,
+            );
+            let r = r.and_then(|st| {
+                std::io::Write::flush(&mut out)
+                    .map(|_| st)
+                    .map_err(SearchError::Io)
+            });
+            drop(out);
+            match r {
+                Ok(st) => SearchOutcome::Filtered(FilterDone {
+                    path: path.clone(),
+                    offsets,
+                    lines: st.lines,
+                    truncated: st.truncated,
+                    pattern: pattern_testo,
+                    origin,
+                }),
+                Err(SearchError::Cancelled) => {
+                    let _ = std::fs::remove_file(&path);
+                    SearchOutcome::Cancelled
+                }
+                Err(SearchError::Io(e)) => {
+                    let _ = std::fs::remove_file(&path);
+                    SearchOutcome::FilterFailed(e.to_string())
+                }
+            }
+        })();
+        let _ = tx.send(esito);
+    });
+    SearchJob {
+        rx,
+        progress: Arc::clone(progress),
+        cancel: Arc::clone(cancel),
+        len,
+        needle: testo.to_string(),
+    }
+}
+
 /// Configurazione di partenza dell'app (i test la costruiscono a mano, il binario la ricava da argomenti e profilo).
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -383,7 +459,38 @@ enum SearchOutcome {
     NotFound,
     /// Annullata con Esc mentre girava.
     Cancelled,
+    /// Un filtro finito: le righe scritte nel file di appoggio e dove cominciava ciascuna nel documento.
+    Filtered(FilterDone),
+    /// Un filtro fallito (scrittura o lettura): il motivo.
+    FilterFailed(String),
 }
+
+/// Il risultato di un filtro per righe (Alt+G), pronto per aprire la vista filtrata in una scheda nuova (`Workspace`).
+#[derive(Debug)]
+pub struct FilterDone {
+    /// Il file di appoggio con le righe che corrispondono (si cancella con la scheda).
+    pub path: PathBuf,
+    /// Dove cominciava nel documento ciascuna riga scritta (la riga `i` del file di appoggio e' a `offsets[i]`).
+    pub offsets: Vec<u64>,
+    /// Quante righe sono state scritte.
+    pub lines: u64,
+    /// Il limite di righe ha fermato il filtro.
+    pub truncated: bool,
+    /// Il testo cercato (il nome della scheda).
+    pub pattern: String,
+    /// Il file di cui e' la vista.
+    pub origin: PathBuf,
+}
+
+/// Una scheda che e' la vista filtrata di un altro file: da dove viene e dove stavano le sue righe.
+struct FilterView {
+    origin: PathBuf,
+    offsets: Vec<u64>,
+    scratch: PathBuf,
+}
+
+/// Il massimo di righe di una vista filtrata (l'elenco delle posizioni costa 8 byte per riga).
+pub const MAX_FILTER_LINES: u64 = 20_000_000;
 
 /// La ricerca in corso: il canale col thread che cerca nella fotografia, i byte gia' esaminati
 /// e l'ago (serve per la fine dell'occorrenza trovata e per il messaggio di "non trovato").
@@ -586,6 +693,18 @@ pub struct App {
     follow: bool,
     /// L'ultimo controllo della coda (`follow_poll`): il prossimo e' fra `FOLLOW_EVERY`.
     follow_checked: Instant,
+    /// Il dialogo Trova e' aperto come filtro (Alt+G) invece che come ricerca (Ctrl+F).
+    filter_mode: bool,
+    /// Il filtro mostra le righe che NON corrispondono (Alt+I nel dialogo del filtro).
+    find_invert: bool,
+    /// Un filtro finito, in attesa che il `Workspace` apra la vista (`take_filter_done`).
+    filter_done: Option<FilterDone>,
+    /// Questa scheda e' la vista filtrata di un altro file.
+    filter_view: Option<FilterView>,
+    /// Invio su una riga della vista filtrata: il file originale e la posizione dove andare (`take_goto_original`).
+    goto_original: Option<(PathBuf, u64)>,
+    /// Il massimo di righe di un filtro (`MAX_FILTER_LINES`; i test lo abbassano).
+    filter_limit: u64,
     /// L'ultimo clic sinistro (istante, colonna, riga, quanti di fila): serve al doppio e al triplo clic.
     last_click: Option<(Instant, u16, u16, u8)>,
     /// Vero quando si e' chiesto di uscire.
@@ -765,6 +884,12 @@ impl App {
             block_drag: None,
             follow: false,
             follow_checked: Instant::now(),
+            filter_mode: false,
+            find_invert: false,
+            filter_done: None,
+            filter_view: None,
+            goto_original: None,
+            filter_limit: MAX_FILTER_LINES,
             last_click: None,
             quit: false,
             cursor_xy: None,
@@ -938,9 +1063,15 @@ impl App {
             // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore;
             // con una selezione agiscono su quella (un carattere, Enter e Tab la sostituiscono, Backspace e
             // Delete la tolgono e basta). In lettura sono rifiutati con un suggerimento.
+            // Alt+G: filtra le righe (come `grep`): una vista nuova con solo quelle che corrispondono
+            KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // Alt+F: segui la coda del file (come `tail -f`)
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
+            // Invio su una riga della vista filtrata: va alla stessa riga del file originale
+            KeyCode::Enter if !ctrl && !alt && !self.edit && self.filter_view.is_some() => {
+                self.filter_goto()
+            }
             KeyCode::Enter if !ctrl && !alt => self.insert_enter(),
             KeyCode::Backspace if !ctrl && !alt => self.backspace_key(),
             KeyCode::Delete if !ctrl && !alt => self.delete_key(),
@@ -1302,7 +1433,10 @@ impl App {
                 self.rep_ready = false;
             }
             // Il prompt di ricerca riparte dall'ultimo testo cercato (vuoto se non c'e').
-            DialogKind::Find => self.find_text = self.last_find.clone().unwrap_or_default(),
+            DialogKind::Find => {
+                self.filter_mode = false;
+                self.find_text = self.last_find.clone().unwrap_or_default();
+            }
             _ => {}
         }
         self.dialog = Some(kind);
@@ -1468,10 +1602,17 @@ impl App {
                 KeyCode::Char('c') | KeyCode::Char('C') if alt => {
                     self.search_case = !self.search_case
                 }
+                KeyCode::Char('i') | KeyCode::Char('I') if alt && self.filter_mode => {
+                    self.find_invert = !self.find_invert
+                }
                 KeyCode::Enter => {
                     let testo = std::mem::take(&mut self.find_text);
                     self.dialog = None;
-                    self.find_run(&testo);
+                    if self.filter_mode {
+                        self.filter_run(&testo);
+                    } else {
+                        self.find_run(&testo);
+                    }
                 }
                 KeyCode::Backspace => {
                     self.find_text.pop();
@@ -2742,6 +2883,19 @@ impl App {
                 self.search_job = None;
                 self.flash = Some(self.cat.t("flash.find_cancelled").to_string());
             }
+            Ok(SearchOutcome::Filtered(fatto)) => {
+                self.search_job = None;
+                if fatto.lines == 0 {
+                    let _ = std::fs::remove_file(&fatto.path);
+                    self.flash = Some(self.cat.t("filter.none").to_string());
+                } else {
+                    self.filter_done = Some(fatto);
+                }
+            }
+            Ok(SearchOutcome::FilterFailed(e)) => {
+                self.search_job = None;
+                self.flash = Some(self.cat.tf("filter.failed", &[&e]));
+            }
             Err(mpsc::TryRecvError::Empty) => {}
             Err(mpsc::TryRecvError::Disconnected) => {
                 // Difensivo: il thread e' terminato senza consegnare nulla, non si aspetta piu'.
@@ -3242,6 +3396,10 @@ impl App {
     /// La scheda com'e' adesso, da ricordare nella sessione: il file, il cursore, la modalita', la codifica e le
     /// modifiche non salvate. `None` se il documento e' in mano al salvataggio o il percorso non e' testo UTF-8.
     pub fn session_record(&self) -> Option<TabRecord> {
+        // la vista filtrata non torna con la sessione (le sue posizioni vivono in memoria)
+        if self.filter_view.is_some() {
+            return None;
+        }
         let doc = self.doc.as_ref()?;
         Some(TabRecord {
             path: self.path.to_str()?.to_string(),
@@ -4029,6 +4187,11 @@ impl App {
 
     /// F4: alterna lettura e modifica; tornando in lettura il cursore si limita all'ultimo a-capo.
     fn toggle_edit(&mut self) {
+        // la vista filtrata e' una copia di sola lettura: si modifica il file vero
+        if self.filter_view.is_some() {
+            self.flash = Some(self.cat.t("filter.readonly").to_string());
+            return;
+        }
         self.edit = !self.edit;
         if self.edit {
             // modificare e seguire la coda non stanno insieme
@@ -4138,6 +4301,127 @@ impl App {
                 true
             }
         }
+    }
+
+    // ----- vista filtrata -----
+
+    /// Alt+G: apre il dialogo del filtro (lo stesso di Trova, con un altro titolo e l'opzione "nascondi quelle che
+    /// corrispondono").
+    fn open_filter_dialog(&mut self) {
+        self.open_dialog(DialogKind::Find);
+        self.filter_mode = true;
+        self.find_invert = false;
+    }
+
+    /// Il dialogo Trova e' aperto come filtro.
+    pub fn filter_mode(&self) -> bool {
+        self.filter_mode
+    }
+
+    /// Il filtro nasconde le righe che corrispondono invece di mostrarle.
+    pub fn find_invert(&self) -> bool {
+        self.find_invert
+    }
+
+    /// Fa partire il filtro in background sul documento di adesso (modifiche non salvate comprese): le righe che
+    /// corrispondono a `testo` (col modo e le maiuscole del dialogo) vanno in un file di appoggio e, a lavoro finito,
+    /// `take_filter_done` consegna il risultato. Esc lo annulla.
+    fn filter_run(&mut self, testo: &str) {
+        if testo.is_empty() {
+            return;
+        }
+        self.last_find = Some(testo.to_string());
+        if !self.enc.is_utf8() {
+            self.flash = Some(self.cat.t("flash.regex_utf8").to_string());
+            return;
+        }
+        let pattern = match Pattern::new(testo, self.search_mode, self.search_case) {
+            Ok(p) => p,
+            Err(e) => {
+                self.flash = Some(self.cat.tf("replace.bad", &[&e.to_string()]));
+                return;
+            }
+        };
+        let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
+            return;
+        };
+        let cancel = Arc::new(AtomicBool::new(false));
+        let progress = Arc::new(AtomicU64::new(0));
+        self.search_job = Some(spawn_filter_job(
+            snap,
+            pattern,
+            self.find_invert,
+            self.filter_limit,
+            testo,
+            self.path.clone(),
+            &cancel,
+            &progress,
+        ));
+    }
+
+    /// Un filtro finito, se c'e': lo prende chi apre la vista (`Workspace`).
+    pub fn take_filter_done(&mut self) -> Option<FilterDone> {
+        self.filter_done.take()
+    }
+
+    /// Questa scheda e' la vista filtrata di un file: da dove viene, dove stavano le sue righe e il suo file di appoggio.
+    pub fn set_filter_view(&mut self, fatto: FilterDone) {
+        self.file_name = self.cat.tf("filter.name", &[&fatto.pattern]);
+        self.filter_view = Some(FilterView {
+            origin: fatto.origin,
+            offsets: fatto.offsets,
+            scratch: fatto.path,
+        });
+        let testo = if fatto.truncated {
+            self.cat.tf("filter.truncated", &[&fatto.lines.to_string()])
+        } else {
+            self.cat.tf("filter.done", &[&fatto.lines.to_string()])
+        };
+        self.flash = Some(testo);
+    }
+
+    /// Questa scheda e' una vista filtrata.
+    pub fn is_filter_view(&self) -> bool {
+        self.filter_view.is_some()
+    }
+
+    /// Il file di appoggio di una vista filtrata (si cancella con la scheda).
+    pub fn filter_scratch(&self) -> Option<&Path> {
+        self.filter_view.as_ref().map(|v| v.scratch.as_path())
+    }
+
+    /// Cambia il massimo di righe dei filtri (per i test).
+    pub fn set_filter_limit(&mut self, n: u64) {
+        self.filter_limit = n;
+    }
+
+    /// Invio nella vista filtrata: chiede di andare alla riga di dov'e' venuta quella del cursore.
+    fn filter_goto(&mut self) {
+        let Some(riga) = self.cursor_line() else {
+            self.flash = Some(self.cat.t("flash.goto_wait").to_string());
+            return;
+        };
+        let Some(v) = self.filter_view.as_ref() else {
+            return;
+        };
+        let Some(&pos) = usize::try_from(riga.saturating_sub(1))
+            .ok()
+            .and_then(|i| v.offsets.get(i))
+        else {
+            return;
+        };
+        self.goto_original = Some((v.origin.clone(), pos));
+    }
+
+    /// La richiesta di andare alla posizione del file originale, se c'e': la esegue chi ha le schede (`Workspace`).
+    pub fn take_goto_original(&mut self) -> Option<(PathBuf, u64)> {
+        self.goto_original.take()
+    }
+
+    /// Porta il cursore a `pos` (confine di carattere) e mostra la sua riga: lo fa il `Workspace` per andare dalla vista
+    /// filtrata alla riga vera.
+    pub fn goto_offset(&mut self, pos: u64) {
+        self.goto_move(pos);
     }
 
     /// In lettura la scrittura e' rifiutata con un suggerimento.

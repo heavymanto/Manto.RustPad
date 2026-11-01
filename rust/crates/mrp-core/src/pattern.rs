@@ -224,6 +224,16 @@ fn fine_riga(s: &Snapshot, pos: u64) -> u64 {
     limite
 }
 
+/// Come e' finita una vista filtrata: quante righe sono state scritte e se il limite di righe ne ha fermate delle
+/// altre (ne restava almeno una da scrivere).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FilterStats {
+    /// Le righe scritte.
+    pub lines: u64,
+    /// Vero se restava almeno una riga da scrivere oltre il limite.
+    pub truncated: bool,
+}
+
 impl Snapshot {
     /// Il primo inizio di un'occorrenza di `p` in `[from, fine)` e la sua lunghezza (`None` se non c'e'). Per riga: vedi
     /// il modulo.
@@ -424,5 +434,87 @@ impl Snapshot {
             pos = fine;
         }
         Ok(totale)
+    }
+
+    /// La vista filtrata ("grep" del documento): le righe che corrispondono a `p` (o quelle che NON corrispondono,
+    /// con `invert`) scritte su `out` byte per byte, l'a-capo compreso (se l'ultima riga del documento non ce l'ha,
+    /// l'uscita lo aggiunge), con l'offset d'inizio di ciascuna nel documento in `offsets`. Dopo `max_lines` righe
+    /// scritte si ferma: se ne resta ancora una da scrivere, `truncated` e' vero (la riga numero `max_lines + 1`
+    /// non si scrive). Come le altre ricerche per riga: a blocchi di righe intere, annullabile, e a fine lavoro
+    /// `progress` vale i byte del documento.
+    // la firma a otto parametri e' quella imposta dal PLAN: uno in piu' del limite di clippy
+    #[allow(clippy::too_many_arguments)]
+    pub fn filter_lines<W: std::io::Write>(
+        &self,
+        p: &Pattern,
+        invert: bool,
+        max_lines: u64,
+        out: &mut W,
+        offsets: &mut Vec<u64>,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<FilterStats, SearchError> {
+        let len = self.len();
+        if cancel.load(Ordering::Relaxed) {
+            return Err(SearchError::Cancelled);
+        }
+        let mut scritte = 0u64;
+        let mut troncato = false;
+        let mut pos = 0u64;
+        let blocco_max = self.chunk_size() as u64;
+        while pos < len {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(SearchError::Cancelled);
+            }
+            // un blocco di righe intere: fino a `blocco_max` byte e fino alla fine della riga
+            let tentativo = pos.saturating_add(blocco_max).min(len);
+            let fine = if tentativo >= len {
+                len
+            } else {
+                (fine_riga(self, tentativo) + 1).min(len)
+            };
+            let dati = self.read_range(pos, fine - pos);
+            let mut riga_da = 0usize;
+            while riga_da < dati.len() {
+                let riga_fine = memchr(b'\n', &dati[riga_da..]).map_or(dati.len(), |i| riga_da + i);
+                // la riga corrisponde se ha almeno un'occorrenza non vuota senza l'a-capo (il `\r` resta un byte
+                // della riga, come in `count_pattern`); le righe vuote non corrispondono mai
+                if p.in_riga(&dati[riga_da..riga_fine]).next().is_some() != invert {
+                    if scritte == max_lines {
+                        // la riga numero `max_lines + 1` da scrivere: si ferma qui, senza scriverla
+                        troncato = true;
+                        break;
+                    }
+                    if riga_fine < dati.len() {
+                        // la riga del documento, col suo a-capo
+                        out.write_all(&dati[riga_da..riga_fine + 1])
+                            .map_err(SearchError::Io)?;
+                    } else {
+                        // il pezzo finisce col blocco senza a-capo: se il blocco finisce col documento e'
+                        // l'ultima riga, e l'uscita lo aggiunge (una riga oltre `MAX_LINE` si tratta a pezzi,
+                        // come in `count_pattern`, e il pezzo resta senza a-capo)
+                        out.write_all(&dati[riga_da..riga_fine])
+                            .map_err(SearchError::Io)?;
+                        if fine == len {
+                            out.write_all(b"\n").map_err(SearchError::Io)?;
+                        }
+                    }
+                    offsets.push(pos + riga_da as u64);
+                    scritte += 1;
+                }
+                riga_da = riga_fine + 1;
+            }
+            if troncato {
+                // fermato dal limite, ma il progresso vale comunque tutto il documento
+                progress.fetch_add(len - pos, Ordering::Relaxed);
+                break;
+            }
+            progress.fetch_add(fine - pos, Ordering::Relaxed);
+            pos = fine;
+        }
+        Ok(FilterStats {
+            lines: scritte,
+            truncated: troncato,
+        })
     }
 }

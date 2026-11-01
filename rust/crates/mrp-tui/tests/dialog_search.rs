@@ -63,6 +63,7 @@ fn etichette_en() -> SearchLabels {
         case: "match case".to_string(),
         scope_one: "this tab".to_string(),
         scope_all: "all tabs".to_string(),
+        invert: "Hide the lines that match instead".to_string(),
     }
 }
 
@@ -81,6 +82,7 @@ fn find_is_a_prompt_with_mode_and_case_options() {
         case,
         labels,
         go,
+        invert,
     } = a.dialog_view().unwrap()
     else {
         panic!("non e' Cerca");
@@ -90,6 +92,7 @@ fn find_is_a_prompt_with_mode_and_case_options() {
     assert_eq!((text.as_str(), mode, case), ("", Mode::Text, true));
     assert_eq!(labels, etichette_en());
     assert_eq!(go, "Find");
+    assert_eq!(invert, None, "l'opzione del filtro c'e' solo nel filtro");
     let _ = std::fs::remove_file(p);
 }
 

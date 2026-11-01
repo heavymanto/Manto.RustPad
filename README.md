@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-1085-brightgreen" alt="1085 tests" />
+        <img src="https://img.shields.io/badge/tests-1114-brightgreen" alt="1114 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -106,6 +106,7 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
   and **regex** (with `$1` and `${name}` in the replacement) — plus match case and a scope: this tab or **all open tabs**.
   `Enter` first shows a **preview** (*"9 matches in 2 tab(s)"*, nothing touched), a second `Enter` applies it, and one `Ctrl+Z` undoes the whole thing.
 - **Column (block) mode**, a first-class selection type in the core (`F8`), also with the mouse: `Alt`+drag draws the block (and turns the mode on); with the mode on, a plain drag is enough.
+- **Filter lines** (`Alt+G`, like `grep`): shows only the lines that match (text, glob or regex, with or without case; `Alt+I` shows the ones that do NOT match) in a new read-only tab `[filter] text`. It runs in the background on a file of any size (progress in the status line, `Esc` cancels), never holds more than a block in memory, and `Enter` on a result jumps to that line in the real file.
 - **Log colouring** (`Alt+L`, off by default): the level of a line (ERROR/FATAL in red, WARN in yellow, INFO in green, DEBUG in grey), dates and times, and IPv4 addresses get their own colours in every theme; error and warning lines are tinted whole. Found by hand-written scanning of the visible text, so it costs nothing on a huge file. ![log colours](docs/img/gui-log-colors.png)
 - **Jump to a time** (`Ctrl+G`, then `~03:20` or `~2026-10-31 09:00`): in a log whose times only go up, a binary search over the bytes finds the first line at or after that time in a few dozen reads, with no index, even in a file of hundreds of GB. Lines without a time (stack traces, headers) are crossed.
 - **Follow the end of a file** (`Alt+F`, like `tail -f`): a log that keeps growing is followed to its new end twice a second, without re-reading anything (the file is remapped and the line numbers are extended counting only the new bytes). Going up with a key or the wheel stops it; it does not combine with editing.
@@ -115,7 +116,7 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
   GBK, GB18030, Big5, EUC-KR) — on files larger than RAM. Chosen with `F9` or `--encoding`, or recognised at open (the multi-byte ones are never guessed: pick them by hand).
 - **Six themes and seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
 
-Non-goals: a log analyser (use lnav, logana, klogg) and a plugin/IDE platform.
+Non-goals: a log analyser (use lnav, logana, klogg: the log aids here — follow, colours, jump to a time, filter — are what a viewer needs, not an analysis) and a plugin/IDE platform.
 
 ### The themes
 
@@ -152,7 +153,7 @@ Try the multi-file features: `mrp-tui a.txt b.txt c.txt`, then `Ctrl+H`, type a 
 
 ## Known limitations
 
-- **Early development.** The editor works and is covered by 1085 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
+- **Early development.** The editor works and is covered by 1114 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
   the Linux/macOS desktop window (`mrp-gui`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.

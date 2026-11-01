@@ -282,6 +282,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             case,
             labels,
             go,
+            invert,
             ..
         } => {
             if !stato.campo_fuoco {
@@ -316,6 +317,15 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         *case,
                         labels,
                     );
+                    // nel dialogo del filtro: nascondere le righe che corrispondono invece di mostrarle
+                    if let Some(inv) = invert {
+                        let mut v = *inv;
+                        let r = ui.checkbox(&mut v, labels.invert.as_str());
+                        stato.opzioni.push((r.rect, labels.invert.clone()));
+                        if r.changed() {
+                            ws.active_mut().dialog_set_invert(v);
+                        }
+                    }
                     ui.horizontal(|ui| {
                         if pulsante(ui, &mut stato.pulsanti, go) {
                             ws.active_mut().dialog_submit();

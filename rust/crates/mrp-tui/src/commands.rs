@@ -27,6 +27,7 @@ pub enum Cmd {
     Find,
     Goto,
     Replace,
+    Filter,
     ColumnMode,
     Special,
     Follow,
@@ -197,6 +198,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('h'), CTRL),
         "Ctrl+H",
         "replace",
+    ),
+    comando(
+        Cmd::Filter,
+        "gui.filter",
+        tasto(KeyCode::Char('g'), ALT),
+        "Alt+G",
+        "filter",
     ),
     comando(
         Cmd::ColumnMode,

@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-1085-brightgreen" alt="1085 test" />
+        <img src="https://img.shields.io/badge/test-1114-brightgreen" alt="1114 test" />
         <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -106,6 +106,7 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
   e **regex** (con `$1` e `${nome}` nella sostituzione) — più maiuscole/minuscole e un ambito: questa scheda o **tutte le schede aperte**.
   Il primo `Invio` mostra l'**anteprima** (*"9 occorrenze in 2 scheda/e"*, senza toccare niente), il secondo applica, e un solo `Ctrl+Z` annulla tutto.
 - **Modalità colonna (a blocchi)**, un tipo di selezione di prima classe nel motore (`F8`), anche col mouse: `Alt`+trascinamento disegna il blocco (e accende la modalità); con la modalità accesa basta trascinare.
+- **Filtra le righe** (`Alt+G`, come `grep`): mostra solo le righe che corrispondono (testo, glob o regex, con o senza maiuscole; `Alt+I` mostra quelle che NON corrispondono) in una scheda nuova di sola lettura `[filtro] testo`. Gira in background su un file di qualsiasi dimensione (avanzamento nella riga di stato, `Esc` annulla), non tiene mai in memoria più di un blocco, e `Invio` su un risultato salta a quella riga nel file vero.
 - **Colori dei log** (`Alt+L`, spenti di fabbrica): il livello di una riga (ERROR/FATAL in rosso, WARN in giallo, INFO in verde, DEBUG in grigio), le date e gli orari e gli indirizzi IPv4 hanno ciascuno il proprio colore in ogni tema; le righe di errore e di avviso si tingono per intero. Si trovano scorrendo a mano il solo testo visibile, quindi non costano nulla su un file enorme. ![colori dei log](docs/img/gui-log-colors.png)
 - **Salta a un orario** (`Ctrl+G`, poi `~03:20` o `~2026-10-31 09:00`): in un log con gli orari che solo crescono, una ricerca binaria sui byte trova la prima riga da quell'orario in poi in poche decine di letture, senza indice, anche in un file di centinaia di GB. Le righe senza orario (tracce, intestazioni) si attraversano.
 - **Segui la fine di un file** (`Alt+F`, come `tail -f`): un log che continua a crescere si segue fino alla sua nuova fine due volte al secondo, senza rileggere niente (il file si rimappa e i numeri di riga si allungano contando solo i byte nuovi). Salire con un tasto o con la rotella lo ferma; non si combina con la modifica.
@@ -115,7 +116,7 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
   GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano).
 - **Sei temi e sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
 
-Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg) e una piattaforma di plugin/IDE.
+Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg: gli aiuti per i log che ci sono qui — seguire, colori, salto a un orario, filtro — sono quelli che servono a un lettore, non un'analisi) e una piattaforma di plugin/IDE.
 
 ### I temi
 
@@ -152,7 +153,7 @@ Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, 
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1085 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
+- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1114 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
   la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.

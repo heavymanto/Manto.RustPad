@@ -38,6 +38,8 @@ pub struct SearchLabels {
     pub case: String,
     pub scope_one: String,
     pub scope_all: String,
+    /// "Nascondi le righe che corrispondono" (solo nel dialogo del filtro).
+    pub invert: String,
 }
 
 /// Un dialogo aperto, con i suoi testi nella lingua attiva.
@@ -70,6 +72,8 @@ pub enum DialogView {
         case: bool,
         labels: SearchLabels,
         go: String,
+        /// `Some` solo nel dialogo del filtro: se mostra le righe che NON corrispondono.
+        invert: Option<bool>,
     },
     /// Sostituisci: i due campi (e quale ha il fuoco), le opzioni, l'ambito, il messaggio e se l'anteprima e' pronta (il
     /// pulsante diventa "applica").
@@ -235,13 +239,26 @@ impl App {
                 percent: self.save_progress().unwrap_or(0).min(100) as u8,
             },
             DialogKind::Find => DialogView::Find {
-                title: t("prompt.find.title"),
-                hint: t("prompt.find.hint"),
+                title: t(if self.filter_mode {
+                    "prompt.filter.title"
+                } else {
+                    "prompt.find.title"
+                }),
+                hint: t(if self.filter_mode {
+                    "prompt.filter.hint"
+                } else {
+                    "prompt.find.hint"
+                }),
                 text: self.find_text.clone(),
                 mode: self.search_mode,
                 case: self.search_case,
                 labels: self.search_labels(),
-                go: t("gui.find_go"),
+                go: t(if self.filter_mode {
+                    "gui.filter_go"
+                } else {
+                    "gui.find_go"
+                }),
+                invert: self.filter_mode.then_some(self.find_invert),
             },
             DialogKind::Replace => DialogView::Replace {
                 title: t("prompt.replace.title"),
@@ -274,6 +291,7 @@ impl App {
             case: t("prompt.opt.case"),
             scope_one: t("prompt.opt.one"),
             scope_all: t("prompt.opt.all"),
+            invert: t("filter.invert"),
         }
     }
 
@@ -315,6 +333,13 @@ impl App {
             if self.dialog == Some(DialogKind::Replace) {
                 self.rep_reset();
             }
+        }
+    }
+
+    /// Nel dialogo del filtro: mostra le righe che NON corrispondono (come Alt+I); altrove non fa niente.
+    pub fn dialog_set_invert(&mut self, invertito: bool) {
+        if self.dialog == Some(DialogKind::Find) && self.filter_mode {
+            self.find_invert = invertito;
         }
     }
 

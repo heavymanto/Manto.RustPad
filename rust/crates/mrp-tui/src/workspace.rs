@@ -127,6 +127,13 @@ impl Drop for Workspace {
             for a in &self.tabs {
                 Workspace::pulisci_scheda(a);
             }
+        } else {
+            // le viste filtrate non tornano con la sessione: il loro file di appoggio va comunque
+            for a in &self.tabs {
+                if let Some(p) = a.filter_scratch() {
+                    let _ = std::fs::remove_file(p);
+                }
+            }
         }
     }
 }
@@ -560,6 +567,47 @@ impl Workspace {
         Ok(())
     }
 
+    /// Apre in una scheda nuova (e la porta avanti) la vista filtrata: il file di appoggio con le righe che corrispondono.
+    fn open_filter_tab(&mut self, fatto: crate::app::FilterDone) {
+        let attiva = &self.tabs[self.active];
+        let cfg = AppConfig {
+            theme: attiva.theme_id(),
+            lang_code: Some(attiva.lang_code().to_string()),
+            encoding: None,
+            ..self.cfg.clone()
+        };
+        let percorso = fatto.path.clone();
+        match App::open(&percorso, cfg) {
+            Ok(mut app) => {
+                app.set_filter_view(fatto);
+                self.tabs.push(app);
+                self.select(self.tabs.len() - 1);
+            }
+            Err(e) => {
+                let _ = std::fs::remove_file(&percorso);
+                let a = &mut self.tabs[self.active];
+                let testo = a.text_with("filter.failed", &[&e.to_string()]);
+                a.set_flash(testo);
+            }
+        }
+    }
+
+    /// Dalla vista filtrata alla riga vera: porta avanti la scheda del file originale (la riapre se si e' chiusa) e va
+    /// alla posizione.
+    fn goto_original(&mut self, origine: &Path, pos: u64) {
+        let canon = origine
+            .canonicalize()
+            .unwrap_or_else(|_| origine.to_path_buf());
+        let mut i = self.tabs.iter().position(|a| a.path() == canon);
+        if i.is_none() && self.open(&canon).is_ok() {
+            i = Some(self.tabs.len() - 1);
+        }
+        if let Some(i) = i {
+            self.select(i);
+            self.tabs[i].goto_offset(pos);
+        }
+    }
+
     /// La cartella dei file vuoti che reggono i documenti senza nome: `untitled` dentro la cartella della sessione (cosi'
     /// tornano con la sessione) oppure, senza sessione, una cartella fra i temporanei.
     pub fn untitled_dir(sessione: Option<&Path>) -> PathBuf {
@@ -608,6 +656,10 @@ impl Workspace {
     /// documento senza nome non serve piu'.
     fn pulisci_scheda(a: &App) {
         if let Some(p) = a.scratch_path() {
+            let _ = std::fs::remove_file(p);
+        }
+        // il file di appoggio di una vista filtrata non serve piu'
+        if let Some(p) = a.filter_scratch() {
             let _ = std::fs::remove_file(p);
         }
     }
@@ -676,6 +728,16 @@ impl Workspace {
         self.poll_replace();
         if let Some(ask) = self.tabs[self.active].take_replace_request() {
             self.start_replace(ask);
+        }
+        // un filtro finito (in qualunque scheda) apre la sua vista; Invio su una riga della vista va al file originale
+        for i in 0..self.tabs.len() {
+            if let Some(fatto) = self.tabs[i].take_filter_done() {
+                self.open_filter_tab(fatto);
+                break;
+            }
+        }
+        if let Some((origine, pos)) = self.tabs[self.active].take_goto_original() {
+            self.goto_original(&origine, pos);
         }
         if let Some(percorso) = self.tabs[self.active].take_open_request() {
             if let Err(e) = self.open(&percorso) {

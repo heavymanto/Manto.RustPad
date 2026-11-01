@@ -54,6 +54,7 @@ const MODIFICA: &[Option<Cmd>] = &[
     Some(Cmd::Find),
     Some(Cmd::Goto),
     Some(Cmd::Replace),
+    Some(Cmd::Filter),
 ];
 
 const VISTA: &[Option<Cmd>] = &[

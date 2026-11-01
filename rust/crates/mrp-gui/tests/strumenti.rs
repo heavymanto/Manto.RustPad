@@ -41,6 +41,7 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("special", "¶"),
         ("follow", "↓"),
         ("log_colors", "≡"),
+        ("filter", "▽"),
         ("next_tab", "▶"),
         ("prev_tab", "◀"),
         ("jump_bar", "⏩"),
