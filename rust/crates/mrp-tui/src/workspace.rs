@@ -736,6 +736,9 @@ impl Workspace {
                 break;
             }
         }
+        if let Some(v) = self.tabs[self.active].take_jump_apply() {
+            self.set_jump_pages(v);
+        }
         if let Some((origine, pos)) = self.tabs[self.active].take_goto_original() {
             self.goto_original(&origine, pos);
         }
@@ -1038,6 +1041,16 @@ impl Workspace {
     pub fn go_end(&mut self) {
         self.tabs[self.active].handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
         self.settle();
+    }
+
+    /// Cambia le pagine dei tre salti in tutte le schede (e nelle schede nuove); la scelta si salva nelle impostazioni.
+    pub fn set_jump_pages(&mut self, v: [usize; 3]) {
+        self.cfg.jump_pages = v;
+        let attiva = self.active;
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_jump_pages(v, i == attiva);
+        }
     }
 
     /// I moltiplicatori dei salti di pagina della scheda attiva (le impostazioni `jump_pages`).

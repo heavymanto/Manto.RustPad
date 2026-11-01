@@ -93,6 +93,8 @@ pub struct Finestra {
     /// I pulsanti della barra dei salti nell'ultimo disegno, da sinistra a destra, con la loro voce (vuoti: come
     /// sopra, o la barra spenta).
     pulsanti_salti_v: Vec<(Rect, SaltoVoce)>,
+    /// L'ingranaggio in fondo alla barra dei salti nell'ultimo disegno (apre il dialogo dei salti).
+    rettangolo_ingranaggio: Option<Rect>,
     /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
     rettangolo_salti: Option<Rect>,
     /// Lo stato del dialogo disegnato nell'ultimo giro (B4b): i rettangoli per i test e i ricordi fra un giro e l'altro
@@ -172,6 +174,7 @@ impl Finestra {
             rettangolo_strumenti: None,
             pulsanti_salti_v: Vec::new(),
             rettangolo_salti: None,
+            rettangolo_ingranaggio: None,
             dialogo: StatoDialogo::default(),
             contestuale: None,
             contestuale_voci: Vec::new(),
@@ -635,6 +638,9 @@ impl Finestra {
         let voci = salti(self.ws.jump_pages());
         let mut rettangoli = Vec::new();
         let mut scelta = None;
+        let ingranaggio = std::cell::Cell::new(None);
+        let mut configura = false;
+        let tip = self.ws.active().text("gui.jump_config").to_string();
         let pannello = egui::TopBottomPanel::top("salti").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 for voce in &voci {
@@ -644,9 +650,24 @@ impl Finestra {
                     }
                     rettangoli.push((r.rect, voce.clone()));
                 }
+                // l'ingranaggio, a destra: apre il dialogo con le pagine dei tre salti
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let r = ui
+                        .add(egui::Button::new(glifo("jump_config")))
+                        .on_hover_text(&tip);
+                    ingranaggio.set(Some(r.rect));
+                    if r.clicked() {
+                        configura = true;
+                    }
+                });
             });
         });
+        if configura {
+            self.ws.active_mut().open_jump_dialog();
+            self.ultimo_input = Instant::now();
+        }
         self.pulsanti_salti_v = rettangoli;
+        self.rettangolo_ingranaggio = ingranaggio.get();
         self.rettangolo_salti = Some(pannello.response.rect);
         match scelta {
             Some(SaltoAzione::Inizio) => self.ws.go_start(),
@@ -819,6 +840,11 @@ impl Finestra {
 
     /// I pulsanti della barra dei salti nell'ultimo disegno, da sinistra a destra, con la loro voce (per i test);
     /// vuoti se non c'e'.
+    pub fn ingranaggio_rect(&self) -> Option<Rect> {
+        self.rettangolo_ingranaggio
+    }
+
+    /// I pulsanti della barra dei salti nell'ultimo disegno (per i test), da sinistra a destra, con la loro voce.
     pub fn pulsanti_salti(&self) -> &[(Rect, SaltoVoce)] {
         &self.pulsanti_salti_v
     }
@@ -997,6 +1023,7 @@ impl Finestra {
         } else {
             self.pulsanti_salti_v.clear();
             self.rettangolo_salti = None;
+            self.rettangolo_ingranaggio = None;
         }
         if let Some(s) = self.schede(ctx) {
             match s {

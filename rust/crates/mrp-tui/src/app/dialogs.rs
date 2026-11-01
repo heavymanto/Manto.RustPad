@@ -63,6 +63,14 @@ pub enum DialogView {
         hint: String,
         text: String,
     },
+    /// Le pagine dei tre salti: il titolo, il suggerimento, l'etichetta e il testo dei tre numeri e quale ha il fuoco.
+    Jumps {
+        title: String,
+        hint: String,
+        labels: [String; 3],
+        values: [String; 3],
+        field: u8,
+    },
     /// Cerca: il testo, il modo (testo, glob, regex), se le maiuscole contano, i testi delle opzioni e del pulsante.
     Find {
         title: String,
@@ -149,6 +157,7 @@ impl App {
                     | DialogKind::Saving
                     | DialogKind::Find
                     | DialogKind::Replace
+                    | DialogKind::Jumps
             )
         )
     }
@@ -206,6 +215,13 @@ impl App {
                     .collect(),
                 selected: self.menu_index,
                 note: None,
+            },
+            DialogKind::Jumps => DialogView::Jumps {
+                title: t("jump.title"),
+                hint: t("jump.hint"),
+                labels: [t("jump.label1"), t("jump.label2"), t("jump.label3")],
+                values: self.jump_text.clone(),
+                field: self.jump_field,
             },
             DialogKind::Goto => DialogView::Prompt {
                 title: t("prompt.goto.title"),
@@ -333,6 +349,16 @@ impl App {
             if self.dialog == Some(DialogKind::Replace) {
                 self.rep_reset();
             }
+        }
+    }
+
+    /// Nel dialogo dei salti: scrive nel campo `i` (0, 1 o 2) il testo `testo` (solo le cifre, al piu' cinque) e gli da' il
+    /// fuoco; altrove, o con un altro campo, non fa niente.
+    pub fn dialog_set_jump(&mut self, i: u8, testo: &str) {
+        if self.dialog == Some(DialogKind::Jumps) && i < 3 {
+            self.jump_text[usize::from(i)] =
+                testo.chars().filter(char::is_ascii_digit).take(5).collect();
+            self.jump_field = i;
         }
     }
 

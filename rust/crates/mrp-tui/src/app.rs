@@ -3,7 +3,7 @@
 
 pub mod dialogs;
 
-use crate::settings::{Settings, JUMP_PAGES};
+use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
 use mrp_core::block::{
     block_spans, block_text, delete_block, insert_block, nth_row, paste_block, BlockError,
@@ -381,6 +381,8 @@ pub enum DialogKind {
     SaveAs,
     /// Il file scelto per "salva con nome" esiste gia': Invio lo sostituisce, Esc rinuncia.
     Overwrite,
+    /// Gli ingranaggi della barra dei salti: le pagine dei tre salti (Alt+Pag, con Maiusc, con Ctrl).
+    Jumps,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -697,6 +699,11 @@ pub struct App {
     follow_checked: Instant,
     /// Il dialogo Trova e' aperto come filtro (Alt+G) invece che come ricerca (Ctrl+F).
     filter_mode: bool,
+    /// I tre numeri scritti nel dialogo dei salti e quello che ha il fuoco.
+    jump_text: [String; 3],
+    jump_field: u8,
+    /// I salti confermati nel dialogo, in attesa che il `Workspace` li applichi a tutte le schede (`take_jump_apply`).
+    jump_apply: Option<[usize; 3]>,
     /// Il filtro mostra le righe che NON corrispondono (Alt+I nel dialogo del filtro).
     find_invert: bool,
     /// Un filtro finito, in attesa che il `Workspace` apra la vista (`take_filter_done`).
@@ -887,6 +894,9 @@ impl App {
             follow: false,
             follow_checked: Instant::now(),
             filter_mode: false,
+            jump_text: [String::new(), String::new(), String::new()],
+            jump_field: 0,
+            jump_apply: None,
             find_invert: false,
             filter_done: None,
             filter_view: None,
@@ -1419,6 +1429,10 @@ impl App {
                     .unwrap_or(0);
             }
             DialogKind::Goto => self.goto_text.clear(),
+            DialogKind::Jumps => {
+                self.jump_text = self.jump_pages.map(|n| n.to_string());
+                self.jump_field = 0;
+            }
             DialogKind::Open => self.open_text.clear(),
             // salva con nome: parte dalla cartella del file (con il separatore in fondo, si scrive solo il nome); un
             // documento senza nome parte vuoto
@@ -1482,6 +1496,23 @@ impl App {
                 KeyCode::End => self.menu_index = self.menu_len().saturating_sub(1),
                 KeyCode::Enter => self.menu_apply(),
                 KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
+            // I salti: tre numeri; Tab e le frecce cambiano campo, le cifre si scrivono, Enter conferma se sono validi
+            DialogKind::Jumps => match key.code {
+                KeyCode::Esc => self.dialog = None,
+                KeyCode::Tab | KeyCode::Down => self.jump_field = (self.jump_field + 1) % 3,
+                KeyCode::BackTab | KeyCode::Up => self.jump_field = (self.jump_field + 2) % 3,
+                KeyCode::Enter => self.jump_confirm(),
+                KeyCode::Backspace => {
+                    self.jump_text[usize::from(self.jump_field)].pop();
+                }
+                KeyCode::Char(c) if c.is_ascii_digit() && !ctrl && !alt => {
+                    let campo = &mut self.jump_text[usize::from(self.jump_field)];
+                    if campo.len() < 5 {
+                        campo.push(c);
+                    }
+                }
                 _ => {}
             },
             // Prompt "vai a": i caratteri si scrivono, Backspace toglie, Enter conferma, Esc annulla.
@@ -4363,6 +4394,47 @@ impl App {
         }
     }
 
+    // ----- i salti di pagina -----
+
+    /// Apre il dialogo degli ingranaggi della barra dei salti: le pagine dei tre salti, da cambiare.
+    pub fn open_jump_dialog(&mut self) {
+        self.open_dialog(DialogKind::Jumps);
+    }
+
+    /// Conferma il dialogo dei salti: se i tre numeri stanno fra `JUMP_MIN` e `JUMP_MAX` si consegnano a chi li applica
+    /// (`take_jump_apply`) e il dialogo si chiude; altrimenti resta aperto e lo dice.
+    fn jump_confirm(&mut self) {
+        let mut v = [0usize; 3];
+        for (i, t) in self.jump_text.iter().enumerate() {
+            match t.parse::<usize>() {
+                Ok(n) if (JUMP_MIN..=JUMP_MAX).contains(&n) => v[i] = n,
+                _ => {
+                    self.flash = Some(
+                        self.cat
+                            .tf("jump.bad", &[&JUMP_MIN.to_string(), &JUMP_MAX.to_string()]),
+                    );
+                    self.jump_field = i as u8;
+                    return;
+                }
+            }
+        }
+        self.jump_apply = Some(v);
+        self.dialog = None;
+    }
+
+    /// I salti confermati nel dialogo, se ce ne sono: li applica chi ha le schede (`Workspace::set_jump_pages`).
+    pub fn take_jump_apply(&mut self) -> Option<[usize; 3]> {
+        self.jump_apply.take()
+    }
+
+    /// Cambia le pagine dei tre salti di questa scheda; con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_jump_pages(&mut self, v: [usize; 3], salva: bool) {
+        self.jump_pages = v;
+        if salva {
+            self.save_settings();
+        }
+    }
+
     // ----- vista filtrata -----
 
     /// Alt+G: apre il dialogo del filtro (lo stesso di Trova, con un altro titolo e l'opzione "nascondi quelle che
@@ -4371,6 +4443,16 @@ impl App {
         self.open_dialog(DialogKind::Find);
         self.filter_mode = true;
         self.find_invert = false;
+    }
+
+    /// Il numero scritto nel campo `i` del dialogo dei salti (vuoto se non c'e').
+    pub(crate) fn jump_value(&self, i: usize) -> &str {
+        self.jump_text.get(i).map_or("", String::as_str)
+    }
+
+    /// Il campo del dialogo dei salti che ha il fuoco.
+    pub(crate) fn jump_field(&self) -> u8 {
+        self.jump_field
     }
 
     /// Il dialogo Trova e' aperto come filtro.

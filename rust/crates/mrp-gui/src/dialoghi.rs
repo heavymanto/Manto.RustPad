@@ -36,6 +36,8 @@ pub struct StatoDialogo {
     testo: String,
     /// Il testo del secondo campo di Sostituisci (con cosa sostituire; il primo, cosa cercare, usa `testo`).
     testo_due: String,
+    /// I tre numeri del dialogo dei salti.
+    numeri: [String; 3],
     /// Se il campo del prompt ha gia' chiesto il fuoco (lo chiede una volta sola, appena il dialogo si apre).
     campo_fuoco: bool,
     /// La voce del menu evidenziata nel giro scorso: quando cambia, si porta in vista.
@@ -110,6 +112,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::Overwrite { title, .. }
         | DialogView::Confirm { title, .. }
         | DialogView::Find { title, .. }
+        | DialogView::Jumps { title, .. }
         | DialogView::Replace { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
@@ -280,6 +283,72 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         // Cerca: il suggerimento, il campo largo quanto la finestra, la riga delle opzioni (il modo e le maiuscole) e
         // i due pulsanti. Come il prompt: il campo prende il fuoco appena il dialogo si apre, mostra il testo dell'App
         // e le riporta le modifiche; Invio nel campo cerca (e chiude), come il pulsante.
+        // i salti: tre numeri (le pagine dei salti piccolo, medio e grande) con la loro etichetta, e i due pulsanti
+        DialogView::Jumps {
+            hint,
+            labels,
+            values,
+            field,
+            ..
+        } => {
+            // il padrone dei numeri e' l'App: il campo li rilegge a ogni giro (le modifiche dell'utente le riportano a lei)
+            stato.numeri = values.clone();
+            rect = egui::Window::new(titolo.as_str())
+                .collapsible(false)
+                .resizable(false)
+                .min_width(380.0)
+                .pivot(Align2::CENTER_CENTER)
+                .default_pos(ctx.screen_rect().center())
+                .show(ctx, |ui| {
+                    ui.label(RichText::new(hint).weak());
+                    egui::Grid::new("salti_numeri")
+                        .num_columns(2)
+                        .show(ui, |ui| {
+                            for i in 0..3u8 {
+                                ui.label(labels[usize::from(i)].as_str());
+                                let r = ui.add(
+                                    TextEdit::singleline(&mut stato.numeri[usize::from(i)])
+                                        .desired_width(80.0),
+                                );
+                                stato.campi.push(r.rect);
+                                if stato.campo.is_none() {
+                                    stato.campo = Some(r.rect);
+                                }
+                                // il fuoco iniziale e' sul campo che dice l'App
+                                if !stato.campo_fuoco && *field == i {
+                                    r.request_focus();
+                                }
+                                if r.has_focus() && *field != i {
+                                    ws.active_mut().dialog_set_jump(i, &values[usize::from(i)]);
+                                }
+                                if r.changed() {
+                                    ws.active_mut()
+                                        .dialog_set_jump(i, &stato.numeri[usize::from(i)]);
+                                    // l'App tiene solo le cifre: il campo le rilegge
+                                    stato.numeri[usize::from(i)] = stato.numeri[usize::from(i)]
+                                        .chars()
+                                        .filter(char::is_ascii_digit)
+                                        .take(5)
+                                        .collect();
+                                }
+                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                    ws.active_mut().dialog_submit();
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    stato.campo_fuoco = true;
+                    ui.horizontal(|ui| {
+                        if pulsante(ui, &mut stato.pulsanti, &t_ok) {
+                            ws.active_mut().dialog_submit();
+                        }
+                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
+                            ws.active_mut().dialog_cancel();
+                        }
+                    });
+                })
+                .map(|w| w.response.rect);
+        }
         DialogView::Find {
             hint,
             text,

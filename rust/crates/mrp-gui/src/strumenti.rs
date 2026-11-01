@@ -32,6 +32,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "follow" => "↓",
         "log_colors" => "≡",
         "filter" => "▽",
+        "jump_config" => "⚙",
         "next_tab" => "▶",
         "prev_tab" => "◀",
         "jump_bar" => "⏩",

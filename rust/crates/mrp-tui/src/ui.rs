@@ -573,6 +573,35 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             "prompt.goto.hint",
             app.goto_text(),
         ),
+        // I salti: una riga per numero, quella col fuoco col cursore
+        DialogKind::Jumps => {
+            let etichette = [
+                cat.t("jump.label1").to_string(),
+                cat.t("jump.label2").to_string(),
+                cat.t("jump.label3").to_string(),
+            ];
+            let larghezza = etichette
+                .iter()
+                .map(|e| e.chars().count())
+                .max()
+                .unwrap_or(0);
+            let campo = usize::from(app.jump_field());
+            let mut righe = vec![(cat.t("jump.hint").to_string(), t.hint)];
+            for (i, e) in etichette.iter().enumerate() {
+                let pad = larghezza - e.chars().count();
+                righe.push((
+                    format!("{}{} > {}", e, " ".repeat(pad), app.jump_value(i)),
+                    t.dialog,
+                ));
+            }
+            righe.push((cat.t("prompt.keys").to_string(), t.hint));
+            let colonna = larghezza + 3 + app.jump_value(campo).chars().count();
+            ContenutoDialogo {
+                titolo: cat.t("jump.title").to_string(),
+                righe,
+                cursore: Some((1 + campo, colonna)),
+            }
+        }
         DialogKind::Open => prompt_contenuto(
             cat,
             t,
