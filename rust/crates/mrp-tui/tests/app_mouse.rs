@@ -182,7 +182,7 @@ fn dragging_selects_and_shift_click_extends() {
 }
 
 #[test]
-fn a_click_ignores_dialogs_and_column_mode() {
+fn a_click_ignores_dialogs_and_in_column_mode_only_moves_the_cursor() {
     let (mut a, p, g) = app(b"abc\ndef\n", None, false);
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
@@ -191,8 +191,10 @@ fn a_click_ignores_dialogs_and_column_mode() {
     a.handle_key(k(KeyCode::Esc));
     a.handle_key(k(KeyCode::F(8)));
     assert!(a.column_mode());
+    // in modalita' colonna il clic porta il cursore sulla cella (il blocco nasce trascinando: `block_mouse.rs`)
     clic(&mut a, g + 2, 2);
-    assert_eq!(a.cursor(), 0);
+    assert_eq!(a.cursor(), 6);
+    assert_eq!(a.column_block(), None);
     let _ = std::fs::remove_file(p);
 }
 

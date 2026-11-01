@@ -572,6 +572,9 @@ pub struct App {
     row_starts: Vec<u64>,
     /// Dove e' cominciato il trascinamento del mouse con il tasto sinistro (l'ancora della selezione che si fa).
     drag_from: Option<u64>,
+    /// Il gesto del blocco col mouse (Alt+clic, o clic in modalita' colonna) in corso: l'inizio della riga e la colonna
+    /// virtuale dell'ancora. Il rilascio lo chiude.
+    block_drag: Option<(u64, u64)>,
     /// L'ultimo clic sinistro (istante, colonna, riga, quanti di fila): serve al doppio e al triplo clic.
     last_click: Option<(Instant, u16, u16, u8)>,
     /// Vero quando si e' chiesto di uscire.
@@ -746,6 +749,7 @@ impl App {
             drawn_rows: Vec::new(),
             row_starts: Vec::new(),
             drag_from: None,
+            block_drag: None,
             last_click: None,
             quit: false,
             cursor_xy: None,
@@ -937,16 +941,114 @@ impl App {
             // il tasto sinistro: un clic porta il cursore li' (con Maiusc estende la selezione), trascinare seleziona;
             // il secondo clic di fila seleziona la parola, il terzo la riga
             MouseEventKind::Down(MouseButton::Left) => {
-                let maiusc = m.modifiers.contains(KeyModifiers::SHIFT);
-                let posato = self.click(m.column, m.row, maiusc, false);
-                self.multi_click(m.column, m.row, maiusc, adesso, posato);
+                // Alt+clic, o un clic con la modalita' colonna accesa: comincia un blocco rettangolare
+                if m.modifiers.contains(KeyModifiers::ALT) || self.col_mode {
+                    self.last_click = None;
+                    self.block_press(m.column, m.row);
+                } else {
+                    let maiusc = m.modifiers.contains(KeyModifiers::SHIFT);
+                    let posato = self.click(m.column, m.row, maiusc, false);
+                    self.multi_click(m.column, m.row, maiusc, adesso, posato);
+                }
             }
             MouseEventKind::Drag(MouseButton::Left) => {
-                self.click(m.column, m.row, true, true);
+                if self.block_drag.is_some() {
+                    self.block_drag_to(m.column, m.row);
+                } else {
+                    self.click(m.column, m.row, true, true);
+                }
             }
-            MouseEventKind::Up(MouseButton::Left) => self.drag_from = None,
+            MouseEventKind::Up(MouseButton::Left) => {
+                self.drag_from = None;
+                self.block_drag = None;
+            }
             _ => {}
         }
+    }
+
+    /// L'inizio della riga di testo e la colonna virtuale della cella (`col`, `riga`) dello schermo: la riga e' quella
+    /// disegnata li' (un trascinamento sotto l'ultima ferma l'ultima, uno sopra la prima la prima; un clic fuori dal testo da'
+    /// `None`), la colonna conta lo scorrimento orizzontale e puo' stare oltre la fine della riga (fino a `MAX_VCOL`).
+    fn cell_at(&self, col: u16, riga: u16, trascina: bool) -> Option<(u64, u64)> {
+        if self.row_starts.is_empty() {
+            return None;
+        }
+        let sopra = self.top_offset();
+        if sopra == 1 && riga == 0 && !trascina {
+            return None;
+        }
+        let mut indice = usize::from(riga).saturating_sub(usize::from(sopra));
+        if indice >= self.row_starts.len() {
+            if !trascina {
+                return None;
+            }
+            indice = self.row_starts.len() - 1;
+        }
+        let colonna = self.hscroll + usize::from(col).saturating_sub(self.gutter_w());
+        Some((self.row_starts[indice], (colonna as u64).min(MAX_VCOL)))
+    }
+
+    /// Il gesto del blocco col mouse comincia: Alt+clic accende la modalita' colonna (se non lo e' gia'); il cursore va
+    /// sulla cella e li' sta l'ancora. Il blocco nasce al primo trascinamento: un clic senza muoversi non seleziona niente.
+    /// Ignorato con un dialogo aperto e fuori dal testo.
+    fn block_press(&mut self, col: u16, riga: u16) {
+        if self.dialog.is_some() {
+            return;
+        }
+        let Some((riga_inizio, vcol)) = self.cell_at(col, riga, false) else {
+            return;
+        };
+        if !self.col_mode {
+            self.toggle_column();
+        }
+        self.anchor = None;
+        self.drag_from = None;
+        self.block = None;
+        self.block_drag = Some((riga_inizio, vcol));
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        self.cursor =
+            view::offset_at_col(doc, riga_inizio, vcol, &self.view_opts()).min(self.max_cursor());
+        self.found = None;
+        self.remember_col();
+        self.scroll_adjust();
+    }
+
+    /// Il trascinamento del gesto del blocco: il blocco va dall'ancora alla cella sotto il puntatore (le righe dall'una
+    /// all'altra, le colonne in ordine); il cursore segue la colonna virtuale sulla riga del puntatore.
+    fn block_drag_to(&mut self, col: u16, riga: u16) {
+        let Some((r0, c0)) = self.block_drag else {
+            return;
+        };
+        let Some((r1, c1)) = self.cell_at(col, riga, true) else {
+            return;
+        };
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        let opts = self.view_opts();
+        let (prima, dopo) = (r0.min(r1), r0.max(r1));
+        // quante righe vanno da `prima` a `dopo` comprese (la riga vuota di fine file non e' una riga del blocco)
+        let mut righe = 1u64;
+        let mut corrente = prima;
+        while corrente < dopo {
+            let Some(successiva) = nth_row(doc, corrente, 1, &opts) else {
+                return;
+            };
+            corrente = successiva;
+            righe += 1;
+        }
+        self.block = Some(BlockState {
+            first_row: prima,
+            rows: righe,
+            cursor_at_bottom: r1 >= r0,
+            anchor_col: c0,
+            vcol: c1,
+        });
+        self.found = None;
+        self.align_cursor();
+        self.scroll_adjust();
     }
 
     /// Un clic (o un trascinamento) del tasto sinistro sulla cella (`col`, `riga`) dello schermo: il cursore va al

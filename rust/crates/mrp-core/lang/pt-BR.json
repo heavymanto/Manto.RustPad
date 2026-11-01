@@ -33,7 +33,7 @@
   "cli.err.encoding": "codificação desconhecida: {}",
   "footer.f8": "Col",
   "help.l11": "Shift+setas, Ctrl+A        selecionar; Ctrl+C / X / V copiar, recortar, colar",
-  "help.l12": "F8                         modo coluna (Shift+setas: bloco)",
+  "help.l12": "F8                         modo coluna (Shift+setas/Alt+arrastar: bloco)",
   "flash.column_on": "modo coluna ativado",
   "flash.column_off": "modo coluna desativado",
   "flash.block_too_big": "bloco grande demais (limite {} linhas)",

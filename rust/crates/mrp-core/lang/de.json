@@ -33,7 +33,7 @@
   "cli.err.encoding": "unbekannte Kodierung: {}",
   "footer.f8": "Spa",
   "help.l11": "Umschalt+Pfeile, Strg+A    markieren; Strg+C / X / V kopieren, ausschneiden, einfügen",
-  "help.l12": "F8                         Spaltenmodus (Umschalt+Pfeile: Block)",
+  "help.l12": "F8                         Spaltenmodus (Umschalt+Pfeile/Alt+Ziehen: Block)",
   "flash.column_on": "Spaltenmodus an",
   "flash.column_off": "Spaltenmodus aus",
   "flash.block_too_big": "Block zu groß (Grenze {} Zeilen)",

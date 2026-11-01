@@ -33,7 +33,7 @@
   "cli.err.encoding": "未知编码: {}",
   "footer.f8": "列",
   "help.l11": "Shift+方向键, Ctrl+A       选择; Ctrl+C / X / V 复制、剪切、粘贴",
-  "help.l12": "F8                         列模式(Shift+方向键: 块)",
+  "help.l12": "F8                         列模式(Shift+方向键/Alt+拖动: 块)",
   "flash.column_on": "列模式已开启",
   "flash.column_off": "列模式已关闭",
   "flash.block_too_big": "块过大(上限 {} 行)",

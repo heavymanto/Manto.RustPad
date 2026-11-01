@@ -32,7 +32,7 @@
   "cli.err.encoding": "codifica sconosciuta: {}",
   "footer.f8": "Col",
   "help.l11": "Maiusc+frecce, Ctrl+A      seleziona; Ctrl+C / X / V copia, taglia, incolla",
-  "help.l12": "F8                         modalita' colonna (Maiusc+frecce: blocco)",
+  "help.l12": "F8                         modalita' colonna (Maiusc+frecce/Alt+trascina: blocco)",
   "flash.column_on": "modalita' colonna attiva",
   "flash.column_off": "modalita' colonna spenta",
   "flash.block_too_big": "blocco troppo grande (limite {} righe)",

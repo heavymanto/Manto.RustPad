@@ -403,7 +403,7 @@ impl Finestra {
                         self.ws.handle_mouse(MouseEvent {
                             kind: MouseEventKind::Drag(MouseButton::Left),
                             column: x,
-                            row: y + u16::from(pos.y >= o.y),
+                            row: y + u16::from(pos.y >= o.y + c.y * f32::from(righe)),
                             modifiers: KeyModifiers::NONE,
                         });
                         tocco = true;

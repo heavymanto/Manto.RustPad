@@ -33,7 +33,7 @@
   "cli.err.encoding": "不明な文字コード: {}",
   "footer.f8": "矩形",
   "help.l11": "Shift+矢印, Ctrl+A         選択; Ctrl+C / X / V コピー・切り取り・貼り付け",
-  "help.l12": "F8                         矩形選択モード(Shift+矢印でブロック)",
+  "help.l12": "F8                         矩形選択モード(Shift+矢印/Alt+ドラッグでブロック)",
   "flash.column_on": "矩形選択モード オン",
   "flash.column_off": "矩形選択モード オフ",
   "flash.block_too_big": "ブロックが大きすぎます(上限{}行)",
