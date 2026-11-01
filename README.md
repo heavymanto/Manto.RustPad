@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-960-brightgreen" alt="960 tests" />
+        <img src="https://img.shields.io/badge/tests-961-brightgreen" alt="961 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -23,8 +23,8 @@
 </table>
 
 <div align="center">
-<img src="docs/img/gui-console.png" alt="mrp-gui, the desktop window: two tabs, line numbers, the keys in the footer" width="80%" />
-<br /><sub><b>mrp-gui</b> — the same editor, drawn in a window: a log and a SQL dump open in two tabs.</sub>
+<img src="docs/img/gui-light.png" alt="mrp-gui, the desktop window: menu bar, toolbar, two tabs, line numbers, status bar and scrollbar" width="80%" />
+<br /><sub><b>mrp-gui</b> — the desktop window: menu, toolbar, tabs, status bar and scrollbar, with a log and a SQL dump open in two tabs.</sub>
 </div>
 
 ---
@@ -79,17 +79,18 @@ The packages (a ZIP for Windows, a tar.gz for Linux and macOS, each with its SHA
 
 | `mrp-tui` — in the terminal | `mrp-gui` — in a window |
 |:---:|:---:|
-| ![mrp-tui: the Replace dialog with a preview, in the terminal](docs/img/tui-replace.png) | ![mrp-gui: the same editor in a desktop window](docs/img/gui-night.png) |
+| ![mrp-tui: the Replace dialog with a preview, in the terminal](docs/img/tui-replace.png) | ![mrp-gui: the desktop window, dark theme](docs/img/gui-dark.png) |
 
 | | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
-| **What it is** | a full-screen editor for any terminal (ratatui) | the same editor drawn in a window (egui), with the system clipboard, CJK fonts and drag-and-drop |
-| **Start it** | `mrp-tui file...` | `mrp-gui file...` (without a file it opens the file dialog) |
-| **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Help) and the native open dialog |
+| **What it is** | a full-screen editor for any terminal (ratatui), made for servers and SSH | a desktop application (egui): real menus, toolbar, status bar, scrollbar and dialogs, the system clipboard, CJK fonts and drag-and-drop |
+| **Start it** | `mrp-tui file...` | `mrp-gui file...` (without a file it restores the last session, or opens an empty "Untitled 1") |
+| **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Help), a toolbar with icons, a right-click menu and the native open / save dialogs |
 | **Tabs** | a bar on the first row, one tab per file | a strip with a close button per tab |
+| **Look** | four terminal themes | six themes; follows the system light / dark setting until you pick one |
 | **The mouse** | positions the cursor, selects (double click: word, triple click: row), picks a tab | the same, and middle-click closes a tab |
 
-Both are the **same code**: the editor's logic lives in one place and `mrp-gui` just draws its cell grid. A feature added to one is in the other.
+Both share **one engine**: the editor's logic (documents, tabs, search, edits, sessions) lives in one place; `mrp-gui` draws the text as the same cell grid but wraps it in its own native controls. A feature added to the engine is in both.
 
 ## What it does
 
@@ -108,7 +109,7 @@ Both are the **same code**: the editor's logic lives in one place and `mrp-gui` 
 - **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included), 52 single-byte code pages
   (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) and the East-Asian multi-byte encodings (Shift_JIS, EUC-JP,
   GBK, GB18030, Big5, EUC-KR) — on files larger than RAM. Chosen with `F9` or `--encoding`, or recognised at open (the multi-byte ones are never guessed: pick them by hand).
-- **Four themes and seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
+- **Six themes and seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
 
 Non-goals: a log analyser (use lnav, logana, klogg) and a plugin/IDE platform.
 
@@ -119,7 +120,9 @@ Non-goals: a log analyser (use lnav, logana, klogg) and a plugin/IDE platform.
 | ![night](docs/img/gui-night.png) | ![debian](docs/img/gui-debian.png) |
 | `night` | `debian` |
 | ![console](docs/img/gui-console.png) | ![minimal](docs/img/gui-minimal.png) |
-| `console` (the default) | `minimal` |
+| `console` (the default in the terminal) | `minimal` |
+| ![dark](docs/img/gui-dark.png) | ![light](docs/img/gui-light.png) |
+| `dark` | `light` |
 
 The terminal picture in *Two front ends* is Replace showing its preview before anything changes (`Ctrl+H`, then `Alt+M` for the mode, `Alt+C` for case, `Alt+A` for the scope).
 <sub>It is rendered from the editor's own `--dump` text output, so it has no colours; the real terminal uses the theme's.</sub>
@@ -145,7 +148,7 @@ Try the multi-file features: `mrp-tui a.txt b.txt c.txt`, then `Ctrl+H`, type a 
 
 ## Known limitations
 
-- **Early development.** The editor works and is covered by 960 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
+- **Early development.** The editor works and is covered by 961 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
   the Linux/macOS desktop window (`mrp-gui`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.

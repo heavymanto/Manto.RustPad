@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-960-brightgreen" alt="960 test" />
+        <img src="https://img.shields.io/badge/test-961-brightgreen" alt="961 test" />
         <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -23,8 +23,8 @@
 </table>
 
 <div align="center">
-<img src="docs/img/gui-console.png" alt="mrp-gui, la finestra: due schede, numeri di riga, i tasti nel piede" width="80%" />
-<br /><sub><b>mrp-gui</b> — lo stesso editor, disegnato in una finestra: un log e un dump SQL aperti in due schede.</sub>
+<img src="docs/img/gui-light.png" alt="mrp-gui, la finestra: barra dei menu, barra degli strumenti, due schede, numeri di riga, barra di stato e scorrimento" width="80%" />
+<br /><sub><b>mrp-gui</b> — la finestra: menu, barra degli strumenti, schede, barra di stato e scorrimento, con un log e un dump SQL aperti in due schede.</sub>
 </div>
 
 ---
@@ -79,17 +79,18 @@ compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido
 
 | `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
 |:---:|:---:|
-| ![mrp-tui: il dialogo Sostituisci con l'anteprima, nel terminale](docs/img/tui-replace.png) | ![mrp-gui: lo stesso editor in una finestra](docs/img/gui-night.png) |
+| ![mrp-tui: il dialogo Sostituisci con l'anteprima, nel terminale](docs/img/tui-replace.png) | ![mrp-gui: la finestra, tema scuro](docs/img/gui-dark.png) |
 
 | | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
-| **Cos'è** | un editor a tutto schermo per qualsiasi terminale (ratatui) | lo stesso editor disegnato in una finestra (egui), con gli appunti di sistema, i caratteri CJK e il trascinamento dei file |
-| **Avvio** | `mrp-tui file...` | `mrp-gui file...` (senza file apre il dialogo di apertura) |
-| **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Aiuto) e il dialogo nativo di apertura |
+| **Cos'è** | un editor a tutto schermo per qualsiasi terminale (ratatui), pensato per server e SSH | un'applicazione desktop (egui): menu, barra degli strumenti, barra di stato, scorrimento e dialoghi veri, gli appunti di sistema, i caratteri CJK e il trascinamento dei file |
+| **Avvio** | `mrp-tui file...` | `mrp-gui file...` (senza file riprende l'ultima sessione, o apre un "Senza nome 1" vuoto) |
+| **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Aiuto), una barra degli strumenti con le icone, il menu del tasto destro e i dialoghi nativi di apertura e salvataggio |
 | **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
+| **Aspetto** | quattro temi da terminale | sei temi; segue l'impostazione chiaro / scuro del sistema finché non ne scegli uno |
 | **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
 
-Sono **lo stesso codice**: la logica dell'editor sta in un posto solo e `mrp-gui` si limita a disegnarne la griglia di celle. Una funzione aggiunta a uno c'è anche nell'altro.
+Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerca, modifiche, sessioni) sta in un posto solo; `mrp-gui` disegna il testo come la stessa griglia di celle, ma la avvolge nei propri controlli nativi. Una funzione aggiunta al motore c'è in entrambi.
 
 ## Cosa fa
 
@@ -108,7 +109,7 @@ Sono **lo stesso codice**: la logica dell'editor sta in un posto solo e `mrp-gui
 - **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 52 tabelle di caratteri a byte singolo
   (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, i set Mac, US-ASCII) e le codifiche asiatiche a più byte (Shift_JIS, EUC-JP,
   GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano).
-- **Quattro temi e sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
+- **Sei temi e sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
 
 Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg) e una piattaforma di plugin/IDE.
 
@@ -119,7 +120,9 @@ Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg) e una pi
 | ![night](docs/img/gui-night.png) | ![debian](docs/img/gui-debian.png) |
 | `night` | `debian` |
 | ![console](docs/img/gui-console.png) | ![minimal](docs/img/gui-minimal.png) |
-| `console` (il predefinito) | `minimal` |
+| `console` (il predefinito nel terminale) | `minimal` |
+| ![dark](docs/img/gui-dark.png) | ![light](docs/img/gui-light.png) |
+| `dark` (scuro) | `light` (chiaro) |
 
 L'immagine del terminale in *Due programmi* mostra Sostituisci con la sua anteprima prima che cambi qualcosa (`Ctrl+H`, poi `Alt+M` per il modo, `Alt+C` per le maiuscole, `Alt+A` per l'ambito).
 <sub>È generata dal testo dell'opzione `--dump` dell'editor, quindi è senza colori; il terminale vero usa quelli del tema.</sub>
@@ -145,7 +148,7 @@ Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, 
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 960 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
+- **Sviluppo iniziale.** L'editor funziona ed è coperto da 961 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
   la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.

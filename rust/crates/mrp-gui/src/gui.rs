@@ -103,6 +103,9 @@ pub struct Finestra {
     /// Le voci del menu contestuale nell'ultimo disegno e il rettangolo di tutto il menu (vuote / `NOTHING`: chiuso).
     contestuale_voci: Vec<(Rect, Cmd)>,
     contestuale_rect: Rect,
+    /// Il colore di fondo della griglia nell'ultimo disegno (l'ultima cella): riempie anche il resto dell'area che non
+    /// basta per una riga o una colonna intera.
+    fondo: [u8; 3],
 }
 
 impl Finestra {
@@ -173,6 +176,7 @@ impl Finestra {
             contestuale: None,
             contestuale_voci: Vec::new(),
             contestuale_rect: Rect::NOTHING,
+            fondo: BG_PREDEFINITO,
         }
     }
 
@@ -218,6 +222,11 @@ impl Finestra {
     /// vuote se e' chiuso.
     pub fn contestuale_voci(&self) -> &[(Rect, Cmd)] {
         &self.contestuale_voci
+    }
+
+    /// Il colore di fondo della griglia nell'ultimo disegno (per i test).
+    pub fn fondo(&self) -> [u8; 3] {
+        self.fondo
     }
 
     /// L'`App` della scheda attiva (per i test).
@@ -1010,7 +1019,7 @@ impl Finestra {
             self.presa_scroll = None;
         }
         egui::CentralPanel::default()
-            .frame(Frame::NONE.fill(paint::colore(BG_PREDEFINITO)))
+            .frame(Frame::NONE.fill(paint::colore(self.fondo)))
             .show(ctx, |ui| {
                 let area = ui.available_rect_before_wrap();
                 let colonne = input::celle_in(area.width(), cella.x, COLONNE_MIN);
@@ -1021,6 +1030,9 @@ impl Finestra {
                 }
                 self.ws.tick();
                 let griglia = render_grid_workspace(&mut self.ws, colonne, righe);
+                if let Some(c) = griglia.celle.last() {
+                    self.fondo = c.bg;
+                }
                 // testo asiatico in un file che non lo dichiara (UTF-8, UTF-16...): il font si carica al primo che si vede
                 let mut nuova = false;
                 for c in griglia.celle.iter().flat_map(|c| c.simbolo.chars()) {

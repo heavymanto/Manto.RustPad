@@ -7,6 +7,10 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 ### Changed
 - **`PieceTable` keeps its pieces in blocks** (at most 512 pieces each, with the byte total of each block) and an insert or delete rewrites only a small window around the change instead of copying the whole list; `len()` is O(1). Scattered edits: 1.8 ms → 0.9 µs per edit at 40,000 pieces, 2.6 µs at 400,000 ([docs/BENCHMARKS.md](docs/BENCHMARKS.md)). `PieceTable::pieces()` now returns a `Vec<Piece>` (a copy); `piece_count`, `piece`, `iter`, `with_chunk_capacity` and `Document::open_with_chunk` are new. 9 new tests with blocks of 4 pieces against a naive oracle. 
 - **The line-number table is incremental** (`Document::line_count`, `offset_of_line`, `line_at_offset`): every block of the piece list has a label (`PieceTable::chunk_stamp`) that changes only when its pieces change, and the document remembers how many `\n` each label holds, so an edit makes it count again only the touched blocks instead of rebuilding a table over all the pieces. With a line count asked after every edit: 2.0 ms → 14 µs per edit at 40,000 pieces, 37 µs at 199,000. New: `PieceTable::chunk_count`, `chunk_pieces`, `chunk_len`, `chunk_stamp`, `Document::chunk_aggregations` (a diagnostic counter). 12 new tests ([docs/BENCHMARKS.md](docs/BENCHMARKS.md)).
+- **README**: new screenshots of the window (six themes, light and dark) and a rewritten comparison of the two front ends (one engine, native controls in the window).
+
+### Fixed
+- **The strip under the text in the window** (the leftover space that does not fit a whole row) was always near-black; it now has the theme background (white in Light).
 
 ### Added
 - **Context menu in the window** (task B5b): right-click on the text opens a small menu at the pointer with Undo, Redo, Cut, Copy, Paste, Select all and Find (entries that make no sense now are greyed out and do nothing). Esc or a click elsewhere closes it; it never opens over a dialog, the menu bar or the toolbar. 11 new tests.

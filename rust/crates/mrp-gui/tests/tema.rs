@@ -145,3 +145,18 @@ fn picking_a_theme_in_the_menu_switches_the_controls() {
     assert!(!scuri(&ctx), "i controlli sono passati al chiaro");
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_area_around_the_grid_has_the_theme_background() {
+    // il resto dell'area che non basta per una riga intera non e' piu' nero: ha il fondo del tema (Scuro #1e1e1e, Chiaro bianco)
+    for (tema, fondo) in [
+        (ThemeId::Dark, [0x1e, 0x1e, 0x1e]),
+        (ThemeId::Light, [0xff, 0xff, 0xff]),
+    ] {
+        let (mut f, ctx, p) = finestra(tema);
+        giro(&mut f, &ctx, vec![]);
+        giro(&mut f, &ctx, vec![]);
+        assert_eq!(f.fondo(), fondo, "{tema:?}");
+        let _ = std::fs::remove_file(p);
+    }
+}
