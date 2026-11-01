@@ -34,6 +34,8 @@ use std::time::{Duration, Instant};
 const MAX_SCAN: u64 = scan::DEFAULT_MAX_SCAN;
 /// Il tempo massimo fra due clic perche' siano un doppio clic.
 const MULTI_CLICK: Duration = Duration::from_millis(500);
+/// Da quante righe in su un salto di pagine usa l'indice righe invece di camminare.
+const FAST_JUMP_ROWS: usize = 5000;
 /// Ogni quanto si guarda se il file seguito e' cresciuto.
 const FOLLOW_EVERY: Duration = Duration::from_millis(500);
 /// Quanti caratteri al massimo una parola selezionata con il doppio clic si allarga per lato (righe enormi).
@@ -4001,6 +4003,10 @@ impl App {
         if page == 0 {
             return;
         }
+        // un salto enorme con l'indice righe pronto non cammina: va dritto alla riga
+        if page >= FAST_JUMP_ROWS && self.fast_jump(true, page) {
+            return;
+        }
         let last = self.last_top();
         let sotto_cur = self.rows_after(self.cursor_row(), page);
         let sotto_top: Vec<u64> = self
@@ -4017,6 +4023,57 @@ impl App {
         self.scroll_adjust();
     }
 
+    /// Il salto di `righe` righe con l'indice righe: come il cammino riga per riga (il cursore e l'inizio della vista si
+    /// muovono dello stesso numero di righe, fermi ai bordi: la vista all'ultima pagina, il cursore all'ultima riga) ma
+    /// con `line_at_offset` e `offset_of_line`, quindi in tempo costante. Falso (si cammina) se l'indice non c'e' o se
+    /// una delle posizioni non sta su una riga dell'indice (per esempio la riga vuota in fondo in modifica).
+    fn fast_jump(&mut self, avanti: bool, righe: usize) -> bool {
+        let ultima_vista = self.last_top();
+        let (top, riga_cursore) = (self.top, self.cursor_row());
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        if !doc.has_lines() {
+            return false;
+        }
+        let mossa = (|| {
+            let righe = righe as u64;
+            let conteggio = doc.line_count()?;
+            let top_riga = doc.line_at_offset(top)?;
+            let cur_riga = doc.line_at_offset(riga_cursore)?;
+            let n = if avanti {
+                let ultima_riga = doc.line_at_offset(ultima_vista)?;
+                righe
+                    .min(ultima_riga.saturating_sub(top_riga))
+                    .min(conteggio.saturating_sub(1).saturating_sub(cur_riga))
+            } else {
+                righe.min(top_riga).min(cur_riga)
+            };
+            if n == 0 {
+                return Some(None);
+            }
+            let (nuova_top, nuovo_cur) = if avanti {
+                (top_riga + n, cur_riga + n)
+            } else {
+                (top_riga - n, cur_riga - n)
+            };
+            Some(Some((
+                doc.offset_of_line(nuova_top)?,
+                doc.offset_of_line(nuovo_cur)?,
+            )))
+        })();
+        match mossa {
+            None => false,
+            Some(None) => true,
+            Some(Some((nuova_top, nuovo_cur))) => {
+                self.cursor_at_col(nuovo_cur);
+                self.top = nuova_top;
+                self.scroll_adjust();
+                true
+            }
+        }
+    }
+
     /// Pagina in su', come `page_down` all'indietro.
     fn page_up(&mut self) {
         self.pages_up(1);
@@ -4026,6 +4083,9 @@ impl App {
     fn pages_up(&mut self, pagine: usize) {
         let page = self.text_rows().saturating_sub(1).saturating_mul(pagine);
         if page == 0 {
+            return;
+        }
+        if page >= FAST_JUMP_ROWS && self.fast_jump(false, page) {
             return;
         }
         let sopra_cur = self.rows_before(self.cursor_row(), page);
