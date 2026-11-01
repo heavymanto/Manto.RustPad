@@ -110,7 +110,7 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
 - **Jump to a time** (`Ctrl+G`, then `~03:20` or `~2026-10-31 09:00`): in a log whose times only go up, a binary search over the bytes finds the first line at or after that time in a few dozen reads, with no index, even in a file of hundreds of GB. Lines without a time (stack traces, headers) are crossed.
 - **Follow the end of a file** (`Alt+F`, like `tail -f`): a log that keeps growing is followed to its new end twice a second, without re-reading anything (the file is remapped and the line numbers are extended counting only the new bytes). Going up with a key or the wheel stops it; it does not combine with editing.
 - **Visible whitespace** (`Alt+W`): spaces as `·`, tabs as `→`, line ends as `¶`, control characters as `¤`; columns and mouse positions do not move. Saved with your settings.
-- **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included), 52 single-byte code pages
+- **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included), 53 single-byte code pages
   (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) and the East-Asian multi-byte encodings (Shift_JIS, EUC-JP,
   GBK, GB18030, Big5, EUC-KR) — on files larger than RAM. Chosen with `F9` or `--encoding`, or recognised at open (the multi-byte ones are never guessed: pick them by hand).
 - **Six themes and seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.

@@ -12,7 +12,7 @@ $ids = [ordered]@{
   'us-ascii'=20127; 'windows-874'=874; 'ibm775'=775; 'ibm855'=855; 'ibm857'=857; 'ibm860'=860; 'ibm861'=861
   'ibm862'=862; 'ibm863'=863; 'ibm865'=865; 'ibm869'=869; 'ibm720'=720
   'mac-cyrillic'=10007; 'mac-centraleurope'=10029; 'mac-iceland'=10079
-  'mac-turkish'=10081; 'mac-croatian'=10082; 'mac-romanian'=10010
+  'mac-turkish'=10081; 'mac-croatian'=10082; 'mac-romanian'=10010; 'mac-greek'=10006
 }
 $righe = foreach ($k in $ids.Keys) {
   $e = [Text.Encoding]::GetEncoding($ids[$k], [Text.EncoderFallback]::ExceptionFallback, [Text.DecoderFallback]::ExceptionFallback)

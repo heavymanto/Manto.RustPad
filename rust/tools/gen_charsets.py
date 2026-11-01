@@ -46,7 +46,7 @@ CHARSETS = [
     ("koi8-u", "koi8-u", ["koi8u"]),
     ("macintosh", "mac_roman", ["mac", "macroman", "mac-roman", "x-mac-roman"]),
     # aggiunte (E25): in coda, cosi' gli indici delle code page di prima non cambiano.
-    # Manca di proposito mac-greek: Python e .NET non sono d'accordo su 0x9C e 0xFF e non ho una terza fonte.
+    # mac-greek (4.3) e' in coda e usa OVERRIDES: vedi sotto.
     # Mancano di proposito cp864 (la sua meta' bassa non e' ASCII: 0x25 e' '%' arabo) e le EBCDIC (cp037...: '\n' non e' 0x0A)
     ("us-ascii", "ascii", ["ascii", "iso646-us"]),  # nessun byte sopra 0x7F: tutta la meta' alta vale U+FFFD
     ("windows-874", "cp874", ["cp874", "874", "tis-620", "tis620"]),
@@ -67,7 +67,17 @@ CHARSETS = [
     ("mac-turkish", "mac_turkish", ["macturkish", "x-mac-turkish"]),
     ("mac-croatian", "mac_croatian", ["maccroatian", "x-mac-croatian"]),
     ("mac-romanian", "mac_romanian", ["macromanian", "x-mac-romanian"]),
+    ("mac-greek", "mac_greek", ["macgreek", "x-mac-greek"]),
 ]
+
+# Mac Greek: tre fonti indipendenti si dividono su tre byte. Python (che segue la revisione piu' recente di Apple, con l'euro)
+# vuole 0x9C = U+20AC, 0xAF = U+00B7, 0xFF = U+00AD; .NET (CP 10006) e GNU libiconv (MACGREEK) sono d'accordo fra loro su
+# 0x9C = U+00AD (trattino debole) e 0xAF = U+0387 (ano teleia), e su 0xFF non lo sono (.NET: U+F8A0 dell'area privata di
+# Apple, libiconv: non definito). Si segue l'accordo di due fonti su due byte e si lascia 0xFF non definito (un byte non valido,
+# come in UTF-8: l'alternativa e' un carattere privato che nessun font ha). None = non definito.
+OVERRIDES = {
+    "mac-greek": {0x9C: "\u00ad", 0xAF: "\u0387", 0xFF: None},
+}
 
 # un nome o alias deve indicare una sola code page (il confronto e' senza maiuscole e con '_' = '-')
 _visti = {}
@@ -82,7 +92,11 @@ def table(codec, nome=""):
     for b in range(0x80):
         assert bytes([b]).decode(codec) == chr(b), (codec, b)
     out = []
+    sovrascritti = OVERRIDES.get(nome, {})
     for b in range(0x80, 0x100):
+        if b in sovrascritti:
+            out.append(sovrascritti[b] if sovrascritti[b] is not None else "\ufffd")
+            continue
         try:
             s = bytes([b]).decode(codec)
             assert len(s) == 1, (codec, b, s)

@@ -174,7 +174,7 @@ fn the_new_code_pages_follow_the_old_ones_so_old_indexes_do_not_move() {
     }
     assert_eq!(CHARSETS[32].name, "macintosh");
     assert_eq!(CHARSETS[33].name, "us-ascii");
-    assert_eq!(CHARSETS.len(), 52);
+    assert_eq!(CHARSETS.len(), 53);
 }
 
 #[test]
@@ -196,6 +196,10 @@ fn well_known_bytes_of_the_new_code_pages() {
         ("ibm775", 0x80, '\u{106}'),
         ("mac-cyrillic", 0x80, '\u{410}'),
         ("mac-turkish", 0xda, '\u{11e}'),
+        ("mac-greek", 0x80, '\u{c4}'),
+        ("mac-greek", 0xe1, '\u{3b1}'), // alfa minuscola
+        ("mac-greek", 0x9c, '\u{ad}'),  // trattino debole (accordo di .NET e libiconv)
+        ("mac-greek", 0xaf, '\u{387}'), // ano teleia
     ];
     for &(n, b, c) in casi {
         let e = Encoding::by_name(n).unwrap();

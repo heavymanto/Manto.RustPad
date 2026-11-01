@@ -110,7 +110,7 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
 - **Salta a un orario** (`Ctrl+G`, poi `~03:20` o `~2026-10-31 09:00`): in un log con gli orari che solo crescono, una ricerca binaria sui byte trova la prima riga da quell'orario in poi in poche decine di letture, senza indice, anche in un file di centinaia di GB. Le righe senza orario (tracce, intestazioni) si attraversano.
 - **Segui la fine di un file** (`Alt+F`, come `tail -f`): un log che continua a crescere si segue fino alla sua nuova fine due volte al secondo, senza rileggere niente (il file si rimappa e i numeri di riga si allungano contando solo i byte nuovi). Salire con un tasto o con la rotella lo ferma; non si combina con la modifica.
 - **Caratteri speciali visibili** (`Alt+W`): spazi come `·`, tabulazioni come `→`, fine riga come `¶`, caratteri di controllo come `¤`; le colonne e le posizioni del mouse non si spostano. Si salva con le impostazioni.
-- **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 52 tabelle di caratteri a byte singolo
+- **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 53 tabelle di caratteri a byte singolo
   (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, i set Mac, US-ASCII) e le codifiche asiatiche a più byte (Shift_JIS, EUC-JP,
   GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano).
 - **Sei temi e sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
