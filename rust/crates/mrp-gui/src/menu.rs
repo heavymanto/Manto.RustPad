@@ -112,3 +112,56 @@ pub fn disegna(ui: &mut Ui, ws: &Workspace) -> Option<Cmd> {
     });
     scelta
 }
+
+/// Il menu contestuale della griglia (tasto destro sul testo): i comandi di modifica e la ricerca; una `None` e' un
+/// separatore.
+pub const CONTESTUALE: &[Option<Cmd>] = &[
+    Some(Cmd::Undo),
+    Some(Cmd::Redo),
+    None,
+    Some(Cmd::Cut),
+    Some(Cmd::Copy),
+    Some(Cmd::Paste),
+    Some(Cmd::SelectAll),
+    None,
+    Some(Cmd::Find),
+];
+
+/// Disegna il menu contestuale con l'angolo in `pos` e restituisce i rettangoli delle voci (nell'ordine, senza i
+/// separatori), il rettangolo di tutto il menu e il comando scelto in questo giro, se c'e'. Le voci spente restano
+/// visibili ma non rispondono.
+pub fn disegna_contestuale(
+    ctx: &egui::Context,
+    ws: &Workspace,
+    pos: egui::Pos2,
+) -> (Vec<(egui::Rect, Cmd)>, egui::Rect, Option<Cmd>) {
+    let app = ws.active();
+    let mut voci = Vec::new();
+    let mut scelta = None;
+    let r = egui::Area::new(egui::Id::new("mrp_contestuale"))
+        .order(egui::Order::Foreground)
+        .fixed_pos(pos)
+        .show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.set_min_width(190.0);
+                for v in CONTESTUALE {
+                    match v {
+                        None => {
+                            ui.separator();
+                        }
+                        Some(cmd) => {
+                            let v = voce_di(*cmd);
+                            let b =
+                                egui::Button::new(app.text(v.chiave)).shortcut_text(v.scorciatoia);
+                            let r = ui.add_enabled(commands::enabled(ws, *cmd), b);
+                            voci.push((r.rect, *cmd));
+                            if r.clicked() {
+                                scelta = Some(*cmd);
+                            }
+                        }
+                    }
+                }
+            });
+        });
+    (voci, r.response.rect, scelta)
+}

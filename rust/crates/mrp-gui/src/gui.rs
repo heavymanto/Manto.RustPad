@@ -98,6 +98,11 @@ pub struct Finestra {
     /// Lo stato del dialogo disegnato nell'ultimo giro (B4b): i rettangoli per i test e i ricordi fra un giro e l'altro
     /// (si azzera quando non c'e' un dialogo da disegnare).
     dialogo: StatoDialogo,
+    /// Dove si e' aperto il menu contestuale della griglia (tasto destro); `None`: chiuso.
+    contestuale: Option<Pos2>,
+    /// Le voci del menu contestuale nell'ultimo disegno e il rettangolo di tutto il menu (vuote / `NOTHING`: chiuso).
+    contestuale_voci: Vec<(Rect, Cmd)>,
+    contestuale_rect: Rect,
 }
 
 impl Finestra {
@@ -165,6 +170,9 @@ impl Finestra {
             pulsanti_salti_v: Vec::new(),
             rettangolo_salti: None,
             dialogo: StatoDialogo::default(),
+            contestuale: None,
+            contestuale_voci: Vec::new(),
+            contestuale_rect: Rect::NOTHING,
         }
     }
 
@@ -206,6 +214,12 @@ impl Finestra {
         self.geometria
     }
 
+    /// Le voci del menu contestuale della griglia nell'ultimo disegno, dall'alto in basso, col loro comando (per i test);
+    /// vuote se e' chiuso.
+    pub fn contestuale_voci(&self) -> &[(Rect, Cmd)] {
+        &self.contestuale_voci
+    }
+
     /// L'`App` della scheda attiva (per i test).
     pub fn app(&mut self) -> &mut App {
         self.ws.active_mut()
@@ -244,6 +258,11 @@ impl Finestra {
                     ..
                 } => {
                     if dialogo {
+                        continue;
+                    }
+                    // Esc chiude il menu contestuale e non arriva al documento
+                    if key == egui::Key::Escape && self.contestuale.is_some() {
+                        self.contestuale = None;
                         continue;
                     }
                     // F2: salvare un documento senza nome chiede il nome col dialogo di sistema
@@ -307,10 +326,32 @@ impl Finestra {
                 }
                 Event::PointerButton {
                     pos,
+                    button: egui::PointerButton::Secondary,
+                    pressed: true,
+                    ..
+                } => {
+                    // il tasto destro sul testo apre il menu contestuale (non sotto un dialogo, un menu o una barra)
+                    let sul_testo = ctx
+                        .layer_id_at(pos)
+                        .is_none_or(|l| l.order == egui::Order::Background);
+                    let sulla_griglia = self.geometria.is_some_and(|(o, c, colonne, righe)| {
+                        input::cella_sotto(pos, o, c, colonne, righe).is_some()
+                    });
+                    if !dialogo && sul_testo && sulla_griglia {
+                        self.contestuale = Some(pos);
+                    }
+                }
+                Event::PointerButton {
+                    pos,
                     button: egui::PointerButton::Primary,
                     pressed,
                     modifiers,
                 } => {
+                    // un clic fuori dal menu contestuale lo chiude (e prosegue sulla griglia)
+                    if pressed && self.contestuale.is_some() && !self.contestuale_rect.contains(pos)
+                    {
+                        self.contestuale = None;
+                    }
                     // un dialogo aperto (senza cornice) tiene i clic per la sua finestra: alla griglia non arrivano (il
                     // rilascio di un trascinamento cominciato prima passa, come per i menu aperti)
                     if dialogo && pressed {
@@ -1010,6 +1051,26 @@ impl Finestra {
                 );
                 risposta.on_hover_cursor(CursorIcon::Text);
             });
+        // il menu contestuale della griglia (tasto destro): solo senza la cornice del terminale e senza un dialogo aperto
+        if self.ws.active().chrome() || self.ws.active().dialog_has_view() {
+            self.contestuale = None;
+        }
+        match self.contestuale {
+            Some(pos) => {
+                let (voci, rect, scelta) = menu::disegna_contestuale(ctx, &self.ws, pos);
+                self.contestuale_voci = voci;
+                self.contestuale_rect = rect;
+                if let Some(c) = scelta {
+                    self.contestuale = None;
+                    self.contestuale_voci.clear();
+                    self.azione(c);
+                }
+            }
+            None => {
+                self.contestuale_voci.clear();
+                self.contestuale_rect = Rect::NOTHING;
+            }
+        }
         // i dialoghi con una vista (B4b), solo senza la cornice del terminale: una finestra egui al centro, sopra la
         // griglia, che guida l'App con le azioni dialog_*; senza (o con la cornice) lo stato del disegno si azzera
         if !self.ws.active().chrome() && self.ws.active().dialog_has_view() {
