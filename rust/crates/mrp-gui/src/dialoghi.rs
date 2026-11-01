@@ -5,8 +5,8 @@
 //! (il testo del campo, il fuoco chiesto, la voce da portare in vista).
 
 use eframe::egui::{self, Align2, RichText, ScrollArea, TextEdit};
-use mrp_tui::app::DialogKind;
-use mrp_tui::dialogs::{ConfirmChoice, DialogView};
+use mrp_tui::app::{App, DialogKind};
+use mrp_tui::dialogs::{ConfirmChoice, DialogView, Mode, SearchLabels};
 use mrp_tui::workspace::Workspace;
 
 /// Il dialogo disegnato nell'ultimo giro: il rettangolo della finestra, il titolo, i pulsanti da sinistra a destra col
@@ -24,10 +24,18 @@ pub struct StatoDialogo {
     pub voci: Vec<egui::Rect>,
     /// Il rettangolo del campo di testo del prompt nell'ultimo disegno (`None`: non c'e').
     pub campo: Option<egui::Rect>,
+    /// I rettangoli dei campi di testo del dialogo nell'ultimo disegno, nell'ordine di disegno (per i test); il primo
+    /// e' anche `campo`.
+    pub campi: Vec<egui::Rect>,
+    /// Le opzioni del dialogo (i radio del modo e dell'ambito, la casella delle maiuscole) nell'ultimo disegno,
+    /// nell'ordine di disegno, con la loro etichetta (per i test).
+    pub opzioni: Vec<(egui::Rect, String)>,
     /// Il dialogo disegnato nel giro scorso: uno nuovo azzera i ricordi del campo e del menu.
     kind: Option<DialogKind>,
     /// Il testo del campo del prompt: il padrone e' l'`App`, il campo lo mostra e le riporta le modifiche.
     testo: String,
+    /// Il testo del secondo campo di Sostituisci (con cosa sostituire; il primo, cosa cercare, usa `testo`).
+    testo_due: String,
     /// Se il campo del prompt ha gia' chiesto il fuoco (lo chiede una volta sola, appena il dialogo si apre).
     campo_fuoco: bool,
     /// La voce del menu evidenziata nel giro scorso: quando cambia, si porta in vista.
@@ -82,6 +90,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
     if stato.kind != kind {
         stato.kind = kind;
         stato.testo.clear();
+        stato.testo_due.clear();
         stato.campo_fuoco = false;
         stato.ultima_voce = None;
     }
@@ -89,6 +98,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
     stato.pulsanti.clear();
     stato.voci.clear();
     stato.campo = None;
+    stato.campi.clear();
+    stato.opzioni.clear();
     let altezza = ctx.screen_rect().height();
     let t_ok = ws.active().text("gui.ok").to_string();
     let t_cancel = ws.active().text("gui.cancel").to_string();
@@ -190,6 +201,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     let r =
                         ui.add(TextEdit::singleline(&mut stato.testo).desired_width(f32::INFINITY));
                     stato.campo = Some(r.rect);
+                    stato.campi.push(r.rect);
                     if !stato.campo_fuoco {
                         r.request_focus();
                         stato.campo_fuoco = true;
@@ -260,16 +272,152 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 })
                 .map(|w| w.response.rect);
         }
-        // Cerca e Sostituisci: provvisorio (la finestra vera e' il task B4c); intanto un'etichetta e annulla
-        DialogView::Find { .. } | DialogView::Replace { .. } => {
+        // Cerca: il suggerimento, il campo largo quanto la finestra, la riga delle opzioni (il modo e le maiuscole) e
+        // i due pulsanti. Come il prompt: il campo prende il fuoco appena il dialogo si apre, mostra il testo dell'App
+        // e le riporta le modifiche; Invio nel campo cerca (e chiude), come il pulsante.
+        DialogView::Find {
+            hint,
+            text,
+            mode,
+            case,
+            labels,
+            go,
+            ..
+        } => {
+            if !stato.campo_fuoco {
+                stato.testo = text.clone();
+            }
             rect = egui::Window::new(titolo.as_str())
                 .collapsible(false)
                 .resizable(false)
+                .min_width(420.0)
                 .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
                 .show(ctx, |ui| {
-                    if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
-                        ws.active_mut().dialog_cancel();
+                    ui.label(RichText::new(hint).weak());
+                    let r =
+                        ui.add(TextEdit::singleline(&mut stato.testo).desired_width(f32::INFINITY));
+                    stato.campo = Some(r.rect);
+                    stato.campi.push(r.rect);
+                    if !stato.campo_fuoco {
+                        r.request_focus();
+                        stato.campo_fuoco = true;
                     }
+                    if r.changed() {
+                        ws.active_mut().dialog_set_text(&stato.testo);
+                    }
+                    if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                        ws.active_mut().dialog_submit();
+                    }
+                    riga_opzioni(
+                        ui,
+                        ws.active_mut(),
+                        &mut stato.opzioni,
+                        *mode,
+                        *case,
+                        labels,
+                    );
+                    ui.horizontal(|ui| {
+                        if pulsante(ui, &mut stato.pulsanti, go) {
+                            ws.active_mut().dialog_submit();
+                        }
+                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
+                            ws.active_mut().dialog_cancel();
+                        }
+                    });
+                })
+                .map(|w| w.response.rect);
+        }
+        // Sostituisci: i due campi allineati in una griglia (l'etichetta a sinistra), le opzioni come in Cerca piu'
+        // l'ambito, il messaggio dell'anteprima e i due pulsanti. Il fuoco parte dal campo che dice l'App e la segue
+        // (Tab e i clic lo spostano: lo fa egui); le modifiche tornano all'App e tolgono l'anteprima, Invio in un
+        // campo fa l'anteprima e, se gia' pronta, applica.
+        DialogView::Replace {
+            find_label,
+            with_label,
+            find,
+            with,
+            field,
+            mode,
+            case,
+            all_tabs,
+            status,
+            ready,
+            labels,
+            preview,
+            apply,
+            ..
+        } => {
+            if !stato.campo_fuoco {
+                stato.testo = find.clone();
+                stato.testo_due = with.clone();
+            }
+            let avviso = ctx.style().visuals.warn_fg_color;
+            rect = egui::Window::new(titolo.as_str())
+                .collapsible(false)
+                .resizable(false)
+                .min_width(420.0)
+                .anchor(Align2::CENTER_CENTER, [0.0, 0.0])
+                .show(ctx, |ui| {
+                    egui::Grid::new("sostituisci")
+                        .num_columns(2)
+                        .show(ui, |ui| {
+                            // i due campi (0 cosa cercare, 1 con cosa sostituire): l'etichetta a sinistra e il testo che
+                            // riempie la riga; il primo rettangolo e' anche il campo del prompt
+                            for i in 0..2u8 {
+                                let (etichetta, testo) = if i == 0 {
+                                    (find_label.as_str(), &mut stato.testo)
+                                } else {
+                                    (with_label.as_str(), &mut stato.testo_due)
+                                };
+                                ui.label(etichetta);
+                                let r = ui
+                                    .add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
+                                stato.campi.push(r.rect);
+                                if stato.campo.is_none() {
+                                    stato.campo = Some(r.rect);
+                                }
+                                // il fuoco arrivato a un campo diverso da quello della vista si dice all'App
+                                if r.has_focus() && *field != i {
+                                    ws.active_mut().dialog_focus(i);
+                                }
+                                // il fuoco iniziale, una volta sola: sul campo che dice la vista
+                                if !stato.campo_fuoco && *field == i {
+                                    r.request_focus();
+                                    stato.campo_fuoco = true;
+                                }
+                                if r.changed() {
+                                    ws.active_mut().dialog_set_field(i, testo);
+                                }
+                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                    ws.active_mut().dialog_submit();
+                                }
+                                ui.end_row();
+                            }
+                        });
+                    riga_opzioni(
+                        ui,
+                        ws.active_mut(),
+                        &mut stato.opzioni,
+                        *mode,
+                        *case,
+                        labels,
+                    );
+                    riga_ambito(ui, ws.active_mut(), &mut stato.opzioni, *all_tabs, labels);
+                    if !status.is_empty() {
+                        ui.colored_label(avviso, status.as_str());
+                    }
+                    ui.horizontal(|ui| {
+                        if pulsante(
+                            ui,
+                            &mut stato.pulsanti,
+                            if *ready { apply } else { preview },
+                        ) {
+                            ws.active_mut().dialog_submit();
+                        }
+                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
+                            ws.active_mut().dialog_cancel();
+                        }
+                    });
                 })
                 .map(|w| w.response.rect);
         }
@@ -300,4 +448,63 @@ fn pulsante(ui: &mut egui::Ui, pulsanti: &mut Vec<(egui::Rect, String)>, testo: 
     let r = ui.button(testo);
     pulsanti.push((r.rect, testo.to_string()));
     r.clicked()
+}
+
+/// La riga delle opzioni di Cerca e Sostituisci (come `opzioni_ricerca` del TUI): l'etichetta del modo, le tre scelte
+/// (testo, glob, regex) e la casella delle maiuscole. I valori vengono dall'App e i clic tornano a lei
+/// (`dialog_set_mode`, `dialog_set_case`); i rettangoli delle scelte finiscono in `opzioni` con la loro etichetta,
+/// nell'ordine di disegno.
+fn riga_opzioni(
+    ui: &mut egui::Ui,
+    app: &mut App,
+    opzioni: &mut Vec<(egui::Rect, String)>,
+    modo: Mode,
+    caso: bool,
+    labels: &SearchLabels,
+) {
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(&labels.mode).weak());
+        let mut corrente = modo;
+        for (scelta, etichetta) in [
+            (Mode::Text, labels.text.as_str()),
+            (Mode::Glob, labels.glob.as_str()),
+            (Mode::Regex, labels.regex.as_str()),
+        ] {
+            let r = ui.radio_value(&mut corrente, scelta, etichetta);
+            opzioni.push((r.rect, etichetta.to_string()));
+            if r.changed() {
+                app.dialog_set_mode(corrente);
+            }
+        }
+        let mut maiuscole = caso;
+        let r = ui.checkbox(&mut maiuscole, labels.case.as_str());
+        opzioni.push((r.rect, labels.case.clone()));
+        if r.changed() {
+            app.dialog_set_case(maiuscole);
+        }
+    });
+}
+
+/// La riga dell'ambito di Sostituisci (questa scheda o tutte): come le opzioni, i clic tornano all'App con
+/// `dialog_set_scope_all`.
+fn riga_ambito(
+    ui: &mut egui::Ui,
+    app: &mut App,
+    opzioni: &mut Vec<(egui::Rect, String)>,
+    tutte: bool,
+    labels: &SearchLabels,
+) {
+    ui.horizontal(|ui| {
+        let mut corrente = tutte;
+        let r = ui.radio_value(&mut corrente, false, labels.scope_one.as_str());
+        opzioni.push((r.rect, labels.scope_one.clone()));
+        if r.changed() {
+            app.dialog_set_scope_all(false);
+        }
+        let r = ui.radio_value(&mut corrente, true, labels.scope_all.as_str());
+        opzioni.push((r.rect, labels.scope_all.clone()));
+        if r.changed() {
+            app.dialog_set_scope_all(true);
+        }
+    });
 }

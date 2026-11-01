@@ -786,6 +786,18 @@ impl Finestra {
         self.dialogo.campo
     }
 
+    /// I rettangoli dei campi di testo del dialogo (prompt, cerca, sostituisci) nell'ultimo disegno, nell'ordine di
+    /// disegno (per i test, B4c); vuoti se non c'e'.
+    pub fn dialogo_campi(&self) -> &[Rect] {
+        &self.dialogo.campi
+    }
+
+    /// Le opzioni del dialogo (il modo e l'ambito di ricerca, le maiuscole) nell'ultimo disegno, nell'ordine di
+    /// disegno, con la loro etichetta (per i test); vuote se non c'e'.
+    pub fn dialogo_opzioni(&self) -> &[(Rect, String)] {
+        &self.dialogo.opzioni
+    }
+
     /// Esegue il comando scelto (menu o pulsante): quelli della finestra (aprire, salvare con nome, zoom) li fa lei, gli altri
     /// vanno al `Workspace` (`exec`: spenti non fanno niente).
     pub fn azione(&mut self, a: Cmd) {
