@@ -18,7 +18,7 @@ use mrp_core::pattern::{Edit, Mode, Pattern, Replacement};
 use mrp_core::scan::{self, Next};
 use mrp_core::session::TabRecord;
 use mrp_core::view::{self, ViewOptions};
-use mrp_core::{Document, FileSource, LineIndex, RestoreError, SaveError};
+use mrp_core::{BuildOptions, Document, FileSource, LineIndex, RestoreError, SaveError};
 use ratatui::crossterm::event::{
     KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind,
 };
@@ -36,6 +36,9 @@ const MAX_SCAN: u64 = scan::DEFAULT_MAX_SCAN;
 const MULTI_CLICK: Duration = Duration::from_millis(500);
 /// Da quante righe in su un salto di pagine usa l'indice righe invece di camminare.
 const FAST_JUMP_ROWS: usize = 5000;
+
+/// Quanto dopo l'ultimo salto riprende l'indicizzazione messa in pausa.
+const INDEX_PAUSE: Duration = Duration::from_millis(400);
 /// Ogni quanto si guarda se il file seguito e' cresciuto.
 const FOLLOW_EVERY: Duration = Duration::from_millis(500);
 /// Quanti caratteri al massimo una parola selezionata con il doppio clic si allarga per lato (righe enormi).
@@ -117,16 +120,26 @@ fn spawn_index_job(
     let path = path.to_path_buf();
     let cancel_thread = Arc::clone(cancel);
     let progress_thread = Arc::clone(progress);
+    let pausa = Arc::new(AtomicBool::new(false));
+    let pausa_thread = Arc::clone(&pausa);
     std::thread::spawn(move || {
         let esito = FileSource::open(&path).and_then(|src| {
-            LineIndex::build_for(&src, newline, &cancel_thread, &progress_thread)
-                .map_err(|_| io::Error::other("indicizzazione annullata"))
+            LineIndex::build_pausable(
+                &src,
+                newline,
+                &BuildOptions::default(),
+                &cancel_thread,
+                &progress_thread,
+                &pausa_thread,
+            )
+            .map_err(|_| io::Error::other("indicizzazione annullata"))
         });
         let _ = tx.send(esito);
     });
     IndexJob {
         rx,
         progress: Arc::clone(progress),
+        pausa,
     }
 }
 
@@ -462,6 +475,8 @@ struct IndexJob {
     rx: Receiver<io::Result<LineIndex>>,
     /// Byte di file gia' esaminati, per la percentuale nella riga di stato.
     progress: Arc<AtomicU64>,
+    /// Vero: l'indicizzazione non legge dal disco (l'utente sta saltando nel file).
+    pausa: Arc<AtomicBool>,
 }
 
 /// Il salvataggio in corso: il canale col thread che tiene il documento, i byte gia' scritti e l'ordine di
@@ -702,6 +717,8 @@ pub struct App {
     cancel: Arc<AtomicBool>,
     /// L'indicizzazione in corso, se c'e'.
     index_job: Option<IndexJob>,
+    /// Quando l'indicizzazione in pausa (per un salto dell'utente) puo' riprendere; `None`: non e' in pausa.
+    index_resume: Option<Instant>,
     /// Vero: la forma dell'a-capo del documento e' cambiata (un cambio di codifica fra UTF-16 e il
     /// resto) e l'indice righe va rifatto con la forma nuova; lo fa il primo `tick`, cosi' il
     /// messaggio del cambio di codifica resta da solo nella riga di stato.
@@ -918,6 +935,7 @@ impl App {
             theme: cfg.theme,
             cancel,
             index_job,
+            index_resume: None,
             index_pending: false,
             save_job: None,
             search_job: None,
@@ -1855,6 +1873,7 @@ impl App {
     /// Un "vai a" riuscito: il cursore va su un confine di carattere e la sua riga si vede (centrata se non si
     /// vedeva gia').
     fn goto_move(&mut self, pos: u64) {
+        self.pause_index();
         let pos = self.snap_to_char(pos.min(self.max_cursor()));
         self.cursor = pos;
         // Il salto riuscito toglie la selezione: il cursore e' arrivato altrove per conto suo.
@@ -2978,6 +2997,22 @@ impl App {
         }
     }
 
+    /// L'indicizzazione e' in pausa perche' l'utente sta saltando nel file (per i test).
+    pub fn index_paused(&self) -> bool {
+        self.index_job
+            .as_ref()
+            .is_some_and(|j| j.pausa.load(Ordering::Relaxed))
+    }
+
+    /// L'utente sta saltando nel file: l'indicizzazione smette di leggere dal disco (su un disco meccanico i suoi
+    /// accessi in sequenza e quelli del salto si ostacolano) e riprende da sola `INDEX_PAUSE` dopo l'ultimo salto.
+    fn pause_index(&mut self) {
+        if let Some(job) = self.index_job.as_ref() {
+            job.pausa.store(true, Ordering::Relaxed);
+            self.index_resume = Some(Instant::now() + INDEX_PAUSE);
+        }
+    }
+
     /// Raccoglie i lavori in background: prima il salvataggio (quando torna rimette il documento al suo
     /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi la ricerca e l'indice righe.
     pub fn tick(&mut self) {
@@ -2995,6 +3030,13 @@ impl App {
             self.index_pending = false;
             if self.index_job.is_none() {
                 self.rebuild_index();
+            }
+        }
+        // la pausa per un salto finisce da sola un po' dopo l'ultimo salto
+        if self.index_resume.is_some_and(|t| Instant::now() >= t) {
+            self.index_resume = None;
+            if let Some(job) = self.index_job.as_ref() {
+                job.pausa.store(false, Ordering::Relaxed);
             }
         }
         let esito = match self.index_job.as_mut() {
@@ -3342,6 +3384,7 @@ impl App {
 
     /// Il tasto Alt+Pag: Ctrl sceglie il terzo moltiplicatore, Maiusc il secondo, altrimenti il primo.
     fn jump_key(&mut self, avanti: bool, ctrl: bool, shift: bool) {
+        self.pause_index();
         let i = if ctrl {
             2
         } else if shift {
@@ -3487,6 +3530,7 @@ impl App {
         if self.text_rows() == 0 {
             return;
         }
+        self.pause_index();
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
@@ -4015,8 +4059,14 @@ impl App {
             Mov::Right => self.move_right(),
             Mov::Home => self.move_home(),
             Mov::End => self.move_end(),
-            Mov::FileStart => self.move_file_start(),
-            Mov::FileEnd => self.move_file_end(),
+            Mov::FileStart => {
+                self.pause_index();
+                self.move_file_start()
+            }
+            Mov::FileEnd => {
+                self.pause_index();
+                self.move_file_end()
+            }
             Mov::PageUp => self.page_up(),
             Mov::PageDown => self.page_down(),
         }

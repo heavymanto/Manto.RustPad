@@ -257,12 +257,16 @@ impl LineIndex {
     ///   (anche se e' gia' vero all'inizio).
     /// - `progress` viene incrementato del numero di byte elaborati; a costruzione riuscita vale `src.len()`
     ///   (si parte da zero: il chiamante passa un contatore a 0).
-    pub fn build_newline(
+    /// - `pause` (solo con `build_pausable`): finche' e' vero il precaricamento non legge piu' dal disco e i lavoratori,
+    ///   finito quello che e' gia' letto, aspettano; torna falso e riparte da dove era. Vale per i file grandi (con
+    ///   precaricamento); `cancel` ha la precedenza. Serve a lasciare il disco libero all'utente che salta nel file.
+    fn build_inner(
         src: &FileSource,
         newline: Newline,
         opts: &BuildOptions,
         cancel: &AtomicBool,
         progress: &AtomicU64,
+        pause: Option<&AtomicBool>,
     ) -> Result<LineIndex, Cancelled> {
         // Annullato in partenza: vale per qualunque file, anche vuoto.
         if cancel.load(Ordering::Relaxed) {
@@ -329,6 +333,11 @@ impl LineIndex {
                                     || finished.load(Ordering::Relaxed)
                                 {
                                     return;
+                                }
+                                // in pausa il disco resta libero: si riprova fra poco
+                                if pause.is_some_and(|p| p.load(Ordering::Relaxed)) {
+                                    std::thread::sleep(Duration::from_millis(5));
+                                    continue;
                                 }
                                 if touched.saturating_sub(done.load(Ordering::Relaxed)) <= lead {
                                     break;
@@ -441,6 +450,31 @@ impl LineIndex {
         progress: &AtomicU64,
     ) -> Result<LineIndex, Cancelled> {
         Self::build_newline(src, Newline::Byte, opts, cancel, progress)
+    }
+
+    /// Come `build_newline`, ma si puo' mettere in pausa: finche' `pause` e' vero la lettura del file si ferma (vedi
+    /// `build_inner`).
+    pub fn build_pausable(
+        src: &FileSource,
+        newline: Newline,
+        opts: &BuildOptions,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+        pause: &AtomicBool,
+    ) -> Result<LineIndex, Cancelled> {
+        Self::build_inner(src, newline, opts, cancel, progress, Some(pause))
+    }
+
+    /// Costruisce l'indice con la forma dell'a-capo `newline` e i parametri `opts` (vedi `build_inner` per il
+    /// comportamento).
+    pub fn build_newline(
+        src: &FileSource,
+        newline: Newline,
+        opts: &BuildOptions,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<LineIndex, Cancelled> {
+        Self::build_inner(src, newline, opts, cancel, progress, None)
     }
 
     /// `build_newline` con i parametri predefiniti.
