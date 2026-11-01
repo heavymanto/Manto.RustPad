@@ -78,6 +78,9 @@ pub struct LineIndex {
     total_lines: u64,
     /// La forma dell'a-capo con cui l'indice e' stato costruito.
     newline: Newline,
+    /// La distanza fra i punti (`checkpoint_every` di `BuildOptions`) con cui l'indice e'
+    /// stato costruito: serve a `extend` per allungarlo con la stessa spaziatura.
+    every: u64,
     /// Punti memorizzati: (numero di riga, posizione in byte), crescenti su entrambi.
     checkpoints: Vec<(u64, u64)>,
 }
@@ -277,6 +280,7 @@ impl LineIndex {
             return Ok(LineIndex {
                 total_lines: 0,
                 newline,
+                every,
                 checkpoints: Vec::new(),
             });
         }
@@ -423,6 +427,7 @@ impl LineIndex {
         Ok(LineIndex {
             total_lines: first_row,
             newline,
+            every,
             checkpoints,
         })
     }
@@ -446,6 +451,95 @@ impl LineIndex {
         progress: &AtomicU64,
     ) -> Result<LineIndex, Cancelled> {
         Self::build_newline(src, newline, &BuildOptions::default(), cancel, progress)
+    }
+
+    /// Allunga l'indice con la coda che il file ha preso dopo `old_len`, la lunghezza a cui
+    /// l'indice si riferisce: conta gli inizi di riga solo nella regione nuova
+    /// `[old_len, src.len())`, con letture esplicite come i lavoratori di `build_newline`
+    /// (la mappatura si tocca solo nel ripiego di un blocco la cui lettura e' fallita), e
+    /// fonde il risultato nei punti esistenti: niente di quello che c'era gia' si rilegge.
+    /// Vale per `Newline::Byte`; con le altre forme (che il chiamante non segue) vale come
+    /// se `old_len` fosse allineato. Con la regione nuova vuota restituisce una copia
+    /// dell'indice. `cancel` si controlla prima di ogni blocco, `progress` cresce dei byte
+    /// elaborati.
+    pub fn extend(
+        &self,
+        src: &FileSource,
+        old_len: u64,
+        chunk_bytes: usize,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<LineIndex, Cancelled> {
+        debug_assert!(self.newline == Newline::Byte);
+        let new_len = src.len();
+        // Regione nuova vuota (file fermo o accorciato: tocca al chiamante decidere che fare):
+        // una copia dell'indice cosi' com'e'.
+        if old_len >= new_len {
+            return Ok(self.copia());
+        }
+        // `open` garantisce new_len <= usize::MAX e qui old_len < new_len: le conversioni non
+        // falliscono mai, ma fuori dai test non si usa `unwrap` (regola del crate); il ripiego
+        // (copia, regione vuota) restera' irraggiungibile.
+        let (da, db) = match (usize::try_from(old_len), usize::try_from(new_len)) {
+            (Ok(a), Ok(b)) => (a, b),
+            _ => return Ok(self.copia()),
+        };
+        // Come i lavoratori di `build_newline`: blocchi di al piu' `chunk` byte (con `Byte`
+        // l'unita' e' 1 e non c'e' niente da allineare) e un buffer riusato. I blocchi partono
+        // da `old_len`, che in genere non e' un multiplo del blocco.
+        let chunk = chunk_bytes.max(1);
+        let mut buf = vec![0u8; READ_BYTES.min(chunk)];
+        // Fusione come in `build_newline`: si parte dai punti e dal totale dell'indice vecchio;
+        // i punti globali di un blocco sono (prima_riga_del_blocco + k, posizione).
+        let mut checkpoints: Vec<(u64, u64)> = self.checkpoints.clone();
+        let mut first_row = self.total_lines;
+        let mut a = da;
+        while a < db {
+            let b = a.saturating_add(chunk).min(db);
+            // Il cancel si controlla PRIMA di elaborare il blocco.
+            if cancel.load(Ordering::Relaxed) {
+                return Err(Cancelled);
+            }
+            // Percorso normale (E21): letture esplicite. Se una lettura fallisce o il file
+            // finisce prima del previsto (accorciato mentre si allunga), il blocco si rifa'
+            // con `scan_block` sulla mappatura, come i lavoratori di `build_newline`; ma
+            // `scan_block` copre `[i * chunk, ...)` e quindi vuole blocchi che partono da un
+            // multiplo di `chunk`: il primo (che parte da `old_len`) in genere non lo e', e
+            // in quel caso non c'e' ripiego applicabile.
+            let res = match scan_block_reads(src, Newline::Byte, a, b, self.every, &mut buf) {
+                Ok(res) => res,
+                Err(_) => {
+                    if a.is_multiple_of(chunk) {
+                        scan_block(src.bytes(), Newline::Byte, a / chunk, chunk, self.every)
+                    } else {
+                        return Err(Cancelled);
+                    }
+                }
+            };
+            for (k, pos) in res.points {
+                checkpoints.push((first_row + k, pos));
+            }
+            first_row += res.count;
+            progress.fetch_add((b - a) as u64, Ordering::Relaxed);
+            a = b;
+        }
+        Ok(LineIndex {
+            total_lines: first_row,
+            newline: self.newline,
+            every: self.every,
+            checkpoints,
+        })
+    }
+
+    /// Una copia identica di questo indice (i casi di `extend` in cui non c'e' niente da
+    /// allungare).
+    fn copia(&self) -> LineIndex {
+        LineIndex {
+            total_lines: self.total_lines,
+            newline: self.newline,
+            every: self.every,
+            checkpoints: self.checkpoints.clone(),
+        }
     }
 
     /// La forma dell'a-capo con cui l'indice e' stato costruito.

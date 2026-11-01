@@ -79,6 +79,20 @@ impl std::fmt::Display for RestoreError {
 
 impl std::error::Error for RestoreError {}
 
+/// Esito di `Document::follow_growth`, il seguito della coda di un file cresciuto.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Follow {
+    /// Niente da seguire: il file non e' cresciuto (o il documento e' chiuso).
+    Unchanged,
+    /// Il file e' cresciuto in coda di `n` byte e il documento lo ha seguito.
+    Grown(u64),
+    /// Il file ora e' lungo `len` byte, piu' corto del documento (accorciato o sostituito):
+    /// non si segue.
+    Truncated(u64),
+    /// Il documento ha modifiche o storia: non si segue.
+    Edited,
+}
+
 /// Una data come (secondi, nanosecondi) dall'epoca Unix; `None` se non c'e' o e' prima dell'epoca.
 fn unix(t: Option<SystemTime>) -> Option<(i64, u32)> {
     let d = t?.duration_since(SystemTime::UNIX_EPOCH).ok()?;
@@ -875,6 +889,88 @@ impl Document {
         progress: &AtomicU64,
     ) -> Result<(), SaveError> {
         self.save_inner(Some(target), cancel, progress)
+    }
+
+    /// Riallinea un documento mai modificato a un file cresciuto in coda (un log che si
+    /// riempie), senza rileggere quello che c'era gia': rimappa il file, allunga la tabella
+    /// dei pezzi e allunga l'indice righe contando solo i byte nuovi. Restituisce:
+    /// - `Follow::Unchanged`: il file non e' cresciuto (o il documento e' chiuso);
+    /// - `Follow::Grown(n)`: il file e' cresciuto di `n` byte e il documento lo ha seguito;
+    /// - `Follow::Truncated(len)`: il file ora e' lungo `len`, piu' corto del documento;
+    /// - `Follow::Edited`: il documento ha modifiche o storia, non si segue.
+    ///
+    /// L'indice righe si allunga solo se c'e' e la forma e' `Newline::Byte`; con le altre
+    /// forme si perde e va ricostruito con `build_lines`. Su annullamento (`cancel`)
+    /// restituisce `Unchanged` senza aver toccato niente.
+    pub fn follow_growth(
+        &mut self,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> io::Result<Follow> {
+        // 1. Documento chiuso: niente da seguire.
+        if self.source.is_none() {
+            return Ok(Follow::Unchanged);
+        }
+        // 2. Con modifiche o storia i pezzi `Original` e l'indice righe si riferiscono al
+        //    file com'era: seguirlo adesso mescolerebbe due contenuti. Non si segue.
+        if self.is_modified()
+            || !self.undo.is_empty()
+            || self.open.is_some()
+            || !self.redo.is_empty()
+        {
+            return Ok(Follow::Edited);
+        }
+        // 3. La lunghezza del documento (mai modificato: e' quella del file all'apertura)
+        //    contro la fotografia attuale del file.
+        let old_len = self.table.len();
+        let md = std::fs::metadata(&self.path)?;
+        if md.len() < old_len {
+            return Ok(Follow::Truncated(md.len()));
+        }
+        if md.len() == old_len {
+            return Ok(Follow::Unchanged);
+        }
+        // 4. Rimappa: decide la lunghezza letta adesso, perche' il file puo' essere cambiato
+        //    ancora fra i due passaggi.
+        let nuova = FileSource::open(&self.path)?;
+        let n = nuova.len();
+        if n < old_len {
+            return Ok(Follow::Truncated(n));
+        }
+        if n == old_len {
+            return Ok(Follow::Unchanged);
+        }
+        // 5. L'indice righe nuovo, PRIMA di toccare qualunque campo del documento: si allunga
+        //    (contando solo i byte nuovi) se c'e' e la forma e' quella di sempre; altrimenti
+        //    non c'e' piu'. Annullato: il documento resta com'era, come se niente fosse.
+        let nuovo_indice = match &self.lines {
+            Some(idx) if self.newline == Newline::Byte => {
+                match idx.extend(&nuova, old_len, 4 * 1024 * 1024, cancel, progress) {
+                    Ok(idx) => Some(idx),
+                    Err(Cancelled) => return Ok(Follow::Unchanged),
+                }
+            }
+            _ => None,
+        };
+        // 6. Da qui il documento e' il file nuovo: tabella a un solo pezzo `Original` lungo
+        //    quanto il file (con lo stesso blocco di prima, come dopo un salvataggio riuscito),
+        //    sorgente rimappata, fotografia riletta (se i metadati non si rileggono: lunghezza
+        //    nuova e data della fotografia di prima), indice sostituito e cache azzerate come
+        //    in `build_lines_with`. Versioni, storia e forma dell'a-capo non cambiano.
+        self.table = PieceTable::with_chunk_capacity(n, self.table.chunk_capacity());
+        self.source = Some(Arc::new(nuova));
+        self.stamp = match std::fs::metadata(&self.path) {
+            Ok(md_nuovo) => stamp_of(&md_nuovo),
+            Err(_) => Stamp {
+                len: n,
+                modified: md.modified().ok(),
+            },
+        };
+        self.lines = nuovo_indice;
+        self.nl_of_piece.clear();
+        self.chunk_nl.clear();
+        self.prefix = None;
+        Ok(Follow::Grown(n - old_len))
     }
 
     fn save_inner(

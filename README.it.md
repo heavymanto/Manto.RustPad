@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-1008-brightgreen" alt="1008 test" />
+        <img src="https://img.shields.io/badge/test-1033-brightgreen" alt="1033 test" />
         <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -106,6 +106,7 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
   e **regex** (con `$1` e `${nome}` nella sostituzione) — più maiuscole/minuscole e un ambito: questa scheda o **tutte le schede aperte**.
   Il primo `Invio` mostra l'**anteprima** (*"9 occorrenze in 2 scheda/e"*, senza toccare niente), il secondo applica, e un solo `Ctrl+Z` annulla tutto.
 - **Modalità colonna (a blocchi)**, un tipo di selezione di prima classe nel motore (`F8`), anche col mouse: `Alt`+trascinamento disegna il blocco (e accende la modalità); con la modalità accesa basta trascinare.
+- **Segui la fine di un file** (`Alt+F`, come `tail -f`): un log che continua a crescere si segue fino alla sua nuova fine due volte al secondo, senza rileggere niente (il file si rimappa e i numeri di riga si allungano contando solo i byte nuovi). Salire con un tasto o con la rotella lo ferma; non si combina con la modifica.
 - **Caratteri speciali visibili** (`Alt+W`): spazi come `·`, tabulazioni come `→`, fine riga come `¶`, caratteri di controllo come `¤`; le colonne e le posizioni del mouse non si spostano. Si salva con le impostazioni.
 - **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 52 tabelle di caratteri a byte singolo
   (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, i set Mac, US-ASCII) e le codifiche asiatiche a più byte (Shift_JIS, EUC-JP,
@@ -149,7 +150,7 @@ Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, 
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1008 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
+- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1033 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
   la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.

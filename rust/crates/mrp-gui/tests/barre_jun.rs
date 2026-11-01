@@ -24,6 +24,7 @@ fn info() -> StatusInfo {
         modified: true,
         column_mode: true,
         untitled: false,
+        follow: false,
         line: Some(7),
         column: 2,
         offset: 512,

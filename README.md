@@ -11,7 +11,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-1008-brightgreen" alt="1008 tests" />
+        <img src="https://img.shields.io/badge/tests-1033-brightgreen" alt="1033 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -106,6 +106,7 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
   and **regex** (with `$1` and `${name}` in the replacement) — plus match case and a scope: this tab or **all open tabs**.
   `Enter` first shows a **preview** (*"9 matches in 2 tab(s)"*, nothing touched), a second `Enter` applies it, and one `Ctrl+Z` undoes the whole thing.
 - **Column (block) mode**, a first-class selection type in the core (`F8`), also with the mouse: `Alt`+drag draws the block (and turns the mode on); with the mode on, a plain drag is enough.
+- **Follow the end of a file** (`Alt+F`, like `tail -f`): a log that keeps growing is followed to its new end twice a second, without re-reading anything (the file is remapped and the line numbers are extended counting only the new bytes). Going up with a key or the wheel stops it; it does not combine with editing.
 - **Visible whitespace** (`Alt+W`): spaces as `·`, tabs as `→`, line ends as `¶`, control characters as `¤`; columns and mouse positions do not move. Saved with your settings.
 - **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included), 52 single-byte code pages
   (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) and the East-Asian multi-byte encodings (Shift_JIS, EUC-JP,
@@ -149,7 +150,7 @@ Try the multi-file features: `mrp-tui a.txt b.txt c.txt`, then `Ctrl+H`, type a 
 
 ## Known limitations
 
-- **Early development.** The editor works and is covered by 1008 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
+- **Early development.** The editor works and is covered by 1033 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
   the Linux/macOS desktop window (`mrp-gui`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.

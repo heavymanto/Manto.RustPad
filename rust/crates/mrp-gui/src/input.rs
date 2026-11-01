@@ -51,8 +51,8 @@ fn carattere(key: Key) -> Option<char> {
 }
 
 /// L'evento di tastiera per l'`App` dato un tasto premuto di egui, o `None` se non serve (un carattere normale arriva
-/// come testo digitato). Le lettere e le cifre contano solo con Ctrl (senza Alt: Ctrl+Alt e' AltGr); l'unica eccezione e'
-/// Alt+W da solo (i caratteri speciali), che e' un comando del registro.
+/// come testo digitato). Le lettere e le cifre contano solo con Ctrl (senza Alt: Ctrl+Alt e' AltGr); le uniche eccezioni sono
+/// Alt+W (i caratteri speciali) e Alt+F (seguire la coda) da soli, che sono comandi del registro.
 pub fn tasto(key: Key, m: Modifiers) -> Option<KeyEvent> {
     let mods = modificatori(m);
     let code = match key {
@@ -74,8 +74,8 @@ pub fn tasto(key: Key, m: Modifiers) -> Option<KeyEvent> {
         k if funzione(k).is_some() => KeyCode::F(funzione(k)?),
         k => {
             let c = carattere(k)?;
-            let alt_w = c == 'w' && m.alt && !m.ctrl && !m.command && !m.shift;
-            if !alt_w && (!(m.ctrl || m.command) || m.alt) {
+            let alt_cmd = (c == 'w' || c == 'f') && m.alt && !m.ctrl && !m.command && !m.shift;
+            if !alt_cmd && (!(m.ctrl || m.command) || m.alt) {
                 return None;
             }
             KeyCode::Char(c)

@@ -66,7 +66,13 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
     // il modo cambia al clic, la modalita' colonna pure, la codifica apre il suo menu; a-capo e dimensione no
     destra.push(Pezzo {
         testo: cat
-            .t(if s.edit { "mode.edit" } else { "mode.view" })
+            .t(if s.edit {
+                "mode.edit"
+            } else if s.follow {
+                "mode.follow"
+            } else {
+                "mode.view"
+            })
             .to_string(),
         comando: Some(Cmd::EditMode),
     });

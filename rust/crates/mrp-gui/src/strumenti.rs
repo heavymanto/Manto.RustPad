@@ -29,6 +29,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "replace" => "🔁",
         "columns" => "📊",
         "special" => "¶",
+        "follow" => "↓",
         "next_tab" => "▶",
         "prev_tab" => "◀",
         "jump_bar" => "⏩",

@@ -76,3 +76,28 @@ fn the_menu_command_toggles_them_too_and_sits_in_the_view_menu() {
     assert!(f.workspace().special_chars());
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn alt_f_toggles_following_in_the_window_and_the_status_says_so() {
+    let (mut f, ctx, p) = finestra();
+    assert!(!f.app().follow());
+    let alt_f = Event::Key {
+        key: Key::F,
+        physical_key: Some(Key::F),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::ALT,
+    };
+    giro(&mut f, &ctx, vec![alt_f.clone()]);
+    assert!(f.app().follow());
+    assert!(f.app().status().follow);
+    giro(&mut f, &ctx, vec![alt_f]);
+    assert!(!f.app().follow());
+    let vista = MENU
+        .iter()
+        .find(|(t, _)| *t == "gui.menu.view")
+        .map(|(_, v)| *v)
+        .unwrap();
+    assert!(vista.contains(&Some(Cmd::Follow)));
+    let _ = std::fs::remove_file(p);
+}

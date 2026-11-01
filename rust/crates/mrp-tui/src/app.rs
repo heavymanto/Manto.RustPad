@@ -34,6 +34,8 @@ use std::time::{Duration, Instant};
 const MAX_SCAN: u64 = scan::DEFAULT_MAX_SCAN;
 /// Il tempo massimo fra due clic perche' siano un doppio clic.
 const MULTI_CLICK: Duration = Duration::from_millis(500);
+/// Ogni quanto si guarda se il file seguito e' cresciuto.
+const FOLLOW_EVERY: Duration = Duration::from_millis(500);
 /// Quanti caratteri al massimo una parola selezionata con il doppio clic si allarga per lato (righe enormi).
 const MAX_WORD_CHARS: usize = 100_000;
 
@@ -320,6 +322,8 @@ pub struct StatusInfo {
     pub modified: bool,
     pub column_mode: bool,
     pub untitled: bool,
+    /// Si segue la coda del file (Alt+F).
+    pub follow: bool,
     /// La riga del cursore (da 1; `None` finche' l'indice non e' pronto), la colonna (da 1), il byte e la percentuale.
     pub line: Option<u64>,
     pub column: usize,
@@ -575,6 +579,10 @@ pub struct App {
     /// Il gesto del blocco col mouse (Alt+clic, o clic in modalita' colonna) in corso: l'inizio della riga e la colonna
     /// virtuale dell'ancora. Il rilascio lo chiude.
     block_drag: Option<(u64, u64)>,
+    /// Seguire la coda del file (Alt+F): a ogni controllo il documento si riallinea al file cresciuto e la vista va in fondo.
+    follow: bool,
+    /// L'ultimo controllo della coda (`follow_poll`): il prossimo e' fra `FOLLOW_EVERY`.
+    follow_checked: Instant,
     /// L'ultimo clic sinistro (istante, colonna, riga, quanti di fila): serve al doppio e al triplo clic.
     last_click: Option<(Instant, u16, u16, u8)>,
     /// Vero quando si e' chiesto di uscire.
@@ -750,6 +758,8 @@ impl App {
             row_starts: Vec::new(),
             drag_from: None,
             block_drag: None,
+            follow: false,
+            follow_checked: Instant::now(),
             last_click: None,
             quit: false,
             cursor_xy: None,
@@ -805,6 +815,11 @@ impl App {
 
     /// Un tasto premuto.
     pub fn handle_key(&mut self, key: KeyEvent) {
+        self.handle_key_inner(key);
+        self.follow_pause();
+    }
+
+    fn handle_key_inner(&mut self, key: KeyEvent) {
         // Il messaggio transitorio sparisce al primo tasto premuto dopo, prima di eseguirlo.
         self.flash = None;
         // Come il messaggio transitorio, l'evidenziazione dell'ultima ricerca si azzera al
@@ -917,6 +932,8 @@ impl App {
             // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore;
             // con una selezione agiscono su quella (un carattere, Enter e Tab la sostituiscono, Backspace e
             // Delete la tolgono e basta). In lettura sono rifiutati con un suggerimento.
+            // Alt+F: segui la coda del file (come `tail -f`)
+            KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
             KeyCode::Enter if !ctrl && !alt => self.insert_enter(),
             KeyCode::Backspace if !ctrl && !alt => self.backspace_key(),
@@ -934,6 +951,11 @@ impl App {
     /// Come `handle_mouse`, con l'istante dell'evento (i test lo passano a mano; i clic ravvicinati nella stessa
     /// cella fanno il doppio e il triplo clic).
     pub fn handle_mouse_at(&mut self, m: MouseEvent, adesso: Instant) {
+        self.handle_mouse_at_inner(m, adesso);
+        self.follow_pause();
+    }
+
+    fn handle_mouse_at_inner(&mut self, m: MouseEvent, adesso: Instant) {
         self.seal_history();
         match m.kind {
             MouseEventKind::ScrollDown => self.wheel(true),
@@ -2708,6 +2730,9 @@ impl App {
     /// Raccoglie i lavori in background: prima il salvataggio (quando torna rimette il documento al suo
     /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi la ricerca e l'indice righe.
     pub fn tick(&mut self) {
+        if self.follow && self.follow_checked.elapsed() >= FOLLOW_EVERY {
+            self.follow_poll();
+        }
         if self.save_job.is_some() {
             self.tick_save();
         }
@@ -3019,6 +3044,7 @@ impl App {
             modified: self.is_modified(),
             column_mode: self.col_mode,
             untitled: self.untitled.is_some(),
+            follow: self.follow,
             line: self.cursor_line(),
             column: self.cursor_col() + 1,
             offset,
@@ -3969,6 +3995,8 @@ impl App {
     fn toggle_edit(&mut self) {
         self.edit = !self.edit;
         if self.edit {
+            // modificare e seguire la coda non stanno insieme
+            self.follow = false;
             self.flash = Some(self.cat.t("flash.edit_on").to_string());
         } else {
             self.flash = Some(self.cat.t("flash.view_on").to_string());
@@ -3976,6 +4004,102 @@ impl App {
             if self.cursor > max {
                 self.cursor = max;
                 self.scroll_adjust();
+            }
+        }
+    }
+
+    // ----- seguire la coda -----
+
+    /// Si segue la coda del file (Alt+F).
+    pub fn follow(&self) -> bool {
+        self.follow
+    }
+
+    /// Alt+F: accende o spegne il seguire. Acceso, la vista va in fondo e a ogni controllo il file cresciuto si
+    /// riallinea (`follow_poll`); in modifica non si accende (si dice come fare).
+    fn toggle_follow(&mut self) {
+        if self.follow {
+            self.follow = false;
+            self.flash = Some(self.cat.t("flash.follow_off").to_string());
+            return;
+        }
+        if self.edit {
+            self.flash = Some(self.cat.t("flash.follow_edit").to_string());
+            return;
+        }
+        self.follow = true;
+        self.follow_checked = Instant::now();
+        self.flash = Some(self.cat.t("flash.follow_on").to_string());
+        self.go_to_tail();
+    }
+
+    /// Cursore e vista in fondo al file (la fine dell'ultima riga e l'ultima pagina).
+    fn go_to_tail(&mut self) {
+        self.move_file_end();
+        self.top = self.last_top();
+        self.scroll_adjust();
+    }
+
+    /// Vero se il cursore sta alla fine del file e la vista mostra l'ultima pagina.
+    fn at_tail(&self) -> bool {
+        let len = self.document_len();
+        let Some(doc) = self.doc.as_ref() else {
+            return true;
+        };
+        let fine = if len == 0 {
+            0
+        } else {
+            let ultima = scan::row_start(doc, len - 1, MAX_SCAN).0;
+            scan::row_end(doc, ultima, MAX_SCAN).min(self.max_cursor())
+        };
+        self.cursor >= fine && self.top >= self.last_top()
+    }
+
+    /// Dopo un tasto o un gesto del mouse: se si segue e la vista ha lasciato la fine del file il seguire si ferma.
+    fn follow_pause(&mut self) {
+        if self.follow && !self.at_tail() {
+            self.follow = false;
+            self.flash = Some(self.cat.t("flash.follow_off").to_string());
+        }
+    }
+
+    /// Un controllo della coda: se il file e' cresciuto il documento si riallinea e la vista va in fondo. Vero se qualcosa
+    /// e' cambiato (anche il seguire che si ferma perche' il file e' piu' corto o non si legge). Non fa niente senza seguire
+    /// o mentre l'indice, una ricerca o una sostituzione lavorano sul documento. Lo chiama `tick` ogni `FOLLOW_EVERY`.
+    pub fn follow_poll(&mut self) -> bool {
+        self.follow_checked = Instant::now();
+        if !self.follow
+            || self.index_job.is_some()
+            || self.search_job.is_some()
+            || self.replace_job.is_some()
+        {
+            return false;
+        }
+        let Some(doc) = self.doc.as_mut() else {
+            return false;
+        };
+        let cancel = AtomicBool::new(false);
+        let progress = AtomicU64::new(0);
+        match doc.follow_growth(&cancel, &progress) {
+            Ok(mrp_core::Follow::Grown(_)) => {
+                self.found = None;
+                self.go_to_tail();
+                true
+            }
+            Ok(mrp_core::Follow::Truncated(_)) => {
+                self.follow = false;
+                self.flash = Some(self.cat.t("flash.follow_shorter").to_string());
+                true
+            }
+            Ok(mrp_core::Follow::Edited) => {
+                self.follow = false;
+                true
+            }
+            Ok(mrp_core::Follow::Unchanged) => false,
+            Err(_) => {
+                self.follow = false;
+                self.flash = Some(self.cat.t("flash.follow_lost").to_string());
+                true
             }
         }
     }

@@ -23,7 +23,7 @@ pub mod session;
 pub mod source;
 pub mod view;
 
-pub use document::{Document, RestoreError, SaveError};
+pub use document::{Document, Follow, RestoreError, SaveError};
 pub use lines::{BuildOptions, Cancelled, LineIndex};
 pub use search::{find_next, find_prev, SearchOptions, SearchResult};
 pub use source::FileSource;

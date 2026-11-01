@@ -120,7 +120,12 @@ fn letters_only_count_with_ctrl() {
         alt: true,
         ..Modifiers::NONE
     };
-    assert_eq!(tasto(Key::F, alt), None);
+    assert_eq!(tasto(Key::Q, alt), None);
+    assert_eq!(
+        tasto(Key::F, alt),
+        Some(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT))
+    );
+    assert_eq!(tasto(Key::F, Modifiers { shift: true, ..alt }), None);
     assert_eq!(
         tasto(Key::W, alt),
         Some(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::ALT))

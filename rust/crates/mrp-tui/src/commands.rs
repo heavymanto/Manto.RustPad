@@ -29,6 +29,7 @@ pub enum Cmd {
     Replace,
     ColumnMode,
     Special,
+    Follow,
     NextTab,
     PrevTab,
     NavBar,
@@ -209,6 +210,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('w'), ALT),
         "Alt+W",
         "special",
+    ),
+    comando(
+        Cmd::Follow,
+        "gui.follow",
+        tasto(KeyCode::Char('f'), ALT),
+        "Alt+F",
+        "follow",
     ),
     comando(
         Cmd::NextTab,
