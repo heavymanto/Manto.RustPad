@@ -120,6 +120,7 @@
   "gui.menu.file": "文件",
   "gui.menu.edit": "编辑",
   "gui.menu.view": "视图",
+  "gui.menu.log": "日志",
   "gui.menu.help": "帮助",
   "gui.open": "打开…",
   "gui.save": "保存",

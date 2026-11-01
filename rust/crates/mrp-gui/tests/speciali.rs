@@ -95,7 +95,7 @@ fn alt_f_toggles_following_in_the_window_and_the_status_says_so() {
     assert!(!f.app().follow());
     let vista = MENU
         .iter()
-        .find(|(t, _)| *t == "gui.menu.view")
+        .find(|(t, _)| *t == "gui.menu.log")
         .map(|(_, v)| *v)
         .unwrap();
     assert!(vista.contains(&Some(Cmd::Follow)));

@@ -120,6 +120,7 @@
   "gui.menu.file": "ファイル",
   "gui.menu.edit": "編集",
   "gui.menu.view": "表示",
+  "gui.menu.log": "ログ",
   "gui.menu.help": "ヘルプ",
   "gui.open": "開く…",
   "gui.save": "保存",

@@ -120,6 +120,7 @@
   "gui.menu.file": "Arquivo",
   "gui.menu.edit": "Editar",
   "gui.menu.view": "Exibir",
+  "gui.menu.log": "Log",
   "gui.menu.help": "Ajuda",
   "gui.open": "Abrir…",
   "gui.save": "Salvar",

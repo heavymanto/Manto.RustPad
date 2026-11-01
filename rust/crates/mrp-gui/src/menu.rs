@@ -54,7 +54,6 @@ const MODIFICA: &[Option<Cmd>] = &[
     Some(Cmd::Find),
     Some(Cmd::Goto),
     Some(Cmd::Replace),
-    Some(Cmd::Filter),
 ];
 
 const VISTA: &[Option<Cmd>] = &[
@@ -65,8 +64,6 @@ const VISTA: &[Option<Cmd>] = &[
     None,
     Some(Cmd::ColumnMode),
     Some(Cmd::Special),
-    Some(Cmd::Follow),
-    Some(Cmd::LogColors),
     None,
     Some(Cmd::Theme),
     Some(Cmd::Language),
@@ -77,13 +74,22 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::ZoomReset),
 ];
 
+/// Gli strumenti per i log: filtrare le righe, seguire la coda, colorare.
+const LOG: &[Option<Cmd>] = &[
+    Some(Cmd::Filter),
+    None,
+    Some(Cmd::Follow),
+    Some(Cmd::LogColors),
+];
+
 const AIUTO: &[Option<Cmd>] = &[Some(Cmd::Help)];
 
 /// I menu della barra, nell'ordine in cui compaiono.
-pub const MENU: [Menu; 4] = [
+pub const MENU: [Menu; 5] = [
     ("gui.menu.file", FILE),
     ("gui.menu.edit", MODIFICA),
     ("gui.menu.view", VISTA),
+    ("gui.menu.log", LOG),
     ("gui.menu.help", AIUTO),
 ];
 
