@@ -53,3 +53,31 @@ fn drag_on_a_big_file() {
         println!("frac {frac:.2}: scroll {a:?}, giro {d:?}");
     }
 }
+
+#[test]
+#[ignore]
+fn index_speed_on_a_big_file() {
+    let Ok(p) = std::env::var("MRP_BIG") else {
+        return;
+    };
+    let secondi: u64 = std::env::var("MRP_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(15);
+    let cfg = || AppConfig {
+        chrome: false,
+        ..AppConfig::default()
+    };
+    let mut app = App::open(std::path::Path::new(&p), cfg()).unwrap();
+    let len = app.document_len();
+    let t = Instant::now();
+    while t.elapsed().as_secs() < secondi {
+        std::thread::sleep(Duration::from_secs(5));
+        let busy = app.status().busy;
+        println!("{:>3}s: {:?}", t.elapsed().as_secs(), busy);
+        if busy.is_none() {
+            break;
+        }
+    }
+    println!("len {} byte", len);
+}
