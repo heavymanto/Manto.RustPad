@@ -10,6 +10,12 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 - **README**: new screenshots of the window (six themes, light and dark) and a rewritten comparison of the two front ends (one engine, native controls in the window).
 
 ### Fixed
+- **Found by the independent review of the code written without one (E26-E42, done by the junior and checked line by line):**
+  - **Typing, Delete or Backspace at a cut inside a character** no longer corrupts the file: lines longer than the scan limit (1 MiB) are cut where the limit falls, even in the middle of a character, and Down or a click can put the cursor there; before an edit the cursor now goes to the start of the character (UTF-8, UTF-16/32, the East-Asian encodings).
+  - **A tab being saved in the background kept its place in the session**: while the document was in the saving thread the session was rewritten without that tab, deleting its saved changes (a crash during a long save lost them).
+  - **A replace in progress no longer hangs the editor** when the window closes a tab or opens a file at the same time (the run knew the tabs by position); both are refused while it runs.
+  - **A file of yours named `untitled/untitled-N.txt`** in any folder is no longer taken for an untitled document when the session comes back (closing it would have deleted it); only the session's own `untitled` folder counts.
+  - **Replace in all tabs says how many tabs were skipped** (an encoding that cannot take a regex).
 - **Dragging in the window selected one row too far**: with the terminal chrome off (`mrp-gui`) a drag with the mouse ended on the row after the one under the pointer (the last row of text hid it in the old test). It now ends on the row under the pointer.
 - **The strip under the text in the window** (the leftover space that does not fit a whole row) was always near-black; it now has the theme background (white in Light).
 

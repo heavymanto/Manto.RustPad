@@ -223,6 +223,11 @@ impl Workspace {
 
     /// Scrive la sessione adesso. Senza sessione non fa nulla.
     pub fn save_session(&mut self) -> io::Result<()> {
+        // un documento in mano al salvataggio non ha un record: riscrivere adesso toglierebbe la scheda (e le sue modifiche,
+        // gia' al sicuro nella sessione) dal disco; si lascia quella di prima e si riprova al giro dopo
+        if self.tabs.iter().any(|a| a.doc_version().is_none()) {
+            return Ok(());
+        }
         let imp = self.fingerprint();
         let (recs, avanti) = self.records();
         let Some(s) = &mut self.session else {
@@ -298,7 +303,7 @@ impl Workspace {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_default();
-            match App::restore_tab(&rec, cfg.clone()) {
+            match App::restore_tab(&rec, cfg.clone(), Some(&Workspace::untitled_dir(Some(dir)))) {
                 Ok((a, esito)) => {
                     if esito.is_some() {
                         let dove = sessionstore::metti_da_parte(dir, &nome)
@@ -508,6 +513,10 @@ impl Workspace {
     /// Apre `path` in una scheda nuova e la porta avanti; se un'altra scheda ha gia' quel file porta avanti quella.
     /// La scheda nuova prende il tema e la lingua di quella attiva. Errore se il file non si apre (le schede restano).
     pub fn open(&mut self, path: &Path) -> io::Result<()> {
+        // una sostituzione in corso conosce le schede per posizione: finche' gira non se ne aprono ne' se ne tolgono
+        if self.replace.is_some() {
+            return Ok(());
+        }
         let canon = path.canonicalize()?;
         if let Some(i) = self.tabs.iter().position(|a| a.path() == canon) {
             self.select(i);
@@ -590,7 +599,8 @@ impl Workspace {
     /// Chiede di chiudere la scheda `i`: senza modifiche si chiude subito, con modifiche la porta avanti e apre il
     /// suo dialogo (salva, scarta, annulla).
     pub fn close(&mut self, i: usize) {
-        if i >= self.tabs.len() {
+        // come per `open`: durante una sostituzione le schede restano dove sono
+        if i >= self.tabs.len() || self.replace.is_some() {
             return;
         }
         self.select(i);
@@ -778,6 +788,15 @@ impl Workspace {
         }
         let a = self.active;
         let cat = |ws: &Workspace, chiave: &str, args: &[&str]| ws.tabs[a].text_with(chiave, args);
+        // le schede che non hanno potuto lavorare (una codifica che non regge la regex) si dicono, in coda al riepilogo
+        let saltate = if run.saltate > 0 {
+            format!(
+                " {}",
+                cat(self, "replace.skipped", &[&run.saltate.to_string()])
+            )
+        } else {
+            String::new()
+        };
         if run.annullata {
             let t = cat(self, "replace.cancelled", &[]);
             self.tabs[a].set_replace_status(t, false);
@@ -796,7 +815,7 @@ impl Workspace {
                     self,
                     "replace.preview",
                     &[&run.totale.to_string(), &run.schede_con.to_string()],
-                );
+                ) + &saltate;
                 self.tabs[a].set_replace_status(t, true);
             }
         } else {
@@ -804,7 +823,7 @@ impl Workspace {
                 self,
                 "replace.done",
                 &[&run.totale.to_string(), &run.schede_con.to_string()],
-            );
+            ) + &saltate;
             self.tabs[a].remember_find(&run.spec.find);
             self.tabs[a].finish_replace(t);
         }

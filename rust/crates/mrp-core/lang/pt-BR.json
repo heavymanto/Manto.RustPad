@@ -169,6 +169,7 @@
   "replace.none": "nenhuma ocorrência",
   "replace.too_many": "ocorrências demais (mais de {}): restrinja a busca",
   "replace.done": "{} ocorrência(s) substituída(s) em {} aba(s)",
+  "replace.skipped": "({} aba(s) ignorada(s))",
   "replace.empty": "digite o que procurar",
   "replace.bad": "padrão inválido: {}",
   "replace.fail": "falha ao substituir: {}",

@@ -727,3 +727,79 @@ fn the_terminal_cursor_sits_in_the_replace_dialog_on_the_active_field() {
     assert_eq!(x2, x1 + 1);
     pulisci(d);
 }
+
+// ---- trovati dalla revisione R26C ----
+
+#[test]
+fn closing_or_opening_a_tab_through_the_api_while_a_replace_runs_is_refused() {
+    // la finestra chiude e apre schede senza passare dai tasti: durante il lavoro le schede non si spostano, altrimenti
+    // la sostituzione resta in attesa per sempre di una scheda che non c'e' piu'
+    let d = cartella();
+    let grande = "riga di prova con uno dentro\n".repeat(50_000);
+    let mut w = ws_con(&d, &[("a.txt", grande.as_bytes()), ("b.txt", b"x\n")]);
+    w.select(0);
+    apri_sostituisci(&mut w, "uno", "1");
+    w.handle_key(k(KeyCode::Enter));
+    assert!(w.replace_busy());
+    w.close(1);
+    assert_eq!(w.len(), 2, "la chiusura e' rifiutata");
+    let altro = scrivi(&d, "c.txt", b"c\n");
+    w.open(&altro).unwrap();
+    assert_eq!(w.len(), 2, "l'apertura e' rifiutata");
+    aspetta(&mut w);
+    assert!(
+        schermo(&mut w).contains("50000 matches in 1 tab(s)"),
+        "il lavoro e' finito regolarmente: {}",
+        schermo(&mut w)
+    );
+    // finito il lavoro si chiude e si apre di nuovo
+    w.handle_key(k(KeyCode::Esc));
+    w.close(1);
+    assert_eq!(w.len(), 1);
+    w.open(&altro).unwrap();
+    assert_eq!(w.len(), 2);
+    pulisci(d);
+}
+
+#[test]
+fn the_summary_says_how_many_tabs_were_skipped() {
+    let d = cartella();
+    let sj = Encoding::by_name("shift-jis").unwrap();
+    let cfg = AppConfig::default();
+    let pa = scrivi(&d, "a.txt", b"x1 x22\n");
+    let pj = scrivi(&d, "j.txt", &sj.encode_str("x3\n").unwrap());
+    let mut w = Workspace::new(App::open(&pa, cfg.clone()).unwrap(), cfg);
+    w.open(&pj).unwrap();
+    w.select(1);
+    w.active_mut().set_encoding(sj);
+    w.select(0);
+    w.resize(100, 14);
+    assert!(w.wait_idle(Duration::from_secs(20)));
+    w.handle_key(ctrl('h'));
+    digita(&mut w, r"x\d+");
+    w.handle_key(k(KeyCode::Tab));
+    digita(&mut w, "N");
+    w.handle_key(alt('m'));
+    w.handle_key(alt('m'));
+    w.handle_key(alt('a'));
+    w.handle_key(k(KeyCode::Enter));
+    aspetta(&mut w);
+    assert!(
+        schermo(&mut w).contains("2 matches in 1 tab(s)"),
+        "{}",
+        schermo(&mut w)
+    );
+    assert!(
+        schermo(&mut w).contains("(1 tab(s) skipped)"),
+        "{}",
+        schermo(&mut w)
+    );
+    w.handle_key(k(KeyCode::Enter));
+    aspetta(&mut w);
+    assert!(
+        schermo(&mut w).contains("replaced 2 occurrence(s) in 1 tab(s) (1 tab(s) skipped)"),
+        "{}",
+        schermo(&mut w)
+    );
+    pulisci(d);
+}

@@ -169,6 +169,7 @@
   "replace.none": "sin coincidencias",
   "replace.too_many": "demasiadas coincidencias (más de {}): acota la búsqueda",
   "replace.done": "reemplazadas {} coincidencia(s) en {} pestaña(s)",
+  "replace.skipped": "({} pestaña(s) omitida(s))",
   "replace.empty": "escribe qué buscar",
   "replace.bad": "patrón no válido: {}",
   "replace.fail": "reemplazo fallido: {}",

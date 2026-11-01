@@ -168,6 +168,7 @@
   "replace.none": "nessuna occorrenza",
   "replace.too_many": "troppe occorrenze (oltre {}): restringi la ricerca",
   "replace.done": "sostituite {} occorrenze in {} scheda/e",
+  "replace.skipped": "({} scheda/e saltata/e)",
   "replace.empty": "scrivi cosa cercare",
   "replace.bad": "schema non valido: {}",
   "replace.fail": "sostituzione fallita: {}",

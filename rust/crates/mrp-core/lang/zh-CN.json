@@ -169,6 +169,7 @@
   "replace.none": "没有匹配",
   "replace.too_many": "匹配过多（超过 {}）：请缩小搜索范围",
   "replace.done": "已替换 {} 处，{} 个标签页",
+  "replace.skipped": "(已跳过{}个标签页)",
   "replace.empty": "请输入要查找的内容",
   "replace.bad": "无效的模式：{}",
   "replace.fail": "替换失败：{}",

@@ -169,6 +169,7 @@
   "replace.none": "keine Treffer",
   "replace.too_many": "zu viele Treffer (über {}): Suche eingrenzen",
   "replace.done": "{} Treffer in {} Tab(s) ersetzt",
+  "replace.skipped": "({} Tab(s) übersprungen)",
   "replace.empty": "Suchtext eingeben",
   "replace.bad": "ungültiges Muster: {}",
   "replace.fail": "Ersetzen fehlgeschlagen: {}",

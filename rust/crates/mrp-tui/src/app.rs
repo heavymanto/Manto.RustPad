@@ -1630,6 +1630,19 @@ impl App {
         self.top = top;
     }
 
+    /// Il cursore sul confine di carattere della codifica attiva (non oltre dov'era): le righe lunghe si spezzano al limite di
+    /// scansione anche in mezzo a un carattere e un Giu' o un clic puo' portare il cursore li'; prima di scrivere o togliere
+    /// il cursore va all'inizio del carattere, altrimenti la modifica lo spaccherebbe.
+    fn snap_cursor(&mut self) {
+        if self.enc.is_utf8() {
+            self.cursor = self.snap_to_char(self.cursor);
+        } else if self.enc.is_multibyte() {
+            self.cursor = self.snap_to_multibyte(self.cursor);
+        } else if self.enc.unit() > 1 {
+            self.cursor = self.snap_to_unita(self.cursor);
+        }
+    }
+
     /// Porta `pos` sul confine di carattere piu' vicino non oltre `pos`: un carattere UTF-8 valido occupa al piu'
     /// quattro byte, quindi bastano tre passi indietro (un byte di prosecuzione `0b10xxxxxx` sta dentro un
     /// carattere multibyte, un confine non lo e' mai).
@@ -2890,13 +2903,7 @@ impl App {
         self.found = None;
         // Il cursore va a un confine di carattere della codifica nuova: in una code page ogni
         // offset e' un confine, in UTF-8 e in UTF-16 no.
-        if self.enc.is_utf8() {
-            self.cursor = self.snap_to_char(self.cursor);
-        } else if self.enc.is_multibyte() {
-            self.cursor = self.snap_to_multibyte(self.cursor);
-        } else if self.enc.unit() > 1 {
-            self.cursor = self.snap_to_unita(self.cursor);
-        }
+        self.snap_cursor();
         self.remember_col();
         self.flash = Some(self.cat.tf("flash.encoding", &[self.enc.name()]));
     }
@@ -3195,6 +3202,7 @@ impl App {
     pub fn restore_tab(
         rec: &TabRecord,
         mut cfg: AppConfig,
+        untitled_dir: Option<&Path>,
     ) -> io::Result<(App, Option<RestoreError>)> {
         cfg.encoding = Encoding::by_name(&rec.encoding).or(cfg.encoding);
         let mut app = App::open(Path::new(&rec.path), cfg)?;
@@ -3202,8 +3210,9 @@ impl App {
         if let (Some(stato), Some(doc)) = (&rec.state, app.doc.as_mut()) {
             esito = doc.restore_edits(stato).err();
         }
-        // un documento senza nome (il file vuoto sta nella cartella `untitled` della sessione) torna senza nome
-        if let Some(n) = untitled_number_of(Path::new(&rec.path)) {
+        // un documento senza nome (il file vuoto sta nella cartella `untitled` della sessione) torna senza nome; un file
+        // dell'utente che ha lo stesso nome in un'altra cartella no: chiuderlo lo cancellerebbe
+        if let Some(n) = untitled_number_of(Path::new(&rec.path), untitled_dir) {
             app.adopt_untitled(n);
         }
         app.edit = rec.edit && esito.is_none();
@@ -4104,6 +4113,7 @@ impl App {
             self.refuse_write();
             return false;
         }
+        self.snap_cursor();
         let Some(doc) = self.doc.as_mut() else {
             return false;
         };
@@ -4130,6 +4140,7 @@ impl App {
             self.refuse_write();
             return;
         }
+        self.snap_cursor();
         if self.cursor <= self.bom {
             return;
         }
@@ -4160,6 +4171,7 @@ impl App {
             return;
         }
         // il BOM non si cancella: Delete davanti ad esso toglie il primo carattere dopo
+        self.snap_cursor();
         if self.cursor < self.bom {
             self.cursor = self.bom;
         }
@@ -4442,8 +4454,14 @@ impl Drop for App {
 }
 
 /// Il numero di un documento senza nome dal percorso del suo file vuoto (`.../untitled/untitled-N.txt`).
-fn untitled_number_of(p: &Path) -> Option<u32> {
+fn untitled_number_of(p: &Path, untitled_dir: Option<&Path>) -> Option<u32> {
     if p.parent()?.file_name()? != "untitled" {
+        return None;
+    }
+    // deve stare proprio nella cartella `untitled` della sessione (percorsi resi canonici: il file ricordato lo e')
+    let dir = untitled_dir?;
+    let (a, b) = (p.parent()?.canonicalize().ok()?, dir.canonicalize().ok()?);
+    if a != b {
         return None;
     }
     p.file_stem()?

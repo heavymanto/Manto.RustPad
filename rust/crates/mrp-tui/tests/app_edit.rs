@@ -447,3 +447,53 @@ fn quitting_without_changes_is_immediate_even_after_undoing_everything() {
     a.handle_key(k(KeyCode::F(10)));
     assert!(a.should_quit());
 }
+
+// ---- trovato dalla revisione R26A ----
+
+/// Una riga lunga piu' del limite di scansione (1 MiB) con una "é" (2 byte) a cavallo del taglio: le righe visuali si
+/// spezzano li', e il cursore (Giu', un clic) puo' finire in mezzo al carattere.
+fn riga_con_taglio_dentro_a_un_carattere() -> (App, std::path::PathBuf) {
+    let mut dati = vec![b'a'; 1_048_575];
+    dati.extend_from_slice("é".as_bytes()); // byte 1048575 e 1048576: il taglio cade fra i due
+    dati.extend_from_slice(b"b\n");
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let p = std::env::temp_dir().join(format!("mrp_taglio_{}_{}.txt", std::process::id(), n));
+    std::fs::write(&p, &dati).unwrap();
+    let mut a = App::open(&p, AppConfig::default()).unwrap();
+    a.resize(40, 10);
+    assert!(a.wait_idle(std::time::Duration::from_secs(20)));
+    a.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+    // Giu': la seconda riga visuale comincia al taglio, dentro la "é"
+    a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+    assert_eq!(a.cursor(), 1_048_576, "il cursore e' in mezzo alla é");
+    (a, p)
+}
+
+#[test]
+fn typing_at_a_cut_inside_a_character_does_not_split_it() {
+    let (mut a, p) = riga_con_taglio_dentro_a_un_carattere();
+    a.handle_key(KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE));
+    let t = a.document_text();
+    assert_eq!(&t[1_048_575..], "Xéb\n".as_bytes(), "la X va prima della é");
+    assert!(std::str::from_utf8(&t).is_ok());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn delete_and_backspace_at_a_cut_inside_a_character_take_whole_characters() {
+    let (mut a, p) = riga_con_taglio_dentro_a_un_carattere();
+    a.handle_key(KeyEvent::new(KeyCode::Delete, KeyModifiers::NONE));
+    let t = a.document_text();
+    assert_eq!(&t[1_048_575..], b"b\n", "Delete toglie la é intera");
+    let _ = std::fs::remove_file(p);
+    let (mut a, p) = riga_con_taglio_dentro_a_un_carattere();
+    a.handle_key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
+    let t = a.document_text();
+    assert_eq!(
+        &t[1_048_574..],
+        "éb\n".as_bytes(),
+        "Backspace toglie la a prima"
+    );
+    assert!(std::str::from_utf8(&t).is_ok());
+    let _ = std::fs::remove_file(p);
+}

@@ -169,6 +169,7 @@
   "replace.none": "一致なし",
   "replace.too_many": "一致が多すぎます ({} 件超): 検索を絞ってください",
   "replace.done": "{} 件を置換しました ({} タブ)",
+  "replace.skipped": "({}個のタブをスキップ)",
   "replace.empty": "検索する文字列を入力してください",
   "replace.bad": "無効なパターン: {}",
   "replace.fail": "置換に失敗しました: {}",

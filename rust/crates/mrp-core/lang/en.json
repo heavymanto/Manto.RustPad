@@ -168,6 +168,7 @@
   "replace.none": "no matches",
   "replace.too_many": "too many matches (over {}): narrow the search",
   "replace.done": "replaced {} occurrence(s) in {} tab(s)",
+  "replace.skipped": "({} tab(s) skipped)",
   "replace.empty": "type what to find",
   "replace.bad": "invalid pattern: {}",
   "replace.fail": "replace failed: {}",

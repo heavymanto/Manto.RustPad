@@ -470,3 +470,97 @@ fn leftover_temporary_files_are_cleaned_on_the_next_write() {
     assert!(!sess.join("manifest.txt.tmp").exists());
     pulisci(&dir);
 }
+
+// ---- trovati dalla revisione R26B ----
+
+#[test]
+fn a_tab_being_saved_in_the_background_keeps_its_place_in_the_session() {
+    // durante un salvataggio il documento sta nel thread che scrive: la sessione non deve riscriversi senza quella scheda
+    // (le sue modifiche, gia' al sicuro nella sessione, sparirebbero se il processo muore a meta')
+    let (dir, sess) = cartelle();
+    let grande = "riga di prova per un salvataggio lento\n".repeat(1_600_000);
+    scrivi(&dir, "g.txt", grande.as_bytes());
+    let mut w = ws(&dir, &sess, &["g.txt"]);
+    scrivi_in_testa(&mut w, "X");
+    w.tick();
+    assert!(
+        sess.join("tab-0.mrps").exists(),
+        "le modifiche sono in sessione"
+    );
+    w.handle_key(ctrl('s'));
+    // il documento e' in mano al salvataggio: un giro di sessione non deve toccare la scheda
+    for _ in 0..3 {
+        w.tick();
+    }
+    assert!(
+        sess.join("tab-0.mrps").exists(),
+        "la scheda in salvataggio resta in sessione"
+    );
+    assert!(
+        sess.join("manifest.txt").exists(),
+        "e il manifesto non e' stato svuotato"
+    );
+    // si lascia finire il salvataggio
+    for _ in 0..2000 {
+        w.tick();
+        if w.active().doc_version().is_some() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    pulisci(&dir);
+}
+
+#[test]
+fn a_user_file_named_like_a_scratch_file_is_not_taken_for_an_untitled_document() {
+    // un file vero in una cartella che si chiama "untitled" non e' un documento senza nome: tornando dalla sessione resta
+    // un file, e chiuderlo non lo cancella
+    let (dir, sess) = cartelle();
+    let sotto = dir.join("untitled");
+    std::fs::create_dir_all(&sotto).unwrap();
+    // la cartella dei file di appoggio della sessione esiste (come quando c'e' un documento senza nome)
+    std::fs::create_dir_all(sess.join("untitled")).unwrap();
+    scrivi(&sotto, "untitled-1.txt", b"mio\n");
+    let cfg = AppConfig::default();
+    let primo = App::open(&sotto.join("untitled-1.txt"), cfg.clone()).unwrap();
+    let mut w = Workspace::new(primo, cfg)
+        .with_session(sess.clone())
+        .with_session_timing(Duration::ZERO, Duration::ZERO);
+    w.resize(40, 8);
+    assert!(w.wait_idle(Duration::from_secs(20)));
+    scrivi_in_testa(&mut w, "X");
+    w.tick();
+    drop(w);
+    let n = riapri(&sess);
+    assert!(!n.active().is_untitled());
+    assert_eq!(n.active().document_text(), b"Xmio\n");
+    // quindi non e' un file di appoggio: chiudere la scheda non lo toglie
+    assert_eq!(n.active().scratch_path(), None);
+    assert!(sotto.join("untitled-1.txt").exists());
+    assert_eq!(
+        std::fs::read(sotto.join("untitled-1.txt")).unwrap(),
+        b"mio\n"
+    );
+    pulisci(&dir);
+}
+
+#[test]
+fn a_restored_cursor_beyond_the_end_of_the_file_is_brought_back_inside() {
+    let (dir, _sess) = cartelle();
+    let p = scrivi(&dir, "corto.txt", b"uno\n");
+    let rec = mrp_core::session::TabRecord {
+        path: p.canonicalize().unwrap().to_str().unwrap().to_string(),
+        cursor: 9_999,
+        edit: false,
+        encoding: "utf-8".to_string(),
+        state: None,
+    };
+    let (a, esito) = App::restore_tab(&rec, AppConfig::default(), None).unwrap();
+    assert!(esito.is_none());
+    assert!(
+        a.cursor() <= 4,
+        "il cursore e' dentro il file: {}",
+        a.cursor()
+    );
+    pulisci(&dir);
+}
