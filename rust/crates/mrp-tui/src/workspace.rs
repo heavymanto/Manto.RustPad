@@ -457,6 +457,22 @@ impl Workspace {
         self.apply_size();
     }
 
+    /// I caratteri speciali (spazi, tabulazioni, fine riga) si vedono.
+    pub fn special_chars(&self) -> bool {
+        self.cfg.special_chars
+    }
+
+    /// Alt+W: mostra o nasconde i caratteri speciali in tutte le schede; la scelta si salva nelle impostazioni e vale per le
+    /// schede nuove.
+    pub fn toggle_special(&mut self) {
+        self.cfg.special_chars = !self.cfg.special_chars;
+        let (visibili, attiva) = (self.cfg.special_chars, self.active);
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_special_chars(visibili, i == attiva);
+        }
+    }
+
     /// Adatta la scheda attiva allo spazio (meno le barre).
     fn apply_size(&mut self) {
         let (w, h) = self.size;
@@ -840,6 +856,9 @@ impl Workspace {
                     return self.select(usize::from(c as u8 - b'1'));
                 }
                 KeyCode::Char('b') | KeyCode::Char('B') if ctrl => return self.toggle_nav(),
+                KeyCode::Char('w') | KeyCode::Char('W') if alt && !ctrl => {
+                    return self.toggle_special()
+                }
                 // Ctrl+N: un documento nuovo e vuoto in una scheda nuova
                 KeyCode::Char('n') | KeyCode::Char('N') if ctrl => {
                     if let Err(e) = self.new_tab() {

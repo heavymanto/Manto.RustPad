@@ -186,6 +186,8 @@
   "overwrite.text": "{} は既に存在します。置き換えますか?",
   "overwrite.keys": "Enter 置換   Esc キャンセル",
   "help.l18": "Ctrl+N / Ctrl+Shift+S      新規 / 名前を付けて保存",
+  "help.l19": "Alt+W                      空白・タブ・行末を表示",
+  "gui.special": "特殊文字を表示",
   "gui.new": "新規",
   "gui.save_as": "名前を付けて保存…",
   "gui.save_as_title": "名前を付けて保存",

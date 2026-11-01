@@ -243,6 +243,8 @@ pub struct AppConfig {
     pub jump_pages: [usize; 3],
     /// Vero: la barra dei salti (Ctrl+B) e' visibile all'avvio (vedi `Settings::nav_bar`).
     pub nav_bar: bool,
+    /// Vero: spazi, tabulazioni e fine riga si vedono (vedi `Settings::special_chars`).
+    pub special_chars: bool,
     /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
     /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
     pub eol: Option<LineEnding>,
@@ -262,6 +264,7 @@ impl Default for AppConfig {
             encoding: Some(Encoding::Utf8),
             jump_pages: JUMP_PAGES,
             nav_bar: false,
+            special_chars: false,
             chrome: true,
             eol: None,
         }
@@ -617,6 +620,8 @@ pub struct App {
     jump_pages: [usize; 3],
     /// La barra dei salti e' visibile (la scelta si salva nelle impostazioni; la disegna il `Workspace`).
     nav_bar: bool,
+    /// Spazi, tabulazioni e fine riga si vedono (la scelta si salva nelle impostazioni, vale per tutte le schede).
+    special: bool,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
     /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
@@ -770,6 +775,7 @@ impl App {
             settings_path: cfg.settings_path,
             jump_pages: cfg.jump_pages,
             nav_bar: cfg.nav_bar,
+            special: cfg.special_chars,
             chrome: cfg.chrome,
             eol_forzato: cfg.eol,
             lang_picked,
@@ -1427,6 +1433,7 @@ impl App {
             lang: self.lang_picked.clone(),
             jump_pages: self.jump_pages,
             nav_bar: self.nav_bar,
+            special_chars: self.special,
             theme_set: true,
         };
         let _ = s.save(&path);
@@ -2828,6 +2835,19 @@ impl App {
         }
     }
 
+    /// Spazi, tabulazioni e fine riga si vedono.
+    pub fn special_chars(&self) -> bool {
+        self.special
+    }
+
+    /// Ricorda se i caratteri speciali si vedono; con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_special_chars(&mut self, visibili: bool, salva: bool) {
+        self.special = visibili;
+        if salva {
+            self.save_settings();
+        }
+    }
+
     /// I moltiplicatori dei salti di pagina: Alt+Pag, Alt+Maiusc+Pag e Ctrl+Alt+Pag.
     pub fn jump_pages(&self) -> [usize; 3] {
         self.jump_pages
@@ -3043,6 +3063,7 @@ impl App {
     pub(crate) fn view_opts(&self) -> ViewOptions {
         ViewOptions {
             encoding: self.enc,
+            special: self.special,
             ..ViewOptions::default()
         }
     }

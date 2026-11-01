@@ -186,6 +186,8 @@
   "overwrite.text": "{} 已存在。要替换吗？",
   "overwrite.keys": "Enter 替换   Esc 取消",
   "help.l18": "Ctrl+N / Ctrl+Shift+S      新建文档 / 另存为",
+  "help.l19": "Alt+W                      显示空格、制表符和行尾",
+  "gui.special": "显示特殊字符",
   "gui.new": "新建",
   "gui.save_as": "另存为…",
   "gui.save_as_title": "另存为",

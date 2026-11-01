@@ -36,6 +36,7 @@ fn k(c: KeyCode, m: KeyModifiers) -> KeyEvent {
 
 const CTRL: KeyModifiers = KeyModifiers::CONTROL;
 const NIENTE: KeyModifiers = KeyModifiers::NONE;
+const ALT: KeyModifiers = KeyModifiers::ALT;
 
 // ----- la tabella -----
 
@@ -110,6 +111,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::Goto, Some(k(KeyCode::Char('g'), CTRL)), "Ctrl+G"),
         (Cmd::Replace, Some(k(KeyCode::Char('h'), CTRL)), "Ctrl+H"),
         (Cmd::ColumnMode, Some(k(KeyCode::F(8), NIENTE)), "F8"),
+        (Cmd::Special, Some(k(KeyCode::Char('w'), ALT)), "Alt+W"),
         (Cmd::NextTab, Some(k(KeyCode::PageDown, CTRL)), "Ctrl+PgDn"),
         (Cmd::PrevTab, Some(k(KeyCode::PageUp, CTRL)), "Ctrl+PgUp"),
         (Cmd::NavBar, Some(k(KeyCode::Char('b'), CTRL)), "Ctrl+B"),
@@ -240,6 +242,7 @@ fn the_other_commands_are_always_enabled() {
         Cmd::Goto,
         Cmd::Replace,
         Cmd::ColumnMode,
+        Cmd::Special,
         Cmd::NavBar,
         Cmd::Theme,
         Cmd::Language,

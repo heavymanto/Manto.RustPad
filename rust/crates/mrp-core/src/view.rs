@@ -32,6 +32,10 @@ pub struct ViewOptions {
     pub show_eof_row: bool,
     /// Come si leggono i byte come caratteri (vedi `encoding`). Predefinita: UTF-8.
     pub encoding: Encoding,
+    /// Caratteri speciali visibili: lo spazio e' `U+00B7`, la tabulazione `U+2192` (il resto delle sue celle vuoto), un
+    /// carattere di controllo `U+00A4` e la fine di una riga vera `U+00B6`. Le larghezze non cambiano: colonne, mouse e
+    /// scorrimento restano quelli di sempre (il segno di fine riga sta dopo l'ultima cella e non conta).
+    pub special: bool,
 }
 
 impl Default for ViewOptions {
@@ -41,6 +45,7 @@ impl Default for ViewOptions {
             max_scan: crate::scan::DEFAULT_MAX_SCAN,
             show_eof_row: false,
             encoding: Encoding::Utf8,
+            special: false,
         }
     }
 }
@@ -105,7 +110,7 @@ pub fn rows_from(
         let mut caratteri = Caratteri::new(doc, start, start + leggi, opts.encoding);
         while let Some((p, c, n)) = caratteri.prossimo() {
             let nascosto = c == '\r' && p + n as u64 == end && a_capo;
-            let (w, glifo) = cella(c, colonna, tab, nascosto);
+            let (w, glifo) = cella(c, colonna, tab, nascosto, opts.special);
             let (a, b) = (colonna, colonna + w);
             colonna = b;
             if w == 0 {
@@ -126,6 +131,10 @@ pub fn rows_from(
             if troncato && colonna > 0 && colonna >= hscroll + cols {
                 break;
             }
+        }
+        // il segno di fine riga: solo dove la riga finisce davvero (un a-capo, non un taglio) e la sua cella e' nella finestra
+        if opts.special && a_capo && !troncato && colonna >= hscroll && colonna < hscroll + cols {
+            testo.push('\u{b6}');
         }
         rows.push(Row {
             start,
@@ -180,7 +189,7 @@ pub fn col_of(doc: &Document, row_start: u64, off: u64, opts: &ViewOptions) -> u
             break;
         }
         let nascosto = c == '\r' && p + n as u64 == end && a_capo;
-        let (w, _) = cella(c, colonna, tab, nascosto);
+        let (w, _) = cella(c, colonna, tab, nascosto, false);
         colonna += w;
     }
     colonna
@@ -196,7 +205,7 @@ pub fn offset_at_col(doc: &Document, row_start: u64, col: u64, opts: &ViewOption
     let mut colonna = 0usize;
     while let Some((p, c, n)) = caratteri.prossimo() {
         let nascosto = c == '\r' && p + n as u64 == end && a_capo;
-        let (w, _) = cella(c, colonna, tab, nascosto);
+        let (w, _) = cella(c, colonna, tab, nascosto, false);
         if w > 0 {
             if col < colonna + w {
                 // la colonna sta dentro questo carattere (nel mezzo di uno largo o di una tabulazione)
@@ -244,14 +253,28 @@ pub(crate) fn fine_riga(
 
 /// Larghezza in celle e glifo di un carattere: tabulazione fino al prossimo multiplo di `tab`;
 /// `\r` nascosto (ultimo byte di una riga che termina con a-capo) largo 0 e invisibile; ogni altro
-/// carattere di controllo -> `U+00B7` largo 1; il resto la larghezza Unicode (0 se non definita).
-pub(crate) fn cella(c: char, colonna: usize, tab: usize, nascosto: bool) -> (usize, String) {
+/// carattere di controllo -> `U+00B7` largo 1; il resto la larghezza Unicode (0 se non definita). Con `special` lo
+/// spazio e' `U+00B7`, la tabulazione una freccia seguita da celle vuote e il controllo `U+00A4` (diverso dallo
+/// spazio): le larghezze sono sempre le stesse.
+pub(crate) fn cella(
+    c: char,
+    colonna: usize,
+    tab: usize,
+    nascosto: bool,
+    special: bool,
+) -> (usize, String) {
     if c == '\t' {
         let w = tab - colonna % tab;
-        (w, " ".repeat(w))
+        if special {
+            (w, format!("\u{2192}{}", " ".repeat(w - 1)))
+        } else {
+            (w, " ".repeat(w))
+        }
     } else if nascosto {
         (0, String::new())
     } else if c.is_control() {
+        (1, if special { "\u{a4}" } else { "\u{b7}" }.to_string())
+    } else if special && c == ' ' {
         (1, "\u{b7}".to_string())
     } else {
         (c.width().unwrap_or(0), c.to_string())

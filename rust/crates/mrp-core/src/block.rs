@@ -123,7 +123,7 @@ fn span_of_row(
             fine_blocco = p;
             break;
         }
-        let (w, _) = cella(c, colonna, tab, false);
+        let (w, _) = cella(c, colonna, tab, false, false);
         // un carattere di larghezza 0 vale come gli altri: conta la colonna dove INIZIA, cosi' un marchio
         // combinante alla stessa colonna di inizio del carattere dopo segue la stessa regola
         if span_start.is_none() && colonna as u64 >= col_a {

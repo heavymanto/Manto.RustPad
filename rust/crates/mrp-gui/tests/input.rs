@@ -115,12 +115,29 @@ fn letters_only_count_with_ctrl() {
         ..ctrl()
     };
     assert_eq!(tasto(Key::Q, altgr), None);
-    // Alt da solo con una lettera: niente
+    // Alt da solo con una lettera: niente, tranne Alt+W (i caratteri speciali)
     let alt = Modifiers {
         alt: true,
         ..Modifiers::NONE
     };
     assert_eq!(tasto(Key::F, alt), None);
+    assert_eq!(
+        tasto(Key::W, alt),
+        Some(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::ALT))
+    );
+    // ... ma non con Maiusc, Ctrl+Alt (AltGr) o Comando
+    assert_eq!(tasto(Key::W, Modifiers { shift: true, ..alt }), None);
+    assert_eq!(tasto(Key::W, Modifiers { ctrl: true, ..alt }), None);
+    assert_eq!(
+        tasto(
+            Key::W,
+            Modifiers {
+                command: true,
+                ..alt
+            }
+        ),
+        None
+    );
 }
 
 #[test]

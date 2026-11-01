@@ -28,6 +28,7 @@ pub enum Cmd {
     Goto,
     Replace,
     ColumnMode,
+    Special,
     NextTab,
     PrevTab,
     NavBar,
@@ -58,6 +59,7 @@ pub struct Command {
 
 const CTRL: KeyModifiers = KeyModifiers::CONTROL;
 const NIENTE: KeyModifiers = KeyModifiers::NONE;
+const ALT: KeyModifiers = KeyModifiers::ALT;
 const CTRL_MAIUSC: KeyModifiers = KeyModifiers::CONTROL.union(KeyModifiers::SHIFT);
 
 const fn tasto(c: KeyCode, m: KeyModifiers) -> Option<KeyEvent> {
@@ -200,6 +202,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::F(8), NIENTE),
         "F8",
         "columns",
+    ),
+    comando(
+        Cmd::Special,
+        "gui.special",
+        tasto(KeyCode::Char('w'), ALT),
+        "Alt+W",
+        "special",
     ),
     comando(
         Cmd::NextTab,

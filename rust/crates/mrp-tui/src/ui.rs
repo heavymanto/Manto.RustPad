@@ -15,11 +15,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l18` (l'ultima e' sempre Esc, `help.l10`).
-pub(crate) const HELP_KEYS: [&str; 18] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l19` (l'ultima e' sempre Esc, `help.l10`).
+pub(crate) const HELP_KEYS: [&str; 19] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l18", "help.l10",
+    "help.l18", "help.l19", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).

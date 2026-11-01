@@ -18,6 +18,8 @@ pub struct Settings {
     pub jump_pages: [usize; 3],
     /// La barra dei salti (Ctrl+B) sotto la barra delle schede.
     pub nav_bar: bool,
+    /// I caratteri speciali (spazi, tabulazioni, fine riga) si vedono (Alt+W).
+    pub special_chars: bool,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
 }
@@ -35,6 +37,7 @@ impl Default for Settings {
             lang: None,
             jump_pages: JUMP_PAGES,
             nav_bar: false,
+            special_chars: false,
             theme_set: false,
         }
     }
@@ -69,6 +72,9 @@ impl Settings {
         }
         if self.nav_bar {
             out.push_str("nav_bar=1\n");
+        }
+        if self.special_chars {
+            out.push_str("special=1\n");
         }
         out
     }
@@ -113,6 +119,11 @@ impl Settings {
                     "1" | "on" | "true" => s.nav_bar = true,
                     "0" | "off" | "false" => s.nav_bar = false,
                     // un valore che non si capisce si salta
+                    _ => {}
+                },
+                "special" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.special_chars = true,
+                    "0" | "off" | "false" => s.special_chars = false,
                     _ => {}
                 },
                 _ => {}

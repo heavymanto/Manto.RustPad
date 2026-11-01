@@ -28,6 +28,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "goto" => "➡",
         "replace" => "🔁",
         "columns" => "📊",
+        "special" => "¶",
         "next_tab" => "▶",
         "prev_tab" => "◀",
         "jump_bar" => "⏩",

@@ -186,6 +186,8 @@
   "overwrite.text": "{} ya existe. ¿Reemplazarlo?",
   "overwrite.keys": "Enter Reemplazar   Esc Cancelar",
   "help.l18": "Ctrl+N / Ctrl+Mayús+S      documento nuevo / guardar como",
+  "help.l19": "Alt+W                      mostrar espacios, tabs y fin de línea",
+  "gui.special": "Mostrar caracteres especiales",
   "gui.new": "Nuevo",
   "gui.save_as": "Guardar como…",
   "gui.save_as_title": "Guardar como",

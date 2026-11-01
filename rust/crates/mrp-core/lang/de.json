@@ -186,6 +186,8 @@
   "overwrite.text": "{} existiert bereits. Ersetzen?",
   "overwrite.keys": "Enter Ersetzen   Esc Abbrechen",
   "help.l18": "Strg+N / Strg+Umschalt+S  neues Dokument / speichern unter",
+  "help.l19": "Alt+W                      Leerzeichen, Tabs, Zeilenenden zeigen",
+  "gui.special": "Sonderzeichen anzeigen",
   "gui.new": "Neu",
   "gui.save_as": "Speichern unter…",
   "gui.save_as_title": "Speichern unter",
