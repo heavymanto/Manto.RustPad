@@ -123,10 +123,7 @@ fn every_setting_is_there() {
     for atteso in [
         "General",
         "Keys",
-        "Night (blue)",
-        "Debian (blue)",
-        "Console (default)",
-        "Minimal",
+        "Automatic (system)",
         "Dark",
         "Light",
         "-",
@@ -191,9 +188,9 @@ fn picking_a_theme_applies_and_saves_it() {
     assert!(std::fs::read_to_string(&settings)
         .unwrap()
         .contains("theme=light"));
-    let pos = controllo(&f, "Night (blue)");
+    let pos = controllo(&f, "Dark");
     clic(&mut f, &ctx, pos);
-    assert_eq!(f.app().theme_id(), ThemeId::Night);
+    assert_eq!(f.app().theme_id(), ThemeId::Dark);
     let _ = std::fs::remove_file(p);
 }
 

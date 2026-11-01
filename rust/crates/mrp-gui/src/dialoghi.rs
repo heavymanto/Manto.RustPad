@@ -30,6 +30,9 @@ pub struct StatoDialogo {
     /// Le opzioni del dialogo (i radio del modo e dell'ambito, la casella delle maiuscole) nell'ultimo disegno,
     /// nell'ordine di disegno, con la loro etichetta (per i test).
     pub opzioni: Vec<(egui::Rect, String)>,
+    /// Il rettangolo della X della testata nell'ultimo disegno (`None`: non c'e'); non finisce in `pulsanti`
+    /// perche' chiude il dialogo, non e' un'azione sua (per i test, G1).
+    pub chiudi: Option<egui::Rect>,
     /// Il dialogo disegnato nel giro scorso: uno nuovo azzera i ricordi del campo e del menu.
     kind: Option<DialogKind>,
     /// Il testo del campo del prompt: il padrone e' l'`App`, il campo lo mostra e le riporta le modifiche.
@@ -42,6 +45,8 @@ pub struct StatoDialogo {
     campo_fuoco: bool,
     /// La voce del menu evidenziata nel giro scorso: quando cambia, si porta in vista.
     ultima_voce: Option<usize>,
+    /// Se la X della testata e' stata cliccata in questo giro: alla fine del disegno vale come Annulla.
+    chiusura_richiesta: bool,
 }
 
 /// Disegna la finestra del dialogo della scheda attiva (se c'e' e ha una vista) e guida l'`App`: Esc la chiude, nel menu
@@ -102,6 +107,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
     stato.campo = None;
     stato.campi.clear();
     stato.opzioni.clear();
+    stato.chiudi = None;
     let altezza = ctx.screen_rect().height();
     let t_ok = ws.active().text("gui.ok").to_string();
     let t_cancel = ws.active().text("gui.cancel").to_string();
@@ -122,12 +128,13 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         // l'aiuto: due colonne (il tasto in monospace, la descrizione), in una lista che occupa al piu' il 70% dello
         // schermo; sotto, il pulsante che chiude
         DialogView::Help { rows, .. } => {
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                360.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ScrollArea::vertical()
                         .max_height(altezza * 0.7)
                         .show(ui, |ui| {
@@ -139,11 +146,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                 }
                             });
                         });
-                    if pulsante(ui, &mut stato.pulsanti, &t_ok) {
+                    if pulsanti_centrati(ui, &mut stato.pulsanti, &[t_ok.as_str()]) == Some(0) {
                         ws.active_mut().dialog_cancel();
                     }
-                })
-                .map(|w| w.response.rect);
+                },
+            );
         }
         // il menu (tema, lingua, codifica): una riga per voce, col nome e, a fianco, il dettaglio in testo debole, in
         // una lista che occupa al piu' il 60% dello schermo; sotto, l'eventuale nota. Tutta la riga sceglie la voce
@@ -153,12 +160,13 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             note,
             ..
         } => {
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                420.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ScrollArea::vertical()
                         .max_height(altezza * 0.6)
                         .show(ui, |ui| {
@@ -185,8 +193,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     if let Some(n) = note {
                         ui.label(RichText::new(n).weak());
                     }
-                })
-                .map(|w| w.response.rect);
+                },
+            );
             stato.ultima_voce = Some(*selected);
         }
         // il prompt (vai a, apri, salva con nome): il suggerimento, il campo largo quanto la finestra e i due pulsanti.
@@ -196,13 +204,13 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             if !stato.campo_fuoco {
                 stato.testo = text.clone();
             }
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(360.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                360.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ui.label(RichText::new(hint).weak());
                     let r =
                         ui.add(TextEdit::singleline(&mut stato.testo).desired_width(f32::INFINITY));
@@ -218,37 +226,39 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
                         ws.active_mut().dialog_submit();
                     }
-                    ui.horizontal(|ui| {
-                        if pulsante(ui, &mut stato.pulsanti, &t_ok) {
-                            ws.active_mut().dialog_submit();
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
-                            ws.active_mut().dialog_cancel();
-                        }
-                    });
-                })
-                .map(|w| w.response.rect);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
         }
         // il file scelto per "salva con nome" esiste gia': la domanda e i due pulsanti
         DialogView::Overwrite { text, .. } => {
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(360.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                360.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ui.label(text.as_str());
-                    ui.horizontal(|ui| {
-                        if pulsante(ui, &mut stato.pulsanti, &t_ok) {
-                            ws.active_mut().dialog_submit();
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
-                            ws.active_mut().dialog_cancel();
-                        }
-                    });
-                })
-                .map(|w| w.response.rect);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
         }
         // la conferma di uscita con modifiche non salvate: la domanda e le tre scelte, nell'ordine della vista
         DialogView::Confirm {
@@ -258,27 +268,26 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             cancel,
             ..
         } => {
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(360.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                360.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ui.label(text.as_str());
-                    ui.horizontal(|ui| {
-                        if pulsante(ui, &mut stato.pulsanti, save) {
-                            ws.active_mut().dialog_confirm(ConfirmChoice::Save);
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, discard) {
-                            ws.active_mut().dialog_confirm(ConfirmChoice::Discard);
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, cancel) {
-                            ws.active_mut().dialog_confirm(ConfirmChoice::Cancel);
-                        }
-                    });
-                })
-                .map(|w| w.response.rect);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[save.as_str(), discard.as_str(), cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_confirm(ConfirmChoice::Save),
+                        Some(1) => ws.active_mut().dialog_confirm(ConfirmChoice::Discard),
+                        Some(2) => ws.active_mut().dialog_confirm(ConfirmChoice::Cancel),
+                        _ => {}
+                    }
+                },
+            );
         }
         // Cerca: il suggerimento, il campo largo quanto la finestra, la riga delle opzioni (il modo e le maiuscole) e
         // i due pulsanti. Come il prompt: il campo prende il fuoco appena il dialogo si apre, mostra il testo dell'App
@@ -293,13 +302,13 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         } => {
             // il padrone dei numeri e' l'App: il campo li rilegge a ogni giro (le modifiche dell'utente le riportano a lei)
             stato.numeri = values.clone();
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(380.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                380.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ui.label(RichText::new(hint).weak());
                     egui::Grid::new("salti_numeri")
                         .num_columns(2)
@@ -338,16 +347,17 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                             }
                         });
                     stato.campo_fuoco = true;
-                    ui.horizontal(|ui| {
-                        if pulsante(ui, &mut stato.pulsanti, &t_ok) {
-                            ws.active_mut().dialog_submit();
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
-                            ws.active_mut().dialog_cancel();
-                        }
-                    });
-                })
-                .map(|w| w.response.rect);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
         }
         DialogView::Find {
             hint,
@@ -362,13 +372,13 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             if !stato.campo_fuoco {
                 stato.testo = text.clone();
             }
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(420.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                420.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ui.label(RichText::new(hint).weak());
                     let r =
                         ui.add(TextEdit::singleline(&mut stato.testo).desired_width(f32::INFINITY));
@@ -401,16 +411,17 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                             ws.active_mut().dialog_set_invert(v);
                         }
                     }
-                    ui.horizontal(|ui| {
-                        if pulsante(ui, &mut stato.pulsanti, go) {
-                            ws.active_mut().dialog_submit();
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
-                            ws.active_mut().dialog_cancel();
-                        }
-                    });
-                })
-                .map(|w| w.response.rect);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[go.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
         }
         // Sostituisci: i due campi allineati in una griglia (l'etichetta a sinistra), le opzioni come in Cerca piu'
         // l'ambito, il messaggio dell'anteprima e i due pulsanti. Il fuoco parte dal campo che dice l'App e la segue
@@ -437,13 +448,13 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 stato.testo_due = with.clone();
             }
             let avviso = ctx.style().visuals.warn_fg_color;
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(420.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                420.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     egui::Grid::new("sostituisci")
                         .num_columns(2)
                         .show(ui, |ui| {
@@ -492,49 +503,206 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     if !status.is_empty() {
                         ui.colored_label(avviso, status.as_str());
                     }
-                    ui.horizontal(|ui| {
-                        if pulsante(
-                            ui,
-                            &mut stato.pulsanti,
-                            if *ready { apply } else { preview },
-                        ) {
-                            ws.active_mut().dialog_submit();
-                        }
-                        if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
-                            ws.active_mut().dialog_cancel();
-                        }
-                    });
-                })
-                .map(|w| w.response.rect);
+                    // il primo pulsante dice cosa fa adesso: l'anteprima, o l'applica se e' gia' pronta
+                    let primo = if *ready { apply } else { preview };
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[primo.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
         }
         // il salvataggio in corso: il nome del file, la barra che dice a che punto e', e annulla
         DialogView::Saving { text, percent, .. } => {
-            rect = egui::Window::new(titolo.as_str())
-                .collapsible(false)
-                .resizable(false)
-                .min_width(360.0)
-                .pivot(Align2::CENTER_CENTER)
-                .default_pos(ctx.screen_rect().center())
-                .show(ctx, |ui| {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                360.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
                     ui.label(text.as_str());
                     ui.add(egui::ProgressBar::new(f32::from(*percent) / 100.0));
-                    if pulsante(ui, &mut stato.pulsanti, &t_cancel) {
+                    if pulsanti_centrati(ui, &mut stato.pulsanti, &[t_cancel.as_str()]) == Some(0) {
                         ws.active_mut().dialog_cancel();
                     }
-                })
-                .map(|w| w.response.rect);
+                },
+            );
         }
+    }
+    // la X della testata chiude il dialogo come Annulla / Esc (nella conferma di uscita vale Annulla)
+    if stato.chiusura_richiesta {
+        stato.chiusura_richiesta = false;
+        ws.active_mut().dialog_cancel();
     }
     stato.rect = rect;
     stato.titolo = Some(titolo);
 }
 
-/// Un pulsante col suo testo: lo disegna, ne ricorda il rettangolo (l'ordine di disegno e' da sinistra a destra) e
-/// dice se e' stato premuto.
-fn pulsante(ui: &mut egui::Ui, pulsanti: &mut Vec<(egui::Rect, String)>, testo: &str) -> bool {
-    let r = ui.button(testo);
-    pulsanti.push((r.rect, testo.to_string()));
-    r.clicked()
+/// La finestra di un dialogo (G1): come le `egui::Window` di prima, ma senza la barra del titolo di
+/// egui (che la X non ce l'ha) e con la testata nostra sopra il corpo: cosi' ogni finestrella ha la
+/// X in alto a destra, che vale Annulla. `chiudi` riceve il rettangolo della X e
+/// `chiusura_richiesta` dice se e' stata cliccata (li chiede chi chiama, che li registra nel suo
+/// stato); il corpo lo disegna `contenuto`. Restituisce il rettangolo della finestra.
+fn finestra(
+    ctx: &egui::Context,
+    titolo: &str,
+    larghezza_min: f32,
+    chiudi: &mut Option<egui::Rect>,
+    chiusura_richiesta: &mut bool,
+    contenuto: impl FnOnce(&mut egui::Ui),
+) -> Option<egui::Rect> {
+    egui::Window::new(titolo)
+        .title_bar(false)
+        .collapsible(false)
+        .resizable(false)
+        .min_width(larghezza_min)
+        .pivot(Align2::CENTER_CENTER)
+        .default_pos(ctx.screen_rect().center())
+        .show(ctx, |ui| {
+            let (rettangolo, cliccata) = testata(ui, titolo);
+            *chiudi = Some(rettangolo);
+            if cliccata {
+                *chiusura_richiesta = true;
+            }
+            contenuto(ui);
+        })
+        .map(|w| w.response.rect)
+}
+
+/// La testata di una finestra senza barra del titolo (G1): il titolo forte a sinistra, la X che
+/// chiude a destra e un separatore sotto. Restituisce il rettangolo della X e se e' stata cliccata.
+/// La usa `finestra` e la finestra delle impostazioni.
+pub(crate) fn testata(ui: &mut egui::Ui, titolo: &str) -> (egui::Rect, bool) {
+    let mut rettangolo = egui::Rect::ZERO;
+    let mut cliccata = false;
+    ui.horizontal(|ui| {
+        ui.label(RichText::new(titolo).strong().size(16.0));
+        // la X sta sull'orlo destro della riga
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.scope(|ui| {
+                {
+                    // i colori della X secondo il tema; al passaggio del mouse diventa rossa viva
+                    // col testo bianco, in tutti e due i temi
+                    let scuro = ui.visuals().dark_mode;
+                    let v = ui.visuals_mut();
+                    let (fondo, testo) = if scuro {
+                        (
+                            egui::Color32::from_rgb(0x3a, 0x3a, 0x3a),
+                            egui::Color32::from_rgb(0xe0, 0xe0, 0xe0),
+                        )
+                    } else {
+                        (
+                            egui::Color32::from_rgb(0xc4, 0x2b, 0x1c),
+                            egui::Color32::WHITE,
+                        )
+                    };
+                    v.widgets.inactive.weak_bg_fill = fondo;
+                    v.widgets.inactive.fg_stroke = egui::Stroke::new(1.0_f32, testo);
+                    for vis in [&mut v.widgets.hovered, &mut v.widgets.active] {
+                        vis.weak_bg_fill = egui::Color32::from_rgb(0xe8, 0x11, 0x23);
+                        vis.fg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::WHITE);
+                    }
+                }
+                // la croce si disegna a mano: il glifo "✕" nel font non c'e' e uscirebbe un quadratino
+                let r = ui.add(egui::Button::new("").min_size(egui::Vec2::new(28.0, 24.0)));
+                let colore = ui.style().interact(&r).fg_stroke.color;
+                let c = r.rect.center();
+                for (a, b) in [(-1.0_f32, -1.0_f32), (-1.0, 1.0)] {
+                    ui.painter().line_segment(
+                        [
+                            c + egui::Vec2::new(a * 5.0, b * 5.0),
+                            c + egui::Vec2::new(-a * 5.0, -b * 5.0),
+                        ],
+                        egui::Stroke::new(1.6_f32, colore),
+                    );
+                }
+                rettangolo = r.rect;
+                cliccata = r.clicked();
+            });
+        });
+    });
+    ui.separator();
+    (rettangolo, cliccata)
+}
+
+/// La riga dei pulsanti di un dialogo (G1): grandi (almeno 120 x 34), tutti larghi come il testo
+/// piu' lungo, il gruppo centrato nello spazio disponibile; il primo e' l'azione principale (pieno
+/// di colore), gli altri neutri col contorno. Registra i rettangoli in `registro` da sinistra a
+/// destra col loro testo, come faceva `pulsante`, e restituisce l'indice del pulsante cliccato.
+fn pulsanti_centrati(
+    ui: &mut egui::Ui,
+    registro: &mut Vec<(egui::Rect, String)>,
+    testi: &[&str],
+) -> Option<usize> {
+    // la larghezza di tutti: il testo piu' lungo deve starci comodo
+    let mut larghezza = 120.0f32;
+    for testo in testi {
+        let galley = egui::WidgetText::from(RichText::new(*testo).size(16.0)).into_galley(
+            ui,
+            Some(egui::TextWrapMode::Extend),
+            f32::INFINITY,
+            egui::FontSelection::Default,
+        );
+        larghezza = larghezza.max(galley.size().x + 40.0);
+    }
+    let totale = larghezza * testi.len() as f32 + 12.0 * testi.len().saturating_sub(1) as f32;
+    let mut cliccato = None;
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing.x = 12.0;
+        // il gruppo sta nel mezzo dello spazio disponibile
+        ui.add_space(((ui.available_width() - totale) / 2.0).max(0.0));
+        for (i, testo) in testi.iter().enumerate() {
+            let (fondo, colore, contorno) = colori_pulsante(ui, i == 0);
+            let r = ui.add_sized(
+                egui::Vec2::new(larghezza, 34.0),
+                egui::Button::new(RichText::new(*testo).size(16.0).color(colore))
+                    .min_size(egui::Vec2::new(120.0, 34.0))
+                    .fill(fondo)
+                    .stroke(contorno),
+            );
+            registro.push((r.rect, testo.to_string()));
+            if r.clicked() {
+                cliccato = Some(i);
+            }
+        }
+    });
+    cliccato
+}
+
+/// I colori di un pulsante della riga (G1): il principale e' pieno di colore col testo bianco, gli
+/// altri neutri col contorno; chiaro o scuro secondo il tema.
+fn colori_pulsante(
+    ui: &egui::Ui,
+    principale: bool,
+) -> (egui::Color32, egui::Color32, egui::Stroke) {
+    match (ui.visuals().dark_mode, principale) {
+        (false, true) => (
+            egui::Color32::from_rgb(0x0f, 0x6c, 0xbd),
+            egui::Color32::WHITE,
+            egui::Stroke::NONE,
+        ),
+        (true, true) => (
+            egui::Color32::from_rgb(0x0e, 0x63, 0x9c),
+            egui::Color32::WHITE,
+            egui::Stroke::NONE,
+        ),
+        (false, false) => (
+            egui::Color32::from_rgb(0xe6, 0xe6, 0xe6),
+            egui::Color32::from_rgb(0x1f, 0x1f, 0x1f),
+            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(0x8a, 0x8a, 0x8a)),
+        ),
+        (true, false) => (
+            egui::Color32::from_rgb(0x3c, 0x3c, 0x3c),
+            egui::Color32::from_rgb(0xe0, 0xe0, 0xe0),
+            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(0x5a, 0x5a, 0x5a)),
+        ),
+    }
 }
 
 /// La riga delle opzioni di Cerca e Sostituisci (come `opzioni_ricerca` del TUI): l'etichetta del modo, le tre scelte

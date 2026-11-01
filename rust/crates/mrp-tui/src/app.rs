@@ -308,6 +308,8 @@ fn spawn_filter_job(
 pub struct AppConfig {
     /// Tema iniziale.
     pub theme: ThemeId,
+    /// L'utente ha scelto il tema (nelle impostazioni o con `--theme`): solo allora si scrive nelle impostazioni.
+    pub theme_chosen: bool,
     /// Codice della lingua da usare (`None` o sconosciuto: inglese).
     pub lang_code: Option<String>,
     /// Le lingue disponibili (di norma `mrp_core::lang::registry()`); il predefinito e' solo l'inglese incorporato.
@@ -343,6 +345,7 @@ impl Default for AppConfig {
     fn default() -> Self {
         AppConfig {
             theme: ThemeId::DEFAULT,
+            theme_chosen: false,
             lang_code: None,
             langs: vec![Lang::english()],
             settings_path: None,
@@ -724,6 +727,8 @@ pub struct App {
     follow_checked: Instant,
     /// Il dialogo Trova e' aperto come filtro (Alt+G) invece che come ricerca (Ctrl+F).
     filter_mode: bool,
+    /// Il tema e' una scelta dell'utente (vedi `AppConfig::theme_chosen`).
+    theme_chosen: bool,
     /// I tre numeri scritti nel dialogo dei salti e quello che ha il fuoco.
     jump_text: [String; 3],
     jump_field: u8,
@@ -923,6 +928,7 @@ impl App {
             follow: false,
             follow_checked: Instant::now(),
             filter_mode: false,
+            theme_chosen: cfg.theme_chosen,
             jump_text: [String::new(), String::new(), String::new()],
             jump_field: 0,
             jump_apply: None,
@@ -1440,7 +1446,8 @@ impl App {
     fn open_dialog(&mut self, kind: DialogKind) {
         match kind {
             DialogKind::Theme => {
-                self.menu_index = ThemeId::ALL
+                self.menu_index = self
+                    .theme_choices()
                     .iter()
                     .position(|&t| t == self.theme)
                     .unwrap_or(0);
@@ -1714,7 +1721,7 @@ impl App {
     /// Quante voci ha il menu aperto.
     fn menu_len(&self) -> usize {
         match self.dialog {
-            Some(DialogKind::Theme) => ThemeId::ALL.len(),
+            Some(DialogKind::Theme) => self.theme_choices().len(),
             Some(DialogKind::Lang) => self.langs.len(),
             Some(DialogKind::Encoding) => Encoding::all().len(),
             _ => 0,
@@ -1726,10 +1733,11 @@ impl App {
     fn menu_apply(&mut self) {
         match self.dialog {
             Some(DialogKind::Theme) => {
-                let Some(&tema) = ThemeId::ALL.get(self.menu_index) else {
+                let Some(&tema) = self.theme_choices().get(self.menu_index) else {
                     return;
                 };
                 self.theme = tema;
+                self.theme_chosen = true;
                 self.dialog = None;
                 self.flash = Some(self.cat.tf("flash.theme", &[self.cat.t(tema.key())]));
                 self.save_settings();
@@ -1772,7 +1780,7 @@ impl App {
             log_colors: self.log_colors,
             line_numbers: self.line_numbers,
             font_size: self.font_size,
-            theme_set: true,
+            theme_set: self.theme_chosen,
         };
         let _ = s.save(&path);
     }
@@ -3230,9 +3238,40 @@ impl App {
         }
     }
 
+    /// I temi del menu di F6: tutti e sei nel terminale; nella finestra (senza la cornice) solo Scuro e Chiaro, che seguono
+    /// il sistema finche' l'utente non ne sceglie uno.
+    pub fn theme_choices(&self) -> Vec<ThemeId> {
+        if self.chrome {
+            ThemeId::ALL.to_vec()
+        } else {
+            vec![ThemeId::Dark, ThemeId::Light]
+        }
+    }
+
+    /// L'utente ha scelto il tema (altrimenti la finestra segue il sistema).
+    pub fn theme_chosen(&self) -> bool {
+        self.theme_chosen
+    }
+
+    /// Ricorda se il tema e' una scelta dell'utente, senza salvare (lo fa il `Workspace` per allineare le schede).
+    pub fn set_theme_chosen(&mut self, scelto: bool) {
+        self.theme_chosen = scelto;
+    }
+
+    /// Torna al tema automatico: la finestra segue il sistema, con `tema` (Scuro o Chiaro) per ora; con `salva` si toglie
+    /// la scelta anche dalle impostazioni.
+    pub fn forget_theme_choice(&mut self, tema: ThemeId, salva: bool) {
+        self.theme = tema;
+        self.theme_chosen = false;
+        if salva {
+            self.save_settings();
+        }
+    }
+
     /// Sceglie il tema e lo salva (come la scelta nel menu di F6): le altre schede lo adottano dal `Workspace`.
     pub fn choose_theme(&mut self, tema: ThemeId) {
         self.theme = tema;
+        self.theme_chosen = true;
         self.flash = Some(self.cat.tf("flash.theme", &[self.cat.t(tema.key())]));
         self.save_settings();
     }

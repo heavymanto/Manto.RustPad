@@ -191,12 +191,14 @@ fn to_text_is_key_value_lines_with_comments() {
     let t = s.to_text();
     assert!(t.starts_with('#'), "un commento in testa spiega il file");
     assert_eq!(dati(&t), vec!["theme=debian", "lang=it"]);
+    // senza un tema scelto non si scrive nemmeno il tema (la finestra segue il sistema), e senza lingua scelta nemmeno quella
     let s = Settings::default();
-    assert_eq!(
-        dati(&s.to_text()),
-        vec!["theme=console"],
-        "senza lingua scelta la riga non c'e'"
-    );
+    assert_eq!(dati(&s.to_text()), Vec::<&str>::new());
+    let s = Settings {
+        theme_set: true,
+        ..Settings::default()
+    };
+    assert_eq!(dati(&s.to_text()), vec!["theme=console"]);
     assert!(s.to_text().is_ascii());
 }
 

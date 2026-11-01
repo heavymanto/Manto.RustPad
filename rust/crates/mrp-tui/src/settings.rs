@@ -71,7 +71,10 @@ impl Settings {
         let mut out = String::new();
         out.push_str("# mrp-tui: theme and language of the TUI, saved by the program.\n");
         out.push_str("# Delete this file to return to the factory defaults.\n");
-        out.push_str(&format!("theme={}\n", self.theme.code()));
+        // il tema c'e' nel file solo se l'utente l'ha scelto: senza, la finestra segue il sistema (chiaro o scuro)
+        if self.theme_set {
+            out.push_str(&format!("theme={}\n", self.theme.code()));
+        }
         if let Some(lang) = &self.lang {
             out.push_str(&format!("lang={}\n", lang));
         }

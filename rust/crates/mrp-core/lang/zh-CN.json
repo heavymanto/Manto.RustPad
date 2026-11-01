@@ -223,6 +223,7 @@
   "settings.tab_general": "常规",
   "settings.tab_keys": "按键",
   "settings.theme": "主题",
+  "settings.theme_auto": "自动(系统)",
   "settings.language": "语言",
   "settings.font": "文字大小",
   "settings.reset": "默认",

@@ -222,6 +222,7 @@
   "settings.tab_general": "General",
   "settings.tab_keys": "Keys",
   "settings.theme": "Theme",
+  "settings.theme_auto": "Automatic (system)",
   "settings.language": "Language",
   "settings.font": "Text size",
   "settings.reset": "Default",

@@ -196,19 +196,19 @@ fn a_click_on_the_window_does_not_reach_the_text_underneath() {
 }
 
 #[test]
-fn the_theme_menu_lists_six_rows_and_a_click_applies_one() {
+fn the_theme_menu_lists_two_rows_and_a_click_applies_one() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
     premi(&mut f, &ctx, Key::F6);
     disegna(&mut f, &ctx);
     assert_eq!(f.dialogo_titolo(), Some("THEME"));
-    assert_eq!(f.dialogo_voci().len(), 6);
+    assert_eq!(f.dialogo_voci().len(), 2, "nella finestra: Scuro e Chiaro");
     assert!(
         f.dialogo_pulsanti().is_empty(),
         "il menu si sceglie con la lista"
     );
-    let pos = f.dialogo_voci()[3].center();
+    let pos = f.dialogo_voci()[1].center();
     clic(&mut f, &ctx, pos);
-    assert_eq!(f.app().theme_id(), ThemeId::Minimal);
+    assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert_eq!(f.app().dialog_kind(), None);
     let _ = std::fs::remove_file(p);
 }
@@ -222,20 +222,25 @@ fn the_menu_answers_to_the_arrow_keys_and_enter() {
         DialogView::Menu { selected, .. } => selected,
         altro => panic!("{altro:?}"),
     };
-    assert_eq!(selezionata(&mut f), 2, "parte dal tema corrente");
+    assert_eq!(
+        selezionata(&mut f),
+        0,
+        "il tema corrente non e' fra i due: parte dal primo"
+    );
     premi(&mut f, &ctx, Key::ArrowDown);
-    assert_eq!(selezionata(&mut f), 3);
+    assert_eq!(selezionata(&mut f), 1);
     for _ in 0..4 {
         premi(&mut f, &ctx, Key::ArrowDown);
     }
-    assert_eq!(selezionata(&mut f), 5, "ferma all'ultima voce (sei temi)");
+    assert_eq!(selezionata(&mut f), 1, "ferma all'ultima voce (due temi)");
     for _ in 0..4 {
         premi(&mut f, &ctx, Key::ArrowUp);
     }
-    assert_eq!(selezionata(&mut f), 1);
+    assert_eq!(selezionata(&mut f), 0);
     assert_eq!(f.app().theme_id(), ThemeId::Console, "scorrere non applica");
+    premi(&mut f, &ctx, Key::ArrowDown);
     premi(&mut f, &ctx, Key::Enter);
-    assert_eq!(f.app().theme_id(), ThemeId::Debian);
+    assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert_eq!(f.app().dialog_kind(), None);
     let _ = std::fs::remove_file(p);
 }

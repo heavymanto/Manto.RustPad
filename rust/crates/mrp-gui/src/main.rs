@@ -28,7 +28,15 @@ fn run() -> i32 {
         println!("mrp-gui [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
-    let tema_scelto = args::theme_is_explicit(&a, &profilo.settings);
+    // nella finestra contano solo Scuro e Chiaro: un altro tema nel file (scelto nel terminale) non e' una scelta per lei
+    let tema_scelto = a.theme.is_some()
+        || profilo.settings.as_ref().is_some_and(|s| {
+            s.theme_set
+                && matches!(
+                    s.theme,
+                    mrp_tui::theme::ThemeId::Dark | mrp_tui::theme::ThemeId::Light
+                )
+        });
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => {
@@ -60,6 +68,7 @@ fn run() -> i32 {
     };
     let cfg = AppConfig {
         theme,
+        theme_chosen: tema_scelto,
         lang_code,
         langs: profilo.langs,
         jump_pages: profilo

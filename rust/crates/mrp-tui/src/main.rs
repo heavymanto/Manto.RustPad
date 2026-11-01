@@ -105,6 +105,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
     // l'apertura: il percorso cosi' come e' stato dato, l'errore di sistema
     let cfg = AppConfig {
         theme,
+        theme_chosen: args::theme_is_explicit(&a, &profilo.settings),
         lang_code,
         langs: profilo.langs,
         jump_pages: profilo

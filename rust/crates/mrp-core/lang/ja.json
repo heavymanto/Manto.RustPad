@@ -223,6 +223,7 @@
   "settings.tab_general": "一般",
   "settings.tab_keys": "キー",
   "settings.theme": "テーマ",
+  "settings.theme_auto": "自動(システム)",
   "settings.language": "言語",
   "settings.font": "文字サイズ",
   "settings.reset": "既定",

@@ -91,7 +91,8 @@ fn help_is_a_table_of_keys_and_descriptions() {
 
 #[test]
 fn the_theme_menu_lists_the_six_themes_with_their_blurb_and_the_current_one_is_selected() {
-    let (mut a, p) = app(b"uno\n", false);
+    // col terminale (con la cornice) i temi sono sei; la finestra ne ha due (vedi `the_window_theme_menu_has_dark_and_light`)
+    let (mut a, p) = app(b"uno\n", true);
     a.handle_key(k(KeyCode::F(6)));
     let DialogView::Menu {
         title,
@@ -120,8 +121,36 @@ fn the_theme_menu_lists_the_six_themes_with_their_blurb_and_the_current_one_is_s
 }
 
 #[test]
-fn picking_a_theme_applies_it_and_closes_the_menu() {
+fn the_window_theme_menu_has_dark_and_light() {
     let (mut a, p) = app(b"uno\n", false);
+    a.handle_key(k(KeyCode::F(6)));
+    let DialogView::Menu {
+        items, selected, ..
+    } = a.dialog_view().unwrap()
+    else {
+        panic!("non e' un menu");
+    };
+    assert_eq!(
+        items,
+        vec![
+            voce("Dark", "soft dark gray, easy on the eyes"),
+            voce("Light", "white page, dark text"),
+        ]
+    );
+    assert_eq!(
+        selected, 0,
+        "il tema di partenza (Console) non c'e': parte dalla prima"
+    );
+    assert!(!a.theme_chosen());
+    a.dialog_pick(1);
+    assert_eq!(a.theme_id(), ThemeId::Light);
+    assert!(a.theme_chosen(), "scegliere lo fissa");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn picking_a_theme_applies_it_and_closes_the_menu() {
+    let (mut a, p) = app(b"uno\n", true);
     a.handle_key(k(KeyCode::F(6)));
     a.dialog_select(0);
     let DialogView::Menu { selected, .. } = a.dialog_view().unwrap() else {

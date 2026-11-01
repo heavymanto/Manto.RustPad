@@ -579,6 +579,7 @@ impl Workspace {
         let attiva = &self.tabs[self.active];
         let cfg = AppConfig {
             theme: attiva.theme_id(),
+            theme_chosen: attiva.theme_chosen(),
             lang_code: Some(attiva.lang_code().to_string()),
             ..self.cfg.clone()
         };
@@ -603,6 +604,7 @@ impl Workspace {
         let attiva = &self.tabs[self.active];
         let cfg = AppConfig {
             theme: attiva.theme_id(),
+            theme_chosen: attiva.theme_chosen(),
             lang_code: Some(attiva.lang_code().to_string()),
             encoding: None,
             ..self.cfg.clone()
@@ -657,6 +659,7 @@ impl Workspace {
         let attiva = &self.tabs[self.active];
         let cfg = AppConfig {
             theme: attiva.theme_id(),
+            theme_chosen: attiva.theme_chosen(),
             lang_code: Some(attiva.lang_code().to_string()),
             ..self.cfg.clone()
         };
@@ -791,6 +794,13 @@ impl Workspace {
         for a in &mut self.tabs {
             if a.theme_id() != tema || a.lang_code() != lingua {
                 a.adopt_look(tema, &lingua);
+            }
+        }
+        // anche il fatto che il tema sia una scelta dell'utente: le altre schede scrivono le impostazioni come la prima
+        let scelto = self.tabs[self.active].theme_chosen();
+        for a in &mut self.tabs {
+            if a.theme_chosen() != scelto {
+                a.set_theme_chosen(scelto);
             }
         }
     }
@@ -938,6 +948,19 @@ impl Workspace {
             ) + &saltate;
             self.tabs[a].remember_find(&run.spec.find);
             self.tabs[a].finish_replace(t);
+        }
+    }
+
+    /// Il tema segue il sistema (l'utente non ne ha scelto uno).
+    pub fn theme_auto(&self) -> bool {
+        !self.tabs[self.active].theme_chosen()
+    }
+
+    /// Torna al tema automatico in tutte le schede: per ora `tema`, e dalle impostazioni sparisce la scelta.
+    pub fn set_theme_auto(&mut self, tema: ThemeId) {
+        let attiva = self.active;
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            a.forget_theme_choice(tema, i == attiva);
         }
     }
 

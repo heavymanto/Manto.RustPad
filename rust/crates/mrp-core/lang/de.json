@@ -223,6 +223,7 @@
   "settings.tab_general": "Allgemein",
   "settings.tab_keys": "Tasten",
   "settings.theme": "Design",
+  "settings.theme_auto": "Automatisch (System)",
   "settings.language": "Sprache",
   "settings.font": "Schriftgröße",
   "settings.reset": "Standard",

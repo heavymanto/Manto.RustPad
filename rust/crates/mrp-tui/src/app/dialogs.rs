@@ -3,7 +3,6 @@
 //! privati: le azioni fanno quello che farebbero i tasti (stesse funzioni), cosi' i due modi non possono divergere.
 
 use super::{App, DialogKind};
-use crate::theme::ThemeId;
 use crate::ui::HELP_KEYS;
 use mrp_core::encoding::Encoding;
 pub use mrp_core::pattern::Mode;
@@ -173,7 +172,8 @@ impl App {
             },
             DialogKind::Theme => DialogView::Menu {
                 title: t("menu.theme.title"),
-                items: ThemeId::ALL
+                items: self
+                    .theme_choices()
                     .iter()
                     .map(|tema| MenuItem {
                         label: t(tema.key()),

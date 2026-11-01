@@ -17,6 +17,8 @@ pub struct StatoImpostazioni {
     pub scheda: u8,
     /// Il rettangolo della finestra nell'ultimo disegno (`None`: chiusa).
     pub rect: Option<egui::Rect>,
+    /// Il rettangolo della X della testata nell'ultimo disegno (`None`: chiusa) (per i test, G1).
+    pub chiudi: Option<egui::Rect>,
     /// I controlli disegnati nell'ultimo giro (caselle, pulsanti, scelte del tema) col loro testo, nell'ordine di disegno.
     pub controlli: Vec<(egui::Rect, String)>,
     /// Le righe della scheda dei tasti nell'ultimo giro: (nome, scorciatoia).
@@ -29,6 +31,8 @@ pub enum Richiesta {
     Piu,
     Meno,
     Predefinito,
+    /// Il tema torna ad essere quello del sistema.
+    TemaAutomatico,
 }
 
 /// La scorciatoia scritta per `cmd` nella finestra.
@@ -62,22 +66,28 @@ pub fn disegna(
 ) -> Option<Richiesta> {
     stato.controlli.clear();
     stato.tasti.clear();
+    stato.chiudi = None;
     if !stato.aperta {
         stato.rect = None;
         return None;
     }
     let mut richiesta = None;
-    let mut aperta = true;
     let t = |ws: &Workspace, k: &str| ws.active().text(k).to_string();
     let titolo = t(ws, "gui.settings").trim_end_matches('…').to_string();
-    let risposta = egui::Window::new(titolo)
-        .open(&mut aperta)
+    let risposta = egui::Window::new(titolo.as_str())
+        .title_bar(false)
         .collapsible(false)
         .resizable(true)
         .default_width(560.0)
         .pivot(Align2::CENTER_CENTER)
         .default_pos(ctx.screen_rect().center())
         .show(ctx, |ui| {
+            // la testata col titolo e la X che chiude (G1): al posto della barra del titolo di egui
+            let (rettangolo, cliccata) = crate::dialoghi::testata(ui, titolo.as_str());
+            stato.chiudi = Some(rettangolo);
+            if cliccata {
+                stato.aperta = false;
+            }
             ui.horizontal(|ui| {
                 for (i, k) in [(0u8, "settings.tab_general"), (1u8, "settings.tab_keys")] {
                     let nome = t(ws, k);
@@ -96,10 +106,6 @@ pub fn disegna(
             }
         });
     stato.rect = risposta.map(|r| r.response.rect);
-    if !aperta {
-        stato.aperta = false;
-        stato.rect = None;
-    }
     richiesta
 }
 
@@ -116,29 +122,35 @@ fn generale(
         .num_columns(3)
         .spacing([16.0, 8.0])
         .show(ui, |ui| {
-            // il tema: sei scelte
+            // il tema: Automatico (come il sistema), Chiaro, Scuro
             let corrente = ws.active().theme_id();
+            let automatico = ws.theme_auto();
             let etichetta = t(ws, "settings.theme");
             let mut scelto = None;
+            let mut auto = false;
             riga(ui, &etichetta, "F6", |ui| {
-                // due righe da tre: una riga a capo in una cella della griglia non ne conterebbe l'altezza
-                ui.vertical(|ui| {
-                    for gruppo in ThemeId::ALL.chunks(3) {
-                        ui.horizontal(|ui| {
-                            for &id in gruppo {
-                                let nome = t(ws, id.key());
-                                let r = ui.selectable_label(corrente == id, nome.as_str());
-                                stato.controlli.push((r.rect, nome));
-                                if r.clicked() && corrente != id {
-                                    scelto = Some(id);
-                                }
-                            }
-                        });
+                ui.horizontal(|ui| {
+                    let nome = t(ws, "settings.theme_auto");
+                    let r = ui.selectable_label(automatico, nome.as_str());
+                    stato.controlli.push((r.rect, nome));
+                    if r.clicked() && !automatico {
+                        auto = true;
+                    }
+                    for id in [ThemeId::Light, ThemeId::Dark] {
+                        let nome = t(ws, id.key());
+                        let r = ui.selectable_label(!automatico && corrente == id, nome.as_str());
+                        stato.controlli.push((r.rect, nome));
+                        if r.clicked() && (automatico || corrente != id) {
+                            scelto = Some(id);
+                        }
                     }
                 });
             });
             if let Some(id) = scelto {
                 ws.active_mut().choose_theme(id);
+            }
+            if auto {
+                richiesta = Some(Richiesta::TemaAutomatico);
             }
             // la lingua
             let lingue = ws.active().language_list();

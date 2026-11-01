@@ -96,6 +96,8 @@ pub struct Finestra {
     pulsanti_salti_v: Vec<(Rect, SaltoVoce)>,
     /// La finestra delle impostazioni (Ctrl+,).
     impostazioni: StatoImpostazioni,
+    /// Com'e' il sistema (chiaro o scuro) l'ultima volta che si e' guardato: serve a seguirlo se cambia (`None`: non si sa).
+    sistema: Option<bool>,
     /// L'ingranaggio in fondo alla barra dei salti nell'ultimo disegno (apre il dialogo dei salti).
     rettangolo_ingranaggio: Option<Rect>,
     /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
@@ -160,6 +162,7 @@ impl Finestra {
             ws: ws.senza_barra(),
             corpo,
             impostazioni: StatoImpostazioni::default(),
+            sistema: None,
             scritture,
             dimensione: (0, 0),
             resto_rotella: 0.0,
@@ -213,6 +216,7 @@ impl Finestra {
                 mrp_tui::theme::ThemeId::Light
             };
             self.ws.set_theme(tema);
+            self.sistema = Some(scuro);
         }
         self
     }
@@ -831,6 +835,12 @@ impl Finestra {
         &self.impostazioni.tasti
     }
 
+    /// Il rettangolo della X della finestra delle impostazioni nell'ultimo disegno (per i test, G1);
+    /// `None` se e' chiusa.
+    pub fn impostazioni_chiudi(&self) -> Option<Rect> {
+        self.impostazioni.chiudi
+    }
+
     /// Il corpo del testo in punti (per i test).
     pub fn corpo(&self) -> f32 {
         self.corpo
@@ -923,6 +933,11 @@ impl Finestra {
         &self.dialogo.opzioni
     }
 
+    /// Il rettangolo della X del dialogo disegnato nell'ultimo giro (per i test, G1); `None` se non c'e'.
+    pub fn dialogo_chiudi(&self) -> Option<Rect> {
+        self.dialogo.chiudi
+    }
+
     /// Esegue il comando scelto (menu o pulsante): quelli della finestra (aprire, salvare con nome, zoom) li fa lei, gli altri
     /// vanno al `Workspace` (`exec`: spenti non fanno niente).
     pub fn azione(&mut self, a: Cmd) {
@@ -1001,6 +1016,18 @@ impl Finestra {
         // senza la cornice del terminale la barra dei salti la disegna questa finestra, con i suoi pulsanti: quella a
         // celle si spegne (con la cornice resta a celle, come oggi, e la disegna l'App nella sua griglia)
         self.ws.set_nav_cells(self.ws.active().chrome());
+        // senza un tema scelto dall'utente la finestra segue il sistema, anche se cambia mentre e' aperta
+        let sistema = ctx.system_theme().map(|t| t == egui::Theme::Dark);
+        if sistema.is_some() && sistema != self.sistema && self.ws.theme_auto() {
+            self.ws.set_theme(if sistema == Some(true) {
+                mrp_tui::theme::ThemeId::Dark
+            } else {
+                mrp_tui::theme::ThemeId::Light
+            });
+        }
+        if sistema.is_some() {
+            self.sistema = sistema;
+        }
         // i controlli di egui seguono il tema: chiari solo con Chiaro
         let scuro = self.ws.active().theme_id().is_dark();
         if ctx.style().visuals.dark_mode != scuro {
@@ -1154,6 +1181,16 @@ impl Finestra {
                 Richiesta::Piu => Cmd::ZoomIn,
                 Richiesta::Meno => Cmd::ZoomOut,
                 Richiesta::Predefinito => Cmd::ZoomReset,
+                Richiesta::TemaAutomatico => {
+                    // il sistema com'e' adesso (scuro se non si sa)
+                    let tema = if self.sistema.unwrap_or(true) {
+                        mrp_tui::theme::ThemeId::Dark
+                    } else {
+                        mrp_tui::theme::ThemeId::Light
+                    };
+                    self.ws.set_theme_auto(tema);
+                    return;
+                }
             });
         }
         // i dialoghi con una vista (B4b), solo senza la cornice del terminale: una finestra egui al centro, sopra la
