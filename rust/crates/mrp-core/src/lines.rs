@@ -83,6 +83,11 @@ pub struct LineIndex {
     every: u64,
     /// Punti memorizzati: (numero di riga, posizione in byte), crescenti su entrambi.
     checkpoints: Vec<(u64, u64)>,
+    /// Un punto per ogni blocco della costruzione (tranne il primo): (inizi di riga prima del blocco, posizione del blocco).
+    /// Servono a `newlines_before`: in un file con righe lunghissime (o senza a-capo) i punti ogni `every` righe sono
+    /// lontanissimi fra loro e contare da quello piu' vicino vorrebbe dire leggere decine di GB; con questi si legge al
+    /// piu' un blocco piu' il tratto fino al punto successivo. Mai usati per le righe (`offset_of_line`).
+    block_points: Vec<(u64, u64)>,
 }
 
 /// Converte una posizione in byte in un indice valido per la fetta `bytes`.
@@ -286,6 +291,7 @@ impl LineIndex {
                 newline,
                 every,
                 checkpoints: Vec::new(),
+                block_points: Vec::new(),
             });
         }
         // Numero di blocchi: ceil(file_len / chunk), senza overflow.
@@ -426,8 +432,13 @@ impl LineIndex {
         // Fusione sequenziale: la somma prefissa dei count da' il numero di riga globale del
         // primo inizio di ogni blocco; i punti globali sono (prima_riga_del_blocco + k, posizione).
         let mut checkpoints: Vec<(u64, u64)> = Vec::new();
+        let mut block_points: Vec<(u64, u64)> = Vec::new();
         let mut first_row: u64 = 0;
-        for (_, res) in results {
+        for (i, res) in results {
+            // il punto del blocco (il primo comincia a 0, dove c'e' gia' il punto delle righe)
+            if i > 0 {
+                block_points.push((first_row, (i * chunk) as u64));
+            }
             for (k, pos) in res.points {
                 checkpoints.push((first_row + k, pos));
             }
@@ -438,6 +449,7 @@ impl LineIndex {
             newline,
             every,
             checkpoints,
+            block_points,
         })
     }
 
@@ -526,6 +538,7 @@ impl LineIndex {
         // Fusione come in `build_newline`: si parte dai punti e dal totale dell'indice vecchio;
         // i punti globali di un blocco sono (prima_riga_del_blocco + k, posizione).
         let mut checkpoints: Vec<(u64, u64)> = self.checkpoints.clone();
+        let mut block_points: Vec<(u64, u64)> = self.block_points.clone();
         let mut first_row = self.total_lines;
         let mut a = da;
         while a < db {
@@ -550,6 +563,9 @@ impl LineIndex {
                     }
                 }
             };
+            if a > 0 {
+                block_points.push((first_row, a as u64));
+            }
             for (k, pos) in res.points {
                 checkpoints.push((first_row + k, pos));
             }
@@ -562,6 +578,7 @@ impl LineIndex {
             newline: self.newline,
             every: self.every,
             checkpoints,
+            block_points,
         })
     }
 
@@ -573,6 +590,7 @@ impl LineIndex {
             newline: self.newline,
             every: self.every,
             checkpoints: self.checkpoints.clone(),
+            block_points: self.block_points.clone(),
         }
     }
 
@@ -591,6 +609,11 @@ impl LineIndex {
         self.checkpoints.len()
     }
 
+    /// Quanti punti di blocco ci sono (uno per blocco della costruzione, escluso il primo). Serve ai test.
+    pub fn block_point_count(&self) -> usize {
+        self.block_points.len()
+    }
+
     /// Quanti a-capo ci sono nei byte `[0, offset)` del file (unita' intere della forma dell'indice: una unita' tagliata
     /// a meta' da `offset` non conta). `offset == src.len()` e' ammesso (da' il totale degli a-capo); `None` se
     /// `offset > src.len()`. Parte dal punto memorizzato piu' vicino: il costo non dipende dalla dimensione del file.
@@ -602,15 +625,26 @@ impl LineIndex {
         // Ultimo punto con posizione <= offset (le posizioni dei punti sono crescenti);
         // il fallback (0, 0) e' solo difensivo per un indice senza punti.
         let i = self.checkpoints.partition_point(|&(_, p)| p <= offset);
-        let (riga_punto, pos_punto) = if i == 0 {
+        let (mut riga_punto, mut pos_punto) = if i == 0 {
             (0, 0)
         } else {
             self.checkpoints[i - 1]
         };
+        // Se un punto di blocco sta piu' vicino, si parte da quello: con righe lunghissime i punti delle righe sono
+        // lontani e il tratto da contare sarebbe enorme. Un blocco che comincia con un inizio di riga ha gia' un punto
+        // delle righe proprio li' (il conto locale parte da 0, multiplo di `every`), e quello vince perche' non e'
+        // strettamente piu' lontano: qui il blocco comincia quindi in mezzo a una riga, e gli a-capo che lo precedono
+        // sono gli inizi di riga prima di lui meno quello del file (la riga 0 non ha un a-capo davanti).
+        let j = self.block_points.partition_point(|&(_, p)| p <= offset);
+        if j > 0 && self.block_points[j - 1].1 > pos_punto {
+            let (inizi_prima, a) = self.block_points[j - 1];
+            riga_punto = inizi_prima.saturating_sub(1);
+            pos_punto = a;
+        }
         // Conta gli a-capo in [pos_punto, offset), con `offset` escluso: la riga del punto e'
         // gia' il numero di a-capo che precedono la sua posizione. La fetta parte da un inizio
-        // di riga, quindi allineata; un suo byte finale spaiato non completa un'unita' e la
-        // forma lo ignora gia'.
+        // di riga (o dal punto di un blocco: comunque allineata); un suo byte finale spaiato non
+        // completa un'unita' e la forma lo ignora gia'.
         let inizio = slice_index(bytes, pos_punto);
         let fine = slice_index(bytes, offset);
         let conteggio = self.newline.count(&bytes[inizio..fine]);

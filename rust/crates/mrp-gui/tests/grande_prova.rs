@@ -81,3 +81,31 @@ fn index_speed_on_a_big_file() {
     }
     println!("len {} byte", len);
 }
+
+#[test]
+#[ignore]
+fn frames_after_the_index_is_ready() {
+    let Ok(p) = std::env::var("MRP_BIG") else {
+        return;
+    };
+    let cfg = || AppConfig {
+        chrome: false,
+        ..AppConfig::default()
+    };
+    let mut app = App::open(std::path::Path::new(&p), cfg()).unwrap();
+    let t = Instant::now();
+    assert!(app.wait_idle(Duration::from_secs(600)));
+    println!("indice pronto dopo {:?}", t.elapsed());
+    let mut f = Finestra::da_app(app, Box::new(cfg));
+    let ctx = Context::default();
+    for i in 0..3 {
+        let (_, d) = giro(&mut f, &ctx);
+        println!("giro {i}: {d:?}");
+    }
+    for k in 0..6 {
+        let frac = 0.3 + 0.1 * k as f64;
+        f.workspace().active_mut().scroll_to_fraction(frac);
+        let (_, d) = giro(&mut f, &ctx);
+        println!("frac {frac:.1}: giro {d:?}");
+    }
+}
