@@ -3333,13 +3333,18 @@ impl App {
         }
     }
 
-    /// I temi del menu di F6: tutti e sei nel terminale; nella finestra (senza la cornice) solo Scuro e Chiaro, che seguono
-    /// il sistema finche' l'utente non ne sceglie uno.
+    /// I temi del menu di F6: tutti e sei nel terminale; nella finestra (senza la cornice) i quattro Blu (stile Total Commander),
+    /// Debian, Scuro e Chiaro; finche' l'utente non ne sceglie uno la finestra segue il sistema (Scuro o Chiaro).
     pub fn theme_choices(&self) -> Vec<ThemeId> {
         if self.chrome {
             ThemeId::ALL.to_vec()
         } else {
-            vec![ThemeId::Dark, ThemeId::Light]
+            vec![
+                ThemeId::Night,
+                ThemeId::Debian,
+                ThemeId::Dark,
+                ThemeId::Light,
+            ]
         }
     }
 

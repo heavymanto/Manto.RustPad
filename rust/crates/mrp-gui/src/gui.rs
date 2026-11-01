@@ -9,7 +9,9 @@ use crate::impostazioni::{self, Richiesta, StatoImpostazioni};
 use crate::input;
 use crate::menu;
 use crate::paint;
-use crate::strumenti::{glifo, gruppi, salti, tooltip, Pulsante, SaltoAzione, SaltoVoce};
+use crate::strumenti::{
+    glifo, gruppi, salti, tooltip, tooltip_salto, Pulsante, SaltoAzione, SaltoVoce,
+};
 use eframe::egui::{
     self, Align, Context, CursorIcon, Event, FontId, Frame, Label, Layout, Pos2, Rect, Sense, Vec2,
     ViewportCommand,
@@ -37,6 +39,9 @@ const FISSO: Duration = Duration::from_millis(700);
 /// Il mezzo periodo del lampeggio.
 const LAMPEGGIO: Duration = Duration::from_millis(530);
 /// Ogni quanto si ridisegna anche senza eventi (i lavori in background: indice, ricerca, salvataggio).
+/// L'altezza minima dei pulsanti della barra degli strumenti e di quella dei salti (la stessa, cosi' i salti non sono piu' piccoli).
+const ALTEZZA_PULSANTE: Vec2 = Vec2::new(28.0, 26.0);
+
 const RIDISEGNO: Duration = Duration::from_millis(60);
 
 /// Come si sceglie un file da aprire: riceve il titolo del dialogo, restituisce il percorso o `None` se si annulla.
@@ -98,6 +103,10 @@ pub struct Finestra {
     impostazioni: StatoImpostazioni,
     /// Com'e' il sistema (chiaro o scuro) l'ultima volta che si e' guardato: serve a seguirlo se cambia (`None`: non si sa).
     sistema: Option<bool>,
+    /// I colori del tema attuale per i pannelli e i popup (si ricalcolano quando il tema cambia).
+    tavolozza: crate::stile::Tavolozza,
+    /// Il tema per cui `tavolozza` e i `Visuals` di egui sono stati calcolati.
+    tema_applicato: Option<mrp_tui::theme::ThemeId>,
     /// L'ingranaggio in fondo alla barra dei salti nell'ultimo disegno (apre il dialogo dei salti).
     rettangolo_ingranaggio: Option<Rect>,
     /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
@@ -163,6 +172,8 @@ impl Finestra {
             corpo,
             impostazioni: StatoImpostazioni::default(),
             sistema: None,
+            tavolozza: crate::stile::Tavolozza::di(mrp_tui::theme::ThemeId::Dark),
+            tema_applicato: None,
             scritture,
             dimensione: (0, 0),
             resto_rotella: 0.0,
@@ -624,11 +635,23 @@ impl Finestra {
                             Cmd::NavBar => self.ws.nav_bar(),
                             _ => false,
                         };
-                        let b = egui::Button::new(egui::RichText::new(glifo(info.icon)).size(16.0))
-                            .selected(acceso);
+                        let mut testo = egui::RichText::new(glifo(info.icon)).size(16.0);
+                        let mut b = egui::Button::new(testo.clone()).min_size(ALTEZZA_PULSANTE);
+                        if acceso {
+                            // acceso: fondo, testo e contorno netti, ben diversi dallo spento (in tutti i temi)
+                            let tav = &self.tavolozza;
+                            testo = testo.color(tav.acceso_fg);
+                            b = egui::Button::new(testo)
+                                .min_size(ALTEZZA_PULSANTE)
+                                .fill(tav.acceso_bg)
+                                .stroke(egui::Stroke::new(2.0_f32, tav.acceso_bordo));
+                        }
+                        // il suggerimento c'e' sempre, anche a pulsante spento (egui ne tiene due, per attivo e spento)
+                        let tip = tooltip(cmd, self.ws.active().catalog());
                         let r = ui
                             .add_enabled(attivo, b)
-                            .on_hover_text(tooltip(cmd, self.ws.active().catalog()));
+                            .on_hover_text(tip.clone())
+                            .on_disabled_hover_text(tip);
                         if r.clicked() {
                             scelta = Some(cmd);
                         }
@@ -653,7 +676,8 @@ impl Finestra {
     /// a celle del terminale (che questa finestra spegne): inizio e fine del file e i salti di pagina delle
     /// impostazioni, prima indietro poi avanti.
     fn salti(&mut self, ctx: &Context) {
-        let voci = salti(self.ws.jump_pages());
+        let pagine = self.ws.jump_pages();
+        let voci = salti(pagine);
         let mut rettangoli = Vec::new();
         let mut scelta = None;
         let ingranaggio = std::cell::Cell::new(None);
@@ -662,7 +686,15 @@ impl Finestra {
         let pannello = egui::TopBottomPanel::top("salti").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 for voce in &voci {
-                    let r = ui.add(egui::Button::new(voce.etichetta.as_str()));
+                    // grandi come i pulsanti degli strumenti, con il suggerimento (cosa fa e con che tasti)
+                    let r = ui
+                        .add(
+                            egui::Button::new(
+                                egui::RichText::new(voce.etichetta.as_str()).size(15.0),
+                            )
+                            .min_size(Vec2::new(40.0, ALTEZZA_PULSANTE.y)),
+                        )
+                        .on_hover_text(tooltip_salto(voce, pagine, self.ws.active().catalog()));
                     if r.clicked() {
                         scelta = Some(voce.azione);
                     }
@@ -1045,15 +1077,16 @@ impl Finestra {
         if sistema.is_some() {
             self.sistema = sistema;
         }
-        // i controlli di egui seguono il tema: chiari solo con Chiaro
-        let scuro = self.ws.active().theme_id().is_dark();
-        if ctx.style().visuals.dark_mode != scuro {
-            ctx.set_visuals(if scuro {
-                egui::Visuals::dark()
-            } else {
-                egui::Visuals::light()
-            });
+        // i colori di egui (pannelli, menu, popup) sono quelli del tema: si ricalcolano solo quando il tema cambia
+        let tema = self.ws.active().theme_id();
+        if self.tema_applicato != Some(tema) {
+            self.tavolozza = crate::stile::Tavolozza::di(tema);
+            ctx.set_visuals(crate::stile::visuals(&self.tavolozza));
+            // i testi non si selezionano col mouse: un trascinamento sopra un testo sposta la finestra, non lo evidenzia
+            ctx.style_mut(|s| s.interaction.selectable_labels = false);
+            self.tema_applicato = Some(tema);
         }
+        crate::stile::registra(ctx, &self.tavolozza);
         // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7)
         let mut nuova = false;
         for s in [

@@ -82,6 +82,8 @@ pub fn disegna(
         .pivot(Align2::CENTER_CENTER)
         .default_pos(ctx.screen_rect().center())
         .show(ctx, |ui| {
+            let tav = crate::stile::corrente(ui.ctx());
+            crate::stile::popup(ui.style_mut(), &tav);
             // la testata col titolo e la X che chiude (G1): al posto della barra del titolo di egui
             let (rettangolo, cliccata) = crate::dialoghi::testata(ui, titolo.as_str());
             stato.chiudi = Some(rettangolo);
@@ -122,7 +124,7 @@ fn generale(
         .num_columns(3)
         .spacing([16.0, 8.0])
         .show(ui, |ui| {
-            // il tema: Automatico (come il sistema), Chiaro, Scuro
+            // il tema: Automatico (come il sistema) o uno dei quattro: Blu (stile Total Commander), Debian, Scuro, Chiaro
             let corrente = ws.active().theme_id();
             let automatico = ws.theme_auto();
             let etichetta = t(ws, "settings.theme");
@@ -136,7 +138,12 @@ fn generale(
                     if r.clicked() && !automatico {
                         auto = true;
                     }
-                    for id in [ThemeId::Light, ThemeId::Dark] {
+                    for id in [
+                        ThemeId::Night,
+                        ThemeId::Debian,
+                        ThemeId::Dark,
+                        ThemeId::Light,
+                    ] {
                         let nome = t(ws, id.key());
                         let r = ui.selectable_label(!automatico && corrente == id, nome.as_str());
                         stato.controlli.push((r.rect, nome));
@@ -267,6 +274,11 @@ fn dei_tasti(ui: &mut egui::Ui, ws: &mut Workspace, stato: &mut StatoImpostazion
     // le righe dell'aiuto sono (tasti, descrizione): qui il nome viene prima
     righe.extend(ws.active().help_rows().into_iter().map(|(k, d)| (d, k)));
     egui::ScrollArea::vertical()
+        // trascinare sulla lista non la scorre: muove la finestra
+        .scroll_source(
+            egui::scroll_area::ScrollSource::SCROLL_BAR
+                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+        )
         .max_height(420.0)
         .show(ui, |ui| {
             egui::Grid::new("tasti")

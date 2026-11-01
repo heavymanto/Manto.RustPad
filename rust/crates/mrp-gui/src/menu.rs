@@ -149,6 +149,9 @@ pub fn disegna(ui: &mut Ui, ws: &Workspace) -> Option<Cmd> {
     egui::MenuBar::new().ui(ui, |ui| {
         for (titolo, voci) in MENU {
             ui.menu_button(app.text(titolo), |ui| {
+                // i menu a tendina sono popup: i colori dei popup del tema
+                let tav = crate::stile::corrente(ui.ctx());
+                crate::stile::popup(ui.style_mut(), &tav);
                 for v in voci {
                     match v {
                         None => {
@@ -210,6 +213,8 @@ pub fn disegna_contestuale(
         .fixed_pos(pos)
         .show(ctx, |ui| {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
+                let tav = crate::stile::corrente(ui.ctx());
+                crate::stile::popup(ui.style_mut(), &tav);
                 ui.set_min_width(190.0);
                 for v in CONTESTUALE {
                     match v {

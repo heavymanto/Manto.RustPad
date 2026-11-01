@@ -115,8 +115,8 @@ fn picking_a_theme_in_the_menu_switches_the_controls() {
     );
     giro(&mut f, &ctx, vec![]);
     giro(&mut f, &ctx, vec![]);
-    // la seconda voce del menu della finestra e' Chiaro (le voci sono Scuro e Chiaro)
-    let pos = f.dialogo_voci()[1].center();
+    // l'ultima voce del menu della finestra e' Chiaro (le voci sono Blu, Debian, Scuro e Chiaro)
+    let pos = f.dialogo_voci()[3].center();
     giro(
         &mut f,
         &ctx,

@@ -12,7 +12,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-1217-brightgreen" alt="1217 tests" />
+        <img src="https://img.shields.io/badge/tests-1224-brightgreen" alt="1224 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -90,7 +90,7 @@ The packages (a ZIP for Windows, a tar.gz for Linux and macOS, each with its SHA
 | **Start it** | `mrp-tui file...` | `mrp-gui file...` (without a file it restores the last session, or opens an empty "Untitled 1") |
 | **Menus** | the function keys, shown in the footer (`F1` = help) | a menu bar (File, Edit, View, Log, Help), a toolbar with icons, a right-click menu and the native open / save dialogs |
 | **Tabs** | a bar on the first row, one tab per file | a strip with a close button per tab |
-| **Look** | four terminal themes | Automatic (follows the system light / dark setting), Light or Dark |
+| **Look** | four terminal themes | Blue (Total Commander style), Debian, Dark or Light; Automatic (the default) follows the system light / dark setting |
 | **The mouse** | positions the cursor, selects (double click: word, triple click: row), picks a tab | the same, and middle-click closes a tab |
 
 Both share **one engine**: the editor's logic (documents, tabs, search, edits, sessions) lives in one place; `mrp-gui` draws the text as the same cell grid but wraps it in its own native controls. A feature added to the engine is in both.
@@ -117,7 +117,7 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
 - **Honest about encodings.** UTF-8, UTF-16 and UTF-32 (little and big endian, surrogate pairs included), 53 single-byte code pages
   (Windows-125x and 874, ISO-8859-x, DOS 437/850/855/…, KOI8, the Mac sets, US-ASCII) and the East-Asian multi-byte encodings (Shift_JIS, EUC-JP,
   GBK, GB18030, Big5, EUC-KR) — on files larger than RAM. Chosen with `F9` or `--encoding`, or recognised at open (the multi-byte ones are never guessed: pick them by hand). **Save As** can write the file in another encoding (and with or without a BOM), converting it in blocks while it writes.
-- **A Settings window** (`Ctrl+,`) collecting every option with its key written beside it, **themes** (six in the terminal; in the window *Automatic* — it follows the system light / dark setting — *Light* and *Dark*) and **seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
+- **A Settings window** (`Ctrl+,`) collecting every option with its key written beside it, **themes** (six in the terminal; in the window four — *Blue* in the style of Total Commander, *Debian*, *Dark* and *Light* — plus *Automatic*, the default, which follows the system light / dark setting) and **seven languages** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), changed on the fly with `F6` / `F7`.
 
 Non-goals: a log analyser (use lnav, logana, klogg: the log aids here — follow, colours, jump to a time, filter — are what a viewer needs, not an analysis) and a plugin/IDE platform.
 
@@ -125,10 +125,12 @@ Non-goals: a log analyser (use lnav, logana, klogg: the log aids here — follow
 
 | | |
 |:---:|:---:|
-| ![dark](docs/img/gui-dark.png) | ![light](docs/img/gui-light.png) |
+| ![blue](docs/img/theme-blue.png) | ![debian](docs/img/theme-debian.png) |
+| `blue` — blue everywhere, popups included, yellow accents (Total Commander) | `debian` — blue screen, light-grey popups, red accents (the installer) |
+| ![dark](docs/img/theme-dark.png) | ![light](docs/img/theme-light.png) |
 | `dark` | `light` |
 
-The window follows the system: light if the system is light, dark otherwise, and it follows it live if it changes. Choosing Light or Dark in the Settings pins it; *Automatic* gives the choice back to the system. The terminal editor has four themes of its own (`night`, `debian`, `console`, the default, and `minimal`; `F6`).
+In every theme a popup has its own highlighted title band and a close button (**X**), and every popup can be dragged by any part of it. The window follows the system until you choose: light if the system is light, dark otherwise, live. Choosing a theme in the Settings pins it; *Automatic* gives the choice back to the system. The terminal editor has its own themes (`night`, `debian`, `console`, the default, `minimal`, `dark`, `light`; `F6`).
 
 The terminal picture in *Two front ends* is Replace showing its preview before anything changes (`Ctrl+H`, then `Alt+M` for the mode, `Alt+C` for case, `Alt+A` for the scope).
 <sub>It is rendered from the editor's own `--dump` text output, so it has no colours; the real terminal uses the theme's.</sub>
@@ -154,7 +156,7 @@ Try the multi-file features: `mrp-tui a.txt b.txt c.txt`, then `Ctrl+H`, type a 
 
 ## Known limitations
 
-- **Early development.** The editor works and is covered by 1217 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
+- **Early development.** The editor works and is covered by 1224 automated tests (plus 3 on 6 GB files beyond 4 GiB, run on demand), but it has not been
   used for long by many people. Keep a backup of anything precious.
 - **Windows first.** It has been used mostly on Windows. The terminal editor and the whole core (and their tests) were also run on **Linux** (Debian, under WSL);
   the Linux/macOS desktop window (`mrp-gui`) and macOS in general are untried. The CI runs the test suite on all three systems at every push.

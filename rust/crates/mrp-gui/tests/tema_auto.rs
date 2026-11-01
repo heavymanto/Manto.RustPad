@@ -130,18 +130,19 @@ fn the_settings_offer_automatic_light_and_dark_only() {
         .iter()
         .map(|(_, t)| t.clone())
         .collect();
-    for atteso in ["Automatic (system)", "Light", "Dark"] {
+    for atteso in [
+        "Automatic (system)",
+        "Blue (Total Commander)",
+        "Debian (blue)",
+        "Dark",
+        "Light",
+    ] {
         assert!(
             nomi.iter().any(|n| n == atteso),
             "manca {atteso:?} in {nomi:?}"
         );
     }
-    for no in [
-        "Night (blue)",
-        "Debian (blue)",
-        "Console (default)",
-        "Minimal",
-    ] {
+    for no in ["Console (default)", "Minimal"] {
         assert!(
             !nomi.iter().any(|n| n == no),
             "{no:?} non va nella finestra"
@@ -178,7 +179,7 @@ fn choosing_dark_or_light_pins_it_and_automatic_gives_the_system_back() {
 }
 
 #[test]
-fn the_theme_menu_of_the_window_has_two_rows_light_and_dark() {
+fn the_theme_menu_of_the_window_has_four_rows_blue_debian_dark_and_light() {
     let (mut f, ctx, p, _) = finestra();
     giro(
         &mut f,
@@ -194,9 +195,9 @@ fn the_theme_menu_of_the_window_has_two_rows_light_and_dark() {
     );
     giro(&mut f, &ctx, None, vec![]);
     giro(&mut f, &ctx, None, vec![]);
-    assert_eq!(f.dialogo_voci().len(), 2);
-    // scegliere la seconda (Chiaro) la fissa
-    let pos = f.dialogo_voci()[1].center();
+    assert_eq!(f.dialogo_voci().len(), 4);
+    // scegliere l'ultima (Chiaro) la fissa
+    let pos = f.dialogo_voci()[3].center();
     clic(&mut f, &ctx, None, pos);
     assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert!(f.app().theme_chosen());

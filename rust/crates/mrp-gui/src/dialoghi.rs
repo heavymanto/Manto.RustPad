@@ -137,6 +137,10 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiusura_richiesta,
                 |ui| {
                     ScrollArea::vertical()
+                        .scroll_source(
+                            egui::scroll_area::ScrollSource::SCROLL_BAR
+                                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+                        )
                         .max_height(altezza * 0.7)
                         .show(ui, |ui| {
                             egui::Grid::new("aiuto").num_columns(2).show(ui, |ui| {
@@ -169,6 +173,10 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiusura_richiesta,
                 |ui| {
                     ScrollArea::vertical()
+                        .scroll_source(
+                            egui::scroll_area::ScrollSource::SCROLL_BAR
+                                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+                        )
                         .max_height(altezza * 0.6)
                         .show(ui, |ui| {
                             for (i, voce) in items.iter().enumerate() {
@@ -258,6 +266,10 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiusura_richiesta,
                 |ui| {
                     ScrollArea::vertical()
+                        .scroll_source(
+                            egui::scroll_area::ScrollSource::SCROLL_BAR
+                                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+                        )
                         .max_height(altezza * 0.5)
                         .show(ui, |ui| {
                             for (i, voce) in items.iter().enumerate() {
@@ -620,6 +632,8 @@ fn finestra(
         .pivot(Align2::CENTER_CENTER)
         .default_pos(ctx.screen_rect().center())
         .show(ctx, |ui| {
+            let tav = crate::stile::corrente(ui.ctx());
+            crate::stile::popup(ui.style_mut(), &tav);
             let (rettangolo, cliccata) = testata(ui, titolo);
             *chiudi = Some(rettangolo);
             if cliccata {
@@ -630,26 +644,34 @@ fn finestra(
         .map(|w| w.response.rect)
 }
 
-/// La testata di una finestra senza barra del titolo (G1): il titolo forte a sinistra, la X che
-/// chiude a destra e un separatore sotto. Restituisce il rettangolo della X e se e' stata cliccata.
-/// La usa `finestra` e la finestra delle impostazioni.
+/// La testata di una finestra senza barra del titolo (G1, G2): una banda col risalto del tema (in tutti e quattro i temi il titolo
+/// si stacca dal corpo) con il titolo forte a sinistra e la X che chiude a destra. Restituisce il rettangolo della X e se e'
+/// stata cliccata. La usa `finestra` e la finestra delle impostazioni.
 pub(crate) fn testata(ui: &mut egui::Ui, titolo: &str) -> (egui::Rect, bool) {
+    let tav = crate::stile::corrente(ui.ctx());
     let mut rettangolo = egui::Rect::ZERO;
     let mut cliccata = false;
-    ui.horizontal(|ui| {
-        ui.label(RichText::new(titolo).strong().size(16.0));
+    // la banda si dipinge dopo, quando si sa quanto e' alta la riga: qui se ne prenota il posto (sta dietro il testo)
+    let posto_banda = ui.painter().add(egui::Shape::Noop);
+    let margine = ui.spacing().window_margin;
+    let angoli = ui.visuals().window_corner_radius;
+    let riga = ui.horizontal(|ui| {
+        ui.label(
+            RichText::new(titolo)
+                .strong()
+                .size(17.0)
+                .color(tav.risalto_fg),
+        );
         // la X sta sull'orlo destro della riga
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             ui.scope(|ui| {
                 {
-                    // i colori della X secondo il tema; al passaggio del mouse diventa rossa viva
-                    // col testo bianco, in tutti e due i temi
-                    let scuro = ui.visuals().dark_mode;
-                    let v = ui.visuals_mut();
-                    let (fondo, testo) = if scuro {
+                    // col tema chiaro la X e' rossa (come nelle finestre di Windows); negli altri e' un riquadro piu' scuro
+                    // della banda; al passaggio del mouse diventa rossa viva col testo bianco, in tutti i temi
+                    let (fondo, testo) = if tav.scuro {
                         (
-                            egui::Color32::from_rgb(0x3a, 0x3a, 0x3a),
-                            egui::Color32::from_rgb(0xe0, 0xe0, 0xe0),
+                            crate::stile::miscela(tav.risalto_bg, egui::Color32::BLACK, 0.3),
+                            tav.risalto_fg,
                         )
                     } else {
                         (
@@ -657,10 +679,13 @@ pub(crate) fn testata(ui: &mut egui::Ui, titolo: &str) -> (egui::Rect, bool) {
                             egui::Color32::WHITE,
                         )
                     };
+                    let v = ui.visuals_mut();
                     v.widgets.inactive.weak_bg_fill = fondo;
+                    v.widgets.inactive.bg_fill = fondo;
                     v.widgets.inactive.fg_stroke = egui::Stroke::new(1.0_f32, testo);
                     for vis in [&mut v.widgets.hovered, &mut v.widgets.active] {
                         vis.weak_bg_fill = egui::Color32::from_rgb(0xe8, 0x11, 0x23);
+                        vis.bg_fill = egui::Color32::from_rgb(0xe8, 0x11, 0x23);
                         vis.fg_stroke = egui::Stroke::new(1.0_f32, egui::Color32::WHITE);
                     }
                 }
@@ -682,7 +707,30 @@ pub(crate) fn testata(ui: &mut egui::Ui, titolo: &str) -> (egui::Rect, bool) {
             });
         });
     });
-    ui.separator();
+    // la banda va da un bordo all'altro della finestra (sopra i margini) e prende gli angoli alti della finestra
+    let r = riga.response.rect;
+    let area = ui.max_rect();
+    let banda = egui::Rect::from_min_max(
+        egui::pos2(
+            area.min.x - f32::from(margine.left),
+            r.min.y - f32::from(margine.top),
+        ),
+        egui::pos2(area.max.x + f32::from(margine.right), r.max.y + 5.0),
+    );
+    ui.painter().set(
+        posto_banda,
+        egui::Shape::rect_filled(
+            banda,
+            egui::CornerRadius {
+                nw: angoli.nw,
+                ne: angoli.ne,
+                sw: 0,
+                se: 0,
+            },
+            tav.risalto_bg,
+        ),
+    );
+    ui.add_space(8.0);
     (rettangolo, cliccata)
 }
 
@@ -730,33 +778,24 @@ fn pulsanti_centrati(
     cliccato
 }
 
-/// I colori di un pulsante della riga (G1): il principale e' pieno di colore col testo bianco, gli
-/// altri neutri col contorno; chiaro o scuro secondo il tema.
+/// I colori di un pulsante della riga (G1, G2): il principale ha il risalto del tema (nel tema Blu giallo su nero, in Debian
+/// bianco su rosso, in Scuro e Chiaro bianco su blu), gli altri sono neutri col contorno e il testo del popup.
 fn colori_pulsante(
     ui: &egui::Ui,
     principale: bool,
 ) -> (egui::Color32, egui::Color32, egui::Stroke) {
-    match (ui.visuals().dark_mode, principale) {
-        (false, true) => (
-            egui::Color32::from_rgb(0x0f, 0x6c, 0xbd),
-            egui::Color32::WHITE,
-            egui::Stroke::NONE,
-        ),
-        (true, true) => (
-            egui::Color32::from_rgb(0x0e, 0x63, 0x9c),
-            egui::Color32::WHITE,
-            egui::Stroke::NONE,
-        ),
-        (false, false) => (
-            egui::Color32::from_rgb(0xe6, 0xe6, 0xe6),
-            egui::Color32::from_rgb(0x1f, 0x1f, 0x1f),
-            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(0x8a, 0x8a, 0x8a)),
-        ),
-        (true, false) => (
-            egui::Color32::from_rgb(0x3c, 0x3c, 0x3c),
-            egui::Color32::from_rgb(0xe0, 0xe0, 0xe0),
-            egui::Stroke::new(1.0_f32, egui::Color32::from_rgb(0x5a, 0x5a, 0x5a)),
-        ),
+    let tav = crate::stile::corrente(ui.ctx());
+    if principale {
+        (tav.risalto_bg, tav.risalto_fg, egui::Stroke::NONE)
+    } else {
+        (
+            tav.pulsante_neutro(),
+            tav.popup_fg,
+            egui::Stroke::new(
+                1.0_f32,
+                crate::stile::miscela(tav.popup_bg, tav.popup_fg, 0.45),
+            ),
+        )
     }
 }
 

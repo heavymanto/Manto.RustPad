@@ -107,7 +107,7 @@ fn home_and_end_go_to_the_first_and_last_menu_voice() {
         "Console non c'e' nella finestra: parte dalla prima"
     );
     premi(&mut f, &ctx, Key::End);
-    assert_eq!(selezionata(&mut f), 1, "End: l'ultima voce (due temi)");
+    assert_eq!(selezionata(&mut f), 3, "End: l'ultima voce (quattro temi)");
     premi(&mut f, &ctx, Key::Home);
     assert_eq!(selezionata(&mut f), 0, "Home: la prima voce");
     let _ = std::fs::remove_file(p);
@@ -124,7 +124,7 @@ fn a_click_on_the_detail_part_of_a_menu_row_picks_it() {
     let pos = Pos2::new(riga.right() - 2.0, riga.center().y);
     assert!(riga.contains(pos), "{riga:?} contiene {pos:?}");
     clic(&mut f, &ctx, pos);
-    assert_eq!(f.app().theme_id(), ThemeId::Dark, "la prima voce e' Scuro");
+    assert_eq!(f.app().theme_id(), ThemeId::Night, "la prima voce e' Blu");
     assert_eq!(f.app().dialog_kind(), None);
     let _ = std::fs::remove_file(p);
 }

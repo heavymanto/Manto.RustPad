@@ -12,4 +12,5 @@ pub mod impostazioni;
 pub mod input;
 pub mod menu;
 pub mod paint;
+pub mod stile;
 pub mod strumenti;

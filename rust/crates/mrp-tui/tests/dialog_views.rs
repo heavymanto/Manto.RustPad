@@ -107,7 +107,10 @@ fn the_theme_menu_lists_the_six_themes_with_their_blurb_and_the_current_one_is_s
     assert_eq!(
         items,
         vec![
-            voce("Night (blue)", "classic blue panels, yellow selection"),
+            voce(
+                "Blue (Total Commander)",
+                "classic blue panels, yellow selection"
+            ),
             voce("Debian (blue)", "installer blue, red selection"),
             voce("Console (default)", "white on black, yellow accents"),
             voce("Minimal", "your terminal's own colors"),
@@ -121,7 +124,7 @@ fn the_theme_menu_lists_the_six_themes_with_their_blurb_and_the_current_one_is_s
 }
 
 #[test]
-fn the_window_theme_menu_has_dark_and_light() {
+fn the_window_theme_menu_has_blue_debian_dark_and_light() {
     let (mut a, p) = app(b"uno\n", false);
     a.handle_key(k(KeyCode::F(6)));
     let DialogView::Menu {
@@ -133,6 +136,11 @@ fn the_window_theme_menu_has_dark_and_light() {
     assert_eq!(
         items,
         vec![
+            voce(
+                "Blue (Total Commander)",
+                "classic blue panels, yellow selection"
+            ),
+            voce("Debian (blue)", "installer blue, red selection"),
             voce("Dark", "soft dark gray, easy on the eyes"),
             voce("Light", "white page, dark text"),
         ]
@@ -142,7 +150,7 @@ fn the_window_theme_menu_has_dark_and_light() {
         "il tema di partenza (Console) non c'e': parte dalla prima"
     );
     assert!(!a.theme_chosen());
-    a.dialog_pick(1);
+    a.dialog_pick(3);
     assert_eq!(a.theme_id(), ThemeId::Light);
     assert!(a.theme_chosen(), "scegliere lo fissa");
     let _ = std::fs::remove_file(p);

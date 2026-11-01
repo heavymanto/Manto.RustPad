@@ -284,7 +284,10 @@ fn the_buttons_keep_their_order_and_still_work() {
 fn the_settings_window_has_the_same_close_button() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::Settings);
-    disegna(&mut f, &ctx);
+    // la finestra si adatta al contenuto in qualche giro: la X sta all'orlo destro quando si e' assestata
+    for _ in 0..3 {
+        disegna(&mut f, &ctx);
+    }
     let finestra = f.impostazioni_rect().unwrap();
     let x = f.impostazioni_chiudi().expect("manca la X");
     assert!(finestra.contains_rect(x));

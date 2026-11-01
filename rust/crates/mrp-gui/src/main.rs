@@ -28,13 +28,17 @@ fn run() -> i32 {
         println!("mrp-gui [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
-    // nella finestra contano solo Scuro e Chiaro: un altro tema nel file (scelto nel terminale) non e' una scelta per lei
+    // nella finestra contano solo Blu (Night), Debian, Scuro e Chiaro: un altro tema nel file (Console o Minimal, scelto nel
+    // terminale) non e' una scelta per lei
     let tema_scelto = a.theme.is_some()
         || profilo.settings.as_ref().is_some_and(|s| {
             s.theme_set
                 && matches!(
                     s.theme,
-                    mrp_tui::theme::ThemeId::Dark | mrp_tui::theme::ThemeId::Light
+                    mrp_tui::theme::ThemeId::Night
+                        | mrp_tui::theme::ThemeId::Debian
+                        | mrp_tui::theme::ThemeId::Dark
+                        | mrp_tui::theme::ThemeId::Light
                 )
         });
     let theme = match args::resolve_theme(&a, &profilo.settings) {

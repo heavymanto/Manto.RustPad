@@ -12,7 +12,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-1217-brightgreen" alt="1217 test" />
+        <img src="https://img.shields.io/badge/test-1224-brightgreen" alt="1224 test" />
         <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -90,7 +90,7 @@ compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido
 | **Avvio** | `mrp-tui file...` | `mrp-gui file...` (senza file riprende l'ultima sessione, o apre un "Senza nome 1" vuoto) |
 | **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Log, Aiuto), una barra degli strumenti con le icone, il menu del tasto destro e i dialoghi nativi di apertura e salvataggio |
 | **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
-| **Aspetto** | quattro temi da terminale | Automatico (segue l'impostazione chiaro / scuro del sistema), Chiaro o Scuro |
+| **Aspetto** | quattro temi da terminale | Blu (stile Total Commander), Debian, Scuro o Chiaro; Automatico (il predefinito) segue l'impostazione chiaro / scuro del sistema |
 | **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
 
 Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerca, modifiche, sessioni) sta in un posto solo; `mrp-gui` disegna il testo come la stessa griglia di celle, ma la avvolge nei propri controlli nativi. Una funzione aggiunta al motore c'è in entrambi.
@@ -117,7 +117,7 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
 - **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 53 tabelle di caratteri a byte singolo
   (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, i set Mac, US-ASCII) e le codifiche asiatiche a più byte (Shift_JIS, EUC-JP,
   GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano). **Salva con nome** può scrivere il file in un'altra codifica (con o senza BOM), convertendolo a blocchi mentre scrive.
-- **Una finestra Impostazioni** (`Ctrl+,`) che raccoglie ogni opzione col suo tasto scritto accanto, i **temi** (sei nel terminale; nella finestra *Automatico* — segue l'impostazione chiaro / scuro del sistema — *Chiaro* e *Scuro*) e **sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
+- **Una finestra Impostazioni** (`Ctrl+,`) che raccoglie ogni opzione col suo tasto scritto accanto, i **temi** (sei nel terminale; nella finestra quattro — *Blu* nello stile di Total Commander, *Debian*, *Scuro* e *Chiaro* — più *Automatico*, il predefinito, che segue l'impostazione chiaro / scuro del sistema) e **sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
 
 Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg: gli aiuti per i log che ci sono qui — seguire, colori, salto a un orario, filtro — sono quelli che servono a un lettore, non un'analisi) e una piattaforma di plugin/IDE.
 
@@ -125,10 +125,12 @@ Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg: gli aiut
 
 | | |
 |:---:|:---:|
-| ![dark](docs/img/gui-dark.png) | ![light](docs/img/gui-light.png) |
+| ![blu](docs/img/theme-blue.png) | ![debian](docs/img/theme-debian.png) |
+| `blue` — blu dappertutto, popup compresi, accenti gialli (Total Commander) | `debian` — schermo blu, popup grigio chiaro, accenti rossi (l'installer) |
+| ![scuro](docs/img/theme-dark.png) | ![chiaro](docs/img/theme-light.png) |
 | `dark` (scuro) | `light` (chiaro) |
 
-La finestra segue il sistema: chiara se il sistema è chiaro, scura altrimenti, e lo segue dal vivo se cambia. Scegliere Chiaro o Scuro nelle Impostazioni lo fissa; *Automatico* restituisce la scelta al sistema. L'editor da terminale ha quattro temi suoi (`night`, `debian`, `console`, il predefinito, e `minimal`; `F6`).
+In ogni tema un popup ha la sua testata in risalto e il pulsante di chiusura (**X**), e ogni popup si trascina da qualunque punto. La finestra segue il sistema finché non scegli: chiara se il sistema è chiaro, scura altrimenti, anche dal vivo. Scegliere un tema nelle Impostazioni lo fissa; *Automatico* restituisce la scelta al sistema. L'editor da terminale ha i suoi temi (`night`, `debian`, `console`, il predefinito, `minimal`, `dark`, `light`; `F6`).
 
 L'immagine del terminale in *Due programmi* mostra Sostituisci con la sua anteprima prima che cambi qualcosa (`Ctrl+H`, poi `Alt+M` per il modo, `Alt+C` per le maiuscole, `Alt+A` per l'ambito).
 <sub>È generata dal testo dell'opzione `--dump` dell'editor, quindi è senza colori; il terminale vero usa quelli del tema.</sub>
@@ -154,7 +156,7 @@ Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, 
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1217 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
+- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1224 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
   la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.

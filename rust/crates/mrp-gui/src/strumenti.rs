@@ -90,6 +90,33 @@ pub struct SaltoVoce {
     pub azione: SaltoAzione,
 }
 
+/// Il suggerimento di un pulsante della barra dei salti: cosa fa e con che tasti (nel catalogo, nella lingua attiva). Le pagine
+/// dei tre salti delle impostazioni stanno su Alt, Alt+Maiusc e Alt+Ctrl; la pagina sola su PgSu / PgGiu.
+pub fn tooltip_salto(voce: &SaltoVoce, pagine: [usize; 3], cat: &Catalog) -> String {
+    match voce.azione {
+        SaltoAzione::Inizio => cat.t("gui.tip.jump_start").to_string(),
+        SaltoAzione::Fine => cat.t("gui.tip.jump_end").to_string(),
+        SaltoAzione::Pagine(avanti, n) => {
+            let pg = if avanti { "PgDn" } else { "PgUp" };
+            let tasti = match pagine.iter().position(|&p| p == n) {
+                _ if n == 1 => pg.to_string(),
+                Some(0) => format!("Alt+{pg}"),
+                Some(1) => format!("Alt+Shift+{pg}"),
+                Some(_) => format!("Alt+Ctrl+{pg}"),
+                None => pg.to_string(),
+            };
+            cat.tf(
+                if avanti {
+                    "gui.tip.jump_forward"
+                } else {
+                    "gui.tip.jump_back"
+                },
+                &[&n.to_string(), &tasti],
+            )
+        }
+    }
+}
+
 /// Le voci della barra dei salti, da sinistra a destra: l'inizio del file, i salti indietro e quelli avanti (i
 /// moltiplicatori delle impostazioni, dal piu' grande al piu' piccolo, piu' la pagina sola), la fine del file.
 pub fn salti(pagine: [usize; 3]) -> Vec<SaltoVoce> {

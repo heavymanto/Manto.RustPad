@@ -191,9 +191,11 @@ impl Theme {
     /// Night: il blu Norton/Total Commander. Sfondo blu, testo bianco, ciano per titoli, suggerimenti e numeri di
     /// riga, giallo per gli accenti; selezione, trovato e marcatore EDIT nero su giallo. Ombra nera a velo.
     fn night() -> Theme {
+        // il blu vero di Norton / Total Commander (VGA #0000AA), non quello della tavolozza del terminale
+        let blu = Color::Rgb(0x00, 0x00, 0xaa);
         Theme {
-            screen: Style::new().bg(Color::Blue).fg(Color::White),
-            dialog: Style::new().bg(Color::Blue).fg(Color::White),
+            screen: Style::new().bg(blu).fg(Color::White),
+            dialog: Style::new().bg(blu).fg(Color::White),
             fg: Style::new().fg(Color::White),
             log: LogStyles {
                 error: Style::new().fg(Color::LightRed).bold(),
@@ -224,8 +226,11 @@ impl Theme {
     /// nero dentro le finestre e' lo stile `dialog`), accenti e selezione rossi. Il documento resta bianco sul blu
     /// dello schermo; trovato e marcatore EDIT bianco su rosso. Ombra nera a velo.
     fn debian() -> Theme {
+        // lo stesso blu dell'installer (VGA #0000AA)
         Theme {
-            screen: Style::new().bg(Color::Blue).fg(Color::White),
+            screen: Style::new()
+                .bg(Color::Rgb(0x00, 0x00, 0xaa))
+                .fg(Color::White),
             dialog: Style::new().bg(Color::Gray).fg(Color::Black),
             fg: Style::new().fg(Color::White),
             log: LogStyles {
