@@ -14,6 +14,7 @@ pub mod encoding;
 pub mod lang;
 pub mod lineending;
 pub mod lines;
+pub mod loghl;
 pub mod multibyte;
 pub mod newline;
 pub mod pattern;

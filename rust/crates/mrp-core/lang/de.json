@@ -191,6 +191,8 @@
   "mode.follow": "FOLGEN",
   "gui.follow": "Dateiende verfolgen",
   "help.l20": "Alt+F                      Dateiende verfolgen (wie tail -f)",
+  "help.l21": "Alt+L                      Log-Zeilen färben (Stufen, Zeiten, IPs)",
+  "gui.log_colors": "Log-Zeilen färben",
   "flash.follow_on": "Dateiende wird verfolgt",
   "flash.follow_off": "Verfolgen beendet",
   "flash.follow_edit": "Bearbeitungsmodus ausschalten (F4), um die Datei zu verfolgen",

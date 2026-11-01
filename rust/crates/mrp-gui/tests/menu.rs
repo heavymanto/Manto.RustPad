@@ -54,7 +54,7 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
         assert!(en.get(t).is_some(), "{t} non e' nel catalogo");
     }
     let tutte = voci();
-    assert_eq!(tutte.len(), 6 + 10 + 12 + 1);
+    assert_eq!(tutte.len(), 6 + 10 + 13 + 1);
     for v in &tutte {
         assert!(
             en.get(v.chiave).is_some(),

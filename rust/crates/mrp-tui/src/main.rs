@@ -113,6 +113,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
         nav_bar: profilo.settings.as_ref().is_some_and(|s| s.nav_bar),
         special_chars: profilo.settings.as_ref().is_some_and(|s| s.special_chars),
+        log_colors: profilo.settings.as_ref().is_some_and(|s| s.log_colors),
         chrome: true,
         eol,
         settings_path: profilo.path,

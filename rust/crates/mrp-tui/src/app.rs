@@ -247,6 +247,8 @@ pub struct AppConfig {
     pub nav_bar: bool,
     /// Vero: spazi, tabulazioni e fine riga si vedono (vedi `Settings::special_chars`).
     pub special_chars: bool,
+    /// Vero: la colorazione dei log e' accesa all'avvio (vedi `Settings::log_colors`).
+    pub log_colors: bool,
     /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
     /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
     pub eol: Option<LineEnding>,
@@ -267,6 +269,7 @@ impl Default for AppConfig {
             jump_pages: JUMP_PAGES,
             nav_bar: false,
             special_chars: false,
+            log_colors: false,
             chrome: true,
             eol: None,
         }
@@ -633,6 +636,8 @@ pub struct App {
     nav_bar: bool,
     /// Spazi, tabulazioni e fine riga si vedono (la scelta si salva nelle impostazioni, vale per tutte le schede).
     special: bool,
+    /// La colorazione dei log (livelli, orari, indirizzi) e' accesa (la scelta si salva, vale per tutte le schede).
+    log_colors: bool,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
     /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
@@ -790,6 +795,7 @@ impl App {
             jump_pages: cfg.jump_pages,
             nav_bar: cfg.nav_bar,
             special: cfg.special_chars,
+            log_colors: cfg.log_colors,
             chrome: cfg.chrome,
             eol_forzato: cfg.eol,
             lang_picked,
@@ -1558,6 +1564,7 @@ impl App {
             jump_pages: self.jump_pages,
             nav_bar: self.nav_bar,
             special_chars: self.special,
+            log_colors: self.log_colors,
             theme_set: true,
         };
         let _ = s.save(&path);
@@ -2972,6 +2979,19 @@ impl App {
     /// Spazi, tabulazioni e fine riga si vedono.
     pub fn special_chars(&self) -> bool {
         self.special
+    }
+
+    /// La colorazione dei log e' accesa.
+    pub fn log_colors(&self) -> bool {
+        self.log_colors
+    }
+
+    /// Ricorda se la colorazione dei log e' accesa; con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_log_colors(&mut self, accesa: bool, salva: bool) {
+        self.log_colors = accesa;
+        if salva {
+            self.save_settings();
+        }
     }
 
     /// Ricorda se i caratteri speciali si vedono; con `salva` scrive anche le impostazioni (lo fa una scheda sola).

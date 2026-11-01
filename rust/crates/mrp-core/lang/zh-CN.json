@@ -191,6 +191,8 @@
   "mode.follow": "跟随",
   "gui.follow": "跟随文件末尾",
   "help.l20": "Alt+F                      跟随文件末尾(类似 tail -f)",
+  "help.l21": "Alt+L                      为日志行着色(级别、时间、IP)",
+  "gui.log_colors": "为日志行着色",
   "flash.follow_on": "正在跟随文件末尾",
   "flash.follow_off": "已停止跟随",
   "flash.follow_edit": "请先关闭编辑模式(F4)再跟随文件",

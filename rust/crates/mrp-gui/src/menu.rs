@@ -65,6 +65,7 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::ColumnMode),
     Some(Cmd::Special),
     Some(Cmd::Follow),
+    Some(Cmd::LogColors),
     None,
     Some(Cmd::Theme),
     Some(Cmd::Language),

@@ -190,6 +190,8 @@
   "mode.follow": "SEGUI",
   "gui.follow": "Segui la fine del file",
   "help.l20": "Alt+F                      segui la fine del file (come tail -f)",
+  "help.l21": "Alt+L                      colora i log (livelli, orari, IP)",
+  "gui.log_colors": "Colora le righe dei log",
   "flash.follow_on": "si segue la fine del file",
   "flash.follow_off": "seguire fermato",
   "flash.follow_edit": "spegni la modifica (F4) per seguire il file",

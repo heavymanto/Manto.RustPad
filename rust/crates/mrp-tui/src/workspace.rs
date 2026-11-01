@@ -478,6 +478,22 @@ impl Workspace {
         }
     }
 
+    /// La colorazione dei log e' accesa.
+    pub fn log_colors(&self) -> bool {
+        self.cfg.log_colors
+    }
+
+    /// Alt+L: accende o spegne la colorazione dei log in tutte le schede; la scelta si salva nelle impostazioni e vale per le
+    /// schede nuove.
+    pub fn toggle_log_colors(&mut self) {
+        self.cfg.log_colors = !self.cfg.log_colors;
+        let (accesa, attiva) = (self.cfg.log_colors, self.active);
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_log_colors(accesa, i == attiva);
+        }
+    }
+
     /// Adatta la scheda attiva allo spazio (meno le barre).
     fn apply_size(&mut self) {
         let (w, h) = self.size;
@@ -877,6 +893,9 @@ impl Workspace {
                 KeyCode::Char('b') | KeyCode::Char('B') if ctrl => return self.toggle_nav(),
                 KeyCode::Char('w') | KeyCode::Char('W') if alt && !ctrl => {
                     return self.toggle_special()
+                }
+                KeyCode::Char('l') | KeyCode::Char('L') if alt && !ctrl => {
+                    return self.toggle_log_colors()
                 }
                 // Ctrl+N: un documento nuovo e vuoto in una scheda nuova
                 KeyCode::Char('n') | KeyCode::Char('N') if ctrl => {

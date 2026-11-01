@@ -30,6 +30,7 @@ pub enum Cmd {
     ColumnMode,
     Special,
     Follow,
+    LogColors,
     NextTab,
     PrevTab,
     NavBar,
@@ -217,6 +218,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('f'), ALT),
         "Alt+F",
         "follow",
+    ),
+    comando(
+        Cmd::LogColors,
+        "gui.log_colors",
+        tasto(KeyCode::Char('l'), ALT),
+        "Alt+L",
+        "log_colors",
     ),
     comando(
         Cmd::NextTab,

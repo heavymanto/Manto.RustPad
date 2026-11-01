@@ -90,9 +90,23 @@ impl ThemeId {
     }
 }
 
+/// Gli stili della colorazione dei log (Alt+L): il livello e il colore del resto della riga per gli errori e gli avvisi,
+/// l'ora e l'indirizzo.
+#[derive(Clone, Copy, Debug)]
+pub struct LogStyles {
+    pub error: Style,
+    pub warn: Style,
+    pub info: Style,
+    pub debug: Style,
+    pub time: Style,
+    pub ip: Style,
+}
+
 /// Un tema completo: uno stile per ruolo.
 #[derive(Clone, Copy, Debug)]
 pub struct Theme {
+    /// La colorazione dei log.
+    pub log: LogStyles,
     /// Sfondo di tutto il TUI e testo di default.
     pub screen: Style,
     /// Sfondo delle finestre di dialogo (puo' differire da `screen`).
@@ -149,6 +163,14 @@ impl Theme {
             screen: Style::new(),
             dialog: Style::new(),
             fg: Style::new(),
+            log: LogStyles {
+                error: Style::new().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+                warn: Style::new().add_modifier(Modifier::BOLD),
+                info: Style::new(),
+                debug: Style::new().add_modifier(Modifier::DIM),
+                time: Style::new().add_modifier(Modifier::DIM),
+                ip: Style::new().add_modifier(Modifier::UNDERLINED),
+            },
             title: Style::new().add_modifier(Modifier::BOLD),
             hint: Style::new().add_modifier(Modifier::DIM),
             key: Style::new().add_modifier(Modifier::BOLD),
@@ -173,6 +195,14 @@ impl Theme {
             screen: Style::new().bg(Color::Blue).fg(Color::White),
             dialog: Style::new().bg(Color::Blue).fg(Color::White),
             fg: Style::new().fg(Color::White),
+            log: LogStyles {
+                error: Style::new().fg(Color::LightRed).bold(),
+                warn: Style::new().fg(Color::Yellow),
+                info: Style::new().fg(Color::LightGreen),
+                debug: Style::new().fg(Color::Gray),
+                time: Style::new().fg(Color::Cyan),
+                ip: Style::new().fg(Color::LightMagenta),
+            },
             title: Style::new().fg(Color::Cyan).bold(),
             hint: Style::new().fg(Color::Cyan),
             key: Style::new().fg(Color::Yellow).bold(),
@@ -198,6 +228,14 @@ impl Theme {
             screen: Style::new().bg(Color::Blue).fg(Color::White),
             dialog: Style::new().bg(Color::Gray).fg(Color::Black),
             fg: Style::new().fg(Color::White),
+            log: LogStyles {
+                error: Style::new().fg(Color::LightRed).bold(),
+                warn: Style::new().fg(Color::Yellow),
+                info: Style::new().fg(Color::LightGreen),
+                debug: Style::new().fg(Color::Gray),
+                time: Style::new().fg(Color::Cyan),
+                ip: Style::new().fg(Color::LightMagenta),
+            },
             title: Style::new().fg(Color::Red).bold(),
             hint: Style::new().fg(Color::DarkGray),
             key: Style::new().fg(Color::Red).bold(),
@@ -226,6 +264,14 @@ impl Theme {
                 .bg(rgb(0x25, 0x25, 0x26))
                 .fg(rgb(0xd4, 0xd4, 0xd4)),
             fg: Style::new().fg(rgb(0xd4, 0xd4, 0xd4)),
+            log: LogStyles {
+                error: Style::new().fg(rgb(0xf4, 0x87, 0x71)).bold(),
+                warn: Style::new().fg(rgb(0xe5, 0xc0, 0x7b)),
+                info: Style::new().fg(rgb(0x89, 0xd1, 0x85)),
+                debug: Style::new().fg(rgb(0x80, 0x80, 0x80)),
+                time: Style::new().fg(rgb(0x4e, 0xc9, 0xb0)),
+                ip: Style::new().fg(rgb(0xc5, 0x86, 0xc0)),
+            },
             title: Style::new().fg(rgb(0x9c, 0xdc, 0xfe)).bold(),
             hint: Style::new().fg(rgb(0x80, 0x80, 0x80)),
             key: Style::new().fg(rgb(0xdc, 0xdc, 0xaa)).bold(),
@@ -262,6 +308,14 @@ impl Theme {
                 .bg(rgb(0xf3, 0xf3, 0xf3))
                 .fg(rgb(0x1f, 0x1f, 0x1f)),
             fg: Style::new().fg(rgb(0x1f, 0x1f, 0x1f)),
+            log: LogStyles {
+                error: Style::new().fg(rgb(0xa3, 0x15, 0x15)).bold(),
+                warn: Style::new().fg(rgb(0x98, 0x68, 0x01)),
+                info: Style::new().fg(rgb(0x09, 0x86, 0x58)),
+                debug: Style::new().fg(rgb(0x6e, 0x6e, 0x6e)),
+                time: Style::new().fg(rgb(0x26, 0x7f, 0x99)),
+                ip: Style::new().fg(rgb(0xaf, 0x00, 0xdb)),
+            },
             title: Style::new().fg(rgb(0x04, 0x51, 0xa5)).bold(),
             hint: Style::new().fg(rgb(0x6e, 0x6e, 0x6e)),
             key: Style::new().fg(rgb(0x79, 0x5e, 0x26)).bold(),
@@ -295,6 +349,14 @@ impl Theme {
             screen: Style::new().bg(Color::Black).fg(Color::White),
             dialog: Style::new().bg(Color::Black).fg(Color::White),
             fg: Style::new().fg(Color::White),
+            log: LogStyles {
+                error: Style::new().fg(Color::LightRed).bold(),
+                warn: Style::new().fg(Color::Yellow),
+                info: Style::new().fg(Color::Green),
+                debug: Style::new().fg(Color::DarkGray),
+                time: Style::new().fg(Color::Cyan),
+                ip: Style::new().fg(Color::Magenta),
+            },
             title: Style::new().fg(Color::Yellow).bold(),
             hint: Style::new().fg(Color::Gray),
             key: Style::new().fg(Color::Yellow).bold(),

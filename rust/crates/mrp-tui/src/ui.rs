@@ -15,11 +15,11 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l20` (l'ultima e' sempre Esc, `help.l10`).
-pub(crate) const HELP_KEYS: [&str; 20] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l21` (l'ultima e' sempre Esc, `help.l10`).
+pub(crate) const HELP_KEYS: [&str; 21] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l18", "help.l19", "help.l20", "help.l10",
+    "help.l18", "help.l19", "help.l20", "help.l21", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -168,13 +168,44 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         let y = sopra + i as u16;
         // Ogni riga arriva fino in fondo allo schermo.
         let mut text = text.clone();
+        // La colorazione dei log (Alt+L): il colore della riga (errori e avvisi) e le celle dei livelli, degli orari e degli
+        // indirizzi; si calcola sul testo visibile (con lo scorrimento orizzontale una parola tagliata non si riconosce).
+        let mut base = t.fg;
+        let mut celle_log: Vec<(usize, usize, ratatui::style::Style)> = Vec::new();
+        if app.log_colors() {
+            use mrp_core::loghl::{self, Kind};
+            match loghl::line_level(&text) {
+                Some(Kind::Error) => base = base.patch(t.log.error),
+                Some(Kind::Warn) => base = base.patch(t.log.warn),
+                _ => {}
+            }
+            for sp in loghl::highlight(&text) {
+                let stile = match sp.kind {
+                    Kind::Error => t.log.error,
+                    Kind::Warn => t.log.warn,
+                    Kind::Info => t.log.info,
+                    Kind::Debug => t.log.debug,
+                    Kind::Time => t.log.time,
+                    Kind::Ip => t.log.ip,
+                };
+                let da = Span::raw(&text[..sp.start]).width();
+                let fino = Span::raw(&text[..sp.end]).width();
+                celle_log.push((da, fino, stile));
+            }
+        }
         let manca = cells.saturating_sub(text.chars().count());
         text.push_str(&" ".repeat(manca));
         let line = Line::from(vec![
             Span::styled(gutter.clone(), t.gutter),
-            Span::styled(text, t.fg),
+            Span::styled(text, base),
         ]);
         f.render_widget(Paragraph::new(line).style(t.screen), Rect::new(0, y, w, 1));
+        for (da, fino, stile) in celle_log {
+            for colonna in da..fino.min(cells) {
+                let x = gutter_w as u16 + colonna as u16;
+                f.buffer_mut()[(x, y)].set_style(stile);
+            }
+        }
         // La parte trovata dall'ultima ricerca, se questa riga la contiene: cambia solo lo
         // stile delle celle visibili (il testo no, e il gutter mai); una occorrenza che
         // attraversa piu' righe visuali o esce dalla finestra orizzontale si taglia qui.

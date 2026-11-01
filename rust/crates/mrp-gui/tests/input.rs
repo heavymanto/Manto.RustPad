@@ -122,6 +122,10 @@ fn letters_only_count_with_ctrl() {
     };
     assert_eq!(tasto(Key::Q, alt), None);
     assert_eq!(
+        tasto(Key::L, alt),
+        Some(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::ALT))
+    );
+    assert_eq!(
         tasto(Key::F, alt),
         Some(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT))
     );

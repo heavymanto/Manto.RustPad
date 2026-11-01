@@ -20,6 +20,8 @@ pub struct Settings {
     pub nav_bar: bool,
     /// I caratteri speciali (spazi, tabulazioni, fine riga) si vedono (Alt+W).
     pub special_chars: bool,
+    /// La colorazione dei log (livelli, orari, indirizzi) e' accesa (Alt+L).
+    pub log_colors: bool,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
 }
@@ -38,6 +40,7 @@ impl Default for Settings {
             jump_pages: JUMP_PAGES,
             nav_bar: false,
             special_chars: false,
+            log_colors: false,
             theme_set: false,
         }
     }
@@ -75,6 +78,9 @@ impl Settings {
         }
         if self.special_chars {
             out.push_str("special=1\n");
+        }
+        if self.log_colors {
+            out.push_str("log_colors=1\n");
         }
         out
     }
@@ -124,6 +130,11 @@ impl Settings {
                 "special" => match v.to_ascii_lowercase().as_str() {
                     "1" | "on" | "true" => s.special_chars = true,
                     "0" | "off" | "false" => s.special_chars = false,
+                    _ => {}
+                },
+                "log_colors" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.log_colors = true,
+                    "0" | "off" | "false" => s.log_colors = false,
                     _ => {}
                 },
                 _ => {}

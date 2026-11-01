@@ -191,6 +191,8 @@
   "mode.follow": "追従",
   "gui.follow": "ファイルの末尾を追う",
   "help.l20": "Alt+F                      ファイルの末尾を追う(tail -f)",
+  "help.l21": "Alt+L                      ログ行に色を付ける(レベル・時刻・IP)",
+  "gui.log_colors": "ログ行に色を付ける",
   "flash.follow_on": "ファイルの末尾を追っています",
   "flash.follow_off": "追従を停止しました",
   "flash.follow_edit": "追従するには編集モード(F4)をオフにしてください",
