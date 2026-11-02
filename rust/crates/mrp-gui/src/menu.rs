@@ -152,6 +152,7 @@ pub fn disegna(ui: &mut Ui, ws: &Workspace) -> Option<Cmd> {
                 // i menu a tendina sono popup: i colori dei popup del tema
                 let tav = crate::stile::corrente(ui.ctx());
                 crate::stile::popup(ui.style_mut(), &tav);
+                crate::stile::voci_piatte(ui.style_mut());
                 for v in voci {
                     match v {
                         None => {
@@ -215,6 +216,7 @@ pub fn disegna_contestuale(
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 let tav = crate::stile::corrente(ui.ctx());
                 crate::stile::popup(ui.style_mut(), &tav);
+                crate::stile::voci_piatte(ui.style_mut());
                 ui.set_min_width(190.0);
                 for v in CONTESTUALE {
                     match v {

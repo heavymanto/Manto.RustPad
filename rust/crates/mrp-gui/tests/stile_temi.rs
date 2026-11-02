@@ -448,3 +448,58 @@ fn a_toggle_button_that_is_on_is_clearly_different_from_one_that_is_off_in_every
         let _ = std::fs::remove_file(p);
     }
 }
+
+#[test]
+fn the_items_of_a_drop_down_menu_have_no_border_of_their_own() {
+    for tema in [
+        ThemeId::Night,
+        ThemeId::Debian,
+        ThemeId::Dark,
+        ThemeId::Light,
+    ] {
+        let (mut f, ctx, p) = finestra();
+        f.workspace().set_theme(tema);
+        giro(&mut f, &ctx, vec![]);
+        // un clic sul primo menu (File) lo apre
+        let pos = Pos2::new(18.0, 10.0);
+        for premuto in [true, false] {
+            giro(
+                &mut f,
+                &ctx,
+                vec![
+                    Event::PointerMoved(pos),
+                    Event::PointerButton {
+                        pos,
+                        button: egui::PointerButton::Primary,
+                        pressed: premuto,
+                        modifiers: Modifiers::NONE,
+                    },
+                ],
+            );
+        }
+        giro(&mut f, &ctx, vec![]);
+        let o = giro(&mut f, &ctx, vec![]);
+        // i rettangoli con il bordo sotto la barra dei menu: ce n'e' uno solo, la cornice del menu a tendina
+        fn con_bordo(s: &Shape, v: &mut Vec<Rect>) {
+            match s {
+                Shape::Rect(r) if r.stroke.width > 0.0 && r.rect.min.y > 24.0 => v.push(r.rect),
+                Shape::Vec(tutte) => tutte.iter().for_each(|x| con_bordo(x, v)),
+                _ => {}
+            }
+        }
+        let mut bordati = Vec::new();
+        for c in &o.shapes {
+            con_bordo(&c.shape, &mut bordati);
+        }
+        // le voci sono a destra e sotto il "File": cerco i rettangoli bordati dentro la zona del menu (x < 300, y < 400)
+        let nel_menu: Vec<&Rect> = bordati
+            .iter()
+            .filter(|r| r.min.x < 300.0 && r.max.y < 400.0 && r.min.y > 22.0 && r.width() > 40.0)
+            .collect();
+        assert!(
+            nel_menu.len() <= 1,
+            "{tema:?}: le voci hanno un bordo proprio: {nel_menu:?}"
+        );
+        let _ = std::fs::remove_file(p);
+    }
+}

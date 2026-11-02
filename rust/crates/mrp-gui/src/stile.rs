@@ -178,6 +178,15 @@ pub fn visuals(t: &Tavolozza) -> Visuals {
     v
 }
 
+/// Le voci di un menu a tendina sono piatte: niente fondo e niente bordo finche' non ci si passa sopra (la voce sotto il mouse
+/// prende il risalto del tema). Senza, ogni voce avrebbe il suo riquadro.
+pub fn voci_piatte(style: &mut Style) {
+    let i = &mut style.visuals.widgets.inactive;
+    i.bg_fill = Color32::TRANSPARENT;
+    i.weak_bg_fill = Color32::TRANSPARENT;
+    i.bg_stroke = Stroke::NONE;
+}
+
 /// Dentro un popup: lo sfondo e il testo del popup (nel tema Debian grigio chiaro con il testo nero, anche se i pannelli sono
 /// blu con il testo bianco).
 pub fn popup(style: &mut Style, t: &Tavolozza) {

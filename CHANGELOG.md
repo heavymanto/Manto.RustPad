@@ -5,6 +5,7 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 ## [Unreleased]
 
 ### Changed
+- **Menu items are flat**: the items of the drop-down menus (and of the right-click menu) no longer have a frame each; they are plain until the pointer is over one, which takes the highlight of the theme. Tested in the four themes.
 - **Four themes in the window again, with popups that match: Blue (Total Commander), Debian, Dark, Light** (correcting the earlier reading of "only light and dark"): *Blue* is the real Norton / Total Commander blue (#0000AA) with the popups in the same blue and yellow accents; *Debian* has the same blue screen but its own popups, the light-grey debconf dialogs with black text and red accents; Dark and Light as before. Automatic (follow the system) stays the default. New `stile.rs` in `mrp-gui`: the palette of each theme (panels, popups, highlight, switches) taken from the engine's `Theme`, applied to egui's menus, bars, dialogs, settings window and drop-down menus. The terminal themes Console and Minimal stay terminal-only.
 - **Popup titles stand out**: every popup has a title band in the highlight colour of its theme (black on yellow in Blue, white on red in Debian, white on blue in Dark and Light).
 - **Every window can be dragged, by any part of it**: texts are no longer selectable with the mouse (a drag over a text selected it instead of moving the window) and the lists inside windows no longer scroll by dragging. Tested on every dialog and on the Settings window, from the title band and from the body.
