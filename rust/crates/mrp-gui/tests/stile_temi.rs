@@ -246,13 +246,15 @@ fn every_dialog_window_moves_when_you_drag_its_title_band() {
             let x = f.dialogo_chiudi().unwrap();
             // un punto della banda, fra il titolo e la X
             let da = Pos2::new((prima.center().x + x.min.x) / 2.0, prima.min.y + 16.0);
-            let a = da + Vec2::new(90.0, 60.0);
+            // in su e a sinistra: le finestre alte (le liste) toccherebbero il bordo dello schermo scendendo
+            let a = da + Vec2::new(-60.0, -40.0);
             trascina(&mut f, &ctx, da, a);
             let dopo = f.dialogo_rect().unwrap();
             let spostamento = dopo.min - prima.min;
+            // in verticale un po' di tolleranza: una lista che si assesta cambia l'altezza e con essa il punto fisso del centro
             assert!(
-                (spostamento - Vec2::new(90.0, 60.0)).abs().max_elem() <= 3.0,
-                "{tema:?}/{nome}: la finestra si e' spostata di {spostamento:?}, non di (90, 60)"
+                (spostamento.x + 60.0).abs() <= 3.0 && (spostamento.y + 40.0).abs() <= 14.0,
+                "{tema:?}/{nome}: la finestra si e' spostata di {spostamento:?}, non di (-60, -40)"
             );
             let _ = std::fs::remove_file(p);
         }

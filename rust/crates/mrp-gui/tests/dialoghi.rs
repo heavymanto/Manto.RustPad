@@ -196,7 +196,7 @@ fn a_click_on_the_window_does_not_reach_the_text_underneath() {
 }
 
 #[test]
-fn the_theme_menu_lists_four_rows_and_a_click_applies_one() {
+fn the_theme_menu_lists_four_rows_a_click_selects_and_ok_applies() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
     premi(&mut f, &ctx, Key::F6);
     disegna(&mut f, &ctx);
@@ -206,12 +206,33 @@ fn the_theme_menu_lists_four_rows_and_a_click_applies_one() {
         4,
         "nella finestra: Blu, Debian, Scuro e Chiaro"
     );
-    assert!(
-        f.dialogo_pulsanti().is_empty(),
-        "il menu si sceglie con la lista"
-    );
+    // sotto la lista, OK e Annulla: la scelta si conferma, non scatta da sola
+    let testi: Vec<String> = f
+        .dialogo_pulsanti()
+        .iter()
+        .map(|(_, t)| t.clone())
+        .collect();
+    assert_eq!(testi, vec!["OK", "Cancel"]);
     let pos = f.dialogo_voci()[3].center();
     clic(&mut f, &ctx, pos);
+    assert_eq!(
+        f.app().theme_id(),
+        ThemeId::Console,
+        "un clic sulla voce non applica"
+    );
+    assert_eq!(f.app().menu_index(), Some(3));
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Theme));
+    let ok = f.dialogo_pulsanti()[0].0.center();
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().theme_id(), ThemeId::Light);
+    assert_eq!(f.app().dialog_kind(), None);
+    // Annulla lascia tutto com'e'
+    premi(&mut f, &ctx, Key::F6);
+    disegna(&mut f, &ctx);
+    let pos = f.dialogo_voci()[0].center();
+    clic(&mut f, &ctx, pos);
+    let annulla = f.dialogo_pulsanti()[1].0.center();
+    clic(&mut f, &ctx, annulla);
     assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert_eq!(f.app().dialog_kind(), None);
     let _ = std::fs::remove_file(p);

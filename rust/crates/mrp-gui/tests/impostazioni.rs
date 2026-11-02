@@ -157,22 +157,37 @@ fn the_switches_do_what_the_keys_do_and_are_saved() {
     assert!(f.workspace().line_numbers() && !f.workspace().special_chars());
     let pos = controllo(&f, "Show line numbers");
     clic(&mut f, &ctx, pos);
-    assert!(!f.workspace().line_numbers());
     let pos = controllo(&f, "Show special characters");
     clic(&mut f, &ctx, pos);
-    assert!(f.workspace().special_chars());
     let pos = controllo(&f, "Colour log lines");
     clic(&mut f, &ctx, pos);
-    assert!(f.workspace().log_colors());
     let pos = controllo(&f, "Page-jump bar");
     clic(&mut f, &ctx, pos);
+    // finche' non si preme OK non e' cambiato niente (e niente e' stato salvato)
+    assert!(f.workspace().line_numbers() && !f.workspace().special_chars());
+    assert!(!f.workspace().log_colors() && !f.workspace().nav_bar());
+    assert!(
+        !settings.exists()
+            || !std::fs::read_to_string(&settings)
+                .unwrap()
+                .contains("special=1")
+    );
+    let pos = controllo(&f, "OK");
+    clic(&mut f, &ctx, pos);
+    assert!(!f.impostazioni_aperta(), "OK chiude la finestra");
+    assert!(!f.workspace().line_numbers());
+    assert!(f.workspace().special_chars());
+    assert!(f.workspace().log_colors());
     assert!(f.workspace().nav_bar());
     let scritto = std::fs::read_to_string(&settings).unwrap();
     for voce in ["line_numbers=0", "special=1", "log_colors=1", "nav_bar=1"] {
         assert!(scritto.contains(voce), "{voce} in {scritto}");
     }
     // e si spengono di nuovo
+    apri(&mut f, &ctx);
     let pos = controllo(&f, "Show special characters");
+    clic(&mut f, &ctx, pos);
+    let pos = controllo(&f, "OK");
     clic(&mut f, &ctx, pos);
     assert!(!f.workspace().special_chars());
     let _ = std::fs::remove_file(p);
@@ -182,13 +197,20 @@ fn the_switches_do_what_the_keys_do_and_are_saved() {
 fn picking_a_theme_applies_and_saves_it() {
     let (mut f, ctx, p, settings) = finestra();
     apri(&mut f, &ctx);
+    let prima = f.app().theme_id();
     let pos = controllo(&f, "Light");
+    clic(&mut f, &ctx, pos);
+    assert_eq!(f.app().theme_id(), prima, "la scelta aspetta OK");
+    let pos = controllo(&f, "OK");
     clic(&mut f, &ctx, pos);
     assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert!(std::fs::read_to_string(&settings)
         .unwrap()
         .contains("theme=light"));
+    apri(&mut f, &ctx);
     let pos = controllo(&f, "Dark");
+    clic(&mut f, &ctx, pos);
+    let pos = controllo(&f, "OK");
     clic(&mut f, &ctx, pos);
     assert_eq!(f.app().theme_id(), ThemeId::Dark);
     let _ = std::fs::remove_file(p);
@@ -201,19 +223,27 @@ fn the_text_size_buttons_change_it_and_it_is_remembered() {
     let prima = f.corpo();
     let pos = controllo(&f, "+");
     clic(&mut f, &ctx, pos);
-    assert_eq!(f.corpo(), prima + 1.0);
     clic(&mut f, &ctx, pos);
+    assert_eq!(f.corpo(), prima, "il corpo cambia con OK");
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
     assert_eq!(f.corpo(), prima + 2.0);
     let scritto = std::fs::read_to_string(&settings).unwrap();
     assert!(
         scritto.contains(&format!("font_size={}", prima as u16 + 2)),
         "{scritto}"
     );
+    apri(&mut f, &ctx);
     let pos = controllo(&f, "-");
     clic(&mut f, &ctx, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
     assert_eq!(f.corpo(), prima + 1.0);
+    apri(&mut f, &ctx);
     let pos = controllo(&f, "Default");
     clic(&mut f, &ctx, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
     assert_eq!(f.corpo(), 15.0);
     let _ = std::fs::remove_file(p);
 }
@@ -315,4 +345,110 @@ fn the_settings_window_can_be_dragged() {
         "{r:?} -> {dopo:?}"
     );
     let _ = std::fs::remove_file(p);
+}
+
+// ---- OK e Annulla: le scelte non cambiano niente finche' non si conferma ----
+
+fn tasto_giu(key: Key) -> Event {
+    Event::Key {
+        key,
+        physical_key: Some(key),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }
+}
+
+/// Cambia un po' di cose senza confermare: un interruttore, il tema e il corpo.
+fn cambia_tutto(f: &mut Finestra, ctx: &Context) {
+    for nome in ["Show special characters", "Light", "+"] {
+        let pos = controllo(f, nome);
+        clic(f, ctx, pos);
+    }
+}
+
+fn niente_e_cambiato(f: &mut Finestra, corpo: f32, tema: ThemeId, settings: &PathBuf) {
+    assert!(!f.workspace().special_chars());
+    assert_eq!(f.app().theme_id(), tema);
+    assert_eq!(f.corpo(), corpo);
+    assert!(
+        !settings.exists()
+            || !std::fs::read_to_string(settings)
+                .unwrap()
+                .contains("special=1"),
+        "niente si e' salvato"
+    );
+}
+
+#[test]
+fn cancel_the_x_and_escape_throw_the_choices_away() {
+    for come in ["Cancel", "X", "Esc"] {
+        let (mut f, ctx, p, settings) = finestra();
+        let (corpo, tema) = (f.corpo(), f.app().theme_id());
+        apri(&mut f, &ctx);
+        cambia_tutto(&mut f, &ctx);
+        match come {
+            "Cancel" => {
+                let pos = controllo(&f, "Cancel");
+                clic(&mut f, &ctx, pos);
+            }
+            "X" => {
+                let x = f.impostazioni_chiudi().unwrap().center();
+                clic(&mut f, &ctx, x);
+            }
+            _ => {
+                giro(&mut f, &ctx, vec![tasto_giu(Key::Escape)]);
+                giro(&mut f, &ctx, vec![]);
+            }
+        }
+        assert!(!f.impostazioni_aperta(), "{come}: la finestra si chiude");
+        niente_e_cambiato(&mut f, corpo, tema, &settings);
+        // riaperta riparte da come stanno le cose, non dalla bozza scartata
+        apri(&mut f, &ctx);
+        let pos = controllo(&f, "OK");
+        clic(&mut f, &ctx, pos);
+        niente_e_cambiato(&mut f, corpo, tema, &settings);
+        let _ = std::fs::remove_dir_all(p.parent().unwrap());
+    }
+}
+
+#[test]
+fn enter_confirms_like_ok() {
+    let (mut f, ctx, p, _) = finestra();
+    apri(&mut f, &ctx);
+    let pos = controllo(&f, "Show special characters");
+    clic(&mut f, &ctx, pos);
+    assert!(!f.workspace().special_chars());
+    giro(&mut f, &ctx, vec![tasto_giu(Key::Enter)]);
+    giro(&mut f, &ctx, vec![]);
+    assert!(!f.impostazioni_aperta());
+    assert!(f.workspace().special_chars());
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+#[test]
+fn ok_with_nothing_changed_writes_nothing() {
+    let (mut f, ctx, p, settings) = finestra();
+    apri(&mut f, &ctx);
+    let pos = controllo(&f, "OK");
+    clic(&mut f, &ctx, pos);
+    assert!(!f.impostazioni_aperta());
+    assert!(!settings.exists(), "nessuna modifica: nessun file");
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+#[test]
+fn enter_in_the_jump_dialog_does_not_confirm_the_settings_below_it() {
+    let (mut f, ctx, p, _) = finestra();
+    apri(&mut f, &ctx);
+    let cambia = controllo(&f, "Change…");
+    clic(&mut f, &ctx, cambia);
+    assert!(
+        f.app().dialog_kind().is_some(),
+        "si e' aperto il dialogo dei salti"
+    );
+    giro(&mut f, &ctx, vec![tasto_giu(Key::Enter)]);
+    giro(&mut f, &ctx, vec![]);
+    assert!(f.impostazioni_aperta(), "Invio era del dialogo dei salti");
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
 }

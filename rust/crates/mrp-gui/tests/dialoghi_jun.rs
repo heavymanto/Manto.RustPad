@@ -124,6 +124,10 @@ fn a_click_on_the_detail_part_of_a_menu_row_picks_it() {
     let pos = Pos2::new(riga.right() - 2.0, riga.center().y);
     assert!(riga.contains(pos), "{riga:?} contiene {pos:?}");
     clic(&mut f, &ctx, pos);
+    assert_eq!(f.app().menu_index(), Some(0), "il clic evidenzia la voce");
+    assert_eq!(f.app().theme_id(), ThemeId::Console, "ma non la applica");
+    let ok = f.dialogo_pulsanti()[0].0.center();
+    clic(&mut f, &ctx, ok);
     assert_eq!(f.app().theme_id(), ThemeId::Night, "la prima voce e' Blu");
     assert_eq!(f.app().dialog_kind(), None);
     let _ = std::fs::remove_file(p);
@@ -155,6 +159,13 @@ fn the_language_menu_lists_the_registry_and_a_click_applies_one() {
     );
     let pos = f.dialogo_voci()[1].center();
     clic(&mut f, &ctx, pos);
+    assert_eq!(
+        f.app().lang_code(),
+        "en",
+        "un clic sulla voce non cambia la lingua"
+    );
+    let ok = f.dialogo_pulsanti()[0].0.center();
+    clic(&mut f, &ctx, ok);
     assert_eq!(f.app().lang_code(), "de", "la seconda voce e' il tedesco");
     assert_eq!(f.app().dialog_kind(), None);
     let _ = std::fs::remove_file(p);

@@ -142,6 +142,11 @@ fn picking_a_theme_in_the_menu_switches_the_controls() {
     );
     giro(&mut f, &ctx, vec![]);
     giro(&mut f, &ctx, vec![]);
+    // il clic evidenzia la voce; con OK la scelta si applica
+    assert_eq!(f.app().theme_id(), ThemeId::Dark);
+    f.workspace().active_mut().dialog_submit();
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
     assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert!(!scuri(&ctx), "i controlli sono passati al chiaro");
     let _ = std::fs::remove_file(p);

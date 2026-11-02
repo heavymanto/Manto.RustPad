@@ -193,14 +193,24 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                 let rettangolo = riga.response.rect;
                                 let clic =
                                     ui.interact(rettangolo, ui.id().with(i), egui::Sense::click());
+                                // un clic sceglie la voce (la evidenzia); la scelta si applica con OK (o con Invio)
                                 if clic.clicked() {
-                                    ws.active_mut().dialog_pick(i);
+                                    ws.active_mut().dialog_select(i);
                                 }
                                 stato.voci.push(rettangolo);
                             }
                         });
                     if let Some(n) = note {
                         ui.label(RichText::new(n).weak());
+                    }
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
                     }
                 },
             );
@@ -738,7 +748,7 @@ pub(crate) fn testata(ui: &mut egui::Ui, titolo: &str) -> (egui::Rect, bool) {
 /// piu' lungo, il gruppo centrato nello spazio disponibile; il primo e' l'azione principale (pieno
 /// di colore), gli altri neutri col contorno. Registra i rettangoli in `registro` da sinistra a
 /// destra col loro testo, come faceva `pulsante`, e restituisce l'indice del pulsante cliccato.
-fn pulsanti_centrati(
+pub(crate) fn pulsanti_centrati(
     ui: &mut egui::Ui,
     registro: &mut Vec<(egui::Rect, String)>,
     testi: &[&str],

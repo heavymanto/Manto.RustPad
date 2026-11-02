@@ -28,10 +28,10 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 /// Il corpo del testo di partenza, in punti.
-const CORPO: f32 = 15.0;
+pub(crate) const CORPO: f32 = 15.0;
 /// Il corpo minimo e massimo.
-const CORPO_MIN: f32 = 8.0;
-const CORPO_MAX: f32 = 48.0;
+pub(crate) const CORPO_MIN: f32 = 8.0;
+pub(crate) const CORPO_MAX: f32 = 48.0;
 /// La griglia minima: sotto non si disegna (l'`App` vuole almeno 4 righe).
 const COLONNE_MIN: u16 = 20;
 const RIGHE_MIN: u16 = 6;
@@ -1268,14 +1268,14 @@ impl Finestra {
                 self.contestuale_rect = Rect::NOTHING;
             }
         }
-        // la finestra delle impostazioni: i cambi del corpo del testo li fa chi disegna
-        if let Some(r) =
-            impostazioni::disegna(ctx, &mut self.ws, &mut self.impostazioni, self.corpo)
-        {
-            self.zoom(match r {
-                Richiesta::Piu => Cmd::ZoomIn,
-                Richiesta::Meno => Cmd::ZoomOut,
-                Richiesta::Predefinito => Cmd::ZoomReset,
+        // la finestra delle impostazioni: dopo un OK, il corpo del testo e il tema automatico li fa chi disegna
+        for r in impostazioni::disegna(ctx, &mut self.ws, &mut self.impostazioni, self.corpo) {
+            match r {
+                Richiesta::Corpo(v) => {
+                    self.corpo = v.clamp(CORPO_MIN, CORPO_MAX);
+                    // il corpo scelto si ricorda per la prossima volta
+                    self.ws.set_font_size(self.corpo.round() as u16);
+                }
                 Richiesta::TemaAutomatico => {
                     // il sistema com'e' adesso (scuro se non si sa)
                     let tema = if self.sistema.unwrap_or(true) {
@@ -1284,9 +1284,8 @@ impl Finestra {
                         mrp_tui::theme::ThemeId::Light
                     };
                     self.ws.set_theme_auto(tema);
-                    return;
                 }
-            });
+            }
         }
         // i dialoghi con una vista (B4b), solo senza la cornice del terminale: una finestra egui al centro, sopra la
         // griglia, che guida l'App con le azioni dialog_*; senza (o con la cornice) lo stato del disegno si azzera

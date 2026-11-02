@@ -159,6 +159,8 @@ fn choosing_dark_or_light_pins_it_and_automatic_gives_the_system_back() {
     apri_impostazioni(&mut f, &ctx, sistema);
     let pos = controllo(&f, "Dark");
     clic(&mut f, &ctx, sistema, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, sistema, ok);
     assert_eq!(f.app().theme_id(), ThemeId::Dark);
     assert!(std::fs::read_to_string(&settings)
         .unwrap()
@@ -167,8 +169,11 @@ fn choosing_dark_or_light_pins_it_and_automatic_gives_the_system_back() {
     giro(&mut f, &ctx, sistema, vec![]);
     assert_eq!(f.app().theme_id(), ThemeId::Dark);
     // Automatico: torna come il sistema e la scelta sparisce dal file
+    apri_impostazioni(&mut f, &ctx, sistema);
     let pos = controllo(&f, "Automatic (system)");
     clic(&mut f, &ctx, sistema, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, sistema, ok);
     assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert!(!std::fs::read_to_string(&settings)
         .unwrap()
@@ -199,6 +204,10 @@ fn the_theme_menu_of_the_window_has_four_rows_blue_debian_dark_and_light() {
     // scegliere l'ultima (Chiaro) la fissa
     let pos = f.dialogo_voci()[3].center();
     clic(&mut f, &ctx, None, pos);
+    // un clic evidenzia la voce; con OK la scelta si applica e si fissa
+    assert!(!f.app().theme_chosen());
+    let ok = f.dialogo_pulsanti()[0].0.center();
+    clic(&mut f, &ctx, None, ok);
     assert_eq!(f.app().theme_id(), ThemeId::Light);
     assert!(f.app().theme_chosen());
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
