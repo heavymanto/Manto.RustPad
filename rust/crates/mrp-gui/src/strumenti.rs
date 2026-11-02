@@ -47,6 +47,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "zoom_in" => "➕",
         "zoom_out" => "➖",
         "zoom_reset" => "◎",
+        "copy_path" => "📎",
         _ => "?",
     }
 }
@@ -59,7 +60,30 @@ pub fn gruppi() -> Vec<Vec<Cmd>> {
         vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
         vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
         vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
+        vec![Cmd::ZoomOut, Cmd::ZoomIn],
     ]
+}
+
+/// Il percorso di un file come lo si legge e lo si copia: senza il prefisso `\\?\` che Windows mette ai percorsi canonici
+/// (`\\?\C:\dati\a.log` diventa `C:\dati\a.log`, `\\?\UNC\server\x` diventa `\\server\x`).
+pub fn percorso_leggibile(p: &std::path::Path) -> String {
+    let s = p.display().to_string();
+    if let Some(resto) = s.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{resto}")
+    } else if let Some(resto) = s.strip_prefix(r"\\?\") {
+        resto.to_string()
+    } else {
+        s
+    }
+}
+
+/// Il suggerimento del pulsante del percorso: il percorso completo del file (o, per un documento che non e' ancora un file,
+/// che non c'e' niente da copiare) e come si copia.
+pub fn tooltip_percorso(percorso: Option<&str>, cat: &Catalog) -> String {
+    match percorso {
+        Some(p) => format!("{p}\n{}", cat.t("gui.tip.copy_path")),
+        None => cat.t("gui.tip.not_saved").to_string(),
+    }
 }
 
 /// Il tooltip di un pulsante: il nome del comando nella lingua attiva e la sua scorciatoia, `nome (scorciatoia)`.

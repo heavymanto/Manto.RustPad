@@ -86,6 +86,7 @@ fn the_toolbar_groups() {
             vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
             vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
             vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
+            vec![Cmd::ZoomOut, Cmd::ZoomIn],
         ]
     );
 }

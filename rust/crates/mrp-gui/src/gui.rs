@@ -10,7 +10,8 @@ use crate::input;
 use crate::menu;
 use crate::paint;
 use crate::strumenti::{
-    glifo, gruppi, salti, tooltip, tooltip_salto, Pulsante, SaltoAzione, SaltoVoce,
+    glifo, gruppi, percorso_leggibile, salti, tooltip, tooltip_percorso, tooltip_salto, Pulsante,
+    SaltoAzione, SaltoVoce,
 };
 use eframe::egui::{
     self, Align, Context, CursorIcon, Event, FontId, Frame, Label, Layout, Pos2, Rect, Sense, Vec2,
@@ -109,6 +110,8 @@ pub struct Finestra {
     tema_applicato: Option<mrp_tui::theme::ThemeId>,
     /// L'ingranaggio in fondo alla barra dei salti nell'ultimo disegno (apre il dialogo dei salti).
     rettangolo_ingranaggio: Option<Rect>,
+    /// Il pulsante del percorso nella barra degli strumenti (copia il percorso completo del file).
+    rettangolo_percorso: Option<Rect>,
     /// Il rettangolo della barra dei salti nell'ultimo disegno (`None`: come sopra).
     rettangolo_salti: Option<Rect>,
     /// Lo stato del dialogo disegnato nell'ultimo giro (B4b): i rettangoli per i test e i ricordi fra un giro e l'altro
@@ -197,6 +200,7 @@ impl Finestra {
             pulsanti_salti_v: Vec::new(),
             rettangolo_salti: None,
             rettangolo_ingranaggio: None,
+            rettangolo_percorso: None,
             dialogo: StatoDialogo::default(),
             contestuale: None,
             contestuale_voci: Vec::new(),
@@ -620,6 +624,14 @@ impl Finestra {
     fn strumenti(&mut self, ctx: &Context) {
         let mut pulsanti = Vec::new();
         let mut scelta = None;
+        let mut copia_percorso = false;
+        let mut rettangolo_percorso = None;
+        // il percorso completo del file (senza il prefisso di Windows); un documento senza nome non ne ha uno da copiare
+        let percorso = if self.ws.active().is_untitled() {
+            None
+        } else {
+            Some(percorso_leggibile(self.ws.active().path()))
+        };
         let pannello = egui::TopBottomPanel::top("strumenti").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 for (n, gruppo) in gruppi().into_iter().enumerate() {
@@ -663,8 +675,36 @@ impl Finestra {
                         });
                     }
                 }
+                // a destra, il pulsante del file: sopra si legge il percorso completo, un clic lo copia negli appunti
+                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    let tip = tooltip_percorso(percorso.as_deref(), self.ws.active().catalog());
+                    let r = ui
+                        .add(
+                            egui::Button::new(egui::RichText::new(glifo("copy_path")).size(16.0))
+                                .min_size(ALTEZZA_PULSANTE),
+                        )
+                        .on_hover_text(tip);
+                    rettangolo_percorso = Some(r.rect);
+                    if r.clicked() {
+                        copia_percorso = true;
+                    }
+                });
             });
         });
+        self.rettangolo_percorso = rettangolo_percorso;
+        if copia_percorso {
+            match &percorso {
+                Some(p) => {
+                    ctx.copy_text(p.clone());
+                    let m = self.ws.active().text("gui.copied_path").to_string();
+                    self.ws.active_mut().set_flash(m);
+                }
+                None => {
+                    let m = self.ws.active().text("gui.tip.not_saved").to_string();
+                    self.ws.active_mut().set_flash(m);
+                }
+            }
+        }
         self.pulsanti = pulsanti;
         self.rettangolo_strumenti = Some(pannello.response.rect);
         if let Some(cmd) = scelta {
@@ -914,6 +954,11 @@ impl Finestra {
     /// (per i test); vuoto se non c'e'.
     pub fn pezzi_stato(&self) -> &[(Rect, Option<Cmd>)] {
         &self.pezzi
+    }
+
+    /// Il pulsante del percorso del file nell'ultimo disegno (per i test); `None` se la barra non c'e'.
+    pub fn percorso_rect(&self) -> Option<Rect> {
+        self.rettangolo_percorso
     }
 
     /// Il rettangolo della barra degli strumenti nell'ultimo disegno (per i test); `None` se non c'e' (cornice).
