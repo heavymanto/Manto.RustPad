@@ -103,6 +103,12 @@ impl App {
             within_label: cat.t("time.mask.within").to_string(),
             pattern: self.mask_text[0].clone(),
             within: self.mask_text[1].clone(),
+            skip: self.mask_skip,
+            suggestion: self
+                .mask_suggestion
+                .as_ref()
+                .filter(|_| self.mask_skip == 0)
+                .map(|s| (s.example.clone(), s.lines)),
             preview: self.time_mask_preview(),
             auto: cat.t("time.mask.auto").to_string(),
             has_mask: self.time_mask.is_some(),
@@ -260,14 +266,15 @@ impl App {
         self.time_error.clear();
         let within = self.mask_text[1].trim().parse::<usize>().unwrap_or(0);
         let pattern = self.mask_text[0].trim().to_string();
+        let skip = self.mask_skip;
         let cambia = self
             .time_mask
             .as_ref()
-            .is_none_or(|m| m.pattern() != pattern || m.within() != within);
+            .is_none_or(|m| m.pattern() != pattern || m.within() != within || m.skip() != skip);
         // com'era, per rimettere tutto se il filtro non si applica
         let prima = (self.time_mask.clone(), self.time_mask_tried, self.window);
         if cambia {
-            if let Err(e) = self.set_time_mask(&pattern, within) {
+            if let Err(e) = self.set_time_mask_with(&pattern, within, skip) {
                 self.time_error = e;
                 return;
             }
@@ -282,8 +289,9 @@ impl App {
         } else if self.window.is_some() {
             self.clear_time_window();
         }
-        if cambia {
-            // scelta a mano: diventa il formato standard, provato per primo sui file che si apriranno
+        // scelta a mano: diventa il formato standard, provato per primo sui file che si apriranno; non se vale un'occorrenza che non
+        // sia la prima (e' una scelta per questo file, non per tutti)
+        if cambia && skip == 0 {
             self.time_default = Some((pattern, within));
             self.save_settings();
         }

@@ -30,6 +30,45 @@ const ORARI_A_MANO: [&str; 3] = ["HH:mm:ss.SSS", "HH:mm:ss", "HH:mm"];
 /// I millisecondi di un giorno.
 const GIORNO: i64 = 86_400_000;
 
+/// Quanti byte dall'inizio del file si guardano al piu' per trovare le righe che leggono un formato (anteprima e suggerimento), e
+/// a pezzi di quanti.
+const SCANSIONE_BYTE: u64 = 4 * 1024 * 1024;
+const PEZZO_SCANSIONE: u64 = 256 * 1024;
+/// "Entro quanti caratteri" con cui si legge la seconda data di una riga.
+const SUGGERIMENTO_ENTRO: usize = 200;
+
+/// L'anteprima del formato gia' calcolata, con la chiave (pattern, finestra, occorrenza, lunghezza) con cui lo e' stata.
+pub(super) type PreviewMemo = (String, Vec<(String, String)>);
+
+/// Il suggerimento "in queste righe c'e' anche un'altra data": il formato che la legge come seconda occorrenza, un esempio di come
+/// e' scritta e quante righe (fra quelle guardate) ce l'hanno.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimeSuggestion {
+    pub pattern: String,
+    /// Quale occorrenza dell'orario nella riga vale con quel pattern (0: la prima).
+    pub skip: usize,
+    pub example: String,
+    pub lines: usize,
+}
+
+/// Quanti gruppi di quattro cifre di seguito ci sono nella riga (grossolano: serve a scartare le righe che non possono avere due date).
+fn gruppi_di_quattro_cifre(riga: &[u8]) -> usize {
+    let mut gruppi = 0;
+    let mut di_fila = 0;
+    for &b in riga {
+        if b.is_ascii_digit() {
+            di_fila += 1;
+            if di_fila == 4 {
+                gruppi += 1;
+                di_fila = 0;
+            }
+        } else {
+            di_fila = 0;
+        }
+    }
+    gruppi
+}
+
 impl App {
     /// Il limite basso della vista: l'inizio della finestra di tempo, o 0.
     pub(crate) fn lo(&self) -> u64 {
@@ -150,14 +189,47 @@ impl App {
     /// stare l'orario. Se il pattern non va, `Err` col motivo e non cambia niente. Cambiare la maschera toglie la finestra di
     /// tempo (le posizioni dipendevano da quella di prima).
     pub fn set_time_mask(&mut self, pattern: &str, within: usize) -> Result<(), String> {
-        let mask = TimeMask::parse(pattern, within).map_err(|e| match e {
-            MaskError::Incomplete => self.cat.t("time.err.incomplete").to_string(),
-            MaskError::BadToken(t) => self.cat.tf("time.err.bad_token", &[&t]),
-        })?;
+        self.set_time_mask_with(pattern, within, 0)
+    }
+
+    /// Come `set_time_mask`, e dice quale occorrenza dell'orario nella riga vale (`skip`: 0 la prima, 1 la seconda...): per i log con
+    /// piu' date, quando quella che interessa non e' la prima (vedi `TimeMask::with_skip`).
+    pub fn set_time_mask_with(
+        &mut self,
+        pattern: &str,
+        within: usize,
+        skip: usize,
+    ) -> Result<(), String> {
+        let mask = TimeMask::parse(pattern, within)
+            .map_err(|e| match e {
+                MaskError::Incomplete => self.cat.t("time.err.incomplete").to_string(),
+                MaskError::BadToken(t) => self.cat.tf("time.err.bad_token", &[&t]),
+            })?
+            .with_skip(skip);
         self.time_mask = Some(mask);
         self.time_mask_tried = true;
         self.window = None;
         Ok(())
+    }
+
+    /// Quale occorrenza dell'orario nella riga vale per la maschera in uso (0: la prima).
+    pub fn time_mask_skip(&self) -> usize {
+        self.time_mask.as_ref().map_or(0, TimeMask::skip)
+    }
+
+    /// Il pattern della maschera per scriverlo in barra di stato: con l'occorrenza diversa dalla prima ci si aggiunge `#N`.
+    pub(super) fn time_mask_label(&mut self) -> Option<String> {
+        let skip = {
+            self.assicura_maschera();
+            self.time_mask_skip()
+        };
+        self.time_mask_pattern().map(|p| {
+            if skip > 0 {
+                format!("{p} #{}", skip + 1)
+            } else {
+                p
+            }
+        })
     }
 
     /// Il formato standard dell'orario (pattern e finestra), se l'utente ne ha scelto uno a mano.
@@ -347,6 +419,8 @@ impl App {
     /// Per il dialogo del formato: quante righe del campione legge ognuno dei formati noti, e l'orario della prima riga che legge
     /// la maschera in uso. Si calcola una volta all'apertura (il campione non cambia mentre il dialogo e' aperto).
     pub(super) fn calcola_aiuti_formato(&mut self) {
+        self.mask_skip = self.time_mask_skip();
+        self.calcola_suggerimento();
         let righe = self.campione_righe();
         self.mask_matches = timemask::PRESETS
             .iter()
@@ -413,24 +487,228 @@ impl App {
         &self.mask_error
     }
 
-    /// L'anteprima del dialogo del formato: le prime righe del file (al piu' tre, accorciate) e come le legge il pattern che c'e'
-    /// scritto adesso (l'orario, o "(nessun orario)"; un pattern che non va non legge nessuna riga).
+    /// Chiama `f` per ogni riga (senza a-capo) dall'inizio del file, fino a `SCANSIONE_BYTE` byte, finche' ritorna vero. Solo con gli
+    /// a-capo a un byte e testo a byte (come `campione_righe`).
+    fn scansiona_righe(&self, mut f: impl FnMut(&[u8]) -> bool) {
+        let Some(doc) = self.doc.as_ref() else {
+            return;
+        };
+        if self.enc.unit() != 1 {
+            return;
+        }
+        let len = doc.len();
+        let fine = len.min(SCANSIONE_BYTE);
+        let mut pos = 0u64;
+        let mut resto: Vec<u8> = Vec::new();
+        while pos < fine {
+            let dati = doc.read_range(pos, PEZZO_SCANSIONE.min(fine - pos));
+            if dati.is_empty() {
+                break;
+            }
+            pos += dati.len() as u64;
+            resto.extend_from_slice(&dati);
+            let mut da = 0;
+            while let Some(i) = resto[da..].iter().position(|&b| b == b'\n') {
+                let riga = &resto[da..da + i];
+                if !f(riga.strip_suffix(b"\r").unwrap_or(riga)) {
+                    return;
+                }
+                da += i + 1;
+            }
+            resto.drain(..da);
+        }
+        // l'ultima riga, se il file finisce senza a-capo (non se la scansione si e' fermata a meta' di una riga)
+        if pos >= len && !resto.is_empty() {
+            f(resto.strip_suffix(b"\r").unwrap_or(&resto));
+        }
+    }
+
+    /// L'anteprima del dialogo del formato: le righe del file che il pattern scritto adesso LEGGE (al piu' tre, dalle prime righe
+    /// fino a `SCANSIONE_BYTE`), ognuna con l'orario letto; se non ne legge nessuna, le prime tre righe con "(nessun orario)". Le
+    /// righe lunghe si mostrano attorno alla data letta. Si ricalcola solo quando cambia il pattern, la finestra o l'occorrenza.
     pub fn time_mask_preview(&self) -> Vec<(String, String)> {
         let within = self.mask_text[1].trim().parse::<usize>().unwrap_or(0);
-        let mask = TimeMask::parse(self.mask_text[0].trim(), within).ok();
+        let pattern = self.mask_text[0].trim();
+        let chiave = format!(
+            "{pattern}|{within}|{}|{}",
+            self.mask_skip,
+            self.document_len()
+        );
+        if let Some((k, v)) = self.preview_memo.borrow().as_ref() {
+            if *k == chiave {
+                return v.clone();
+            }
+        }
+        let mask = TimeMask::parse(pattern, within)
+            .ok()
+            .map(|m| m.with_skip(self.mask_skip));
         let nessuno = self.cat.t("time.mask.none").to_string();
-        self.campione_righe()
+        let mut lette: Vec<(String, String)> = Vec::new();
+        let mut prime: Vec<String> = Vec::new();
+        self.scansiona_righe(|riga| {
+            if prime.len() < 3 {
+                prime.push(String::from_utf8_lossy(riga).chars().take(44).collect());
+            }
+            if let Some(m) = mask.as_ref() {
+                if let Some((a, _, k)) = m.find(riga) {
+                    // la riga attorno alla data: se comincia piu' avanti si mostra da poco prima
+                    let da = a.saturating_sub(12);
+                    let mut testo: String = String::from_utf8_lossy(&riga[da..])
+                        .chars()
+                        .take(44)
+                        .collect();
+                    if da > 0 {
+                        testo.insert(0, '\u{2026}');
+                    }
+                    lette.push((testo, timemask::iso(k, m.has_date())));
+                }
+            }
+            lette.len() < 3 && (mask.is_some() || prime.len() < 3)
+        });
+        let v: Vec<(String, String)> = if lette.is_empty() {
+            prime.into_iter().map(|t| (t, nessuno.clone())).collect()
+        } else {
+            lette
+        };
+        *self.preview_memo.borrow_mut() = Some((chiave, v.clone()));
+        v
+    }
+
+    /// Cerca nelle prime righe del file un'altra data oltre alla prima (l'ora di scrittura all'inizio, la data dei dati dentro la
+    /// riga). Le seconde date si raggruppano per formato e per i due caratteri che le precedono (`@ ` in `funding @ 2022-01-01 00:00`):
+    /// un gruppo e' un buon suggerimento se ha almeno cinque righe, almeno cinque date diverse e se vanno avanti nel file (quasi sempre non
+    /// decrescenti): una data che si ripete uguale (l'inizio del backtest nelle tabelle) o che salta a caso non si suggerisce. Vince il
+    /// gruppo con piu' righe (a parita' il formato piu' preciso); il suggerimento e' un pattern con il testo che precede fra apici
+    /// (`'@ 'yyyy-MM-dd HH:mm`), che legge solo quelle righe.
+    pub(super) fn calcola_suggerimento(&mut self) {
+        const CANDIDATI: [&str; 9] = [
+            "yyyy-MM-dd HH:mm:ss.SSS",
+            "yyyy-MM-dd HH:mm:ss,SSS",
+            "yyyy-MM-dd HH:mm:ss",
+            "yyyy-MM-ddTHH:mm:ss",
+            "yyyy-MM-dd HH:mm",
+            "yyyy/MM/dd HH:mm:ss",
+            "dd/MM/yyyy HH:mm:ss",
+            "dd/MM/yyyy HH:mm",
+            "yyyy-MM-dd",
+        ];
+        const MIN_RIGHE: usize = 5;
+        /// Statistiche di un gruppo (formato, testo che precede).
+        #[derive(Default)]
+        struct Gruppo {
+            righe: usize,
+            chiavi: Vec<i64>,
+            esempio: String,
+        }
+        self.mask_suggestion = None;
+        let maschere: Vec<TimeMask> = CANDIDATI
             .iter()
-            .take(3)
-            .map(|riga| {
-                let testo: String = String::from_utf8_lossy(riga).chars().take(44).collect();
-                let letto = mask
-                    .as_ref()
-                    .and_then(|m| m.read(riga).map(|k| timemask::iso(k, m.has_date())))
-                    .unwrap_or_else(|| nessuno.clone());
-                (testo, letto)
-            })
-            .collect()
+            .filter_map(|p| TimeMask::parse(p, SUGGERIMENTO_ENTRO).ok())
+            .map(|m| m.with_skip(1))
+            .collect();
+        let mut gruppi: std::collections::HashMap<(usize, String), Gruppo> =
+            std::collections::HashMap::new();
+        let mut righe = 0usize;
+        self.scansiona_righe(|riga| {
+            righe += 1;
+            // una seconda data vuole almeno due anni di quattro cifre nella riga
+            if gruppi_di_quattro_cifre(riga) >= 2 {
+                for (i, m) in maschere.iter().enumerate() {
+                    let Some((a, b, k)) = m.find(riga) else {
+                        continue;
+                    };
+                    // i due caratteri che precedono la data, se sono testo (non un apice, che romperebbe il pattern)
+                    let Ok(prima) = std::str::from_utf8(&riga[a.saturating_sub(2)..a]) else {
+                        continue;
+                    };
+                    if prima.contains('\'') {
+                        continue;
+                    }
+                    let g = gruppi.entry((i, prima.to_string())).or_default();
+                    g.righe += 1;
+                    if g.chiavi.len() < 20_000 {
+                        g.chiavi.push(k);
+                    }
+                    if g.esempio.is_empty() {
+                        g.esempio = String::from_utf8_lossy(&riga[a..b]).into_owned();
+                    }
+                }
+            }
+            righe < 80_000
+        });
+        let utile = |g: &Gruppo| {
+            let mut diversi = g.chiavi.clone();
+            diversi.sort_unstable();
+            diversi.dedup();
+            let in_ordine = g.chiavi.windows(2).filter(|w| w[0] <= w[1]).count();
+            g.righe >= MIN_RIGHE
+                && diversi.len() >= 5
+                && in_ordine * 100 >= g.chiavi.len().saturating_sub(1) * 95
+        };
+        let massimo = gruppi
+            .values()
+            .filter(|g| utile(g))
+            .map(|g| g.righe)
+            .max()
+            .unwrap_or(0);
+        if massimo == 0 {
+            return;
+        }
+        // fra i gruppi che leggono (quasi) quante il migliore, il formato piu' preciso (poi il piu' numeroso, poi il testo: l'ordine
+        // della mappa non conta)
+        let scelto = gruppi
+            .iter()
+            .filter(|(_, g)| utile(g) && g.righe * 10 >= massimo * 8)
+            .min_by_key(|((i, prima), g)| {
+                (maschere[*i].unit_ms(), usize::MAX - g.righe, prima.clone())
+            });
+        if let Some(((i, prima), g)) = scelto {
+            self.mask_suggestion = Some(TimeSuggestion {
+                pattern: format!("'{prima}'{}", CANDIDATI[*i]),
+                skip: 0,
+                example: g.esempio.clone(),
+                lines: g.righe,
+            });
+        }
+    }
+
+    /// Il suggerimento "c'e' anche un'altra data" (vedi `calcola_suggerimento`), se c'e'.
+    pub fn time_suggestion(&self) -> Option<&TimeSuggestion> {
+        self.mask_suggestion.as_ref()
+    }
+
+    /// Quale occorrenza dell'orario nella riga e' scelta nel dialogo del formato (0: la prima).
+    pub fn time_mask_skip_draft(&self) -> usize {
+        self.mask_skip
+    }
+
+    /// Sceglie nel dialogo del formato quale occorrenza dell'orario nella riga vale (`n`: 0 la prima, 1 la seconda... al piu' 9). Dalla
+    /// seconda in poi la data sta piu' avanti nella riga, quindi "entro quanti caratteri" si porta almeno a 200.
+    pub fn dialog_time_set_skip(&mut self, n: usize) {
+        if !matches!(self.dialog, Some(DialogKind::TimeMask | DialogKind::Time)) {
+            return;
+        }
+        self.mask_skip = n.min(9);
+        if self.mask_skip > 0
+            && self.mask_text[1].trim().parse::<usize>().unwrap_or(0) < SUGGERIMENTO_ENTRO
+        {
+            self.mask_text[1] = SUGGERIMENTO_ENTRO.to_string();
+        }
+        self.mask_error.clear();
+        self.time_error.clear();
+    }
+
+    /// Usa il suggerimento: il suo pattern, entro `SUGGERIMENTO_ENTRO` caratteri.
+    pub fn dialog_time_use_suggestion(&mut self) {
+        if !matches!(self.dialog, Some(DialogKind::TimeMask | DialogKind::Time)) {
+            return;
+        }
+        if let Some(s) = self.mask_suggestion.clone() {
+            self.mask_text = [s.pattern, SUGGERIMENTO_ENTRO.to_string()];
+            self.mask_skip = s.skip;
+            self.mask_error.clear();
+            self.time_error.clear();
+        }
     }
 
     /// Imposta il testo di un campo dei dialoghi del tempo (`campo` 0 o 1); in un altro dialogo non fa niente.
@@ -494,6 +772,7 @@ impl App {
             (m.pattern().to_string(), m.within())
         });
         self.mask_text = [pattern, within.to_string()];
+        self.mask_skip = 0;
         self.mask_error = if self.time_mask.is_none() {
             self.cat.t("time.err.no_mask").to_string()
         } else {
@@ -523,6 +802,7 @@ impl App {
         }
         if let Some(p) = timemask::PRESETS.get(i) {
             self.mask_preset = i;
+            self.mask_skip = 0;
             self.mask_text = [p.pattern.to_string(), p.within.to_string()];
             self.mask_error.clear();
             self.time_error.clear();

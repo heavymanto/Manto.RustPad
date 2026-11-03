@@ -128,6 +128,9 @@ pub struct TimeMask {
     anno: i32,
     /// La maschera ha una data: `false` solo per le maschere con la sola ora.
     ha_data: bool,
+    /// Quante occorrenze dell'orario si saltano prima di quella che vale (0: la prima; 1: la seconda...). Serve per le righe
+    /// con piu' date, quando quella che interessa non e' la prima.
+    skip: usize,
     /// Che cosa si legge nella riga.
     corpo: Corpo,
 }
@@ -148,6 +151,7 @@ impl TimeMask {
                 within,
                 anno: 2000,
                 ha_data: true,
+                skip: 0,
                 corpo: Corpo::Epoch {
                     secondi: pattern == "epoch_s",
                 },
@@ -174,6 +178,7 @@ impl TimeMask {
             within,
             anno: 2000,
             ha_data: ha_anno || ha_mese || ha_giorno,
+            skip: 0,
             corpo: Corpo::Pezzi(pezzi),
         })
     }
@@ -181,6 +186,18 @@ impl TimeMask {
     /// L'anno delle maschere senza anno (syslog), di fabbrica 2000: per le altre non cambia niente.
     pub fn with_year(self, year: i32) -> TimeMask {
         TimeMask { anno: year, ..self }
+    }
+
+    /// La stessa maschera che vale l'occorrenza numero `skip` + 1 dell'orario nella riga (0: la prima, di fabbrica; 1: la seconda...):
+    /// le occorrenze si contano da sinistra, senza sovrapporsi, entro `within` byte dall'inizio della riga; una riga che non ne ha
+    /// tante non ha l'orario.
+    pub fn with_skip(self, skip: usize) -> TimeMask {
+        TimeMask { skip, ..self }
+    }
+
+    /// Quante occorrenze dell'orario si saltano (vedi `with_skip`).
+    pub fn skip(&self) -> usize {
+        self.skip
     }
 
     /// Il pattern, come l'ha scritto chi ha chiamato `parse`.
@@ -216,13 +233,23 @@ impl TimeMask {
         }
         // oltre la fine della riga non c'e' niente da provare
         let fine = self.within.min(line.len().saturating_sub(1));
-        for da in 0..=fine {
+        let mut da = 0;
+        let mut visti = 0;
+        while da <= fine {
             let letto = match &self.corpo {
                 Corpo::Pezzi(_) => self.leggi_pezzi(line, da),
                 Corpo::Epoch { secondi } => leggi_epoch(line, da, *secondi),
             };
-            if let Some((chiave, fino)) = letto {
-                return Some((da, fino, chiave));
+            match letto {
+                Some((chiave, fino)) => {
+                    if visti == self.skip {
+                        return Some((da, fino, chiave));
+                    }
+                    // un'occorrenza da saltare: si riprende dopo di lei (le occorrenze non si sovrappongono)
+                    visti += 1;
+                    da = fino.max(da + 1);
+                }
+                None => da += 1,
             }
         }
         None

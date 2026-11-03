@@ -4,6 +4,7 @@
 pub mod dialogs;
 mod tempo;
 mod tempo_finestra;
+pub use tempo::TimeSuggestion;
 pub use tempo_finestra::{CalendarInfo, Day, Month};
 pub mod timeline;
 
@@ -763,6 +764,11 @@ pub struct App {
     mask_matches: Vec<usize>,
     /// L'orario della prima riga che la maschera in uso legge e il suo pattern (per dire "riconosciuto: ...").
     mask_detected: Option<(String, String)>,
+    /// Nei dialoghi del formato: quale occorrenza dell'orario nella riga (0: la prima), il suggerimento "c'e' anche un'altra data"
+    /// e l'anteprima gia' calcolata (con la chiave dei dati con cui e' stata calcolata).
+    mask_skip: usize,
+    mask_suggestion: Option<tempo::TimeSuggestion>,
+    preview_memo: std::cell::RefCell<Option<tempo::PreviewMemo>>,
     /// Nella finestra "Tempo": la casella "Filtro attivo", il campo che ha il fuoco (0 pattern, 1 entro, 2 dal, 3 al), l'ultimo
     /// errore e la prima e l'ultima chiave del file (per i suggerimenti dei campi vuoti e il mese con cui si apre il calendario).
     time_check: bool,
@@ -1011,6 +1017,9 @@ impl App {
             mask_preset: 0,
             mask_matches: Vec::new(),
             mask_detected: None,
+            mask_skip: 0,
+            mask_suggestion: None,
+            preview_memo: std::cell::RefCell::new(None),
             time_check: false,
             timeline: timeline::TimelineState::default(),
             time_field: 2,
@@ -3638,7 +3647,7 @@ impl App {
         let size = self.document_len();
         let offset = self.cursor;
         let time = self.time_at_top();
-        let time_format = self.time_mask_pattern();
+        let time_format = self.time_mask_label();
         // la percentuale e' dentro la finestra di tempo, se c'e'
         let ampiezza = if self.window.is_some() {
             self.hi().saturating_sub(self.lo())

@@ -178,6 +178,10 @@ pub enum DialogView {
         within_label: String,
         pattern: String,
         within: String,
+        /// Quale occorrenza dell'orario nella riga vale (0: la prima) e, se nelle righe c'e' anche un'altra data, il suggerimento:
+        /// un esempio di come e' scritta e quante righe ce l'hanno.
+        skip: usize,
+        suggestion: Option<(String, usize)>,
         preview: Vec<(String, String)>,
         auto: String,
         /// C'e' una maschera in uso: senza, il filtro non si puo' impostare.

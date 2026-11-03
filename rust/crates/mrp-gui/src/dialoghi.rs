@@ -455,6 +455,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             within_label,
             pattern,
             within,
+            skip,
+            suggestion,
             preview,
             auto,
             has_mask,
@@ -508,6 +510,12 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             let nomi_mesi: Vec<String> = (1..=12)
                 .map(|m| ws.active().text(&format!("cal.month.{m}")).to_string())
                 .collect();
+            let t_occorrenza = ws.active().text("time.mask.occurrence").to_string();
+            let t_usa = ws.active().text("time.mask.suggest_use").to_string();
+            let t_suggerimento = suggestion.as_ref().map(|(esempio, righe)| {
+                ws.active()
+                    .text_with("time.mask.suggest", &[esempio, &righe.to_string()])
+            });
             let t_ora = ws.active().text("time.filter.time").to_string();
             let t_fatto = ws.active().text("time.filter.done").to_string();
             let giorni_sett: Vec<String> = [
@@ -536,7 +544,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .collect();
             let mut pers = *stato
                 .personalizzato
-                .get_or_insert_with(|| !presets.iter().any(|(p, _)| p == pattern));
+                .get_or_insert_with(|| *skip > 0 || !presets.iter().any(|(p, _)| p == pattern));
             rect = finestra(
                 ctx,
                 titolo.as_str(),
@@ -602,6 +610,19 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         }
                         None => {}
                     }
+                    // un'altra data nelle righe: il suggerimento, con il pulsante che la usa
+                    if let Some(testo) = &t_suggerimento {
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(RichText::new(testo).weak());
+                            let r = ui.button(&t_usa);
+                            stato.opzioni.push((r.rect, "suggerimento".to_string()));
+                            if r.clicked() {
+                                ws.active_mut().dialog_time_use_suggestion();
+                                pers = true;
+                                stato.campo_fuoco = false;
+                            }
+                        });
+                    }
                     stato.personalizzato = Some(pers);
                     if pers || (!error.is_empty() && !*has_mask) {
                         ui.add_space(4.0);
@@ -634,6 +655,26 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                 }
                                 ui.end_row();
                             }
+                            // quale data della riga: la prima, la seconda...
+                            ui.label(&t_occorrenza);
+                            let c = egui::ComboBox::from_id_salt("occorrenza")
+                                .width(60.0)
+                                .selected_text((*skip + 1).to_string())
+                                .show_ui(ui, |ui| {
+                                    for n in 0..5usize {
+                                        if ui
+                                            .selectable_label(n == *skip, (n + 1).to_string())
+                                            .clicked()
+                                        {
+                                            ws.active_mut().dialog_time_set_skip(n);
+                                            stato.campo_fuoco = false;
+                                        }
+                                    }
+                                });
+                            stato
+                                .opzioni
+                                .push((c.response.rect, "occorrenza".to_string()));
+                            ui.end_row();
                         });
                         ui.label(RichText::new(&t_entro).weak());
                     }
