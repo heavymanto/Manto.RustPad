@@ -134,6 +134,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::TimeRange, Some(k(KeyCode::Char('t'), ALT)), "Alt+T"),
         (Cmd::TimeMask, Some(k(KeyCode::Char('o'), ALT)), "Alt+O"),
         (Cmd::TimeOff, None, ""),
+        (Cmd::LineIndex, Some(k(KeyCode::Char('x'), ALT)), "Alt+X"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un comando in piu' o in meno");
     for (cmd, tasto, scritta) in attesi {

@@ -608,6 +608,23 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                 cursore: Some((1 + campo, colonna)),
             }
         }
+        // Spegnere l'indice righe: la spiegazione, le funzioni che non ci saranno piu' e la nota; Invio conferma, Esc rinuncia
+        DialogKind::IndexOff => {
+            let mut righe = vec![(cat.t("index_off.text").to_string(), t.dialog)];
+            for k in ["f1", "f2", "f3", "f4", "f5"] {
+                righe.push((
+                    format!("  - {}", cat.t(&format!("index_off.{k}"))),
+                    t.dialog,
+                ));
+            }
+            righe.push((cat.t("index_off.note").to_string(), t.hint));
+            righe.push((cat.t("overwrite.keys").to_string(), t.hint));
+            ContenutoDialogo {
+                titolo: cat.t("index_off.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
         // L'intervallo di tempo: il suggerimento, i due campi (da, a; il fuoco col cursore), l'errore e i tasti
         DialogKind::TimeRange => {
             let etichette = [

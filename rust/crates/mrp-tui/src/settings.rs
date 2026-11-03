@@ -26,6 +26,9 @@ pub struct Settings {
     pub line_numbers: bool,
     /// Il corpo del testo della finestra in punti (8..=48); `None`: quello di fabbrica.
     pub font_size: Option<u16>,
+    /// L'indice righe si costruisce (di fabbrica si': nel file si scrive solo `index=0`). Senza, niente numeri di riga, "vai alla
+    /// riga N", totale delle righe.
+    pub index: bool,
     /// Il formato standard dell'orario scelto a mano (pattern e quanto lontano dall'inizio riga puo' stare): si prova per primo
     /// quando si apre un file. `None`: ci pensa il riconoscimento.
     pub time_format: Option<(String, usize)>,
@@ -50,6 +53,7 @@ impl Default for Settings {
             log_colors: false,
             line_numbers: true,
             font_size: None,
+            index: true,
             time_format: None,
             theme_set: false,
         }
@@ -100,6 +104,9 @@ impl Settings {
         }
         if let Some(n) = self.font_size {
             out.push_str(&format!("font_size={n}\n"));
+        }
+        if !self.index {
+            out.push_str("index=0\n");
         }
         if let Some((pattern, within)) = &self.time_format {
             out.push_str(&format!("time_format={pattern}\ntime_within={within}\n"));
@@ -171,6 +178,11 @@ impl Settings {
                         f.1 = n.min(200);
                     }
                 }
+                "index" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.index = true,
+                    "0" | "off" | "false" => s.index = false,
+                    _ => {}
+                },
                 "line_numbers" => match v.to_ascii_lowercase().as_str() {
                     "1" | "on" | "true" => s.line_numbers = true,
                     "0" | "off" | "false" => s.line_numbers = false,

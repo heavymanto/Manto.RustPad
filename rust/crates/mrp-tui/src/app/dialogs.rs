@@ -122,6 +122,13 @@ pub enum DialogView {
         ok: String,
         cancel: String,
     },
+    /// Spegnere l'indice righe: il titolo, la spiegazione, le funzioni che non ci saranno piu' e la nota finale.
+    IndexOff {
+        title: String,
+        text: String,
+        features: Vec<String>,
+        note: String,
+    },
     /// L'intervallo di tempo: i due campi (da, a) e quale ha il fuoco, l'errore (vuoto: nessuno) e, se c'e' una finestra di tempo,
     /// il testo del pulsante che la toglie.
     TimeRange {
@@ -204,6 +211,7 @@ impl App {
                     | DialogKind::Jumps
                     | DialogKind::TimeRange
                     | DialogKind::TimeMask
+                    | DialogKind::IndexOff
             )
         )
     }
@@ -306,6 +314,15 @@ impl App {
                     cancel: t("saveenc.cancel"),
                 }
             }
+            DialogKind::IndexOff => DialogView::IndexOff {
+                title: t("index_off.title"),
+                text: t("index_off.text"),
+                features: ["f1", "f2", "f3", "f4", "f5"]
+                    .iter()
+                    .map(|k| t(&format!("index_off.{k}")))
+                    .collect(),
+                note: t("index_off.note"),
+            },
             DialogKind::TimeRange => DialogView::TimeRange {
                 title: t("time.range.title"),
                 hint: t("time.range.hint"),

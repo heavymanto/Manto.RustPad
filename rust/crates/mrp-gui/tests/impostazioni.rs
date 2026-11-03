@@ -129,6 +129,7 @@ fn every_setting_is_there() {
         "-",
         "+",
         "Default",
+        "Line index",
         "Show line numbers",
         "Show special characters",
         "Colour log lines",
@@ -450,5 +451,129 @@ fn enter_in_the_jump_dialog_does_not_confirm_the_settings_below_it() {
     giro(&mut f, &ctx, vec![tasto_giu(Key::Enter)]);
     giro(&mut f, &ctx, vec![]);
     assert!(f.impostazioni_aperta(), "Invio era del dialogo dei salti");
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+// ---- l'indice righe: spegnerlo dalle impostazioni passa da una conferma ----
+
+#[test]
+fn the_line_index_box_is_on_and_turning_it_off_needs_a_confirmation() {
+    let (mut f, ctx, p, settings) = finestra();
+    apri(&mut f, &ctx);
+    assert!(f.workspace().index_enabled());
+    // tolta la spunta e premuto OK: compare il dialogo che spiega, e le impostazioni restano aperte
+    let pos = controllo(&f, "Line index");
+    clic(&mut f, &ctx, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(
+        f.app().dialog_kind(),
+        Some(mrp_tui::app::DialogKind::IndexOff)
+    );
+    assert!(
+        f.impostazioni_aperta(),
+        "le impostazioni aspettano la risposta"
+    );
+    assert!(f.workspace().index_enabled(), "non e' ancora spento");
+    // Annulla: le impostazioni sono ancora li' con la bozza e l'indice e' acceso
+    let annulla = f
+        .dialogo_pulsanti()
+        .iter()
+        .find(|(_, t)| t == "Cancel")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, annulla);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert!(f.impostazioni_aperta());
+    assert!(f.workspace().index_enabled());
+    assert!(
+        !settings.exists()
+            || !std::fs::read_to_string(&settings)
+                .unwrap()
+                .contains("index=0")
+    );
+    // di nuovo OK, stavolta OK nel dialogo: si spegne, le impostazioni si chiudono e si salva
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(
+        f.app().dialog_kind(),
+        Some(mrp_tui::app::DialogKind::IndexOff)
+    );
+    let conferma = f
+        .dialogo_pulsanti()
+        .iter()
+        .find(|(_, t)| t == "OK")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, conferma);
+    giro(&mut f, &ctx, vec![]);
+    assert!(!f.workspace().index_enabled());
+    assert!(
+        !f.impostazioni_aperta(),
+        "finito il lavoro le impostazioni si chiudono"
+    );
+    let scritto = std::fs::read_to_string(&settings).unwrap();
+    assert!(scritto.contains("index=0"), "{scritto}");
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+#[test]
+fn the_other_choices_are_applied_together_with_the_confirmed_index_off() {
+    let (mut f, ctx, p, _) = finestra();
+    apri(&mut f, &ctx);
+    let pos = controllo(&f, "Show special characters");
+    clic(&mut f, &ctx, pos);
+    let pos = controllo(&f, "Line index");
+    clic(&mut f, &ctx, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    let conferma = f
+        .dialogo_pulsanti()
+        .iter()
+        .find(|(_, t)| t == "OK")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, conferma);
+    giro(&mut f, &ctx, vec![]);
+    assert!(!f.workspace().index_enabled());
+    assert!(
+        f.workspace().special_chars(),
+        "anche l'altra scelta e' stata applicata"
+    );
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+#[test]
+fn turning_the_index_on_again_from_the_settings_is_immediate() {
+    let (mut f, ctx, p, _) = finestra();
+    f.workspace().set_index(false);
+    apri(&mut f, &ctx);
+    let pos = controllo(&f, "Line index");
+    clic(&mut f, &ctx, pos);
+    let ok = controllo(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().dialog_kind(), None, "accendere non chiede niente");
+    assert!(f.workspace().index_enabled());
+    assert!(!f.impostazioni_aperta());
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}
+
+#[test]
+fn the_view_menu_has_the_line_index_switch() {
+    let vista: Vec<Cmd> = mrp_gui::menu::MENU[2].1.iter().flatten().copied().collect();
+    assert!(vista.contains(&Cmd::LineIndex));
+    let (mut f, _ctx, p, _) = finestra();
+    assert_eq!(
+        mrp_gui::menu::acceso(f.workspace(), Cmd::LineIndex),
+        Some(true)
+    );
+    f.workspace().set_index(false);
+    assert_eq!(
+        mrp_gui::menu::acceso(f.workspace(), Cmd::LineIndex),
+        Some(false)
+    );
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
 }

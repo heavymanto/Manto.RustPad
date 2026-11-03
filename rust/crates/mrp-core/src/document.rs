@@ -578,6 +578,15 @@ impl Document {
         true
     }
 
+    /// Butta l'indice righe e le cache che ne derivano (l'utente ha spento l'indice): da qui `has_lines` e' falso finche' non se ne
+    /// installa uno nuovo. Il contenuto del documento non cambia.
+    pub fn drop_lines(&mut self) {
+        self.lines = None;
+        self.nl_of_piece.clear();
+        self.chunk_nl.clear();
+        self.prefix = None;
+    }
+
     /// Mette un indice righe costruito dal chiamante (tipicamente in un thread, da un'altra `FileSource` aperta sullo
     /// stesso file: `Document` non e' condivisibile mentre indicizza). Svuota le cache dell'indice. Un indice costruito
     /// per un'altra forma di a-capo (`LineIndex::newline`) NON si installa. Documento chiuso: non fa nulla.

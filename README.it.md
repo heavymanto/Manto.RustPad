@@ -12,7 +12,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-1305-brightgreen" alt="1305 test" />
+        <img src="https://img.shields.io/badge/test-1315-brightgreen" alt="1315 test" />
         <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -156,7 +156,7 @@ Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, 
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1305 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
+- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1315 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
   usato a lungo da molte persone. Tieni una copia di ciò che conta.
 - **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
   la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.

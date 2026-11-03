@@ -22,6 +22,8 @@ pub struct Bozza {
     pub speciali: bool,
     pub colori_log: bool,
     pub barra_salti: bool,
+    /// L'indice righe si costruisce.
+    pub indice: bool,
 }
 
 impl Bozza {
@@ -39,6 +41,7 @@ impl Bozza {
             speciali: ws.special_chars(),
             colori_log: ws.log_colors(),
             barra_salti: ws.nav_bar(),
+            indice: ws.index_enabled(),
         }
     }
 }
@@ -60,6 +63,9 @@ pub struct StatoImpostazioni {
     pub tasti: Vec<(String, String)>,
     /// Le scelte non ancora applicate (nate all'apertura, scartate alla chiusura).
     pub bozza: Option<Bozza>,
+    /// Si e' premuto OK con l'indice righe da spegnere: si aspetta la risposta del dialogo di conferma (OK finisce il lavoro,
+    /// Annulla riporta alle impostazioni con la bozza com'era).
+    pub in_attesa_indice: bool,
 }
 
 /// Cosa chiede la finestra a chi la disegna dopo OK: cose che sta a lui fare.
@@ -116,6 +122,10 @@ fn applica(ws: &mut Workspace, b: &Bozza, corpo: f32) -> Vec<Richiesta> {
             ws.exec(cmd);
         }
     }
+    // l'indice: acceso subito; spegnerlo e' passato dalla conferma, che l'ha gia' fatto
+    if b.indice && !ws.index_enabled() {
+        ws.set_index(true);
+    }
     if b.corpo.round() != corpo.round() {
         richieste.push(Richiesta::Corpo(b.corpo));
     }
@@ -136,22 +146,34 @@ pub fn disegna(
     if !stato.aperta {
         stato.rect = None;
         stato.bozza = None;
+        stato.in_attesa_indice = false;
         return Vec::new();
     }
     // all'apertura la bozza parte da come stanno le cose
     if stato.bozza.is_none() {
         stato.bozza = Some(Bozza::da(ws, corpo));
     }
+    // la conferma dello spegnimento dell'indice: se l'utente ha detto OK si finisce il lavoro (le altre scelte si applicano e la
+    // finestra si chiude), se ha detto Annulla si torna alle impostazioni
+    let mut finisci_ora = false;
+    if stato.in_attesa_indice {
+        if ws.take_index_off_done() {
+            stato.in_attesa_indice = false;
+            finisci_ora = true;
+        } else if ws.active().dialog_kind().is_none() {
+            stato.in_attesa_indice = false;
+        }
+    }
     // Esc annulla, Invio conferma (la finestra non ha campi di testo che li vogliano per se')
     // (non quando sopra c'e' un dialogo, per esempio quello dei salti: li' Esc e Invio sono suoi)
-    let libera = ws.active().dialog_kind().is_none();
+    let libera = ws.active().dialog_kind().is_none() && !stato.in_attesa_indice;
     let (esc, invio) = ctx.input(|i| {
         (
             libera && i.key_pressed(egui::Key::Escape),
             libera && i.key_pressed(egui::Key::Enter),
         )
     });
-    let mut conferma = invio;
+    let mut conferma = invio || finisci_ora;
     let mut annulla = esc;
     let t = |ws: &Workspace, k: &str| ws.active().text(k).to_string();
     let titolo = t(ws, "gui.settings").trim_end_matches('…').to_string();
@@ -210,10 +232,18 @@ pub fn disegna(
         stato.aperta = false;
         stato.bozza = None;
     } else if conferma {
-        if let Some(b) = stato.bozza.take() {
-            richieste = applica(ws, &b, corpo);
+        // l'indice da spegnere chiede prima conferma (il dialogo spiega cosa non ci sara' piu'): la finestra resta aperta
+        let spegne =
+            !finisci_ora && ws.index_enabled() && stato.bozza.as_ref().is_some_and(|b| !b.indice);
+        if spegne {
+            stato.in_attesa_indice = true;
+            ws.active_mut().request_index_off();
+        } else {
+            if let Some(b) = stato.bozza.take() {
+                richieste = applica(ws, &b, corpo);
+            }
+            stato.aperta = false;
         }
-        stato.aperta = false;
     }
     richieste
 }
@@ -297,16 +327,22 @@ fn generale(ui: &mut egui::Ui, ws: &mut Workspace, stato: &mut StatoImpostazioni
                     }
                 });
             });
-            // gli interruttori: ognuno col suo tasto
+            // gli interruttori: ognuno col suo tasto (i numeri di riga si spengono da soli senza l'indice righe)
+            let con_indice = b.indice;
             for (cmd, valore) in [
+                (Cmd::LineIndex, &mut b.indice),
                 (Cmd::LineNumbers, &mut b.numeri_riga),
                 (Cmd::Special, &mut b.speciali),
                 (Cmd::LogColors, &mut b.colori_log),
                 (Cmd::NavBar, &mut b.barra_salti),
             ] {
                 let etichetta = t(ws, cmd.info().label);
+                let attivo = cmd != Cmd::LineNumbers || con_indice;
                 riga(ui, "", tasto(cmd), |ui| {
-                    let r = ui.checkbox(valore, etichetta.as_str());
+                    let r = ui.add_enabled(attivo, egui::Checkbox::new(valore, etichetta.as_str()));
+                    if cmd == Cmd::LineIndex {
+                        r.clone().on_hover_text(t(ws, "settings.index_hint"));
+                    }
                     stato.controlli.push((r.rect, etichetta.clone()));
                 });
             }

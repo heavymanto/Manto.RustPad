@@ -130,7 +130,8 @@ fn without_the_index_line_numbers_are_unknown() {
     let mut a = App::open(&p, cfg).unwrap();
     a.resize(30, 8);
     let s = screen(&mut a, 30, 8);
-    assert_eq!(s[1], "   │line 01");
+    // senza l'indice righe il margine dei numeri non c'e' proprio
+    assert_eq!(s[1], "line 01");
     assert_eq!(s[6], " Ln ?  Col 1  byte 0  0%");
 }
 

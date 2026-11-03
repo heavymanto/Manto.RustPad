@@ -123,6 +123,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::SaveEncoding { title, .. }
         | DialogView::TimeRange { title, .. }
         | DialogView::TimeMask { title, .. }
+        | DialogView::IndexOff { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
     // il rettangolo della finestra: lo danno le varianti (una per una), lo legge la fine
@@ -316,6 +317,40 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 },
             );
             stato.ultima_voce = Some(*selected);
+        }
+        // spegnere l'indice righe: la spiegazione, le funzioni che non ci saranno piu', la nota e i pulsanti OK / Annulla
+        DialogView::IndexOff {
+            text,
+            features,
+            note,
+            ..
+        } => {
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                480.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
+                    ui.label(text.as_str());
+                    ui.add_space(4.0);
+                    for f in features {
+                        ui.label(format!("\u{2022}  {f}"));
+                    }
+                    ui.add_space(6.0);
+                    ui.label(RichText::new(note).weak());
+                    ui.add_space(4.0);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => ws.active_mut().dialog_cancel(),
+                        _ => {}
+                    }
+                },
+            );
         }
         // l'intervallo di tempo: il suggerimento, i due campi (da, a), l'errore e i pulsanti (OK, Togli intervallo se c'e', Annulla)
         DialogView::TimeRange {

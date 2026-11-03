@@ -59,6 +59,7 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("time_range", "🕒"),
         ("time_mask", "🕘"),
         ("time_off", "⏹"),
+        ("line_index", "☰"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un'icona per comando");
     let mut visti: Vec<&str> = Vec::new();

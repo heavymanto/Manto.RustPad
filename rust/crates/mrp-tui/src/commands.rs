@@ -31,6 +31,8 @@ pub enum Cmd {
     ColumnMode,
     Special,
     LineNumbers,
+    /// L'indice righe (acceso: numeri di riga, "vai alla riga N"; spegnerlo chiede conferma).
+    LineIndex,
     Follow,
     LogColors,
     NextTab,
@@ -234,6 +236,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('n'), ALT),
         "Alt+N",
         "line_numbers",
+    ),
+    comando(
+        Cmd::LineIndex,
+        "gui.line_index",
+        tasto(KeyCode::Char('x'), ALT),
+        "Alt+X",
+        "line_index",
     ),
     comando(
         Cmd::Follow,

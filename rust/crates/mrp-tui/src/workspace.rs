@@ -99,6 +99,8 @@ pub struct Workspace {
     active: usize,
     /// La configurazione con cui si aprono le schede nuove (la codifica si riconosce, non si impone).
     cfg: AppConfig,
+    /// L'utente ha confermato di spegnere l'indice righe e questo l'ha fatto (lo legge `take_index_off_done`).
+    index_off_done: bool,
     size: (u16, u16),
     /// Se questo `Workspace` disegna la barra delle schede (il TUI si', la GUI no: ha la sua).
     bar: bool,
@@ -163,6 +165,7 @@ impl Workspace {
             size: (0, 0),
             bar: true,
             closing_all: false,
+            index_off_done: false,
             quit: false,
             spans: Vec::new(),
             session: None,
@@ -485,6 +488,36 @@ impl Workspace {
         }
     }
 
+    /// L'indice righe e' acceso (le schede nuove lo costruiscono).
+    pub fn index_enabled(&self) -> bool {
+        self.cfg.index
+    }
+
+    /// Accende o spegne l'indice righe in tutte le schede (e nelle nuove) e lo salva nelle impostazioni.
+    pub fn set_index(&mut self, acceso: bool) {
+        self.cfg.index = acceso;
+        let attiva = self.active;
+        for (i, a) in self.tabs.iter_mut().enumerate() {
+            // una scheda sola scrive il file
+            a.set_index(acceso, i == attiva);
+        }
+    }
+
+    /// Alt+X: acceso lo spegne chiedendo conferma (il dialogo spiega cosa non c'e' piu'), spento lo accende subito.
+    pub fn toggle_index(&mut self) {
+        if self.cfg.index {
+            self.tabs[self.active].request_index_off();
+        } else {
+            self.set_index(true);
+        }
+    }
+
+    /// Dopo la conferma dell'utente l'indice e' stato spento (una volta sola: poi torna falso). Lo usa la finestra delle
+    /// impostazioni per finire il suo OK.
+    pub fn take_index_off_done(&mut self) -> bool {
+        std::mem::take(&mut self.index_off_done)
+    }
+
     /// Il corpo del testo della finestra scelto dall'utente (in punti).
     pub fn font_size(&self) -> Option<u16> {
         self.cfg.font_size
@@ -773,6 +806,11 @@ impl Workspace {
         if let Some(v) = self.tabs[self.active].take_jump_apply() {
             self.set_jump_pages(v);
         }
+        // la conferma dello spegnimento dell'indice righe: si spegne in tutte le schede
+        if self.tabs[self.active].take_index_off_confirmed() {
+            self.set_index(false);
+            self.index_off_done = true;
+        }
         // il formato standard dell'orario scelto a mano vale per tutte le schede (e per quelle che si apriranno)
         let standard = self.tabs[self.active].time_default();
         if standard != self.cfg.time_format {
@@ -1023,6 +1061,9 @@ impl Workspace {
                 }
                 KeyCode::Char('l') | KeyCode::Char('L') if alt && !ctrl => {
                     return self.toggle_log_colors()
+                }
+                KeyCode::Char('x') | KeyCode::Char('X') if alt && !ctrl => {
+                    return self.toggle_index()
                 }
                 KeyCode::Char('n') | KeyCode::Char('N') if alt && !ctrl => {
                     return self.toggle_line_numbers()

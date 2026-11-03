@@ -410,7 +410,7 @@ fn goto_a_line_needs_the_index() {
     assert_eq!(a.cursor(), 0);
     assert_eq!(
         screen(&mut a, 80, 24)[22],
-        " line numbers need the line index: still building"
+        " Go to a line needs the line index: turn it on in the Settings (Alt+X)"
     );
     // ma offset e percentuale funzionano senza indice
     a.handle_key(ctrl('g'));

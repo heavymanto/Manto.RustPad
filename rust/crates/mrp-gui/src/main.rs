@@ -91,7 +91,7 @@ fn run() -> i32 {
         chrome: false,
         eol,
         settings_path: profilo.path,
-        index: true,
+        index: profilo.settings.as_ref().is_none_or(|s| s.index),
         encoding,
     };
     // la sessione (schede e modifiche non salvate dell'ultima volta) sta accanto alle impostazioni; con

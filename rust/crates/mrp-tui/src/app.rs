@@ -418,6 +418,8 @@ pub enum DialogKind {
     TimeRange,
     /// Alt+O: il formato dell'orario scritto nelle righe del file (la maschera).
     TimeMask,
+    /// Spegnere l'indice righe: spiega cosa non c'e' piu' e chiede conferma (Invio = OK, Esc = Annulla).
+    IndexOff,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -874,6 +876,8 @@ pub struct App {
     lang_picked: Option<String>,
     /// Vero: l'indice righe si costruisce in background (all'apertura e dopo un salvataggio riuscito).
     index: bool,
+    /// L'utente ha confermato di spegnere l'indice (lo prende `take_index_off_confirmed`, che lo spegne in tutte le schede).
+    index_off_confirmed: bool,
     /// La codifica con cui i byte del documento si leggono e si scrivono come caratteri.
     enc: Encoding,
     /// Lo stile di fine riga del file (da un campione dell'inizio, all'apertura): lo scrive Invio e lo mostra la riga di stato.
@@ -1054,6 +1058,7 @@ impl App {
             eol_forzato: cfg.eol,
             lang_picked,
             index: cfg.index,
+            index_off_confirmed: false,
             enc,
             eol,
             bom,
@@ -1638,6 +1643,15 @@ impl App {
                 }
                 _ => {}
             },
+            // Spegnere l'indice righe: Invio conferma (lo spegne il `Workspace`, in tutte le schede), Esc rinuncia.
+            DialogKind::IndexOff => match key.code {
+                KeyCode::Enter => {
+                    self.index_off_confirmed = true;
+                    self.dialog = None;
+                }
+                KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
             // L'intervallo di tempo e il formato dell'orario: due campi di testo (vedi `tempo`)
             DialogKind::TimeRange => self.time_range_key(key),
             DialogKind::TimeMask => self.time_mask_key(key),
@@ -1888,6 +1902,7 @@ impl App {
             log_colors: self.log_colors,
             line_numbers: self.line_numbers,
             font_size: self.font_size,
+            index: self.index,
             time_format: self.time_default.clone(),
             theme_set: self.theme_chosen,
         };
@@ -1937,7 +1952,11 @@ impl App {
                 self.flash = Some(self.cat.tf("flash.goto_bad", &[testo]));
                 return;
             }
-            // Il numero di riga serve l'indice pronto; offset e percentuale no.
+            // Il numero di riga serve l'indice (spento nelle impostazioni: lo si dice) pronto; offset e percentuale no.
+            if !self.index {
+                self.flash = Some(self.cat.t("flash.goto_noindex").to_string());
+                return;
+            }
             if !self.doc.as_ref().is_some_and(|doc| doc.has_lines()) {
                 self.flash = Some(self.cat.t("flash.goto_wait").to_string());
                 return;
@@ -3125,6 +3144,46 @@ impl App {
         }
     }
 
+    /// L'indice righe e' acceso (si costruisce in background e serve a numeri di riga, "vai alla riga N", totale delle righe).
+    pub fn index_enabled(&self) -> bool {
+        self.index
+    }
+
+    /// Chiede di spegnere l'indice righe: apre il dialogo che spiega cosa non ci sara' piu' (non fa niente se e' gia' spento).
+    pub fn request_index_off(&mut self) {
+        if self.index {
+            self.dialog = Some(DialogKind::IndexOff);
+        }
+    }
+
+    /// L'utente ha confermato lo spegnimento dell'indice nel dialogo (una volta sola: poi torna falso).
+    pub fn take_index_off_confirmed(&mut self) -> bool {
+        std::mem::take(&mut self.index_off_confirmed)
+    }
+
+    /// Accende o spegne l'indice righe di questa scheda: spento ferma quello in costruzione e butta quello che c'e';
+    /// acceso lo fa ripartire in background. Con `salva` scrive anche le impostazioni (lo fa una scheda sola).
+    pub fn set_index(&mut self, acceso: bool, salva: bool) {
+        if acceso == self.index {
+            return;
+        }
+        self.index = acceso;
+        if acceso {
+            self.rebuild_index();
+        } else {
+            self.cancel.store(true, Ordering::Relaxed);
+            self.cancel = Arc::new(AtomicBool::new(false));
+            self.index_job = None;
+            self.index_pending = false;
+            if let Some(doc) = self.doc.as_mut() {
+                doc.drop_lines();
+            }
+        }
+        if salva {
+            self.save_settings();
+        }
+    }
+
     /// Raccoglie i lavori in background: prima il salvataggio (quando torna rimette il documento al suo
     /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi la ricerca e l'indice righe.
     pub fn tick(&mut self) {
@@ -4057,7 +4116,8 @@ impl App {
 
     /// Larghezza del gutter: le cifre della lunghezza del documento piu' il separatore.
     pub(crate) fn gutter_w(&self) -> usize {
-        if !self.line_numbers {
+        // senza l'indice righe non ci sono numeri da mostrare: il margine non c'e'
+        if !self.line_numbers || !self.index {
             return 0;
         }
         cifre(self.document_len()) + 1

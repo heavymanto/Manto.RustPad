@@ -124,7 +124,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         chrome: true,
         eol,
         settings_path: profilo.path,
-        index: true,
+        index: profilo.settings.as_ref().is_none_or(|s| s.index),
         encoding,
     };
     let errore_apertura = |file: &std::path::Path, e: &io::Error| {
