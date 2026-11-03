@@ -2,6 +2,7 @@
 //! Riceve tasti, mouse e dimensioni dello schermo; non disegna (lo fa `ui.rs`); tutta la logica di testo e' nel core.
 
 pub mod dialogs;
+mod tempo;
 
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
@@ -18,6 +19,7 @@ use mrp_core::newline::Newline;
 use mrp_core::pattern::{Edit, Mode, Pattern, Replacement};
 use mrp_core::scan::{self, Next};
 use mrp_core::session::TabRecord;
+use mrp_core::timemask::TimeMask;
 use mrp_core::view::{self, ViewOptions};
 use mrp_core::{BuildOptions, Document, FileSource, LineIndex, RestoreError, SaveError};
 use ratatui::crossterm::event::{
@@ -409,6 +411,10 @@ pub enum DialogKind {
     SaveEncoding,
     /// Gli ingranaggi della barra dei salti: le pagine dei tre salti (Alt+Pag, con Maiusc, con Ctrl).
     Jumps,
+    /// Alt+T: l'intervallo di tempo (da / a) che restringe la vista (la finestra di tempo).
+    TimeRange,
+    /// Alt+O: il formato dell'orario scritto nelle righe del file (la maschera).
+    TimeMask,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -464,6 +470,8 @@ pub struct StatusInfo {
     pub flash: Option<String>,
     /// Il lavoro in corso e la sua percentuale.
     pub busy: Option<(Busy, u8)>,
+    /// L'orario della prima riga visibile (`aaaa-mm-gg hh:mm:ss`), se il file ha una maschera dell'orario e la riga ne ha uno.
+    pub time: Option<String>,
 }
 
 /// Dove sta la finestra nel documento (`App::scroll_info`): da dove comincia e quanta parte ne mostra, da 0 a 1.
@@ -733,6 +741,20 @@ pub struct App {
     index_job: Option<IndexJob>,
     /// Quando l'indicizzazione in pausa (per un salto dell'utente) puo' riprendere; `None`: non e' in pausa.
     index_resume: Option<Instant>,
+    /// La maschera dell'orario di questo file (riconosciuta dalle prime righe o scelta a mano).
+    time_mask: Option<TimeMask>,
+    /// Il riconoscimento della maschera e' gia' stato tentato (una volta per scheda; la scelta a mano lo sostituisce).
+    time_mask_tried: bool,
+    /// La finestra di tempo: la vista e' ristretta a `[inizio, fine)` (due inizi di riga); `None`: tutto il file.
+    window: Option<(u64, u64)>,
+    /// I campi del dialogo dell'intervallo di tempo (da, a), quale ha il fuoco e l'ultimo errore.
+    range_text: [String; 2],
+    range_field: u8,
+    range_error: String,
+    /// I campi del dialogo del formato dell'orario (il pattern, entro quanti caratteri), quale ha il fuoco e l'ultimo errore.
+    mask_text: [String; 2],
+    mask_field: u8,
+    mask_error: String,
     /// Vero: la forma dell'a-capo del documento e' cambiata (un cambio di codifica fra UTF-16 e il
     /// resto) e l'indice righe va rifatto con la forma nuova; lo fa il primo `tick`, cosi' il
     /// messaggio del cambio di codifica resta da solo nella riga di stato.
@@ -954,6 +976,15 @@ impl App {
             cancel,
             index_job,
             index_resume: None,
+            time_mask: None,
+            time_mask_tried: false,
+            window: None,
+            range_text: [String::new(), String::new()],
+            range_field: 0,
+            range_error: String::new(),
+            mask_text: [String::new(), String::new()],
+            mask_field: 0,
+            mask_error: String::new(),
             index_pending: false,
             save_job: None,
             search_job: None,
@@ -1150,6 +1181,11 @@ impl App {
             // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore;
             // con una selezione agiscono su quella (un carattere, Enter e Tab la sostituiscono, Backspace e
             // Delete la tolgono e basta). In lettura sono rifiutati con un suggerimento.
+            // Alt+T: l'intervallo di tempo (da / a); Alt+O: il formato dell'orario
+            KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => {
+                self.open_time_range_dialog()
+            }
+            KeyCode::Char('o') | KeyCode::Char('O') if alt && !ctrl => self.open_time_mask_dialog(),
             // Alt+G: filtra le righe (come `grep`): una vista nuova con solo quelle che corrispondono
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // Alt+F: segui la coda del file (come `tail -f`)
@@ -1591,6 +1627,9 @@ impl App {
                 }
                 _ => {}
             },
+            // L'intervallo di tempo e il formato dell'orario: due campi di testo (vedi `tempo`)
+            DialogKind::TimeRange => self.time_range_key(key),
+            DialogKind::TimeMask => self.time_mask_key(key),
             // Prompt "vai a": i caratteri si scrivono, Backspace toglie, Enter conferma, Esc annulla.
             DialogKind::Goto => match key.code {
                 KeyCode::Esc => self.dialog = None,
@@ -1914,7 +1953,7 @@ impl App {
     /// vedeva gia').
     fn goto_move(&mut self, pos: u64) {
         self.pause_index();
-        let pos = self.snap_to_char(pos.min(self.max_cursor()));
+        let pos = self.snap_to_char(pos.min(self.max_cursor()).max(self.lo()));
         self.cursor = pos;
         // Il salto riuscito toglie la selezione: il cursore e' arrivato altrove per conto suo.
         // Toglie anche il blocco della modalita' colonna.
@@ -2028,7 +2067,7 @@ impl App {
     /// Ctrl+A: seleziona tutto: l'ancora a 0 e il cursore al limite del modo (in lettura non oltre l'ultimo
     /// a-capo di un file che ci finisce).
     fn select_all(&mut self) {
-        self.anchor = Some(0);
+        self.anchor = Some(self.lo());
         self.cursor = self.max_cursor();
         self.remember_col();
         self.scroll_adjust();
@@ -2993,10 +3032,19 @@ impl App {
     /// dell'occorrenza come dopo un "vai a" (centrata se non si vedeva) e l'evidenziazione la
     /// copre; gli esiti negativi lasciano il cursore dov'e' e dicono solo il loro messaggio.
     fn tick_search(&mut self) {
+        let finestra = self.window;
         let Some(job) = self.search_job.as_mut() else {
             return;
         };
         match job.rx.try_recv() {
+            // dentro una finestra di tempo una corrispondenza fuori dalla finestra vale come non trovata
+            Ok(SearchOutcome::Found(inizio, _, _))
+                if finestra.is_some_and(|(a, b)| inizio < a || inizio >= b) =>
+            {
+                let ago = job.needle.clone();
+                self.search_job = None;
+                self.flash = Some(self.cat.tf("flash.not_found", &[&ago]));
+            }
             Ok(SearchOutcome::Found(inizio, lunga, giro_completo)) => {
                 let fine = inizio + lunga;
                 self.search_job = None;
@@ -3491,6 +3539,13 @@ impl App {
         };
         let size = self.document_len();
         let offset = self.cursor;
+        let time = self.time_at_top();
+        // la percentuale e' dentro la finestra di tempo, se c'e'
+        let ampiezza = if self.window.is_some() {
+            self.hi().saturating_sub(self.lo())
+        } else {
+            size
+        };
         let line_count = self.doc.as_mut().and_then(|d| d.line_count());
         let selection = self.selection_info();
         StatusInfo {
@@ -3509,8 +3564,9 @@ impl App {
             column: self.cursor_col() + 1,
             offset,
             percent: offset
+                .saturating_sub(self.lo())
                 .saturating_mul(100)
-                .checked_div(size)
+                .checked_div(ampiezza)
                 .unwrap_or(0)
                 .min(100) as u8,
             encoding: self.enc.name().to_string(),
@@ -3521,6 +3577,7 @@ impl App {
             },
             flash: self.flash.clone(),
             busy,
+            time,
         }
     }
 
@@ -3562,21 +3619,24 @@ impl App {
                 size: 1.0,
             };
         };
-        let len = doc.len();
+        // la scrollbar misura la finestra di tempo, se c'e', altrimenti il file
+        let (lo, hi) = (self.lo(), self.hi());
+        let len = hi.saturating_sub(lo);
         if len == 0 {
             return ScrollInfo {
                 start: 0.0,
                 size: 1.0,
             };
         }
-        let start = (self.top as f64 / len as f64).min(1.0);
+        let start = (self.top.saturating_sub(lo) as f64 / len as f64).min(1.0);
         let fine = match self.row_starts.last() {
-            Some(&r) => match scan::next_row(doc, r, MAX_SCAN) {
+            Some(&r) => match self.next_row_w(r) {
                 Next::Line(n) | Next::Cut(n) => n,
-                Next::End => len,
+                Next::End => hi,
             },
             None => self.top,
         };
+        let _ = doc;
         let size = (fine.saturating_sub(self.top) as f64 / len as f64).clamp(0.0, 1.0);
         ScrollInfo { start, size }
     }
@@ -3592,13 +3652,14 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
-        let len = doc.len();
+        let (lo, hi) = (self.lo(), self.hi());
+        let len = hi.saturating_sub(lo);
         if len == 0 {
             return;
         }
         let f = if f.is_nan() { 0.0 } else { f.clamp(0.0, 1.0) };
-        let byte = ((f * len as f64).round() as u64).min(len - 1);
-        let riga = scan::row_start(doc, byte, MAX_SCAN).0;
+        let byte = lo + ((f * len as f64).round() as u64).min(len - 1);
+        let riga = scan::row_start(doc, byte, MAX_SCAN).0.max(lo);
         self.top = riga.min(self.last_top());
         self.follow_window();
     }
@@ -3689,6 +3750,7 @@ impl App {
         ViewOptions {
             encoding: self.enc,
             special: self.special,
+            end: self.window.map(|w| w.1),
             ..ViewOptions::default()
         }
     }
@@ -4071,6 +4133,17 @@ impl App {
             return 0;
         };
         let len = doc.len();
+        // dentro una finestra di tempo il limite e' la sua fine, che e' un inizio di riga: l'a-capo che la precede non si supera
+        if let Some((_, fine)) = self.window {
+            let fine = fine.min(len);
+            return if self.edit || fine == 0 {
+                fine
+            } else if fine < len || finisce_con_a_capo(doc) {
+                fine - doc.newline().unit() as u64
+            } else {
+                fine
+            };
+        }
         if self.edit || len == 0 {
             len
         } else if finisce_con_a_capo(doc) {
@@ -4085,6 +4158,10 @@ impl App {
         let max = self.max_cursor();
         if self.cursor > max {
             self.cursor = max;
+        }
+        let lo = self.lo();
+        if self.cursor < lo {
+            self.cursor = lo;
         }
     }
 
@@ -4197,6 +4274,10 @@ impl App {
         let Some(prev) = scan::prev_row_start(doc, row, MAX_SCAN) else {
             return;
         };
+        // dentro una finestra di tempo non si sale sopra il suo inizio
+        if prev < self.lo() {
+            return;
+        }
         self.cursor_at_col(prev);
         self.scroll_adjust();
     }
@@ -4206,7 +4287,11 @@ impl App {
             return;
         };
         let row = scan::row_start(doc, self.cursor, MAX_SCAN).0;
-        let prossima = scan::next_row(doc, row, MAX_SCAN);
+        // una riga che comincia oltre la fine della finestra di tempo non c'e'
+        let prossima = match scan::next_row(doc, row, MAX_SCAN) {
+            Next::Line(s) | Next::Cut(s) if s >= self.hi() => Next::End,
+            altro => altro,
+        };
         let len = doc.len();
         let finisce_nl = finisce_con_a_capo(doc);
         match prossima {
@@ -4222,7 +4307,7 @@ impl App {
     }
 
     fn move_left(&mut self) {
-        if self.cursor == 0 {
+        if self.cursor <= self.lo() {
             return;
         }
         let Some(doc) = self.doc.as_ref() else {
@@ -4274,14 +4359,16 @@ impl App {
     }
 
     fn move_file_start(&mut self) {
-        self.cursor = 0;
-        self.top = 0;
+        let lo = self.lo();
+        self.cursor = lo;
+        self.top = lo;
         self.hscroll = 0;
         self.remember_col();
     }
 
     fn move_file_end(&mut self) {
-        let len = self.document_len();
+        // la fine e' quella della finestra di tempo, se c'e'
+        let len = self.hi();
         self.cursor = if self.edit || len == 0 {
             len
         } else {
@@ -4335,6 +4422,10 @@ impl App {
     /// con `line_at_offset` e `offset_of_line`, quindi in tempo costante. Falso (si cammina) se l'indice non c'e' o se
     /// una delle posizioni non sta su una riga dell'indice (per esempio la riga vuota in fondo in modifica).
     fn fast_jump(&mut self, avanti: bool, righe: usize) -> bool {
+        // con una finestra di tempo i numeri di riga dell'indice non sono quelli della vista: si cammina
+        if self.window.is_some() {
+            return false;
+        }
         let ultima_vista = self.last_top();
         let (top, riga_cursore) = (self.top, self.cursor_row());
         let Some(doc) = self.doc.as_mut() else {
@@ -4420,7 +4511,8 @@ impl App {
                 let Some(doc) = self.doc.as_ref() else {
                     break;
                 };
-                match scan::next_row(doc, self.top, MAX_SCAN) {
+                let _ = doc;
+                match self.next_row_w(self.top) {
                     Next::Line(r) | Next::Cut(r) => self.top = r.min(last),
                     Next::End => break,
                 }
@@ -4430,7 +4522,8 @@ impl App {
                 let Some(doc) = self.doc.as_ref() else {
                     break;
                 };
-                match scan::prev_row_start(doc, self.top, MAX_SCAN) {
+                let _ = doc;
+                match self.prev_row_w(self.top) {
                     Some(r) => self.top = r,
                     None => break,
                 }
@@ -4502,9 +4595,10 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return v;
         };
+        let _ = doc;
         let mut p = da;
         while v.len() < quante {
-            match scan::next_row(doc, p, MAX_SCAN) {
+            match self.next_row_w(p) {
                 Next::Line(r) | Next::Cut(r) => {
                     v.push(r);
                     p = r;
@@ -4521,9 +4615,10 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return v;
         };
+        let _ = doc;
         let mut p = da;
         while v.len() < quante {
-            match scan::prev_row_start(doc, p, MAX_SCAN) {
+            match self.prev_row_w(p) {
                 Some(r) => {
                     v.push(r);
                     p = r;
@@ -4539,7 +4634,8 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return 0;
         };
-        let len = doc.len();
+        // l'ultima pagina e' quella della fine della finestra di tempo, se c'e'
+        let len = self.hi();
         if len == 0 {
             return 0;
         }
@@ -4554,6 +4650,11 @@ impl App {
 
     /// F4: alterna lettura e modifica; tornando in lettura il cursore si limita all'ultimo a-capo.
     fn toggle_edit(&mut self) {
+        // dentro una finestra di tempo si legge soltanto
+        if self.window.is_some() && !self.edit {
+            self.flash = Some(self.cat.t("time.edit_refused").to_string());
+            return;
+        }
         // la vista filtrata e' una copia di sola lettura: si modifica il file vero
         if self.filter_view.is_some() {
             self.flash = Some(self.cat.t("filter.readonly").to_string());

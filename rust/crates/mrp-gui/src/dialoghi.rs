@@ -121,6 +121,8 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::Jumps { title, .. }
         | DialogView::Replace { title, .. }
         | DialogView::SaveEncoding { title, .. }
+        | DialogView::TimeRange { title, .. }
+        | DialogView::TimeMask { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
     // il rettangolo della finestra: lo danno le varianti (una per una), lo legge la fine
@@ -314,6 +316,167 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 },
             );
             stato.ultima_voce = Some(*selected);
+        }
+        // l'intervallo di tempo: il suggerimento, i due campi (da, a), l'errore e i pulsanti (OK, Togli intervallo se c'e', Annulla)
+        DialogView::TimeRange {
+            hint,
+            from_label,
+            to_label,
+            from,
+            to,
+            field,
+            error,
+            clear,
+            ..
+        } => {
+            if !stato.campo_fuoco {
+                stato.testo = from.clone();
+                stato.testo_due = to.clone();
+            }
+            let avviso = ctx.style().visuals.warn_fg_color;
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                420.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
+                    ui.label(RichText::new(hint).weak());
+                    egui::Grid::new("intervallo").num_columns(2).show(ui, |ui| {
+                        for i in 0..2u8 {
+                            let (etichetta, testo) = if i == 0 {
+                                (from_label.as_str(), &mut stato.testo)
+                            } else {
+                                (to_label.as_str(), &mut stato.testo_due)
+                            };
+                            ui.label(etichetta);
+                            let r =
+                                ui.add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
+                            stato.campi.push(r.rect);
+                            if stato.campo.is_none() {
+                                stato.campo = Some(r.rect);
+                            }
+                            if r.has_focus() && *field != i {
+                                ws.active_mut().dialog_focus(i);
+                            }
+                            if !stato.campo_fuoco && *field == i {
+                                r.request_focus();
+                                stato.campo_fuoco = true;
+                            }
+                            if r.changed() {
+                                ws.active_mut().dialog_set_field(i, testo);
+                            }
+                            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                ws.active_mut().dialog_submit();
+                            }
+                            ui.end_row();
+                        }
+                    });
+                    if !error.is_empty() {
+                        ui.colored_label(avviso, error.as_str());
+                    }
+                    let mut testi = vec![t_ok.as_str()];
+                    if let Some(c) = clear {
+                        testi.push(c.as_str());
+                    }
+                    testi.push(t_cancel.as_str());
+                    let con_togli = clear.is_some();
+                    match pulsanti_centrati(ui, &mut stato.pulsanti, &testi) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) if con_togli => ws.active_mut().dialog_time_clear(),
+                        Some(_) => ws.active_mut().dialog_cancel(),
+                        None => {}
+                    }
+                },
+            );
+        }
+        // il formato dell'orario: il pattern, entro quanti caratteri, le prime righe del file con l'orario che ne legge il pattern,
+        // l'errore e i pulsanti (OK, Riconoscilo di nuovo, Annulla)
+        DialogView::TimeMask {
+            hint,
+            pattern_label,
+            within_label,
+            pattern,
+            within,
+            field,
+            error,
+            preview_label,
+            preview,
+            auto,
+            ..
+        } => {
+            if !stato.campo_fuoco {
+                stato.testo = pattern.clone();
+                stato.testo_due = within.clone();
+            }
+            let avviso = ctx.style().visuals.warn_fg_color;
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                600.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
+                    ui.label(RichText::new(hint).weak());
+                    egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
+                        for i in 0..2u8 {
+                            let (etichetta, testo) = if i == 0 {
+                                (pattern_label.as_str(), &mut stato.testo)
+                            } else {
+                                (within_label.as_str(), &mut stato.testo_due)
+                            };
+                            ui.label(etichetta);
+                            let r =
+                                ui.add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
+                            stato.campi.push(r.rect);
+                            if stato.campo.is_none() {
+                                stato.campo = Some(r.rect);
+                            }
+                            if r.has_focus() && *field != i {
+                                ws.active_mut().dialog_focus(i);
+                            }
+                            if !stato.campo_fuoco && *field == i {
+                                r.request_focus();
+                                stato.campo_fuoco = true;
+                            }
+                            if r.changed() {
+                                ws.active_mut().dialog_set_field(i, testo);
+                            }
+                            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                ws.active_mut().dialog_submit();
+                            }
+                            ui.end_row();
+                        }
+                    });
+                    ui.label(RichText::new(preview_label).weak());
+                    egui::Grid::new("formato_anteprima")
+                        .num_columns(2)
+                        .show(ui, |ui| {
+                            for (testo, letto) in preview {
+                                ui.label(RichText::new(testo).monospace());
+                                ui.label(letto.as_str());
+                                ui.end_row();
+                            }
+                        });
+                    if !error.is_empty() {
+                        ui.colored_label(avviso, error.as_str());
+                    }
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), auto.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => {
+                            ws.active_mut().dialog_time_auto();
+                            // i campi si rileggono dall'App al prossimo giro
+                            stato.campo_fuoco = false;
+                        }
+                        Some(_) => ws.active_mut().dialog_cancel(),
+                        None => {}
+                    }
+                },
+            );
         }
         // il file scelto per "salva con nome" esiste gia': la domanda e i due pulsanti
         DialogView::Overwrite { text, .. } => {

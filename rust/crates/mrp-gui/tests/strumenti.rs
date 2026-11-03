@@ -56,6 +56,9 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("zoom_in", "➕"),
         ("zoom_out", "➖"),
         ("zoom_reset", "◎"),
+        ("time_range", "🕒"),
+        ("time_mask", "🕘"),
+        ("time_off", "⏹"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un'icona per comando");
     let mut visti: Vec<&str> = Vec::new();

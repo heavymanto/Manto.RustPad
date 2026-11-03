@@ -1042,6 +1042,8 @@ impl Finestra {
             Cmd::Save if self.salva_chiede_il_nome() => self.salva_con_nome(),
             Cmd::ZoomIn | Cmd::ZoomOut | Cmd::ZoomReset => self.zoom(a),
             Cmd::Settings => self.impostazioni.aperta = !self.impostazioni.aperta,
+            // toglie la finestra di tempo (non ha un tasto: e' un comando del menu)
+            Cmd::TimeOff => self.ws.active_mut().clear_time_window(),
             c => {
                 self.ws.exec(c);
             }

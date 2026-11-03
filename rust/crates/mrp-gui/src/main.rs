@@ -168,6 +168,12 @@ fn run() -> i32 {
             if std::env::var_os("MRPG_IMPOSTAZIONI").is_some() {
                 finestra.azione(mrp_tui::commands::Cmd::Settings);
             }
+            // uso da sviluppatore: MRPG_AZIONE=intervallo|formato apre il dialogo del tempo (per le schermate)
+            match std::env::var("MRPG_AZIONE").as_deref() {
+                Ok("intervallo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
+                Ok("formato") => finestra.azione(mrp_tui::commands::Cmd::TimeMask),
+                _ => {}
+            }
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => finestra.con_scatto(p.into()),

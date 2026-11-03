@@ -130,6 +130,10 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::ZoomOut, None, "Ctrl+-"),
         (Cmd::ZoomReset, None, "Ctrl+0"),
         (Cmd::Settings, None, "Ctrl+,"),
+        // il tempo: l'intervallo e il formato dell'orario hanno un tasto; togliere la finestra di tempo e' solo del menu
+        (Cmd::TimeRange, Some(k(KeyCode::Char('t'), ALT)), "Alt+T"),
+        (Cmd::TimeMask, Some(k(KeyCode::Char('o'), ALT)), "Alt+O"),
+        (Cmd::TimeOff, None, ""),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un comando in piu' o in meno");
     for (cmd, tasto, scritta) in attesi {

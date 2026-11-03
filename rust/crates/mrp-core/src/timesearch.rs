@@ -12,6 +12,7 @@ use crate::document::Document;
 use crate::lines::Cancelled;
 use crate::loghl::{self, Kind};
 use crate::scan::{self, Next};
+use crate::timemask::TimeMask;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 /// Quanti byte al massimo del testo di una riga si leggono per trovarne l'orario.
@@ -203,6 +204,148 @@ fn riga_dopo(doc: &Document, r: u64) -> u64 {
         },
         Next::End => doc.len(),
     }
+}
+
+/// La chiave della riga che contiene `pos` (l'inizio si trova come in `inizio_riga`), con il testo
+/// letto per al piu' `TESTO_MAX` byte: `None` se `pos` e' oltre la fine del documento o la riga non
+/// ha l'orario della maschera.
+pub fn key_of_line(doc: &Document, mask: &TimeMask, pos: u64) -> Option<i64> {
+    if pos >= doc.len() {
+        return None;
+    }
+    chiave_maschera(doc, mask, inizio_riga(doc, pos))
+}
+
+/// La prima riga con l'orario della maschera, dall'inizio del documento in avanti (le righe senza
+/// orario si saltano una alla volta, come in `prima_con_orario_del_file`), con il suo offset e la
+/// sua chiave: `Ok(None)` se nessuna riga ha l'orario. Ogni riga guardata controlla `cancel` (vero
+/// -> `Err(Cancelled)`), anche la prima.
+pub fn first_key(
+    doc: &Document,
+    mask: &TimeMask,
+    cancel: &AtomicBool,
+) -> Result<Option<(u64, i64)>, Cancelled> {
+    if doc.is_empty() {
+        return Ok(None);
+    }
+    let mut r: u64 = 0;
+    while r < doc.len() {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(Cancelled);
+        }
+        if let Some(chiave) = chiave_maschera(doc, mask, r) {
+            return Ok(Some((r, chiave)));
+        }
+        r = match scan::next_row(doc, r, PASSO) {
+            Next::Line(p) | Next::Cut(p) => p,
+            Next::End => return Ok(None),
+        };
+    }
+    Ok(None)
+}
+
+/// L'ultima riga con l'orario della maschera, cercando all'indietro dalla fine del documento per al
+/// piu' `RIGHE_MAX` righe (le righe senza orario si saltano), con il suo offset e la sua chiave:
+/// `Ok(None)` se non se ne trova nessuna. Ogni riga guardata controlla `cancel` (vero ->
+/// `Err(Cancelled)`), anche la prima.
+pub fn last_key(
+    doc: &Document,
+    mask: &TimeMask,
+    cancel: &AtomicBool,
+) -> Result<Option<(u64, i64)>, Cancelled> {
+    if doc.is_empty() {
+        return Ok(None);
+    }
+    let mut pos = doc.len();
+    for _ in 0..RIGHE_MAX {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(Cancelled);
+        }
+        let Some(r) = scan::prev_row_start(doc, pos, PASSO) else {
+            return Ok(None);
+        };
+        if let Some(chiave) = chiave_maschera(doc, mask, r) {
+            return Ok(Some((r, chiave)));
+        }
+        pos = r;
+    }
+    Ok(None)
+}
+
+/// L'inizio della prima riga, in ordine di file, la cui chiave (quella della maschera) e' maggiore o
+/// uguale a `key`, in un documento con le chiavi non decrescenti: `Ok(None)` se non c'e' (documento
+/// vuoto, nessuna riga con chiave o tutte precedenti). E' la ricerca binaria di `find_time`, con le
+/// chiavi della maschera al posto degli orari di `loghl`: stessi `RIGHE_MAX` e `TESTO_MAX`, righe
+/// senza orario saltate. Ogni giro controlla `cancel` (vero -> `Err(Cancelled)`), anche subito.
+pub fn find_key(
+    doc: &Document,
+    mask: &TimeMask,
+    key: i64,
+    cancel: &AtomicBool,
+) -> Result<Option<u64>, Cancelled> {
+    let len = doc.len();
+    if len == 0 {
+        return Ok(None);
+    }
+    if cancel.load(Ordering::Relaxed) {
+        return Err(Cancelled);
+    }
+    // la ricerca binaria: in `[lo, hi)` c'e' sempre la prima riga che va bene (o la candidata trovata)
+    let mut lo: u64 = 0;
+    let mut hi: u64 = len;
+    let mut candidata: Option<u64> = None;
+    while lo < hi {
+        if cancel.load(Ordering::Relaxed) {
+            return Err(Cancelled);
+        }
+        let mid = lo + (hi - lo) / 2;
+        let inizio = inizio_riga(doc, mid);
+        match prima_con_chiave(doc, mask, inizio, hi) {
+            // niente chiavi da qui in avanti, entro l'intervallo: la risposta non puo' stare oltre
+            None => hi = inizio,
+            Some((r, chiave)) => {
+                if chiave >= key {
+                    // questa riga va bene: se ne cerca una piu' precoce prima di lei
+                    candidata = Some(r);
+                    hi = r;
+                } else {
+                    // la prima riga con chiave da qui e' ancora prima del bersaglio: si riparte dalla
+                    // successiva
+                    lo = riga_dopo(doc, r);
+                }
+            }
+        }
+    }
+    Ok(candidata)
+}
+
+/// La chiave di una riga secondo la maschera: il testo fra l'inizio e la fine della riga (senza
+/// a-capo), letto per al piu' `TESTO_MAX` byte. `None` se la riga non ha l'orario della maschera.
+fn chiave_maschera(doc: &Document, mask: &TimeMask, r: u64) -> Option<i64> {
+    let fine = scan::row_end(doc, r, TESTO_MAX);
+    let n = fine.saturating_sub(r);
+    let riga = doc.read_range(r, n);
+    mask.read(&riga)
+}
+
+/// La prima riga con chiave da `da` in avanti, guardando al piu' `RIGHE_MAX` righe e solo quelle che
+/// cominciano prima di `limite`: `None` se non se ne trova nessuna. Come `prima_con_orario`, con le
+/// chiavi della maschera al posto degli orari di `loghl`.
+fn prima_con_chiave(doc: &Document, mask: &TimeMask, da: u64, limite: u64) -> Option<(u64, i64)> {
+    let mut r = da;
+    for _ in 0..RIGHE_MAX {
+        if r >= limite {
+            return None;
+        }
+        if let Some(chiave) = chiave_maschera(doc, mask, r) {
+            return Some((r, chiave));
+        }
+        r = match scan::next_row(doc, r, PASSO) {
+            Next::Line(p) | Next::Cut(p) => p,
+            Next::End => return None,
+        };
+    }
+    None
 }
 
 /// L'orario di una riga: il testo fra l'inizio e la fine della riga (senza a-capo), letto per al piu'

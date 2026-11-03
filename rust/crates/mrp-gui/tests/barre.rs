@@ -38,6 +38,7 @@ fn info() -> StatusInfo {
         line_ending: "LF",
         flash: None,
         busy: None,
+        time: None,
     }
 }
 

@@ -92,6 +92,10 @@ const LOG: &[Option<Cmd>] = &[
     None,
     Some(Cmd::Follow),
     Some(Cmd::LogColors),
+    None,
+    Some(Cmd::TimeRange),
+    Some(Cmd::TimeMask),
+    Some(Cmd::TimeOff),
 ];
 
 const AIUTO: &[Option<Cmd>] = &[Some(Cmd::Help)];

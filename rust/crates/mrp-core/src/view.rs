@@ -36,6 +36,9 @@ pub struct ViewOptions {
     /// carattere di controllo `U+00A4` e la fine di una riga vera `U+00B6`. Le larghezze non cambiano: colonne, mouse e
     /// scorrimento restano quelli di sempre (il segno di fine riga sta dopo l'ultima cella e non conta).
     pub special: bool,
+    /// Il limite alto della vista (una finestra di tempo): le righe che cominciano da qui in poi non si disegnano. `None`: la
+    /// fine del documento.
+    pub end: Option<u64>,
 }
 
 impl Default for ViewOptions {
@@ -46,6 +49,7 @@ impl Default for ViewOptions {
             show_eof_row: false,
             encoding: Encoding::Utf8,
             special: false,
+            end: None,
         }
     }
 }
@@ -94,7 +98,9 @@ pub fn rows_from(
     // oppure se l'unita' prima e' un a-capo
     let mut starts_line =
         start == 0 || (start >= unit && nl.is_newline(&doc.read_range(start - unit, unit)));
-    while rows.len() < count && start < len {
+    // il limite della camminata: la fine del documento o, con una finestra di tempo, la sua fine
+    let limite = opts.end.map_or(len, |e| e.min(len));
+    while rows.len() < count && start < limite {
         let (end, prossima, a_capo, tagliata) = fine_riga(doc, start, opts.max_scan);
         // per riga si leggono solo i byte che possono coprire la finestra (limite di sicurezza),
         // mai una riga lunga intera; la fine resta quella vera, dalla scansione
@@ -156,6 +162,7 @@ pub fn rows_from(
     // la riga vuota di fine file, dove l'editor mette il cursore: c'e' se il documento e' vuoto o
     // finisce con un a-capo (lunghezza multipla dell'unita' e ultima unita' = a-capo)
     if opts.show_eof_row
+        && opts.end.is_none()
         && rows.len() < count
         && (len == 0
             || (len.is_multiple_of(unit)

@@ -122,6 +122,34 @@ pub enum DialogView {
         ok: String,
         cancel: String,
     },
+    /// L'intervallo di tempo: i due campi (da, a) e quale ha il fuoco, l'errore (vuoto: nessuno) e, se c'e' una finestra di tempo,
+    /// il testo del pulsante che la toglie.
+    TimeRange {
+        title: String,
+        hint: String,
+        from_label: String,
+        to_label: String,
+        from: String,
+        to: String,
+        field: u8,
+        error: String,
+        clear: Option<String>,
+    },
+    /// Il formato dell'orario: il pattern e entro quanti caratteri, il fuoco, l'errore, le prime righe del file con l'orario che il
+    /// pattern ne legge, e il testo del pulsante che lo fa riconoscere di nuovo.
+    TimeMask {
+        title: String,
+        hint: String,
+        pattern_label: String,
+        within_label: String,
+        pattern: String,
+        within: String,
+        field: u8,
+        error: String,
+        preview_label: String,
+        preview: Vec<(String, String)>,
+        auto: String,
+    },
     /// Il salvataggio in corso: il nome del file e la percentuale.
     Saving {
         title: String,
@@ -170,6 +198,8 @@ impl App {
                     | DialogKind::Find
                     | DialogKind::Replace
                     | DialogKind::Jumps
+                    | DialogKind::TimeRange
+                    | DialogKind::TimeMask
             )
         )
     }
@@ -272,6 +302,30 @@ impl App {
                     cancel: t("saveenc.cancel"),
                 }
             }
+            DialogKind::TimeRange => DialogView::TimeRange {
+                title: t("time.range.title"),
+                hint: t("time.range.hint"),
+                from_label: t("time.range.from"),
+                to_label: t("time.range.to"),
+                from: self.time_range_text(0).to_string(),
+                to: self.time_range_text(1).to_string(),
+                field: self.time_range_field(),
+                error: self.time_range_error().to_string(),
+                clear: self.time_window().map(|_| t("time.range.clear")),
+            },
+            DialogKind::TimeMask => DialogView::TimeMask {
+                title: t("time.mask.title"),
+                hint: t("time.mask.hint"),
+                pattern_label: t("time.mask.pattern"),
+                within_label: t("time.mask.within"),
+                pattern: self.time_mask_text(0).to_string(),
+                within: self.time_mask_text(1).to_string(),
+                field: self.time_mask_field(),
+                error: self.time_mask_error().to_string(),
+                preview_label: t("time.mask.preview"),
+                preview: self.time_mask_preview(),
+                auto: t("time.mask.auto"),
+            },
             DialogKind::Overwrite => DialogView::Overwrite {
                 title: t("overwrite.title"),
                 text: cat.tf("overwrite.text", &[&self.save_as_pending_name()]),
@@ -354,6 +408,13 @@ impl App {
     /// Imposta il testo di uno dei due campi di Sostituisci (0 = cosa cercare, 1 = con cosa sostituire; un altro numero non
     /// fa niente): toglie l'anteprima, come scrivere col tasto.
     pub fn dialog_set_field(&mut self, campo: u8, testo: &str) {
+        if matches!(
+            self.dialog,
+            Some(DialogKind::TimeRange | DialogKind::TimeMask)
+        ) {
+            self.time_set_field(campo, testo);
+            return;
+        }
         if self.dialog != Some(DialogKind::Replace) {
             return;
         }
@@ -367,6 +428,13 @@ impl App {
 
     /// Porta il fuoco di Sostituisci su un campo (0 o 1); un altro numero non fa niente.
     pub fn dialog_focus(&mut self, campo: u8) {
+        if matches!(
+            self.dialog,
+            Some(DialogKind::TimeRange | DialogKind::TimeMask)
+        ) {
+            self.time_focus(campo);
+            return;
+        }
         if self.dialog == Some(DialogKind::Replace) && campo < 2 {
             self.rep_field = campo;
         }

@@ -85,6 +85,13 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             comando: None,
         });
     }
+    // l'orario della prima riga visibile (se il file ha una maschera): un clic apre l'intervallo di tempo
+    if let Some(t) = &s.time {
+        destra.push(Pezzo {
+            testo: t.clone(),
+            comando: Some(Cmd::TimeRange),
+        });
+    }
     // il modo cambia al clic, la modalita' colonna pure, la codifica apre il suo menu; a-capo e dimensione no
     destra.push(Pezzo {
         testo: cat

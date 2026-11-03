@@ -37,6 +37,7 @@ fn info() -> StatusInfo {
         line_ending: "CRLF",
         flash: None,
         busy: None,
+        time: None,
     }
 }
 

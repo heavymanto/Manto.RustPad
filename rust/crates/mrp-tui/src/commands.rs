@@ -46,6 +46,12 @@ pub enum Cmd {
     ZoomOut,
     ZoomReset,
     Settings,
+    /// L'intervallo di tempo (da / a) che restringe la vista.
+    TimeRange,
+    /// Il formato dell'orario scritto nelle righe del file.
+    TimeMask,
+    /// Toglie l'intervallo di tempo (la vista torna a tutto il file).
+    TimeOff,
 }
 
 /// La scheda di un comando.
@@ -244,6 +250,21 @@ pub const COMMANDS: &[Command] = &[
         "log_colors",
     ),
     comando(
+        Cmd::TimeRange,
+        "gui.time_range",
+        tasto(KeyCode::Char('t'), ALT),
+        "Alt+T",
+        "time_range",
+    ),
+    comando(
+        Cmd::TimeMask,
+        "gui.time_mask",
+        tasto(KeyCode::Char('o'), ALT),
+        "Alt+O",
+        "time_mask",
+    ),
+    comando(Cmd::TimeOff, "gui.time_off", None, "", "time_off"),
+    comando(
         Cmd::NextTab,
         "gui.next_tab",
         tasto(KeyCode::PageDown, CTRL),
@@ -378,6 +399,7 @@ pub fn enabled(ws: &Workspace, cmd: Cmd) -> bool {
         Cmd::Cut => a.is_edit() && a.has_selection(),
         Cmd::Paste => a.is_edit(),
         Cmd::NextTab | Cmd::PrevTab => ws.len() > 1,
+        Cmd::TimeOff => a.time_window().is_some(),
         _ => true,
     }
 }

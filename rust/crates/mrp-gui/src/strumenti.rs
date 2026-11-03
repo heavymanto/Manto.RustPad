@@ -48,6 +48,9 @@ pub fn glifo(icona: &str) -> &'static str {
         "zoom_out" => "➖",
         "zoom_reset" => "◎",
         "copy_path" => "📎",
+        "time_range" => "🕒",
+        "time_mask" => "🕘",
+        "time_off" => "⏹",
         _ => "?",
     }
 }

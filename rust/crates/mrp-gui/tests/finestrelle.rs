@@ -136,6 +136,20 @@ fn aperture() -> Vec<(&'static str, Apertura)> {
             }),
         ),
         (
+            "intervallo di tempo",
+            Box::new(|f, ctx| {
+                f.azione(Cmd::TimeRange);
+                giro(f, ctx, vec![]);
+            }),
+        ),
+        (
+            "formato dell'orario",
+            Box::new(|f, ctx| {
+                f.azione(Cmd::TimeMask);
+                giro(f, ctx, vec![]);
+            }),
+        ),
+        (
             "codifica del salvataggio",
             Box::new(|f, ctx| {
                 f.app()

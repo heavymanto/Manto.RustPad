@@ -608,6 +608,72 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                 cursore: Some((1 + campo, colonna)),
             }
         }
+        // L'intervallo di tempo: il suggerimento, i due campi (da, a; il fuoco col cursore), l'errore e i tasti
+        DialogKind::TimeRange => {
+            let etichette = [
+                cat.t("time.range.from").to_string(),
+                cat.t("time.range.to").to_string(),
+            ];
+            let larghezza = etichette
+                .iter()
+                .map(|e| e.chars().count())
+                .max()
+                .unwrap_or(0);
+            let campo = usize::from(app.time_range_field());
+            let mut righe = vec![(cat.t("time.range.hint").to_string(), t.hint)];
+            for (i, e) in etichette.iter().enumerate() {
+                let pad = larghezza - e.chars().count();
+                righe.push((
+                    format!("{}{} > {}", e, " ".repeat(pad), app.time_range_text(i)),
+                    t.dialog,
+                ));
+            }
+            if !app.time_range_error().is_empty() {
+                righe.push((app.time_range_error().to_string(), t.status));
+            }
+            righe.push((cat.t("prompt.keys").to_string(), t.hint));
+            let colonna = larghezza + 3 + app.time_range_text(campo).chars().count();
+            ContenutoDialogo {
+                titolo: cat.t("time.range.title").to_string(),
+                righe,
+                cursore: Some((1 + campo, colonna)),
+            }
+        }
+        // Il formato dell'orario: il pattern, entro quanti caratteri, le prime righe lette e l'errore
+        DialogKind::TimeMask => {
+            let etichette = [
+                cat.t("time.mask.pattern").to_string(),
+                cat.t("time.mask.within").to_string(),
+            ];
+            let larghezza = etichette
+                .iter()
+                .map(|e| e.chars().count())
+                .max()
+                .unwrap_or(0);
+            let campo = usize::from(app.time_mask_field());
+            let mut righe = vec![(cat.t("time.mask.hint").to_string(), t.hint)];
+            for (i, e) in etichette.iter().enumerate() {
+                let pad = larghezza - e.chars().count();
+                righe.push((
+                    format!("{}{} > {}", e, " ".repeat(pad), app.time_mask_text(i)),
+                    t.dialog,
+                ));
+            }
+            righe.push((cat.t("time.mask.preview").to_string(), t.hint));
+            for (testo, letto) in app.time_mask_preview() {
+                righe.push((format!("  {testo}  =>  {letto}"), t.dialog));
+            }
+            if !app.time_mask_error().is_empty() {
+                righe.push((app.time_mask_error().to_string(), t.status));
+            }
+            righe.push((cat.t("prompt.keys").to_string(), t.hint));
+            let colonna = larghezza + 3 + app.time_mask_text(campo).chars().count();
+            ContenutoDialogo {
+                titolo: cat.t("time.mask.title").to_string(),
+                righe,
+                cursore: Some((1 + campo, colonna)),
+            }
+        }
         DialogKind::Open => prompt_contenuto(
             cat,
             t,
