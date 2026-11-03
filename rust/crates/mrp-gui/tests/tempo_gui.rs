@@ -1,5 +1,5 @@
-//! La navigazione temporale nella finestra (F1): le voci del menu Log, l'orario della prima riga nella barra di stato (un clic apre
-//! l'intervallo) e i due dialoghi (intervallo di tempo, formato dell'orario) con i loro pulsanti. Scritti da ARCH.
+//! La navigazione temporale nella finestra: le voci del menu Log, il pulsante e l'orario nella barra, e la finestra "Tempo" (formato
+//! e filtro per data insieme: casella, Dal / Al, calendario, X). Scritti da ARCH.
 
 use eframe::egui::{self, Context, Event, FullOutput, Modifiers, Pos2, RawInput, Rect, Vec2};
 use mrp_gui::gui::Finestra;
@@ -89,6 +89,16 @@ fn apri_tendina(f: &mut Finestra, ctx: &Context) -> egui::Rect {
     r
 }
 
+/// Il centro dell'opzione del dialogo con quell'etichetta (la tendina, la casella, il calendario, la X, un giorno).
+fn opzione(f: &Finestra, etichetta: &str) -> Pos2 {
+    f.dialogo_opzioni()
+        .iter()
+        .find(|(_, t)| t == etichetta)
+        .unwrap_or_else(|| panic!("manca {etichetta:?} in {:?}", f.dialogo_opzioni()))
+        .0
+        .center()
+}
+
 fn pulsanti(f: &Finestra) -> Vec<String> {
     f.dialogo_pulsanti()
         .iter()
@@ -106,29 +116,41 @@ fn pulsante(f: &Finestra, testo: &str) -> Pos2 {
 }
 
 #[test]
-fn the_log_menu_has_the_time_range_the_format_and_the_way_to_clear_it() {
+fn the_log_menu_has_the_time_filter_the_settings_and_the_format() {
     let log: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
-    for c in [Cmd::TimeRange, Cmd::TimeMask, Cmd::TimeOff] {
+    for c in [Cmd::TimeFilter, Cmd::TimeRange, Cmd::TimeMask] {
         assert!(log.contains(&c), "{c:?} nel menu Log");
     }
-    // Togli intervallo e' spento finche' non c'e' una finestra di tempo
+    // il filtro per data e' un interruttore: sempre disponibile, acceso quando c'e' una finestra di tempo
     let (mut f, ctx, p, _) = finestra();
-    assert!(!commands::enabled(f.workspace(), Cmd::TimeOff));
+    assert!(commands::enabled(f.workspace(), Cmd::TimeFilter));
+    assert_eq!(
+        mrp_gui::menu::acceso(f.workspace(), Cmd::TimeFilter),
+        Some(false)
+    );
     f.workspace()
         .active_mut()
         .apply_time_range("02:10", "02:20")
         .unwrap();
-    assert!(commands::enabled(f.workspace(), Cmd::TimeOff));
-    f.azione(Cmd::TimeOff);
+    assert_eq!(
+        mrp_gui::menu::acceso(f.workspace(), Cmd::TimeFilter),
+        Some(true)
+    );
+    // un clic lo spegne (le date restano), un altro lo riaccende con le stesse date
+    f.azione(Cmd::TimeFilter);
     disegna(&mut f, &ctx);
     assert_eq!(f.app().time_window(), None);
+    f.azione(Cmd::TimeFilter);
+    disegna(&mut f, &ctx);
+    assert!(f.app().time_window().is_some());
     let _ = std::fs::remove_file(p);
 }
 
 #[test]
-fn the_status_bar_shows_the_time_of_the_top_row_and_a_click_opens_the_range() {
+fn the_status_bar_time_and_the_format_label_open_the_time_window() {
     let (mut f, ctx, p, _) = finestra();
     let testi = f.stato_disegnato().expect("barra di stato").clone();
+    // l'orario della prima riga: un clic apre la finestra "Tempo"
     let pezzo = testi
         .destra
         .iter()
@@ -137,83 +159,11 @@ fn the_status_bar_shows_the_time_of_the_top_row_and_a_click_opens_the_range() {
     assert_eq!(testi.destra[pezzo].comando, Some(Cmd::TimeRange));
     let (r, _) = f.pezzi_stato()[pezzo];
     clic(&mut f, &ctx, r.center());
-    assert_eq!(f.app().dialog_kind(), Some(DialogKind::TimeRange));
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn the_range_dialog_applies_with_ok_and_offers_to_remove_the_range() {
-    let (mut f, ctx, p, offset) = finestra();
-    f.azione(Cmd::TimeRange);
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    assert_eq!(f.dialogo_titolo(), Some("TIME"));
+    f.app().dialog_cancel();
     disegna(&mut f, &ctx);
-    assert_eq!(f.dialogo_titolo(), Some("TIME RANGE"));
-    assert_eq!(f.dialogo_campi().len(), 2);
-    assert_eq!(pulsanti(&f), vec!["OK", "Cancel"]);
-    f.workspace().active_mut().dialog_set_field(0, "02:10");
-    f.workspace().active_mut().dialog_set_field(1, "02:20");
-    disegna(&mut f, &ctx);
-    let ok = pulsante(&f, "OK");
-    clic(&mut f, &ctx, ok);
-    assert_eq!(f.app().dialog_kind(), None);
-    assert_eq!(f.app().time_window(), Some((offset[10], offset[20])));
-    // con una finestra il dialogo ha il pulsante che la toglie, in mezzo
-    f.azione(Cmd::TimeRange);
-    disegna(&mut f, &ctx);
-    assert_eq!(pulsanti(&f), vec!["OK", "Remove range", "Cancel"]);
-    let togli = pulsante(&f, "Remove range");
-    clic(&mut f, &ctx, togli);
-    assert_eq!(f.app().time_window(), None);
-    assert_eq!(f.app().dialog_kind(), None);
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn a_bad_time_in_the_window_dialog_stays_open_and_cancel_closes_it() {
-    let (mut f, ctx, p, _) = finestra();
-    f.azione(Cmd::TimeRange);
-    disegna(&mut f, &ctx);
-    f.workspace().active_mut().dialog_set_field(0, "foo");
-    disegna(&mut f, &ctx);
-    let ok = pulsante(&f, "OK");
-    clic(&mut f, &ctx, ok);
-    assert_eq!(f.app().dialog_kind(), Some(DialogKind::TimeRange));
-    assert!(f.app().time_range_error().contains("foo"));
-    let annulla = pulsante(&f, "Cancel");
-    clic(&mut f, &ctx, annulla);
-    assert_eq!(f.app().dialog_kind(), None);
-    assert_eq!(f.app().time_window(), None);
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn the_format_dialog_has_a_recognise_again_button() {
-    let (mut f, ctx, p, _) = finestra();
-    f.azione(Cmd::TimeMask);
-    disegna(&mut f, &ctx);
-    assert_eq!(f.dialogo_titolo(), Some("TIME FORMAT"));
-    assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
-    f.workspace()
-        .active_mut()
-        .dialog_set_field(0, "dd/MM/yyyy HH:mm:ss");
-    disegna(&mut f, &ctx);
-    let auto = pulsante(&f, "Recognise it again");
-    clic(&mut f, &ctx, auto);
-    assert_eq!(f.app().time_mask_text(0), "yyyy-MM-dd HH:mm:ss");
-    assert_eq!(f.app().dialog_kind(), Some(DialogKind::TimeMask));
-    // OK la applica e chiude
-    let ok = pulsante(&f, "OK");
-    clic(&mut f, &ctx, ok);
-    assert_eq!(f.app().dialog_kind(), None);
-    assert_eq!(
-        f.workspace().active_mut().time_mask_pattern().as_deref(),
-        Some("yyyy-MM-dd HH:mm:ss")
-    );
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn the_status_bar_has_the_format_label_that_opens_the_known_formats() {
-    let (mut f, ctx, p, _) = finestra();
+    // e anche FORMAT
     let testi = f.stato_disegnato().expect("barra di stato").clone();
     let i = testi
         .destra
@@ -222,82 +172,214 @@ fn the_status_bar_has_the_format_label_that_opens_the_known_formats() {
         .expect("manca la scritta FORMAT");
     assert_eq!(testi.destra[i].comando, Some(Cmd::TimeMask));
     let (r, _) = f.pezzi_stato()[i];
-    // passandoci sopra si legge il formato che c'e' adesso
-    ctx.style_mut(|s| {
-        s.interaction.tooltip_delay = 0.0;
-        s.interaction.show_tooltips_only_when_still = false;
-    });
-    for _ in 0..3 {
-        giro(&mut f, &ctx, vec![Event::PointerMoved(r.center())]);
-    }
-    let o = giro(&mut f, &ctx, vec![Event::PointerMoved(r.center())]);
-    let testo_disegnato = {
-        fn visita(s: &egui::Shape, v: &mut Vec<String>) {
-            match s {
-                egui::Shape::Text(t) => v.push(t.galley.text().to_string()),
-                egui::Shape::Vec(tutte) => tutte.iter().for_each(|x| visita(x, v)),
-                _ => {}
-            }
-        }
-        let mut v = Vec::new();
-        for c in &o.shapes {
-            visita(&c.shape, &mut v);
-        }
-        v
-    };
-    assert!(
-        testo_disegnato.iter().any(|t| t == "yyyy-MM-dd HH:mm:ss"),
-        "{testo_disegnato:?}"
-    );
-    // un clic apre il dialogo, con l'elenco dei formati noti
     clic(&mut f, &ctx, r.center());
-    assert_eq!(f.app().dialog_kind(), Some(DialogKind::TimeMask));
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_toolbar_has_the_time_filter_button_lit_when_the_filter_is_on() {
+    let (mut f, ctx, p, _) = finestra();
+    let pulsante_filtro = |f: &Finestra| {
+        f.pulsanti()
+            .iter()
+            .find(|b| b.cmd == Cmd::TimeFilter)
+            .map(|b| (b.rect, b.attivo, b.acceso))
+            .expect("manca il pulsante del filtro per data")
+    };
+    let (rect, attivo, acceso) = pulsante_filtro(&f);
+    assert!(attivo && !acceso);
+    // senza date ricordate il primo clic apre la finestra
+    clic(&mut f, &ctx, rect.center());
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    f.app().dialog_cancel();
     disegna(&mut f, &ctx);
+    // con un filtro acceso il pulsante e' acceso, e un clic lo spegne senza aprire niente
+    f.workspace()
+        .active_mut()
+        .apply_time_range("02:10", "02:20")
+        .unwrap();
+    disegna(&mut f, &ctx);
+    let (rect, _, acceso) = pulsante_filtro(&f);
+    assert!(acceso);
+    clic(&mut f, &ctx, rect.center());
+    assert_eq!(f.app().dialog_kind(), None);
+    assert_eq!(f.app().time_window(), None);
+    let (rect, _, acceso) = pulsante_filtro(&f);
+    assert!(!acceso);
+    // un altro clic lo riaccende con le stesse date
+    clic(&mut f, &ctx, rect.center());
+    assert!(f.app().time_window().is_some());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_time_window_applies_format_and_filter_with_ok() {
+    let (mut f, ctx, p, offset) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.dialogo_titolo(), Some("TIME"));
+    assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
+    // due campi (Dal e Al), la casella spenta, niente filtro ancora
+    assert_eq!(f.dialogo_campi().len(), 2);
+    assert!(!f.app().time_check());
+    // scrivere una data accende da sola la casella
+    f.workspace().active_mut().dialog_set_field(2, "02:10");
+    f.workspace().active_mut().dialog_set_field(3, "02:20");
+    disegna(&mut f, &ctx);
+    assert!(f.app().time_check());
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().dialog_kind(), None);
+    // l'estremo finale e' compreso: "02:20" copre tutto il minuto 02:20, la finestra finisce alla riga delle 02:21
+    assert_eq!(f.app().time_window(), Some((offset[10], offset[21])));
+    // riaperta la finestra ha la casella accesa e le date
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    assert!(f.app().time_check());
+    assert_eq!(f.app().time_field_text(2), "02:10");
+    // togliere la spunta e OK: il file torna intero, le date restano scritte
+    let casella = opzione(&f, "filtro");
+    clic(&mut f, &ctx, casella);
+    assert!(!f.app().time_check());
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().time_window(), None);
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    assert!(!f.app().time_check());
+    assert_eq!(f.app().time_field_text(2), "02:10");
+    assert_eq!(f.app().time_field_text(3), "02:20");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_bad_time_stays_in_the_window_with_the_error_and_cancel_closes_it() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    f.workspace().active_mut().dialog_set_field(2, "foo");
+    disegna(&mut f, &ctx);
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    assert!(f.app().time_error_text().contains("foo"));
+    let annulla = pulsante(&f, "Cancel");
+    clic(&mut f, &ctx, annulla);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert_eq!(f.app().time_window(), None);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_x_empties_a_field_and_an_empty_field_means_no_limit() {
+    let (mut f, ctx, p, offset) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    f.workspace().active_mut().dialog_set_field(2, "02:10");
+    f.workspace().active_mut().dialog_set_field(3, "02:20");
+    disegna(&mut f, &ctx);
+    // la X del campo Dal lo svuota: il filtro parte dall'inizio del file
+    let x = opzione(&f, "svuota 2");
+    clic(&mut f, &ctx, x);
+    assert_eq!(f.app().time_field_text(2), "");
+    assert_eq!(f.app().time_field_text(3), "02:20");
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().time_window(), Some((0, offset[21])));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_calendar_picks_a_day_and_writes_it_in_the_format_of_the_file() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    // il calendario si apre sul mese del primo orario del file (novembre 2026)
+    let cal = opzione(&f, "calendario 2");
+    clic(&mut f, &ctx, cal);
+    let giorno = opzione(&f, "giorno 5");
+    clic(&mut f, &ctx, giorno);
+    // Dal parte da mezzanotte, scritto come le righe del file; la casella si accende da sola
+    assert_eq!(f.app().time_field_text(2), "2026-11-05 00:00:00");
+    assert!(f.app().time_check());
+    // Al arriva a fine giornata
+    let cal = opzione(&f, "calendario 3");
+    clic(&mut f, &ctx, cal);
+    let giorno = opzione(&f, "giorno 7");
+    clic(&mut f, &ctx, giorno);
+    assert_eq!(f.app().time_field_text(3), "2026-11-07 23:59:59");
+    // "<" e ">" cambiano mese
+    let cal = opzione(&f, "calendario 2");
+    clic(&mut f, &ctx, cal);
+    let dopo = opzione(&f, "mese dopo");
+    clic(&mut f, &ctx, dopo);
+    let giorno = opzione(&f, "giorno 30");
+    clic(&mut f, &ctx, giorno);
+    assert_eq!(f.app().time_field_text(2), "2026-12-30 00:00:00");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_custom_format_shows_its_fields_only_when_chosen() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    // con un formato noto restano solo i campi Dal e Al
+    assert_eq!(f.dialogo_campi().len(), 2);
     // i formati stanno in una tendina chiusa: le voci (il formato personalizzato e i 17 noti) ci sono solo da aperta
     assert!(f.dialogo_voci().is_empty());
     let tendina = apri_tendina(&mut f, &ctx);
     assert!(tendina.width() > 300.0, "{tendina:?}");
     assert_eq!(f.dialogo_voci().len(), 18);
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn a_click_on_a_known_format_fills_the_fields_and_ok_applies_it() {
-    let (mut f, ctx, p, _) = finestra();
-    f.azione(Cmd::TimeMask);
-    disegna(&mut f, &ctx);
-    // si apre la tendina: in cima il formato personalizzato, poi i noti (quelli che leggono il file per primi)
-    apri_tendina(&mut f, &ctx);
-    let primo = f.dialogo_voci()[1].center();
-    clic(&mut f, &ctx, primo);
-    assert_eq!(f.app().time_mask_text(0), "yyyy-MM-dd HH:mm:ss");
-    let ok = pulsante(&f, "OK");
-    clic(&mut f, &ctx, ok);
-    assert_eq!(f.app().dialog_kind(), None);
-    assert_eq!(
-        f.app().time_default(),
-        Some(("yyyy-MM-dd HH:mm:ss".to_string(), 0))
-    );
-    let _ = std::fs::remove_file(p);
-}
-
-#[test]
-fn the_format_fields_show_only_for_the_custom_format() {
-    let (mut f, ctx, p, _) = finestra();
-    f.azione(Cmd::TimeMask);
-    disegna(&mut f, &ctx);
-    // con un formato noto (quello del file) i campi non ci sono: la finestra resta pulita
-    assert!(f.dialogo_campi().is_empty());
-    // scegliendo "formato personalizzato" (la prima voce) compaiono i due campi: il pattern e "entro quanti caratteri"
-    apri_tendina(&mut f, &ctx);
+    // il formato personalizzato (la prima voce) aggiunge i campi del pattern e di "entro quanti caratteri"
     let personalizzato = f.dialogo_voci()[0].center();
     clic(&mut f, &ctx, personalizzato);
-    assert_eq!(f.dialogo_campi().len(), 2);
-    // e scegliere di nuovo un formato noto li toglie
+    assert_eq!(f.dialogo_campi().len(), 4);
+    // un formato noto li toglie
     apri_tendina(&mut f, &ctx);
     let noto = f.dialogo_voci()[1].center();
     clic(&mut f, &ctx, noto);
-    assert!(f.dialogo_campi().is_empty());
-    assert_eq!(f.app().time_mask_text(0), "yyyy-MM-dd HH:mm:ss");
+    assert_eq!(f.dialogo_campi().len(), 2);
+    assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_known_format_chosen_in_the_window_becomes_the_standard_with_ok() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    // aprire e dare OK senza toccare il formato non lo fa diventare quello standard
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().time_default(), None);
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    // il secondo formato che legge il file e' la sola data: scelto e confermato, e' quello standard
+    apri_tendina(&mut f, &ctx);
+    let data = f.dialogo_voci()[2].center();
+    clic(&mut f, &ctx, data);
+    assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd");
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert_eq!(f.app().time_default(), Some(("yyyy-MM-dd".to_string(), 0)));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn recognise_it_again_puts_the_detected_format_back() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    f.workspace()
+        .active_mut()
+        .dialog_set_field(0, "dd/MM/yyyy HH:mm:ss");
+    disegna(&mut f, &ctx);
+    let auto = pulsante(&f, "Recognise it again");
+    clic(&mut f, &ctx, auto);
+    assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
     let _ = std::fs::remove_file(p);
 }

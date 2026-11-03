@@ -56,9 +56,9 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("zoom_in", "➕"),
         ("zoom_out", "➖"),
         ("zoom_reset", "◎"),
-        ("time_range", "🕒"),
+        ("time_range", "⏱"),
         ("time_mask", "🕘"),
-        ("time_off", "⏹"),
+        ("time_filter", "🕒"),
         ("line_index", "☰"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un'icona per comando");
@@ -89,6 +89,7 @@ fn the_toolbar_groups() {
             vec![Cmd::Undo, Cmd::Redo],
             vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
             vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
+            vec![Cmd::TimeFilter],
             vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
             vec![Cmd::ZoomOut, Cmd::ZoomIn],
         ]

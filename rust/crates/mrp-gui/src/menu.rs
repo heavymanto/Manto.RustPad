@@ -94,9 +94,9 @@ const LOG: &[Option<Cmd>] = &[
     Some(Cmd::Follow),
     Some(Cmd::LogColors),
     None,
+    Some(Cmd::TimeFilter),
     Some(Cmd::TimeRange),
     Some(Cmd::TimeMask),
-    Some(Cmd::TimeOff),
 ];
 
 const AIUTO: &[Option<Cmd>] = &[Some(Cmd::Help)];
@@ -122,6 +122,7 @@ pub fn acceso(ws: &Workspace, cmd: Cmd) -> Option<bool> {
         Cmd::LineIndex => Some(ws.index_enabled()),
         Cmd::LogColors => Some(a.log_colors()),
         Cmd::Follow => Some(a.follow()),
+        Cmd::TimeFilter => Some(a.time_filter_on()),
         _ => None,
     }
 }

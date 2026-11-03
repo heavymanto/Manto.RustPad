@@ -74,7 +74,7 @@ fn typing_the_two_times_and_enter_applies_the_range() {
     let (mut a, offset, p) = app();
     alt(&mut a, 't');
     a.dialog_set_field(0, "02:10");
-    a.dialog_set_field(1, "02:20");
+    a.dialog_set_field(1, "02:19");
     a.dialog_submit();
     assert_eq!(a.dialog_kind(), None);
     assert_eq!(a.time_window(), Some((offset[10], offset[20])));
@@ -86,10 +86,7 @@ fn typing_the_two_times_and_enter_applies_the_range() {
     else {
         panic!("manca la vista");
     };
-    assert_eq!(
-        (from.as_str(), to.as_str()),
-        ("2026-11-01 02:10:00", "2026-11-01 02:20:00")
-    );
+    assert_eq!((from.as_str(), to.as_str()), ("02:10", "02:19"));
     assert!(clear.is_some());
     let _ = std::fs::remove_file(p);
 }
@@ -110,7 +107,7 @@ fn a_bad_time_keeps_the_dialog_open_with_the_reason() {
     // il testo dell'errore sparisce appena si scrive di nuovo; poi si corregge e va
     a.dialog_set_field(0, "02:10");
     assert_eq!(a.time_range_error(), "");
-    a.dialog_set_field(1, "02:20");
+    a.dialog_set_field(1, "02:19");
     a.dialog_submit();
     assert_eq!(a.time_window(), Some((offset[10], offset[20])));
     let _ = std::fs::remove_file(p);
@@ -129,12 +126,12 @@ fn the_keys_type_in_the_focused_field_tab_switches_and_alt_r_removes_the_range()
     }
     tasto(&mut a, KeyCode::Tab);
     assert_eq!(a.time_range_field(), 1);
-    for c in "02:35".chars() {
+    for c in "02:34".chars() {
         tasto(&mut a, KeyCode::Char(c));
     }
     assert_eq!(
         (a.time_range_text(0), a.time_range_text(1)),
-        ("02:30", "02:35")
+        ("02:30", "02:34")
     );
     tasto(&mut a, KeyCode::Enter);
     assert_eq!(a.time_window(), Some((offset[30], offset[35])));
@@ -149,7 +146,7 @@ fn the_keys_type_in_the_focused_field_tab_switches_and_alt_r_removes_the_range()
 #[test]
 fn escape_changes_nothing_and_the_dialog_is_drawn() {
     let (mut a, offset, p) = app();
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     alt(&mut a, 't');
     a.dialog_set_field(0, "03:00");
     let s = render_lines(&mut a, 100, 24).join("\n");
@@ -247,7 +244,7 @@ fn the_second_field_of_the_format_takes_only_digits() {
 fn the_status_carries_the_time_of_the_top_row() {
     let (mut a, offset, p) = app();
     assert_eq!(a.status().time.as_deref(), Some("2026-11-01 02:00:00"));
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     assert_eq!(a.status().time.as_deref(), Some("2026-11-01 02:10:00"));
     // dentro la finestra la percentuale e' della finestra: a meta' e' circa 50
     a.goto_offset(offset[15]);

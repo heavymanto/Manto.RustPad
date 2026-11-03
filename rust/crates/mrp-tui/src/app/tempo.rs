@@ -102,7 +102,7 @@ impl App {
     }
 
     /// Riconosce la maschera dalle prime righe, una volta sola per scheda (la scelta a mano la sostituisce).
-    fn assicura_maschera(&mut self) {
+    pub(super) fn assicura_maschera(&mut self) {
         if self.time_mask_tried {
             return;
         }
@@ -185,37 +185,42 @@ impl App {
 
     /// La chiave di un orario scritto a mano: nel formato del file (la sua maschera), poi nelle forme comuni; senza data prende
     /// quella della prima riga con orario (`giorno_primo`: i millisecondi dal 1970 della mezzanotte di quel giorno).
-    fn chiave_a_mano(testo: &str, mask: &TimeMask, giorno_primo: Option<i64>) -> Option<i64> {
+    pub(super) fn chiave_a_mano(
+        testo: &str,
+        mask: &TimeMask,
+        giorno_primo: Option<i64>,
+    ) -> Option<(i64, i64)> {
         let t = testo.trim();
         if let Some(k) = mask.read(t.as_bytes()) {
-            return Some(k);
+            return Some((k, mask.unit_ms()));
         }
         for forma in FORME_A_MANO {
-            if let Some(k) = TimeMask::parse(forma, 0)
-                .ok()
-                .and_then(|m| m.read(t.as_bytes()))
-            {
-                return Some(k);
+            if let Ok(m) = TimeMask::parse(forma, 0) {
+                if let Some(k) = m.read(t.as_bytes()) {
+                    return Some((k, m.unit_ms()));
+                }
             }
         }
         for forma in ORARI_A_MANO {
-            let Some(ms) = TimeMask::parse(forma, 0)
+            let Some((m, ms)) = TimeMask::parse(forma, 0)
                 .ok()
-                .and_then(|m| m.read(t.as_bytes()))
+                .and_then(|m| m.read(t.as_bytes()).map(|k| (m, k)))
             else {
                 continue;
             };
             // un orario solo: la data e' quella del file (o, se il file ha la sola ora, resta l'ora)
-            return Some(if mask.has_date() {
+            let k = if mask.has_date() {
                 giorno_primo? + ms
             } else {
                 ms
-            });
+            };
+            return Some((k, m.unit_ms()));
         }
         None
     }
 
-    /// Restringe la vista alle righe fra due orari: da `da` (compreso) ad `a` (escluso); `da` vuoto = dall'inizio del file, `a`
+    /// Restringe la vista alle righe fra due orari: da `da` ad `a`, estremi compresi (un estremo scritto "02:30" copre tutto quel
+    /// minuto, "2026-11-01" tutto quel giorno: vale l'unita' piu' piccola che ha scritto); `da` vuoto = dall'inizio del file, `a`
     /// vuoto = fino alla fine. Gli orari si scrivono nel formato del file o in quelli comuni (`2026-11-01 02:30`, `02:30`...); senza
     /// data valgono nel giorno della prima riga. `Err` col motivo (e niente cambia) se non c'e' una maschera, se un orario non si
     /// capisce, se l'inizio non precede la fine o se nell'intervallo non c'e' nessuna riga. Il cursore va all'inizio della finestra.
@@ -233,7 +238,7 @@ impl App {
         let giorno_primo = timesearch::first_key(doc, &mask, &libero)
             .map_err(annullato)?
             .map(|(_, k)| k.div_euclid(GIORNO) * GIORNO);
-        let leggi = |testo: &str| -> Result<Option<i64>, String> {
+        let leggi = |testo: &str| -> Result<Option<(i64, i64)>, String> {
             if testo.trim().is_empty() {
                 return Ok(None);
             }
@@ -242,7 +247,9 @@ impl App {
                 None => Err(self.cat.tf("time.err.bad_time", &[testo.trim()])),
             }
         };
-        let (k_da, k_a) = (leggi(da)?, leggi(a)?);
+        let (k_da, k_a) = (leggi(da)?.map(|(k, _)| k), leggi(a)?);
+        // l'estremo finale e' compreso: finisce dove finisce l'unita' che ha scritto
+        let k_a = k_a.map(|(k, unita)| k + unita);
         if let (Some(x), Some(y)) = (k_da, k_a) {
             if x >= y {
                 return Err(self.cat.t("time.err.order").to_string());
@@ -264,6 +271,8 @@ impl App {
             return Err(self.cat.t("time.err.empty").to_string());
         }
         self.window = Some((lo, hi));
+        // le date si ricordano (per riaccendere il filtro dopo averlo spento senza riscriverle)
+        self.range_text = [da.trim().to_string(), a.trim().to_string()];
         self.top = lo;
         self.cursor = lo;
         self.hscroll = 0;
@@ -284,25 +293,15 @@ impl App {
         Ok(())
     }
 
-    /// L'orario (scritto `aaaa-mm-gg hh:mm:ss`) della riga che contiene `pos`, vuoto se non ne ha uno.
-    fn etichetta_a(&self, pos: u64) -> String {
-        let (Some(mask), Some(doc)) = (self.time_mask.as_ref(), self.doc.as_ref()) else {
-            return String::new();
-        };
-        timesearch::key_of_line(doc, mask, pos)
-            .map(|k| timemask::iso(k, mask.has_date()))
-            .unwrap_or_default()
-    }
-
     /// Alt+T: apre il dialogo dell'intervallo di tempo. I campi partono dalla finestra attuale, se c'e', altrimenti da
     /// "dall'orario della prima riga visibile, senza fine".
     pub fn open_time_range_dialog(&mut self) {
         self.assicura_maschera();
-        let (da, a) = match self.window {
-            Some((lo, hi)) => (self.etichetta_a(lo), self.etichetta_a(hi)),
-            None => (self.time_at_top().unwrap_or_default(), String::new()),
-        };
-        self.range_text = [da, a];
+        // con una finestra attiva i campi sono le date che l'hanno fatta (l'estremo finale e' compreso: rileggere l'orario della
+        // riga che segue la allargherebbe); senza, "dall'orario della prima riga visibile, senza fine"
+        if self.window.is_none() {
+            self.range_text = [self.time_at_top().unwrap_or_default(), String::new()];
+        }
         self.range_field = 0;
         self.range_error = String::new();
         self.dialog = Some(DialogKind::TimeRange);
@@ -323,7 +322,7 @@ impl App {
 
     /// Per il dialogo del formato: quante righe del campione legge ognuno dei formati noti, e l'orario della prima riga che legge
     /// la maschera in uso. Si calcola una volta all'apertura (il campione non cambia mentre il dialogo e' aperto).
-    fn calcola_aiuti_formato(&mut self) {
+    pub(super) fn calcola_aiuti_formato(&mut self) {
         let righe = self.campione_righe();
         self.mask_matches = timemask::PRESETS
             .iter()
@@ -422,6 +421,18 @@ impl App {
                 self.mask_text[i] = testo.to_string();
                 self.mask_error.clear();
             }
+            // la finestra "Tempo": 0 pattern, 1 entro quanti caratteri, 2 dal, 3 al (scrivere una data accende il filtro)
+            Some(DialogKind::Time) if i < 2 => {
+                self.mask_text[i] = testo.to_string();
+                self.time_error.clear();
+            }
+            Some(DialogKind::Time) if i < 4 => {
+                self.range_text[i - 2] = testo.to_string();
+                self.time_error.clear();
+                if !testo.trim().is_empty() {
+                    self.time_check = true;
+                }
+            }
             _ => {}
         }
     }
@@ -431,6 +442,7 @@ impl App {
         match self.dialog {
             Some(DialogKind::TimeRange) if campo < 2 => self.range_field = campo,
             Some(DialogKind::TimeMask) if campo < 2 => self.mask_field = campo,
+            Some(DialogKind::Time) if campo < 4 => self.time_field = campo,
             _ => {}
         }
     }
@@ -445,7 +457,7 @@ impl App {
 
     /// Fa riconoscere di nuovo la maschera dalle prime righe e la scrive nel dialogo del formato (il pulsante, Alt+A).
     pub fn dialog_time_auto(&mut self) {
-        if self.dialog != Some(DialogKind::TimeMask) {
+        if !matches!(self.dialog, Some(DialogKind::TimeMask | DialogKind::Time)) {
             return;
         }
         // "riconoscilo di nuovo" e' il riconoscimento vero, senza la preferenza del formato standard
@@ -463,6 +475,10 @@ impl App {
         } else {
             String::new()
         };
+        if self.dialog == Some(DialogKind::Time) {
+            self.time_error = std::mem::take(&mut self.mask_error);
+            self.calcola_aiuti_formato();
+        }
     }
 
     /// I formati noti (pattern e un esempio) e quale e' evidenziato, per il dialogo del formato.
@@ -478,13 +494,14 @@ impl App {
 
     /// Sceglie il formato noto `i` nel dialogo del formato: il suo pattern e la sua finestra vanno nei campi (poi OK lo applica).
     pub fn dialog_time_preset(&mut self, i: usize) {
-        if self.dialog != Some(DialogKind::TimeMask) {
+        if !matches!(self.dialog, Some(DialogKind::TimeMask | DialogKind::Time)) {
             return;
         }
         if let Some(p) = timemask::PRESETS.get(i) {
             self.mask_preset = i;
             self.mask_text = [p.pattern.to_string(), p.within.to_string()];
             self.mask_error.clear();
+            self.time_error.clear();
         }
     }
 

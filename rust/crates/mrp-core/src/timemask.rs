@@ -467,6 +467,95 @@ pub fn iso(key: i64, with_date: bool) -> String {
     }
 }
 
+/// Il calendario di una chiave: `(anno, mese, giorno)` del giorno a cui appartiene (la chiave e' in millisecondi dal 1970).
+pub fn civil(key: i64) -> (i32, u32, u32) {
+    let (a, m, g) = data_dai_giorni(key.div_euclid(MS_GIORNO));
+    (a as i32, m, g)
+}
+
+/// La chiave della mezzanotte di un giorno del calendario (senza controllare che il giorno esista).
+pub fn key_from_civil(anno: i32, mese: u32, giorno: u32) -> i64 {
+    giorni_dal_1970(anno, mese, giorno) * MS_GIORNO
+}
+
+/// Quanti giorni ha un mese (`mese` da 1 a 12; il febbraio dei bisestili ne ha 29).
+pub fn days_in_month(anno: i32, mese: u32) -> u32 {
+    giorni_del_mese(anno, mese)
+}
+
+/// Il giorno della settimana di una chiave, con il lunedi' a 0 e la domenica a 6.
+pub fn weekday(key: i64) -> u32 {
+    // il 1 gennaio 1970 era un giovedi' (3)
+    (key.div_euclid(MS_GIORNO) + 3).rem_euclid(7) as u32
+}
+
+impl TimeMask {
+    /// La chiave scritta nel formato della maschera (l'inverso di `read`): con `yyyy-MM-dd HH:mm:ss` la chiave
+    /// 1793498400877 diventa `2026-11-01 02:00:00`; con `.SSS` ci sono i millisecondi, il mese in lettere (`MMM`) e' inglese,
+    /// il fuso (`Z`) non si scrive (e' facoltativo) e un `epoch_s` / `epoch_ms` e' il numero. Per le maschere della sola ora
+    /// conta solo l'ora del giorno.
+    pub fn write(&self, key: i64) -> String {
+        let pezzi = match &self.corpo {
+            Corpo::Epoch { secondi: true } => return (key.div_euclid(1000)).to_string(),
+            Corpo::Epoch { secondi: false } => return key.to_string(),
+            Corpo::Pezzi(p) => p,
+        };
+        const NOMI: [&str; 12] = [
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+        ];
+        let (anno, mese, giorno) = civil(key);
+        let ms = key.rem_euclid(MS_GIORNO);
+        let (h, m, s, fra) = (
+            ms / 3_600_000,
+            (ms / 60_000) % 60,
+            (ms / 1000) % 60,
+            ms % 1000,
+        );
+        let mut out = String::new();
+        for pezzo in pezzi {
+            match pezzo {
+                Pezzo::Anno4 => out.push_str(&format!("{anno:04}")),
+                Pezzo::Anno2 => out.push_str(&format!("{:02}", anno.rem_euclid(100))),
+                Pezzo::Mese2 => out.push_str(&format!("{mese:02}")),
+                Pezzo::Mese3 => out.push_str(NOMI[(mese as usize - 1).min(11)]),
+                Pezzo::Giorno2 => out.push_str(&format!("{giorno:02}")),
+                Pezzo::Giorno12 => out.push_str(&giorno.to_string()),
+                Pezzo::Ore => out.push_str(&format!("{h:02}")),
+                Pezzo::Minuti => out.push_str(&format!("{m:02}")),
+                Pezzo::Secondi => out.push_str(&format!("{s:02}")),
+                Pezzo::Frazione => out.push_str(&format!("{fra:03}")),
+                Pezzo::Fuso => {}
+                Pezzo::Spazio => out.push(' '),
+                Pezzo::Letterale(t) => out.push_str(&String::from_utf8_lossy(t)),
+            }
+        }
+        out
+    }
+
+    /// Quanto dura la piu' piccola unita' che la maschera scrive, in millisecondi: 1 con la frazione, 1000 con i secondi, 60000 con
+    /// i minuti, un'ora con le ore e un giorno con la sola data; un `epoch_s` vale 1000 e un `epoch_ms` 1. Serve a sapere che un
+    /// estremo scritto "alle 02:30" copre tutto quel minuto.
+    pub fn unit_ms(&self) -> i64 {
+        let pezzi = match &self.corpo {
+            Corpo::Epoch { secondi: true } => return 1000,
+            Corpo::Epoch { secondi: false } => return 1,
+            Corpo::Pezzi(p) => p,
+        };
+        let ha = |f: fn(&Pezzo) -> bool| pezzi.iter().any(f);
+        if ha(|p| matches!(p, Pezzo::Frazione)) {
+            1
+        } else if ha(|p| matches!(p, Pezzo::Secondi)) {
+            1000
+        } else if ha(|p| matches!(p, Pezzo::Minuti)) {
+            60_000
+        } else if ha(|p| matches!(p, Pezzo::Ore)) {
+            3_600_000
+        } else {
+            MS_GIORNO
+        }
+    }
+}
+
 /// Il pattern spezzato in pezzi: gettoni, spazi e letterali. Un testo fra apici singoli e' letterale
 /// anche se ha lettere dei gettoni (senza apice di chiusura, fino in fondo); una serie di lettere di
 /// gettone con una lunghezza che non esiste e' `BadToken`.

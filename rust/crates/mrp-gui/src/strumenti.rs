@@ -49,9 +49,10 @@ pub fn glifo(icona: &str) -> &'static str {
         "zoom_reset" => "◎",
         "copy_path" => "📎",
         "line_index" => "☰",
-        "time_range" => "🕒",
+        "time_range" => "⏱",
         "time_mask" => "🕘",
-        "time_off" => "⏹",
+        "time_filter" => "🕒",
+        "calendar" => "📅",
         _ => "?",
     }
 }
@@ -63,6 +64,7 @@ pub fn gruppi() -> Vec<Vec<Cmd>> {
         vec![Cmd::Undo, Cmd::Redo],
         vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
         vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
+        vec![Cmd::TimeFilter],
         vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
         vec![Cmd::ZoomOut, Cmd::ZoomIn],
     ]
@@ -93,11 +95,12 @@ pub fn tooltip_percorso(percorso: Option<&str>, cat: &Catalog) -> String {
 /// Il tooltip di un pulsante: il nome del comando nella lingua attiva e la sua scorciatoia, `nome (scorciatoia)`.
 pub fn tooltip(cmd: Cmd, cat: &Catalog) -> String {
     let info = cmd.info();
-    format!(
-        "{} ({})",
-        cat.t(info.label),
-        crate::menu::scorciatoia(info.cmd)
-    )
+    let tasto = crate::menu::scorciatoia(info.cmd);
+    if tasto.is_empty() {
+        cat.t(info.label).to_string()
+    } else {
+        format!("{} ({tasto})", cat.t(info.label))
+    }
 }
 
 /// Cosa fa un pulsante della barra dei salti.

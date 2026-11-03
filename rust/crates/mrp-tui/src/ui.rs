@@ -676,7 +676,7 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             }
         }
         // Il formato dell'orario: il pattern, entro quanti caratteri, le prime righe lette e l'errore
-        DialogKind::TimeMask => {
+        DialogKind::TimeMask | DialogKind::Time => {
             let etichette = [
                 cat.t("time.mask.pattern").to_string(),
                 cat.t("time.mask.within").to_string(),

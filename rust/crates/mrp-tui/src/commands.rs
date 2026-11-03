@@ -53,7 +53,7 @@ pub enum Cmd {
     /// Il formato dell'orario scritto nelle righe del file.
     TimeMask,
     /// Toglie l'intervallo di tempo (la vista torna a tutto il file).
-    TimeOff,
+    TimeFilter,
 }
 
 /// La scheda di un comando.
@@ -272,7 +272,7 @@ pub const COMMANDS: &[Command] = &[
         "Alt+O",
         "time_mask",
     ),
-    comando(Cmd::TimeOff, "gui.time_off", None, "", "time_off"),
+    comando(Cmd::TimeFilter, "gui.time_filter", None, "", "time_filter"),
     comando(
         Cmd::NextTab,
         "gui.next_tab",
@@ -408,7 +408,6 @@ pub fn enabled(ws: &Workspace, cmd: Cmd) -> bool {
         Cmd::Cut => a.is_edit() && a.has_selection(),
         Cmd::Paste => a.is_edit(),
         Cmd::NextTab | Cmd::PrevTab => ws.len() > 1,
-        Cmd::TimeOff => a.time_window().is_some(),
         _ => true,
     }
 }

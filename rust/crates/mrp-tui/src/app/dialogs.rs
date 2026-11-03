@@ -165,6 +165,33 @@ pub enum DialogView {
         /// L'orario della prima riga letta dalla maschera in uso e il suo pattern (`None`: nessuna maschera riconosciuta).
         detected: Option<(String, String)>,
     },
+    /// La finestra "Tempo": il formato dell'orario (la maschera riconosciuta, i formati noti e il pattern a mano) e il filtro per
+    /// data (la casella, le due date nel formato del file e i suggerimenti dei campi vuoti).
+    Time {
+        title: String,
+        /// L'orario della prima riga letta dalla maschera in uso e il suo pattern (`None`: nessuna maschera).
+        detected: Option<(String, String)>,
+        presets: Vec<(String, String)>,
+        preset: usize,
+        matches: Vec<usize>,
+        pattern_label: String,
+        within_label: String,
+        pattern: String,
+        within: String,
+        preview: Vec<(String, String)>,
+        auto: String,
+        /// C'e' una maschera in uso: senza, il filtro non si puo' impostare.
+        has_mask: bool,
+        /// La maschera ha una data: senza (la sola ora) il calendario non c'e'.
+        has_date: bool,
+        from: String,
+        to: String,
+        check: bool,
+        from_hint: String,
+        to_hint: String,
+        field: u8,
+        error: String,
+    },
     /// Il salvataggio in corso: il nome del file e la percentuale.
     Saving {
         title: String,
@@ -215,6 +242,7 @@ impl App {
                     | DialogKind::Jumps
                     | DialogKind::TimeRange
                     | DialogKind::TimeMask
+                    | DialogKind::Time
                     | DialogKind::IndexOff
             )
         )
@@ -356,6 +384,7 @@ impl App {
                 matches: self.time_preset_matches().to_vec(),
                 detected: self.time_detected(),
             },
+            DialogKind::Time => self.time_view(),
             DialogKind::Overwrite => DialogView::Overwrite {
                 title: t("overwrite.title"),
                 text: cat.tf("overwrite.text", &[&self.save_as_pending_name()]),
@@ -440,7 +469,7 @@ impl App {
     pub fn dialog_set_field(&mut self, campo: u8, testo: &str) {
         if matches!(
             self.dialog,
-            Some(DialogKind::TimeRange | DialogKind::TimeMask)
+            Some(DialogKind::TimeRange | DialogKind::TimeMask | DialogKind::Time)
         ) {
             self.time_set_field(campo, testo);
             return;
@@ -460,7 +489,7 @@ impl App {
     pub fn dialog_focus(&mut self, campo: u8) {
         if matches!(
             self.dialog,
-            Some(DialogKind::TimeRange | DialogKind::TimeMask)
+            Some(DialogKind::TimeRange | DialogKind::TimeMask | DialogKind::Time)
         ) {
             self.time_focus(campo);
             return;

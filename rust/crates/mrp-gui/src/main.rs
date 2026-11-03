@@ -176,6 +176,8 @@ fn run() -> i32 {
             match std::env::var("MRPG_AZIONE").as_deref() {
                 Ok("intervallo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
                 Ok("formato") => finestra.azione(mrp_tui::commands::Cmd::TimeMask),
+                // la finestra "Tempo" (formato e filtro insieme)
+                Ok("tempo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
                 _ => {}
             }
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce

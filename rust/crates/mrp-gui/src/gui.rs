@@ -645,6 +645,7 @@ impl Finestra {
                             Cmd::EditMode => self.ws.active().is_edit(),
                             Cmd::ColumnMode => self.ws.active().column_mode(),
                             Cmd::NavBar => self.ws.nav_bar(),
+                            Cmd::TimeFilter => self.ws.active().time_filter_on(),
                             _ => false,
                         };
                         let mut testo = egui::RichText::new(glifo(info.icon)).size(16.0);
@@ -1058,8 +1059,8 @@ impl Finestra {
             Cmd::Save if self.salva_chiede_il_nome() => self.salva_con_nome(),
             Cmd::ZoomIn | Cmd::ZoomOut | Cmd::ZoomReset => self.zoom(a),
             Cmd::Settings => self.impostazioni.aperta = !self.impostazioni.aperta,
-            // toglie la finestra di tempo (non ha un tasto: e' un comando del menu)
-            Cmd::TimeOff => self.ws.active_mut().clear_time_window(),
+            // il filtro per data si accende e si spegne (non ha un tasto: e' un comando del menu e della barra)
+            Cmd::TimeFilter => self.ws.active_mut().toggle_time_filter(),
             c => {
                 self.ws.exec(c);
             }

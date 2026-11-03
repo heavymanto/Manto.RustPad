@@ -71,16 +71,16 @@ fn a_file_without_times_has_no_mask_and_refuses_a_range() {
     let (mut a, p) = app_con(b"niente\norari\nqui\n", 24);
     assert_eq!(a.time_mask_pattern(), None);
     assert_eq!(a.time_at_top(), None);
-    assert!(a.apply_time_range("02:10", "02:20").is_err());
+    assert!(a.apply_time_range("02:10", "02:19").is_err());
     assert_eq!(a.time_window(), None);
     let _ = std::fs::remove_file(p);
 }
 
 #[test]
-fn a_range_restricts_the_view_to_the_lines_from_the_first_time_up_to_the_second_excluded() {
+fn a_range_restricts_the_view_to_the_lines_from_the_first_time_up_to_the_second_included() {
     let (dati, offset) = log();
     let (mut a, p) = app_con(&dati, 24);
-    a.apply_time_range("2026-11-01 02:10", "2026-11-01 02:20")
+    a.apply_time_range("2026-11-01 02:10", "2026-11-01 02:19")
         .unwrap();
     // dalla riga delle 02:10 (la 10) fino alla riga prima di quella delle 02:20 (la 19)
     assert_eq!(a.time_window(), Some((offset[10], offset[20])));
@@ -101,10 +101,10 @@ fn an_open_end_and_an_open_start() {
     a.apply_time_range("2026-11-01 03:30", "").unwrap();
     assert_eq!(a.time_window(), Some((offset[90], offset[100])));
     // solo "a": dall'inizio
-    a.apply_time_range("", "2026-11-01 02:05").unwrap();
+    a.apply_time_range("", "2026-11-01 02:04").unwrap();
     assert_eq!(a.time_window(), Some((offset[0], offset[5])));
     // un orario senza data prende la data del file
-    a.apply_time_range("02:10", "02:12").unwrap();
+    a.apply_time_range("02:10", "02:11").unwrap();
     assert_eq!(a.time_window(), Some((offset[10], offset[12])));
     let _ = std::fs::remove_file(p);
 }
@@ -113,11 +113,11 @@ fn an_open_end_and_an_open_start() {
 fn bad_ranges_are_refused_and_change_nothing() {
     let (dati, offset) = log();
     let (mut a, p) = app_con(&dati, 24);
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     for (da, a_) in [
-        ("02:30", "02:20"), // da dopo a
-        ("02:30", "02:30"), // vuoto
-        ("foo", "02:20"),   // non e' un orario
+        ("02:30", "02:19"), // da dopo a
+        ("02:30", "02:29"), // vuoto
+        ("foo", "02:19"),   // non e' un orario
         ("02:10", "boh"),
         ("2030-01-01 00:00", ""), // dopo l'ultima riga: nessuna riga
     ] {
@@ -136,7 +136,7 @@ fn bad_ranges_are_refused_and_change_nothing() {
 fn inside_the_window_the_keys_stop_at_its_edges() {
     let (dati, offset) = log();
     let (mut a, p) = app_con(&dati, 24);
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     // la fine: l'ultima riga della finestra (in lettura il cursore non va sull'a-capo finale)
     tasto(&mut a, KeyCode::End, KeyModifiers::CONTROL);
     assert_eq!(a.cursor(), offset[20] - 1);
@@ -169,7 +169,7 @@ fn a_big_window_scrolls_by_page_and_the_scrollbar_maps_to_it() {
     let (dati, offset) = log();
     // 10 righe di schermo: 7 di testo (titolo, stato e piede ne tolgono 3)
     let (mut a, p) = app_con(&dati, 10);
-    a.apply_time_range("2026-11-01 02:10", "2026-11-01 03:30")
+    a.apply_time_range("2026-11-01 02:10", "2026-11-01 03:29")
         .unwrap();
     assert_eq!(a.time_window(), Some((offset[10], offset[90])));
     // alla fine della finestra: l'ultima riga (la 89) e' in fondo allo schermo, la prima visibile e' la 83
@@ -195,7 +195,7 @@ fn a_big_window_scrolls_by_page_and_the_scrollbar_maps_to_it() {
 fn select_all_and_search_stay_inside_the_window() {
     let (dati, offset) = log();
     let (mut a, p) = app_con(&dati, 24);
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     tasto(&mut a, KeyCode::Char('a'), KeyModifiers::CONTROL);
     assert_eq!(a.selection(), Some((offset[10], offset[20] - 1)));
     tasto(&mut a, KeyCode::Esc, KeyModifiers::NONE);
@@ -228,7 +228,7 @@ fn select_all_and_search_stay_inside_the_window() {
 fn editing_is_refused_inside_a_window_and_possible_after_leaving_it() {
     let (dati, _) = log();
     let (mut a, p) = app_con(&dati, 24);
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     tasto(&mut a, KeyCode::F(4), KeyModifiers::NONE);
     assert!(!a.is_edit(), "in una finestra di tempo non si modifica");
     assert!(a.flash().is_some());
@@ -243,7 +243,7 @@ fn editing_is_refused_inside_a_window_and_possible_after_leaving_it() {
 fn leaving_the_window_gives_the_whole_file_back() {
     let (dati, offset) = log();
     let (mut a, p) = app_con(&dati, 24);
-    a.apply_time_range("02:10", "02:20").unwrap();
+    a.apply_time_range("02:10", "02:19").unwrap();
     a.clear_time_window();
     tasto(&mut a, KeyCode::End, KeyModifiers::CONTROL);
     assert_eq!(a.cursor(), offset[100] - 1);

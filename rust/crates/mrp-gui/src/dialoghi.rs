@@ -49,6 +49,10 @@ pub struct StatoDialogo {
     chiusura_richiesta: bool,
     /// Nel dialogo del formato orario: "formato personalizzato" scelto (`None`: ancora da decidere dal pattern in uso).
     personalizzato: Option<bool>,
+    /// Nella finestra "Tempo": il calendario aperto sotto un campo, `(campo 2 o 3, anno, mese)` del mese che mostra.
+    calendario: Option<(u8, i32, u32)>,
+    /// Nella finestra "Tempo": i buffer dei campi Dal e Al (il padrone e' l'`App`, si rileggono a ogni giro).
+    filtro: [String; 2],
 }
 
 /// Disegna la finestra del dialogo della scheda attiva (se c'e' e ha una vista) e guida l'`App`: Esc la chiude, nel menu
@@ -103,6 +107,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         stato.campo_fuoco = false;
         stato.ultima_voce = None;
         stato.personalizzato = None;
+        stato.calendario = None;
     }
     // dei ricordi del giro scorso restano solo testo e fuoco del campo e la voce del menu: il resto si ridisegna
     stato.pulsanti.clear();
@@ -126,6 +131,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::SaveEncoding { title, .. }
         | DialogView::TimeRange { title, .. }
         | DialogView::TimeMask { title, .. }
+        | DialogView::Time { title, .. }
         | DialogView::IndexOff { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
@@ -422,6 +428,381 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     match pulsanti_centrati(ui, &mut stato.pulsanti, &testi) {
                         Some(0) => ws.active_mut().dialog_submit(),
                         Some(1) if con_togli => ws.active_mut().dialog_time_clear(),
+                        Some(_) => ws.active_mut().dialog_cancel(),
+                        None => {}
+                    }
+                },
+            );
+        }
+        // la finestra "Tempo": il formato dell'orario in alto, sotto il filtro per data (casella, Dal / Al con calendario e X)
+        DialogView::Time {
+            detected,
+            presets,
+            preset,
+            matches,
+            pattern_label,
+            within_label,
+            pattern,
+            within,
+            preview,
+            auto,
+            has_mask,
+            has_date,
+            from,
+            to,
+            check,
+            from_hint,
+            to_hint,
+            field,
+            error,
+            ..
+        } => {
+            if !stato.campo_fuoco {
+                stato.testo = pattern.clone();
+                stato.testo_due = within.clone();
+            }
+            stato.filtro = [from.clone(), to.clone()];
+            let avviso = ctx.style().visuals.warn_fg_color;
+            let (t_riconosciuto, t_nessuno, t_formato, t_filtro, t_personale, t_prime, t_entro) = {
+                let a = ws.active();
+                (
+                    a.text("time.mask.detected").to_string(),
+                    a.text("time.mask.not_detected").to_string(),
+                    a.text("time.section.format").to_string(),
+                    a.text("time.section.filter").to_string(),
+                    a.text("time.mask.custom").to_string(),
+                    a.text("time.mask.preview2").to_string(),
+                    a.text("time.mask.within_long").to_string(),
+                )
+            };
+            let (t_attivo, t_dal, t_al, t_serve, t_nessun_limite, t_svuota, t_data, t_scegli) = {
+                let a = ws.active();
+                (
+                    a.text("time.filter.active").to_string(),
+                    a.text("time.filter.from").to_string(),
+                    a.text("time.filter.to").to_string(),
+                    a.text("time.filter.need_format").to_string(),
+                    a.text("time.filter.no_limit").to_string(),
+                    a.text("time.filter.clear_tip").to_string(),
+                    a.text("time.filter.cal_tip").to_string(),
+                    a.text("time.filter.pick_format").to_string(),
+                )
+            };
+            let giorni_sett: Vec<String> = [
+                "cal.mon", "cal.tue", "cal.wed", "cal.thu", "cal.fri", "cal.sat", "cal.sun",
+            ]
+            .iter()
+            .map(|k| ws.active().text(k).to_string())
+            .collect();
+            // i formati che leggono questo file prima, poi gli altri (ognuno nel suo ordine)
+            let mut ordine: Vec<usize> = (0..presets.len()).collect();
+            ordine.sort_by_key(|&i| (matches.get(i).copied().unwrap_or(0) == 0, i));
+            let legge: Vec<bool> = (0..presets.len())
+                .map(|i| matches.get(i).copied().unwrap_or(0) > 0)
+                .collect();
+            let etichette: Vec<String> = (0..presets.len())
+                .map(|i| {
+                    let (pat, esempio) = &presets[i];
+                    match matches.get(i).copied().unwrap_or(0) {
+                        0 => format!("{esempio}    {pat}"),
+                        n => format!(
+                            "{esempio}    {pat}    {}",
+                            ws.active().text_with("time.mask.reads", &[&n.to_string()])
+                        ),
+                    }
+                })
+                .collect();
+            let mut pers = *stato
+                .personalizzato
+                .get_or_insert_with(|| !presets.iter().any(|(p, _)| p == pattern));
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                620.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
+                    // 1. il formato
+                    ui.label(RichText::new(&t_formato).strong());
+                    match detected {
+                        Some((tempo, pat)) => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(&t_riconosciuto).strong());
+                                ui.label(RichText::new(tempo).monospace());
+                                ui.label(RichText::new(format!("({pat})")).weak());
+                            });
+                        }
+                        None => {
+                            ui.colored_label(avviso, t_nessuno.as_str());
+                        }
+                    }
+                    ui.label(RichText::new(&t_scegli).weak());
+                    let scelto = if pers {
+                        t_personale.clone()
+                    } else {
+                        etichette[(*preset).min(etichette.len() - 1)].clone()
+                    };
+                    let mut nuovo: Option<Option<usize>> = None;
+                    let combo = egui::ComboBox::from_id_salt("formato_orario")
+                        .width(ui.available_width() - 8.0)
+                        .selected_text(RichText::new(scelto).monospace())
+                        .show_ui(ui, |ui| {
+                            let r = ui.selectable_label(pers, RichText::new(&t_personale).strong());
+                            stato.voci.push(r.rect);
+                            if r.clicked() {
+                                nuovo = Some(None);
+                            }
+                            ui.separator();
+                            for &i in &ordine {
+                                let mut testo = RichText::new(&etichette[i]).monospace();
+                                if !legge[i] {
+                                    testo = testo.weak();
+                                }
+                                let r = ui.selectable_label(!pers && i == *preset, testo);
+                                stato.voci.push(r.rect);
+                                if r.clicked() {
+                                    nuovo = Some(Some(i));
+                                }
+                            }
+                        });
+                    stato
+                        .opzioni
+                        .push((combo.response.rect, "formato".to_string()));
+                    match nuovo {
+                        Some(None) => {
+                            pers = true;
+                            stato.campo_fuoco = false;
+                        }
+                        Some(Some(i)) => {
+                            pers = false;
+                            ws.active_mut().dialog_time_preset(i);
+                            stato.campo_fuoco = false;
+                        }
+                        None => {}
+                    }
+                    stato.personalizzato = Some(pers);
+                    if pers || (!error.is_empty() && !*has_mask) {
+                        ui.add_space(4.0);
+                        egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
+                            for i in 0..2u8 {
+                                let (etichetta, testo) = if i == 0 {
+                                    (pattern_label.as_str(), &mut stato.testo)
+                                } else {
+                                    (within_label.as_str(), &mut stato.testo_due)
+                                };
+                                ui.label(etichetta);
+                                let r = ui
+                                    .add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
+                                stato.campi.push(r.rect);
+                                if stato.campo.is_none() {
+                                    stato.campo = Some(r.rect);
+                                }
+                                if r.has_focus() && *field != i {
+                                    ws.active_mut().dialog_focus(i);
+                                }
+                                if !stato.campo_fuoco && *field == i {
+                                    r.request_focus();
+                                    stato.campo_fuoco = true;
+                                }
+                                if r.changed() {
+                                    ws.active_mut().dialog_set_field(i, testo);
+                                }
+                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                    ws.active_mut().dialog_submit();
+                                }
+                                ui.end_row();
+                            }
+                        });
+                        ui.label(RichText::new(&t_entro).weak());
+                    }
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(&t_prime).weak());
+                    egui::Grid::new("formato_anteprima")
+                        .num_columns(3)
+                        .show(ui, |ui| {
+                            for (testo, letto) in preview {
+                                ui.label(RichText::new(testo).monospace());
+                                ui.label("=>");
+                                ui.label(RichText::new(letto).strong());
+                                ui.end_row();
+                            }
+                        });
+                    ui.separator();
+                    // 2. il filtro per data
+                    ui.label(RichText::new(&t_filtro).strong());
+                    if !*has_mask {
+                        ui.colored_label(avviso, t_serve.as_str());
+                    } else {
+                        let mut acceso = *check;
+                        let r = ui.checkbox(&mut acceso, t_attivo.as_str());
+                        stato.opzioni.push((r.rect, "filtro".to_string()));
+                        if r.changed() {
+                            ws.active_mut().dialog_time_set_check(acceso);
+                        }
+                        egui::Grid::new("filtro_date")
+                            .num_columns(2)
+                            .show(ui, |ui| {
+                                for i in 2..4u8 {
+                                    let (etichetta, suggerimento) = if i == 2 {
+                                        (t_dal.as_str(), from_hint.as_str())
+                                    } else {
+                                        (t_al.as_str(), to_hint.as_str())
+                                    };
+                                    ui.label(etichetta);
+                                    ui.horizontal(|ui| {
+                                        let k = usize::from(i) - 2;
+                                        let r = ui.add(
+                                            TextEdit::singleline(&mut stato.filtro[k])
+                                                .hint_text(RichText::new(suggerimento).weak())
+                                                .desired_width(300.0),
+                                        );
+                                        stato.campi.push(r.rect);
+                                        if r.has_focus() && *field != i {
+                                            ws.active_mut().dialog_focus(i);
+                                        }
+                                        if !stato.campo_fuoco && *field == i {
+                                            r.request_focus();
+                                            stato.campo_fuoco = true;
+                                        }
+                                        if r.changed() {
+                                            let testo = stato.filtro[k].clone();
+                                            ws.active_mut().dialog_set_field(i, &testo);
+                                        }
+                                        if r.lost_focus()
+                                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                        {
+                                            ws.active_mut().dialog_submit();
+                                        }
+                                        // il calendario (solo con una maschera che ha la data)
+                                        if *has_date {
+                                            let c = ui
+                                                .add(
+                                                    egui::Button::new(
+                                                        RichText::new(crate::strumenti::glifo(
+                                                            "calendar",
+                                                        ))
+                                                        .size(15.0),
+                                                    )
+                                                    .min_size(egui::Vec2::new(28.0, 24.0)),
+                                                )
+                                                .on_hover_text(t_data.as_str());
+                                            stato.opzioni.push((c.rect, format!("calendario {i}")));
+                                            if c.clicked() {
+                                                stato.calendario = match stato.calendario {
+                                                    Some((aperto, _, _)) if aperto == i => None,
+                                                    _ => ws
+                                                        .active()
+                                                        .time_calendar(i)
+                                                        .map(|((a, m), _)| (i, a, m)),
+                                                };
+                                            }
+                                        }
+                                        // la X svuota il campo: vuoto = senza limite
+                                        let x = ui
+                                            .add(
+                                                egui::Button::new("")
+                                                    .min_size(egui::Vec2::new(28.0, 24.0)),
+                                            )
+                                            .on_hover_text(t_svuota.as_str());
+                                        let colore = ui.style().interact(&x).fg_stroke.color;
+                                        let cx = x.rect.center();
+                                        for (a, b) in [(-1.0_f32, -1.0_f32), (-1.0, 1.0)] {
+                                            ui.painter().line_segment(
+                                                [
+                                                    cx + egui::Vec2::new(a * 4.5, b * 4.5),
+                                                    cx + egui::Vec2::new(-a * 4.5, -b * 4.5),
+                                                ],
+                                                egui::Stroke::new(1.5_f32, colore),
+                                            );
+                                        }
+                                        stato.opzioni.push((x.rect, format!("svuota {i}")));
+                                        if x.clicked() {
+                                            ws.active_mut().dialog_time_clear_field(i);
+                                        }
+                                    });
+                                    ui.end_row();
+                                }
+                            });
+                        // il calendario aperto: i giorni del mese, un clic sceglie
+                        if let Some((campo, anno, mese)) = stato.calendario {
+                            let scelto = ws
+                                .active()
+                                .time_calendar(campo)
+                                .and_then(|(_, giorno)| giorno);
+                            let primo = mrp_core::timemask::key_from_civil(anno, mese, 1);
+                            let sfasa = mrp_core::timemask::weekday(primo) as usize;
+                            let giorni = mrp_core::timemask::days_in_month(anno, mese);
+                            ui.add_space(2.0);
+                            ui.horizontal(|ui| {
+                                let (a_prima, m_prima) = if mese == 1 {
+                                    (anno - 1, 12)
+                                } else {
+                                    (anno, mese - 1)
+                                };
+                                let (a_dopo, m_dopo) = if mese == 12 {
+                                    (anno + 1, 1)
+                                } else {
+                                    (anno, mese + 1)
+                                };
+                                let r = ui.button("<");
+                                stato.opzioni.push((r.rect, "mese prima".to_string()));
+                                if r.clicked() {
+                                    stato.calendario = Some((campo, a_prima, m_prima));
+                                }
+                                ui.label(RichText::new(format!("{anno}-{mese:02}")).strong());
+                                let r = ui.button(">");
+                                stato.opzioni.push((r.rect, "mese dopo".to_string()));
+                                if r.clicked() {
+                                    stato.calendario = Some((campo, a_dopo, m_dopo));
+                                }
+                            });
+                            egui::Grid::new("calendario").num_columns(7).show(ui, |ui| {
+                                for g in &giorni_sett {
+                                    ui.label(RichText::new(g).weak());
+                                }
+                                ui.end_row();
+                                for cella in 0..(sfasa + giorni as usize).div_ceil(7) * 7 {
+                                    if cella < sfasa || cella >= sfasa + giorni as usize {
+                                        ui.label("");
+                                    } else {
+                                        let giorno = (cella - sfasa + 1) as u32;
+                                        let sel = scelto == Some((anno, mese, giorno));
+                                        let r = ui.add(
+                                            egui::Button::new(giorno.to_string())
+                                                .selected(sel)
+                                                .min_size(egui::Vec2::new(34.0, 22.0)),
+                                        );
+                                        stato.opzioni.push((r.rect, format!("giorno {giorno}")));
+                                        if r.clicked() {
+                                            ws.active_mut()
+                                                .dialog_time_pick(campo, anno, mese, giorno);
+                                            stato.calendario = None;
+                                        }
+                                    }
+                                    if cella % 7 == 6 {
+                                        ui.end_row();
+                                    }
+                                }
+                            });
+                        }
+                        if acceso && from.trim().is_empty() && to.trim().is_empty() {
+                            ui.label(RichText::new(&t_nessun_limite).weak());
+                        }
+                    }
+                    if !error.is_empty() {
+                        ui.colored_label(avviso, error.as_str());
+                    }
+                    ui.add_space(4.0);
+                    match pulsanti_centrati(
+                        ui,
+                        &mut stato.pulsanti,
+                        &[t_ok.as_str(), auto.as_str(), t_cancel.as_str()],
+                    ) {
+                        Some(0) => ws.active_mut().dialog_submit(),
+                        Some(1) => {
+                            ws.active_mut().dialog_time_auto();
+                            stato.campo_fuoco = false;
+                        }
                         Some(_) => ws.active_mut().dialog_cancel(),
                         None => {}
                     }

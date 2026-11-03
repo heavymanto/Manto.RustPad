@@ -3,6 +3,7 @@
 
 pub mod dialogs;
 mod tempo;
+mod tempo_finestra;
 
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
@@ -418,6 +419,8 @@ pub enum DialogKind {
     TimeRange,
     /// Alt+O: il formato dell'orario scritto nelle righe del file (la maschera).
     TimeMask,
+    /// La finestra "Tempo" (solo in quella con i controlli nativi): il formato dell'orario e il filtro per data, insieme.
+    Time,
     /// Spegnere l'indice righe: spiega cosa non c'e' piu' e chiede conferma (Invio = OK, Esc = Annulla).
     IndexOff,
 }
@@ -758,6 +761,12 @@ pub struct App {
     mask_matches: Vec<usize>,
     /// L'orario della prima riga che la maschera in uso legge e il suo pattern (per dire "riconosciuto: ...").
     mask_detected: Option<(String, String)>,
+    /// Nella finestra "Tempo": la casella "Filtro attivo", il campo che ha il fuoco (0 pattern, 1 entro, 2 dal, 3 al), l'ultimo
+    /// errore e la prima e l'ultima chiave del file (per i suggerimenti dei campi vuoti e il mese con cui si apre il calendario).
+    time_check: bool,
+    time_field: u8,
+    time_error: String,
+    time_bounds: Option<(i64, i64)>,
     /// La finestra di tempo: la vista e' ristretta a `[inizio, fine)` (due inizi di riga); `None`: tutto il file.
     window: Option<(u64, u64)>,
     /// I campi del dialogo dell'intervallo di tempo (da, a), quale ha il fuoco e l'ultimo errore.
@@ -998,6 +1007,10 @@ impl App {
             mask_preset: 0,
             mask_matches: Vec::new(),
             mask_detected: None,
+            time_check: false,
+            time_field: 2,
+            time_error: String::new(),
+            time_bounds: None,
             window: None,
             range_text: [String::new(), String::new()],
             range_field: 0,
@@ -1205,9 +1218,11 @@ impl App {
             // Delete la tolgono e basta). In lettura sono rifiutati con un suggerimento.
             // Alt+T: l'intervallo di tempo (da / a); Alt+O: il formato dell'orario
             KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => {
-                self.open_time_range_dialog()
+                self.open_time_dialog_for_mode(true)
             }
-            KeyCode::Char('o') | KeyCode::Char('O') if alt && !ctrl => self.open_time_mask_dialog(),
+            KeyCode::Char('o') | KeyCode::Char('O') if alt && !ctrl => {
+                self.open_time_dialog_for_mode(false)
+            }
             // Alt+G: filtra le righe (come `grep`): una vista nuova con solo quelle che corrispondono
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // Alt+F: segui la coda del file (come `tail -f`)
@@ -1661,6 +1676,7 @@ impl App {
             // L'intervallo di tempo e il formato dell'orario: due campi di testo (vedi `tempo`)
             DialogKind::TimeRange => self.time_range_key(key),
             DialogKind::TimeMask => self.time_mask_key(key),
+            DialogKind::Time => self.time_key(key),
             // Prompt "vai a": i caratteri si scrivono, Backspace toglie, Enter conferma, Esc annulla.
             DialogKind::Goto => match key.code {
                 KeyCode::Esc => self.dialog = None,
