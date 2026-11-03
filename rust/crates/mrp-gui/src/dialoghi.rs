@@ -47,6 +47,8 @@ pub struct StatoDialogo {
     ultima_voce: Option<usize>,
     /// Se la X della testata e' stata cliccata in questo giro: alla fine del disegno vale come Annulla.
     chiusura_richiesta: bool,
+    /// Nel dialogo del formato orario: "formato personalizzato" scelto (`None`: ancora da decidere dal pattern in uso).
+    personalizzato: Option<bool>,
 }
 
 /// Disegna la finestra del dialogo della scheda attiva (se c'e' e ha una vista) e guida l'`App`: Esc la chiude, nel menu
@@ -100,6 +102,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         stato.testo_due.clear();
         stato.campo_fuoco = false;
         stato.ultima_voce = None;
+        stato.personalizzato = None;
     }
     // dei ricordi del giro scorso restano solo testo e fuoco del campo e la voce del menu: il resto si ridisegna
     stato.pulsanti.clear();
@@ -462,14 +465,26 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             // i formati che leggono questo file prima, poi gli altri (ognuno nel suo ordine)
             let mut ordine: Vec<usize> = (0..presets.len()).collect();
             ordine.sort_by_key(|&i| (matches.get(i).copied().unwrap_or(0) == 0, i));
-            let letture: Vec<String> = (0..presets.len())
-                .map(|i| match matches.get(i).copied().unwrap_or(0) {
-                    0 => String::new(),
-                    n => ws.active().text_with("time.mask.reads", &[&n.to_string()]),
+            // la riga di ogni formato nel menu a tendina: l'orario com'e' nel log, il pattern e quante righe legge
+            let legge: Vec<bool> = (0..presets.len())
+                .map(|i| matches.get(i).copied().unwrap_or(0) > 0)
+                .collect();
+            let etichette: Vec<String> = (0..presets.len())
+                .map(|i| {
+                    let (pat, esempio) = &presets[i];
+                    match matches.get(i).copied().unwrap_or(0) {
+                        0 => format!("{esempio}    {pat}"),
+                        n => format!(
+                            "{esempio}    {pat}    {}",
+                            ws.active().text_with("time.mask.reads", &[&n.to_string()])
+                        ),
+                    }
                 })
                 .collect();
-            let personalizzato_aperto =
-                !error.is_empty() || !presets.iter().any(|(p, _)| p == pattern);
+            // "formato personalizzato" scelto: all'apertura lo e' se il pattern in uso non e' uno dei noti
+            let mut pers = *stato
+                .personalizzato
+                .get_or_insert_with(|| !presets.iter().any(|(p, _)| p == pattern));
             rect = finestra(
                 ctx,
                 titolo.as_str(),
@@ -492,75 +507,97 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     }
                     ui.add_space(4.0);
                     ui.label(RichText::new(&t_scegli).weak());
-                    ScrollArea::vertical()
-                        .id_salt("formati_noti")
-                        .scroll_source(
-                            egui::scroll_area::ScrollSource::SCROLL_BAR
-                                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
-                        )
-                        .max_height(170.0)
-                        .show(ui, |ui| {
+                    // un menu a tendina: "formato personalizzato" in cima, poi i formati noti (quelli che leggono questo
+                    // file per primi)
+                    let scelto = if pers {
+                        t_personale.clone()
+                    } else {
+                        etichette[(*preset).min(etichette.len() - 1)].clone()
+                    };
+                    let mut nuovo: Option<Option<usize>> = None;
+                    let combo = egui::ComboBox::from_id_salt("formato_orario")
+                        .width(ui.available_width() - 8.0)
+                        .selected_text(RichText::new(scelto).monospace())
+                        .show_ui(ui, |ui| {
+                            let r = ui.selectable_label(pers, RichText::new(&t_personale).strong());
+                            stato.voci.push(r.rect);
+                            if r.clicked() {
+                                nuovo = Some(None);
+                            }
+                            ui.separator();
                             for &i in &ordine {
-                                let (pat, esempio) = &presets[i];
-                                let legge = matches.get(i).copied().unwrap_or(0) > 0;
-                                let riga = ui.horizontal(|ui| {
-                                    // come appare nel log: e' quello che si riconosce a colpo d'occhio
-                                    let mut testo = RichText::new(esempio).monospace();
-                                    if !legge {
-                                        testo = testo.weak();
-                                    }
-                                    let r = ui.selectable_label(i == *preset, testo);
-                                    ui.label(RichText::new(pat).weak().small());
-                                    ui.label(RichText::new(&letture[i]).strong());
-                                    r
-                                });
-                                if riga.inner.clicked() {
-                                    ws.active_mut().dialog_time_preset(i);
-                                    // i campi si rileggono dall'App al prossimo giro
-                                    stato.campo_fuoco = false;
+                                let mut testo = RichText::new(&etichette[i]).monospace();
+                                if !legge[i] {
+                                    testo = testo.weak();
                                 }
-                                stato.voci.push(riga.response.rect);
+                                let r = ui.selectable_label(!pers && i == *preset, testo);
+                                stato.voci.push(r.rect);
+                                if r.clicked() {
+                                    nuovo = Some(Some(i));
+                                }
                             }
                         });
-                    // il formato personalizzato: si apre da solo se il pattern non e' uno dei noti o c'e' un errore
-                    egui::CollapsingHeader::new(&t_personale)
-                        .default_open(personalizzato_aperto)
-                        .show(ui, |ui| {
-                            egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
-                                for i in 0..2u8 {
-                                    let (etichetta, testo) = if i == 0 {
-                                        (pattern_label.as_str(), &mut stato.testo)
-                                    } else {
-                                        (within_label.as_str(), &mut stato.testo_due)
-                                    };
-                                    ui.label(etichetta);
-                                    let r = ui.add(
-                                        TextEdit::singleline(testo).desired_width(f32::INFINITY),
-                                    );
-                                    stato.campi.push(r.rect);
-                                    if stato.campo.is_none() {
-                                        stato.campo = Some(r.rect);
-                                    }
-                                    if r.has_focus() && *field != i {
-                                        ws.active_mut().dialog_focus(i);
-                                    }
-                                    if !stato.campo_fuoco && *field == i {
-                                        r.request_focus();
-                                        stato.campo_fuoco = true;
-                                    }
-                                    if r.changed() {
-                                        ws.active_mut().dialog_set_field(i, testo);
-                                    }
-                                    if r.lost_focus()
-                                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
-                                    {
-                                        ws.active_mut().dialog_submit();
-                                    }
-                                    ui.end_row();
+                    stato
+                        .opzioni
+                        .push((combo.response.rect, "formato".to_string()));
+                    match nuovo {
+                        Some(None) => {
+                            pers = true;
+                            // il fuoco va al campo del formato
+                            stato.campo_fuoco = false;
+                        }
+                        Some(Some(i)) => {
+                            pers = false;
+                            ws.active_mut().dialog_time_preset(i);
+                            // i campi si rileggono dall'App al prossimo giro
+                            stato.campo_fuoco = false;
+                        }
+                        None => {}
+                    }
+                    stato.personalizzato = Some(pers);
+                    // i campi del formato solo se lo si scrive a mano (o c'e' un errore da correggere)
+                    let campi_visibili = pers || !error.is_empty();
+                    if campi_visibili {
+                        ui.add_space(4.0);
+                        egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
+                            for i in 0..2u8 {
+                                let (etichetta, testo) = if i == 0 {
+                                    (pattern_label.as_str(), &mut stato.testo)
+                                } else {
+                                    (within_label.as_str(), &mut stato.testo_due)
+                                };
+                                ui.label(etichetta);
+                                let r = ui
+                                    .add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
+                                stato.campi.push(r.rect);
+                                if stato.campo.is_none() {
+                                    stato.campo = Some(r.rect);
                                 }
-                            });
-                            ui.label(RichText::new(&t_entro).weak());
+                                if r.has_focus() && *field != i {
+                                    ws.active_mut().dialog_focus(i);
+                                }
+                                if !stato.campo_fuoco && *field == i {
+                                    r.request_focus();
+                                    stato.campo_fuoco = true;
+                                }
+                                if r.changed() {
+                                    ws.active_mut().dialog_set_field(i, testo);
+                                }
+                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                    ws.active_mut().dialog_submit();
+                                }
+                                ui.end_row();
+                            }
                         });
+                        ui.label(RichText::new(&t_entro).weak());
+                    } else {
+                        // senza campi Invio conferma (a meno che la tendina sia aperta e lo usi per scegliere)
+                        if !egui::Popup::is_any_open(ui.ctx())
+                            && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                        {
+                            ws.active_mut().dialog_submit();
+                        }
+                    }
                     // come il formato scelto legge le prime righe del file
                     ui.add_space(4.0);
                     ui.label(RichText::new(&t_prime).weak());
