@@ -6,13 +6,17 @@
 //! Ogni file e' un mondo a se': niente fusione di piu' file.
 
 use super::App;
-use mrp_core::timeline::{self, BuildError, Step, Timeline};
+use mrp_core::pattern::Mode;
+use mrp_core::timeline::{self, BuildError, LevelCounts, Step, Timeline};
 use mrp_core::timemask;
 use mrp_core::timesearch;
 use mrp_core::Document;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::Arc;
+
+/// Il bordo di parola delle espressioni regolari (per il filtro per livelli: `\bERROR\b` non e' `ERROR_CODE`).
+const BORDO_PAROLA: &str = r"\b";
 
 /// Quante tacche al massimo si cercano (oltre, la barra chiede un passo piu' lungo).
 const TACCHE_MAX: usize = 20_000;
@@ -59,6 +63,10 @@ pub struct TimelineRow {
     pub weight: f32,
     /// La data (e l'ora, se il periodo e' piu' corto di un giorno) da scrivere accanto.
     pub label: String,
+    /// Quante righe di ogni livello ci sono nel periodo (tutto zero finche' la passata dei livelli non e' arrivata).
+    pub levels: LevelCounts,
+    /// I livelli sono noti (la passata e' finita): serve a distinguere "nessun errore" da "non ancora contati".
+    pub levels_known: bool,
 }
 
 /// Il lavoro in background che cerca le tacche.
@@ -73,6 +81,20 @@ struct TimelineJob {
     step: Option<Step>,
 }
 
+/// La passata che conta i livelli bucket per bucket.
+struct LevelsJob {
+    rx: Receiver<Result<Vec<LevelCounts>, mrp_core::lines::Cancelled>>,
+    cancel: Arc<AtomicBool>,
+    /// Vero: la passata non legge dal disco (si sta ancora indicizzando il file o l'utente sta saltando).
+    pausa: Arc<AtomicBool>,
+    /// Byte della finestra gia' esaminati e quanti sono in tutto (per la percentuale).
+    progress: Arc<AtomicU64>,
+    total: u64,
+}
+
+/// I livelli che la timeline sa filtrare, nell'ordine in cui si mostrano.
+pub const TIMELINE_LEVELS: [&str; 4] = ["ERROR", "WARN", "INFO", "DEBUG"];
+
 /// Tutto cio' che una scheda sa della sua timeline.
 pub(super) struct TimelineState {
     pub on: bool,
@@ -82,6 +104,11 @@ pub(super) struct TimelineState {
     pub mode: TimelineMode,
     data: Option<Arc<Timeline>>,
     job: Option<TimelineJob>,
+    /// I livelli per bucket (stessa lunghezza delle tacche) e la passata che li sta contando.
+    levels: Option<Arc<Vec<LevelCounts>>>,
+    levels_job: Option<LevelsJob>,
+    /// Quali livelli sono scelti per il filtro (nell'ordine di `TIMELINE_LEVELS`).
+    filter_levels: [bool; 4],
     error: Option<BuildError>,
     /// Il documento e' modificato o senza file: non si puo' calcolare.
     unavailable: bool,
@@ -100,6 +127,9 @@ impl Default for TimelineState {
             mode: TimelineMode::Time,
             data: None,
             job: None,
+            levels: None,
+            levels_job: None,
+            filter_levels: [false; 4],
             error: None,
             unavailable: false,
             built_len: 0,
@@ -128,6 +158,8 @@ impl App {
         self.timeline.on = acceso;
         if !acceso {
             self.timeline_stop();
+            self.levels_stop();
+            self.timeline.levels = None;
             self.timeline.data = None;
             self.timeline.error = None;
             self.timeline.unavailable = false;
@@ -181,6 +213,70 @@ impl App {
         }
     }
 
+    /// Ferma la passata dei livelli (il thread si accorge dell'annullamento e muore da solo).
+    fn levels_stop(&mut self) {
+        if let Some(job) = self.timeline.levels_job.take() {
+            job.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// La passata che conta i livelli per bucket: raccoglie il risultato e, appena ci sono le tacche, la fa partire (su una copia del
+    /// file, con pausa finche' si sta ancora indicizzando). Ritorna vero se sta lavorando.
+    fn levels_tick(&mut self) -> bool {
+        if let Some(job) = self.timeline.levels_job.as_ref() {
+            job.pausa.store(self.index_job.is_some(), Ordering::Relaxed);
+            return match job.rx.try_recv() {
+                Ok(esito) => {
+                    self.timeline.levels_job = None;
+                    if let Ok(v) = esito {
+                        self.timeline.levels = Some(Arc::new(v));
+                    }
+                    false
+                }
+                Err(TryRecvError::Empty) => true,
+                Err(TryRecvError::Disconnected) => {
+                    self.timeline.levels_job = None;
+                    false
+                }
+            };
+        }
+        if self.timeline.levels.is_some() {
+            return false;
+        }
+        let Some(t) = self.timeline.data.clone() else {
+            return false;
+        };
+        let path = self.path.clone();
+        let (tx, rx) = mpsc::channel();
+        let cancel = Arc::new(AtomicBool::new(false));
+        let pausa = Arc::new(AtomicBool::new(self.index_job.is_some()));
+        let progress = Arc::new(AtomicU64::new(0));
+        let (cancel_t, pausa_t, progress_t) = (
+            Arc::clone(&cancel),
+            Arc::clone(&pausa),
+            Arc::clone(&progress),
+        );
+        let totale = t.hi.saturating_sub(t.lo);
+        std::thread::spawn(move || {
+            // la sua copia del file, come per le tacche
+            let esito = match Document::open(&path) {
+                Ok(doc) => {
+                    timeline::count_levels(&doc, &t, &cancel_t, Some(&pausa_t), Some(&progress_t))
+                }
+                Err(_) => Err(mrp_core::lines::Cancelled),
+            };
+            let _ = tx.send(esito);
+        });
+        self.timeline.levels_job = Some(LevelsJob {
+            rx,
+            cancel,
+            pausa,
+            progress,
+            total: totale,
+        });
+        true
+    }
+
     /// Da chiamare a ogni giro del disegno: raccoglie il risultato del thread e, se serve, ne fa partire uno nuovo (la timeline e'
     /// accesa e non ci sono tacche per questa lunghezza del file, finestra e passo). Ritorna vero se la barra e' in attesa di
     /// qualcosa (chi disegna deve ridisegnare fra poco).
@@ -198,6 +294,9 @@ impl App {
                     self.timeline.built_step = Some(job.step);
                     match esito {
                         Ok(t) => {
+                            // tacche nuove: i livelli di prima non valgono piu'
+                            self.levels_stop();
+                            self.timeline.levels = None;
                             self.timeline.data = Some(Arc::new(t));
                             self.timeline.error = None;
                         }
@@ -223,7 +322,7 @@ impl App {
             && self.timeline.built_window == finestra
             && self.timeline.built_len == len;
         if aggiornata {
-            return false;
+            return self.levels_tick();
         }
         // un lavoro per un'altra lunghezza / finestra / passo non serve piu'
         self.timeline_stop();
@@ -301,6 +400,55 @@ impl App {
         true
     }
 
+    /// Quali livelli sono scelti per il filtro (nell'ordine di `TIMELINE_LEVELS`: ERROR, WARN, INFO, DEBUG).
+    pub fn timeline_filter_levels(&self) -> [bool; 4] {
+        self.timeline.filter_levels
+    }
+
+    /// Sceglie o toglie il livello `i` (0 ERROR, 1 WARN, 2 INFO, 3 DEBUG) dal filtro per livelli.
+    pub fn set_timeline_filter_level(&mut self, i: usize, scelto: bool) {
+        if let Some(l) = self.timeline.filter_levels.get_mut(i) {
+            *l = scelto;
+        }
+    }
+
+    /// Quanto e' avanzata la passata che conta i livelli, da 0 a 1 (`None`: non sta lavorando).
+    pub fn timeline_levels_progress(&self) -> Option<f32> {
+        let job = self.timeline.levels_job.as_ref()?;
+        let fatti = job.progress.load(Ordering::Relaxed);
+        Some((fatti as f32 / job.total.max(1) as f32).clamp(0.0, 1.0))
+    }
+
+    /// I livelli per bucket sono pronti.
+    pub fn timeline_levels_ready(&self) -> bool {
+        self.timeline.levels.is_some()
+    }
+
+    /// Apre una vista con le sole righe dei livelli scelti (la scheda filtrata di Alt+G): un'espressione regolare con le parole dei
+    /// livelli (`ERROR`, `ERR`, `FATAL`... `WARN`, `WRN`... `INFO`, `INF`... `DEBUG`, `DBG`...), maiuscole esatte, parola intera.
+    /// Senza nessun livello scelto lo dice e non fa niente.
+    pub fn timeline_apply_level_filter(&mut self) {
+        const PAROLE: [&str; 4] = [
+            "ERROR|ERR|FATAL|CRITICAL|SEVERE|PANIC",
+            "WARN|WARNING|WRN",
+            "INFO|NOTICE|INF",
+            "DEBUG|TRACE|DBG|TRC",
+        ];
+        let scelte: Vec<&str> = (0..4)
+            .filter(|&i| self.timeline.filter_levels[i])
+            .map(|i| PAROLE[i])
+            .collect();
+        if scelte.is_empty() {
+            self.flash = Some(self.cat.t("timeline.pick_level").to_string());
+            return;
+        }
+        let regola = format!(r"{b}({}){b}", scelte.join("|"), b = BORDO_PAROLA);
+        self.search_mode = Mode::Regex;
+        self.search_case = true;
+        self.find_invert = false;
+        self.filter_run(&regola);
+    }
+
     /// Lo stato della timeline, per scrivere cosa sta succedendo.
     pub fn timeline_status(&self) -> TimelineStatus {
         let t = &self.timeline;
@@ -354,6 +502,19 @@ impl App {
                 y1,
                 weight: 0.0,
                 label: etichetta(t.ticks[i].start, span_ms),
+                levels: self
+                    .timeline
+                    .levels
+                    .as_ref()
+                    .map_or_else(LevelCounts::default, |lv| {
+                        (i..fine).fold(LevelCounts::default(), |a, k| LevelCounts {
+                            error: a.error + lv.get(k).map_or(0, |c| c.error),
+                            warn: a.warn + lv.get(k).map_or(0, |c| c.warn),
+                            info: a.info + lv.get(k).map_or(0, |c| c.info),
+                            debug: a.debug + lv.get(k).map_or(0, |c| c.debug),
+                        })
+                    }),
+                levels_known: self.timeline.levels.is_some(),
             });
             i = fine;
         }

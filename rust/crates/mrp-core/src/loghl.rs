@@ -13,11 +13,11 @@
 pub enum Kind {
     /// Un errore: `ERROR`, `ERR`, `FATAL`, `CRITICAL`, `SEVERE`, `PANIC`.
     Error,
-    /// Un avviso: `WARN`, `WARNING`.
+    /// Un avviso: `WARN`, `WARNING`, `WRN`.
     Warn,
-    /// Una notizia: `INFO`, `NOTICE`.
+    /// Una notizia: `INFO`, `NOTICE`, `INF`.
     Info,
-    /// Il dettaglio: `DEBUG`, `TRACE`.
+    /// Il dettaglio: `DEBUG`, `TRACE`, `DBG`, `TRC`.
     Debug,
     /// Una data, un orario o una data con l'orario che segue (frazione e fuso compresi).
     Time,
@@ -79,6 +79,41 @@ pub fn line_level(line: &str) -> Option<Kind> {
         .map(|sp| sp.kind)
 }
 
+/// Il livello della riga senza costruire gli span: la stessa scansione di `highlight` (le stesse
+/// regole di `prima`, `livello` e di salto dei token orario e indirizzo), che pero' torna al primo
+/// livello trovato, senza `Vec` e senza allocare. Lo stesso risultato di `line_level`, per contare
+/// i livelli di milioni di righe senza pagare gli span.
+pub fn first_level(line: &str) -> Option<Kind> {
+    let b = line.as_bytes();
+    let mut i = 0;
+    while i < b.len() {
+        // un token comincia con una maiuscola (livello) o con una cifra (data, orario, indirizzo), se il "prima" va bene
+        let token = if b[i].is_ascii_uppercase() && prima(b, i) {
+            livello(b, i)
+        } else if b[i].is_ascii_digit() && prima_punto(b, i) {
+            // nell'ordine: la data con l'orario che la segue, l'orario da solo, l'indirizzo
+            data_oraria(b, i)
+                .or_else(|| orario(b, i))
+                .map(|fine| (fine, Kind::Time))
+                .or_else(|| indirizzo(b, i))
+        } else {
+            None
+        };
+        if let Some((fine, tipo)) = token {
+            // il primo livello trovato e' il livello della riga: si torna subito
+            if matches!(tipo, Kind::Error | Kind::Warn | Kind::Info | Kind::Debug) {
+                return Some(tipo);
+            }
+            // gli altri token (data, orario, indirizzo) si saltano, come in `highlight`
+            i = fine;
+        } else {
+            // niente token: un byte alla volta, mai da capo
+            i += 1;
+        }
+    }
+    None
+}
+
 /// Il "prima" di un livello: il byte prima non c'e' (inizio riga) o non e' una lettera o cifra ASCII (i byte >= 0x80
 /// non sono mai alfanumerici, quindi vanno bene come delimitatori).
 fn prima(b: &[u8], i: usize) -> bool {
@@ -100,9 +135,9 @@ fn livello(b: &[u8], i: usize) -> Option<(usize, Kind)> {
     }
     let tipo = match &b[i..fine] {
         b"ERROR" | b"ERR" | b"FATAL" | b"CRITICAL" | b"SEVERE" | b"PANIC" => Kind::Error,
-        b"WARN" | b"WARNING" => Kind::Warn,
-        b"INFO" | b"NOTICE" => Kind::Info,
-        b"DEBUG" | b"TRACE" => Kind::Debug,
+        b"WARN" | b"WARNING" | b"WRN" => Kind::Warn,
+        b"INFO" | b"NOTICE" | b"INF" => Kind::Info,
+        b"DEBUG" | b"TRACE" | b"DBG" | b"TRC" => Kind::Debug,
         _ => return None,
     };
     // per un livello il "dopo" non va bene nemmeno con `_`: ERROR_CODE non e' un errore

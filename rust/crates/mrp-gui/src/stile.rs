@@ -31,6 +31,11 @@ pub struct Tavolozza {
     pub acceso_bg: Color32,
     pub acceso_fg: Color32,
     pub acceso_bordo: Color32,
+    /// I colori dei livelli dei log (errore, avviso, info, debug) del tema: i segni sulla timeline e i pulsanti del filtro per livello.
+    pub log_errore: Color32,
+    pub log_avviso: Color32,
+    pub log_info: Color32,
+    pub log_debug: Color32,
 }
 
 fn rgb(c: [u8; 3]) -> Color32 {
@@ -99,6 +104,10 @@ impl Tavolozza {
                 Color32::WHITE
             },
             acceso_bordo,
+            log_errore: primo_piano(t.log.error),
+            log_avviso: primo_piano(t.log.warn),
+            log_info: primo_piano(t.log.info),
+            log_debug: primo_piano(t.log.debug),
         }
     }
 

@@ -15,7 +15,11 @@ pub const LARGHEZZA: f32 = 96.0;
 /// L'altezza minima di una riga: con piu' bucket di cosi' si raggruppano.
 const RIGA_MIN: f32 = 3.0;
 /// L'altezza dell'intestazione col menu del passo.
-const INTESTAZIONE: f32 = 28.0;
+const INTESTAZIONE: f32 = 52.0;
+/// L'altezza della prima riga dell'intestazione (il menu del passo); sotto ci sono i pulsanti dei livelli.
+const RIGA_PASSO: f32 = 28.0;
+/// La larghezza di ogni segno di livello sul bordo destro della barra.
+const SEGNO: f32 = 5.0;
 /// Fra due scritte c'e' almeno questo spazio.
 const SCRITTA_ALTEZZA: f32 = 13.0;
 
@@ -31,6 +35,10 @@ pub struct StatoTimeline {
     pub scritte: usize,
     /// Il rettangolo del menu del passo.
     pub passo: Option<Rect>,
+    /// I pulsanti dei livelli (E, W, I, D) e quello che apre la vista filtrata, con la loro etichetta (per i test).
+    pub chip: Vec<(Rect, String)>,
+    /// Quanti segni di livello si sono disegnati (uno per riga e per livello presente).
+    pub strisce: usize,
 }
 
 const PASSI: [(Step, &str); 4] = [
@@ -65,14 +73,20 @@ pub fn disegna(
     }
     stato.righe = 0;
     stato.scritte = 0;
+    stato.chip.clear();
+    stato.strisce = 0;
     let pannello = egui::SidePanel::right("timeline")
         .exact_width(LARGHEZZA)
         .frame(Frame::NONE)
         .show(ctx, |ui| {
             let area = ui.max_rect();
             // l'intestazione: il menu del passo
-            let (testa, corpo) = (
-                Rect::from_min_size(area.min, Vec2::new(area.width(), INTESTAZIONE)),
+            let (testa, riga_livelli, corpo) = (
+                Rect::from_min_size(area.min, Vec2::new(area.width(), RIGA_PASSO)),
+                Rect::from_min_size(
+                    Pos2::new(area.min.x, area.min.y + RIGA_PASSO),
+                    Vec2::new(area.width(), INTESTAZIONE - RIGA_PASSO),
+                ),
                 Rect::from_min_max(Pos2::new(area.min.x, area.min.y + INTESTAZIONE), area.max),
             );
             let passo = ws.active().timeline_step();
@@ -114,6 +128,75 @@ pub fn disegna(
             if let Some(p) = scelto {
                 ws.active_mut().set_timeline_step(p);
             }
+            // i livelli: E W I D (scegli quali), e il pulsante che apre la vista con le sole righe scelte
+            let colori = [tav.log_errore, tav.log_avviso, tav.log_info, tav.log_debug];
+            let lettere = ["E", "W", "I", "D"];
+            let chiavi = [
+                "timeline.level.error",
+                "timeline.level.warn",
+                "timeline.level.info",
+                "timeline.level.debug",
+            ];
+            let nomi_livelli: Vec<String> = chiavi
+                .iter()
+                .map(|k| ws.active().text(k).to_string())
+                .collect();
+            let t_filtra = ws.active().text("timeline.filter_tip").to_string();
+            let scelti = ws.active().timeline_filter_levels();
+            let mut ui_liv = ui.new_child(
+                egui::UiBuilder::new()
+                    .max_rect(riga_livelli.shrink2(Vec2::new(3.0, 1.0)))
+                    .layout(egui::Layout::left_to_right(egui::Align::Center)),
+            );
+            ui_liv.spacing_mut().item_spacing.x = 2.0;
+            for i in 0..4 {
+                let testo = RichText::new(lettere[i]).size(10.0).strong();
+                let b = if scelti[i] {
+                    // scelto: pieno del colore del livello, con la lettera che stacca
+                    let luce = 0.299 * f32::from(colori[i].r())
+                        + 0.587 * f32::from(colori[i].g())
+                        + 0.114 * f32::from(colori[i].b());
+                    let lettera = testo.color(if luce > 150.0 {
+                        Color32::BLACK
+                    } else {
+                        Color32::WHITE
+                    });
+                    egui::Button::new(lettera)
+                        .min_size(Vec2::new(17.0, 19.0))
+                        .fill(colori[i])
+                } else {
+                    egui::Button::new(testo.color(colori[i])).min_size(Vec2::new(17.0, 19.0))
+                };
+                let r = ui_liv.add(b).on_hover_text(nomi_livelli[i].as_str());
+                stato
+                    .chip
+                    .push((r.rect, ["ERROR", "WARN", "INFO", "DEBUG"][i].to_string()));
+                if r.clicked() {
+                    ws.active_mut().set_timeline_filter_level(i, !scelti[i]);
+                }
+            }
+            let f = ui_liv
+                .add(egui::Button::new("").min_size(Vec2::new(20.0, 19.0)))
+                .on_hover_text(t_filtra.as_str());
+            // l'imbuto si disegna a mano (nel font il glifo non c'e' e uscirebbe un quadratino)
+            let colore_imbuto = ui_liv.style().interact(&f).fg_stroke.color;
+            let c = f.rect.center();
+            ui_liv.painter().add(egui::Shape::convex_polygon(
+                vec![
+                    Pos2::new(c.x - 5.0, c.y - 4.0),
+                    Pos2::new(c.x + 5.0, c.y - 4.0),
+                    Pos2::new(c.x + 1.0, c.y + 1.0),
+                    Pos2::new(c.x + 1.0, c.y + 5.0),
+                    Pos2::new(c.x - 1.0, c.y + 5.0),
+                    Pos2::new(c.x - 1.0, c.y + 1.0),
+                ],
+                colore_imbuto,
+                egui::Stroke::NONE,
+            ));
+            stato.chip.push((f.rect, "filtra".to_string()));
+            if f.clicked() {
+                ws.active_mut().timeline_apply_level_filter();
+            }
             // il corpo: lo sfondo tenue e le righe
             let altezza = corpo.height().max(1.0);
             let max_righe = ((altezza / RIGA_MIN) as usize).max(1);
@@ -125,6 +208,13 @@ pub fn disegna(
             let barra = miscela(tav.acceso_bg, tav.schermo_bg, 0.15);
             let testo = tav.schermo_fg;
             let mut ultima_scritta = f32::NEG_INFINITY;
+            // il bucket con piu' righe di ogni livello: i segni si misurano su di lui
+            let massimi = [
+                righe.iter().map(|r| r.levels.error).max().unwrap_or(0),
+                righe.iter().map(|r| r.levels.warn).max().unwrap_or(0),
+                righe.iter().map(|r| r.levels.info).max().unwrap_or(0),
+                righe.iter().map(|r| r.levels.debug).max().unwrap_or(0),
+            ];
             for r in &righe {
                 let (y0, y1) = (corpo.min.y + r.y0 * altezza, corpo.min.y + r.y1 * altezza);
                 if y1 - y0 < 0.5 && modo == TimelineMode::Bytes {
@@ -144,6 +234,23 @@ pub fn disegna(
                     );
                     stato.righe += 1;
                 }
+                // i livelli: un segno per livello sul bordo destro, piu' marcato dove ce ne sono di piu' (rispetto al bucket piu' pieno)
+                if r.levels_known && r.bytes > 0 {
+                    let valori = [r.levels.error, r.levels.warn, r.levels.info, r.levels.debug];
+                    for (j, &n) in valori.iter().enumerate() {
+                        if n == 0 || massimi[j] == 0 {
+                            continue;
+                        }
+                        let forza = (n as f32 / massimi[j] as f32).sqrt();
+                        let x1 = corpo.max.x - j as f32 * SEGNO;
+                        ui.painter().rect_filled(
+                            Rect::from_min_max(Pos2::new(x1 - SEGNO, y0), Pos2::new(x1, y0 + alto)),
+                            0.0,
+                            con_alfa(colori[j], (70.0 + 185.0 * forza) as u8),
+                        );
+                        stato.strisce += 1;
+                    }
+                }
                 if y0 - ultima_scritta >= SCRITTA_ALTEZZA {
                     ui.painter().text(
                         Pos2::new(corpo.min.x + 3.0, y0),
@@ -155,6 +262,14 @@ pub fn disegna(
                     ultima_scritta = y0;
                     stato.scritte += 1;
                 }
+            }
+            // la passata dei livelli sta contando: una linea sottile in cima al corpo che avanza
+            if let Some(f) = ws.active().timeline_levels_progress() {
+                ui.painter().rect_filled(
+                    Rect::from_min_size(corpo.min, Vec2::new(corpo.width() * f, 2.0)),
+                    0.0,
+                    tav.acceso_bordo,
+                );
             }
             // la parte che si vede: un riquadro trasparente col contorno
             if let Some((da, a)) = ws.active().timeline_viewport(max_righe) {

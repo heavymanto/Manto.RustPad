@@ -6,16 +6,29 @@
 //! partendo dall'offset della precedente, con salti in avanti che raddoppiano (galloping) e poi la
 //! ricerca binaria di `find_key_in` sul solo intervallo cosi' trovato: mai una ricerca su tutto il file
 //! per ogni tacca, mai un ciclo sul numero di righe del file.
+//! `count_levels` (F3) ci mette sopra i colori dei log: una passata annullabile e con pausa sulla
+//! finestra, letta a pezzi, conta quante righe di ogni livello cominciano in ogni bucket.
 
 use crate::document::Document;
 use crate::lines::Cancelled;
+use crate::loghl::{first_level, Kind};
 use crate::timemask::TimeMask;
 use crate::timesearch::{find_key_in, first_key_in, key_of_line, last_key_in};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use memchr::memchr;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::time::Duration;
 
 /// Il salto minimo del galloping: sotto i 4 KiB non vale la pena di raffinare il salto, si cerca
 /// direttamente nell'intorno del bucket.
 const SALTO_MIN: u64 = 4096;
+
+/// Il pezzo di lettura di `count_levels`: la finestra della timeline si legge a pezzi, mai tutta
+/// insieme.
+const PEZZO_LETTURA: u64 = 1024 * 1024;
+
+/// Oltre questa lunghezza una riga non si guarda piu' per il livello: conta una volta sola, nel
+/// bucket del suo inizio, ma il livello si cerca solo nei primi 64 KiB.
+const MAX_RIGA: usize = 64 * 1024;
 
 /// La larghezza dei bucket della timeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -243,4 +256,140 @@ pub fn build(
         first,
         last,
     })
+}
+
+/// Quante righe di ogni livello cominciano in un bucket della timeline: i colori dei log sulla barra.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct LevelCounts {
+    /// Le righe il cui primo livello e' un errore.
+    pub error: u32,
+    /// Le righe il cui primo livello e' un avviso.
+    pub warn: u32,
+    /// Le righe il cui primo livello e' una notizia.
+    pub info: u32,
+    /// Le righe il cui primo livello e' il dettaglio.
+    pub debug: u32,
+}
+
+/// result[i] = quante righe, con inizio in [ticks[i].offset, ticks[i].offset + t.bytes(i)), hanno
+/// quel livello (il primo livello della riga: `first_level`).
+///
+/// La finestra [t.lo, t.hi) si legge UNA volta, a pezzi di `PEZZO_LETTURA` byte con
+/// `Document::read_range`, tenendo il resto di una riga spezzata fra un pezzo e l'altro: mai il file
+/// intero in memoria. Ogni riga completa (fino al `\n`, tolto un `\r` finale) si assegna al bucket
+/// che contiene il suo INIZIO (i bucket vuoti restano a zero) e si conta col suo livello; anche
+/// l'ultima riga, senza `\n`, conta. Una riga non UTF-8 non ha livello; una piu' lunga di `MAX_RIGA`
+/// si guarda solo nei primi `MAX_RIGA` byte, ma conta una volta sola e nel bucket giusto. I bucket
+/// si percorrono in avanti con un indice che non torna indietro: niente ricerca del bucket da capo
+/// per ogni riga. `progress`, se c'e', vale i byte della finestra gia' esaminati (alla fine
+/// `t.hi - t.lo`). `cancel` si controlla subito e a ogni pezzo; con `pausa` accesa la passata aspetta
+/// dormendo 20 ms finche' non si spegne, ma se arriva `cancel` si esce subito con `Err(Cancelled)`,
+/// anche in pausa.
+pub fn count_levels(
+    doc: &Document,
+    t: &Timeline,
+    cancel: &AtomicBool,
+    pausa: Option<&AtomicBool>,
+    progress: Option<&AtomicU64>,
+) -> Result<Vec<LevelCounts>, Cancelled> {
+    // annullato in partenza, come `build`
+    if cancel.load(Ordering::Relaxed) {
+        return Err(Cancelled);
+    }
+    let mut conteggi = vec![LevelCounts::default(); t.ticks.len()];
+    // la riga in corso: dove comincia nel file e i suoi primi byte (una riga piu' lunga di
+    // `MAX_RIGA` si guarda solo nei primi `MAX_RIGA`)
+    let mut inizio = t.lo;
+    let mut riga: Vec<u8> = Vec::new();
+    // il bucket corrente: le righe escono in ordine di inizio, l'indice avanza e non torna indietro
+    let mut bucket = 0usize;
+    let mut pos = t.lo;
+    while pos < t.hi {
+        // il cancel si controlla a ogni pezzo
+        if cancel.load(Ordering::Relaxed) {
+            return Err(Cancelled);
+        }
+        // in pausa si aspetta dormendo, ma il cancel vince anche in pausa
+        if let Some(pausa) = pausa {
+            while pausa.load(Ordering::Relaxed) {
+                if cancel.load(Ordering::Relaxed) {
+                    return Err(Cancelled);
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+        // il pezzo: [pos, fine), al piu' `PEZZO_LETTURA` byte
+        let fine = pos.saturating_add(PEZZO_LETTURA).min(t.hi);
+        let pezzo = doc.read_range(pos, fine - pos);
+        let mut j = 0usize;
+        while j < pezzo.len() {
+            // il prossimo a-capo: la riga chiusa finisce subito prima
+            let a_capo = memchr(b'\n', &pezzo[j..]).map_or(pezzo.len(), |k| j + k);
+            accumula(&mut riga, &pezzo[j..a_capo]);
+            if a_capo < pezzo.len() {
+                chiudi_riga(t, &mut conteggi, &mut bucket, inizio, &riga);
+                riga.clear();
+                inizio = pos + a_capo as u64 + 1;
+            }
+            // oltre l'a-capo comincia la riga dopo; senza a-capo il resto resta nella riga in corso
+            j = a_capo + 1;
+        }
+        pos = fine;
+        if let Some(p) = progress {
+            p.store(pos - t.lo, Ordering::Relaxed);
+        }
+    }
+    // l'ultima riga, senza a-capo, conta lo stesso (vuota se la finestra finisce con l'a-capo)
+    chiudi_riga(t, &mut conteggi, &mut bucket, inizio, &riga);
+    if let Some(p) = progress {
+        p.store(t.hi - t.lo, Ordering::Relaxed);
+    }
+    Ok(conteggi)
+}
+
+/// Chiude la riga cominciata in `inizio`, con i byte gia' accumulati in `riga`: toglie un `\r`
+/// finale, cerca il livello (se la riga e' UTF-8) e lo conta nel bucket che contiene `inizio`.
+/// `bucket` e' il bucket corrente della passata: le righe escono in ordine di inizio, quindi si
+/// avanza in avanti e non si torna mai indietro.
+fn chiudi_riga(
+    t: &Timeline,
+    conteggi: &mut [LevelCounts],
+    bucket: &mut usize,
+    inizio: u64,
+    riga: &[u8],
+) {
+    // senza bucket non c'e' dove contare (una timeline di `build` ne ha sempre almeno uno)
+    if conteggi.is_empty() {
+        return;
+    }
+    // il bucket che contiene l'inizio della riga: si avanza finche' quello corrente e' finito prima
+    // (un bucket vuoto copre zero byte: si supera appena l'inizio gli arriva addosso)
+    while *bucket + 1 < conteggi.len() && inizio >= t.ticks[*bucket].offset + t.bytes(*bucket) {
+        *bucket += 1;
+    }
+    // il `\r` finale non e' parte della riga
+    let fine = riga.len() - usize::from(riga.last() == Some(&b'\r'));
+    // una riga non UTF-8 non ha livello
+    let Some(tipo) = std::str::from_utf8(&riga[..fine])
+        .ok()
+        .and_then(first_level)
+    else {
+        return;
+    };
+    let c = &mut conteggi[*bucket];
+    match tipo {
+        Kind::Error => c.error += 1,
+        Kind::Warn => c.warn += 1,
+        Kind::Info => c.info += 1,
+        Kind::Debug => c.debug += 1,
+        // Time e Ip non sono livelli: `first_level` non li restituisce mai
+        _ => {}
+    }
+}
+
+/// Allunga la riga in corso con `pezzo`, ma solo finche' resta sotto `MAX_RIGA`: oltre, il livello
+/// non si guarda piu' (la riga conta comunque una volta sola, nel bucket del suo inizio).
+fn accumula(riga: &mut Vec<u8>, pezzo: &[u8]) {
+    let posto = MAX_RIGA.saturating_sub(riga.len()).min(pezzo.len());
+    riga.extend_from_slice(&pezzo[..posto]);
 }

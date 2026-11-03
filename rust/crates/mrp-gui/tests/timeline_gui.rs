@@ -208,3 +208,48 @@ fn the_step_is_automatic_and_the_header_says_which_one_was_chosen() {
     assert!(scritti.iter().any(|t| t == "1 day"), "{scritti:?}");
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_level_buttons_toggle_the_filter_and_the_marks_show_the_counted_levels() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
+    // aspetta anche i livelli (la passata e' un thread)
+    let fine = Instant::now() + Duration::from_secs(20);
+    loop {
+        disegna(&mut f, &ctx);
+        if f.app().timeline_levels_ready() || Instant::now() >= fine {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    // i quattro pulsanti dei livelli e quello del filtro
+    let nomi: Vec<String> = f
+        .timeline_disegnata()
+        .chip
+        .iter()
+        .map(|(_, t)| t.clone())
+        .collect();
+    assert_eq!(nomi, vec!["ERROR", "WARN", "INFO", "DEBUG", "filtra"]);
+    // un clic sceglie il livello, un altro lo toglie
+    let e = f.timeline_disegnata().chip[0].0.center();
+    clic(&mut f, &ctx, e);
+    assert_eq!(
+        f.app().timeline_filter_levels(),
+        [true, false, false, false]
+    );
+    clic(&mut f, &ctx, e);
+    assert_eq!(f.app().timeline_filter_levels(), [false; 4]);
+    // le righe del log di prova sono tutte INFO: un segno per giorno (tre giorni), nessuno per gli altri livelli
+    assert_eq!(f.timeline_disegnata().strisce, 3);
+    // il pulsante del filtro senza livelli scelti lo dice
+    let filtra = f.timeline_disegnata().chip[4].0.center();
+    clic(&mut f, &ctx, filtra);
+    assert_eq!(
+        f.app().flash(),
+        Some("Choose at least one level first (E, W, I, D)")
+    );
+    let _ = std::fs::remove_file(p);
+}
