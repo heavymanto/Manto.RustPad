@@ -178,6 +178,8 @@ fn run() -> i32 {
                 Ok("formato") => finestra.azione(mrp_tui::commands::Cmd::TimeMask),
                 // la finestra "Tempo" (formato e filtro insieme)
                 Ok("tempo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
+                // la timeline (barra mappa del file nel tempo)
+                Ok("timeline") => finestra.azione(mrp_tui::commands::Cmd::Timeline),
                 _ => {}
             }
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce

@@ -14,3 +14,4 @@ pub mod menu;
 pub mod paint;
 pub mod stile;
 pub mod strumenti;
+pub mod timeline;

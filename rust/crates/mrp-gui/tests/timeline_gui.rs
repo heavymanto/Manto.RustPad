@@ -1,0 +1,170 @@
+//! La barra della timeline nella finestra (F2): spenta di fabbrica, si accende dal menu Log, sta a sinistra della scrollbar ed e' larga,
+//! disegna una riga per giorno con le date, un clic salta al punto, il menu del passo cambia i bucket. Scritti da ARCH: tre giorni di
+//! righe una ogni mezz'ora (144 righe), gli offset si calcolano a mano.
+
+use eframe::egui::{self, Context, Event, FullOutput, Modifiers, Pos2, RawInput, Rect, Vec2};
+use mrp_gui::gui::Finestra;
+use mrp_gui::menu::{self, MENU};
+use mrp_tui::app::timeline::TimelineStatus;
+use mrp_tui::app::{App, AppConfig};
+use mrp_tui::commands::Cmd;
+use std::path::PathBuf;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::time::{Duration, Instant};
+
+static COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+fn cfg() -> AppConfig {
+    AppConfig {
+        chrome: false,
+        ..AppConfig::default()
+    }
+}
+
+fn finestra() -> (Finestra, Context, PathBuf, Vec<u64>) {
+    let mut dati = String::new();
+    let mut offset = Vec::new();
+    for i in 0..144u32 {
+        offset.push(dati.len() as u64);
+        dati.push_str(&format!(
+            "2026-11-{:02} {:02}:{:02}:00 [INFO ] riga {i}\n",
+            1 + i / 48,
+            (i % 48) / 2,
+            (i % 2) * 30
+        ));
+    }
+    offset.push(dati.len() as u64);
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let p = std::env::temp_dir().join(format!("mrp_tlgui_{}_{}.log", std::process::id(), n));
+    std::fs::write(&p, dati).unwrap();
+    let mut app = App::open(&p, cfg()).unwrap();
+    assert!(app.wait_idle(Duration::from_secs(20)));
+    let mut f = Finestra::da_app(app, Box::new(cfg));
+    let ctx = Context::default();
+    ctx.style_mut(|s| s.animation_time = 0.0);
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
+    (f, ctx, p, offset)
+}
+
+fn giro(f: &mut Finestra, ctx: &Context, eventi: Vec<Event>) -> FullOutput {
+    let raw = RawInput {
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 800.0))),
+        events: eventi,
+        ..Default::default()
+    };
+    ctx.run(raw, |ctx| f.giro(ctx))
+}
+
+fn disegna(f: &mut Finestra, ctx: &Context) {
+    giro(f, ctx, vec![]);
+    giro(f, ctx, vec![]);
+}
+
+fn clic(f: &mut Finestra, ctx: &Context, pos: Pos2) {
+    for premuto in [true, false] {
+        giro(
+            f,
+            ctx,
+            vec![
+                Event::PointerMoved(pos),
+                Event::PointerButton {
+                    pos,
+                    button: egui::PointerButton::Primary,
+                    pressed: premuto,
+                    modifiers: Modifiers::NONE,
+                },
+            ],
+        );
+    }
+    disegna(f, ctx);
+}
+
+/// Disegna finche' la timeline e' pronta (le tacche le cerca un thread).
+fn pronta(f: &mut Finestra, ctx: &Context) {
+    let fine = Instant::now() + Duration::from_secs(20);
+    loop {
+        disegna(f, ctx);
+        match f.app().timeline_status() {
+            TimelineStatus::Building(_) if Instant::now() < fine => {
+                std::thread::sleep(Duration::from_millis(5))
+            }
+            _ => return,
+        }
+    }
+}
+
+#[test]
+fn it_is_off_by_default_and_the_log_menu_switches_it_on() {
+    let (mut f, ctx, p, _) = finestra();
+    assert!(f.timeline_disegnata().rect.is_none());
+    // la voce e' nel menu Log e non e' accesa
+    let log: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
+    assert!(log.contains(&Cmd::Timeline));
+    assert_eq!(menu::acceso(f.workspace(), Cmd::Timeline), Some(false));
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.is_some());
+    assert_eq!(menu::acceso(f.workspace(), Cmd::Timeline), Some(true));
+    // di nuovo: sparisce
+    f.azione(Cmd::Timeline);
+    disegna(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.is_none());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_bar_is_wide_and_sits_left_of_the_scrollbar() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    let barra = f.timeline_disegnata().rect.expect("la barra");
+    let scroll = f.scrollbar_rect().expect("la scrollbar");
+    assert!(
+        barra.width() >= 90.0,
+        "larga abbastanza da leggere le date: {barra:?}"
+    );
+    assert!(
+        barra.max.x <= scroll.min.x + 0.5 && barra.min.x < scroll.min.x,
+        "{barra:?} {scroll:?}"
+    );
+    // la barra e la scrollbar sono alte uguali (sotto il menu, sopra la barra di stato)
+    assert!((barra.min.y - scroll.min.y).abs() < 1.0 && (barra.max.y - scroll.max.y).abs() < 1.0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn it_draws_a_row_per_day_with_dates_and_a_click_jumps_there() {
+    let (mut f, ctx, p, offset) = finestra();
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    let st = f.timeline_disegnata().clone();
+    assert_eq!(st.righe, 3, "tre giorni, tre righe");
+    assert!(st.scritte >= 3, "le tre date");
+    let corpo = st.corpo.expect("il corpo");
+    // un clic nel secondo giorno (a meta' del suo tratto): il cursore va nei suoi byte
+    let y = corpo.min.y + corpo.height() * 0.5;
+    clic(&mut f, &ctx, Pos2::new(corpo.center().x, y));
+    let cursore = f.app().cursor();
+    assert!(cursore > offset[48] && cursore < offset[96], "{cursore}");
+    // un clic all'inizio del corpo porta all'inizio del file
+    clic(&mut f, &ctx, Pos2::new(corpo.center().x, corpo.min.y + 0.5));
+    assert_eq!(f.app().cursor(), 0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_step_menu_is_in_the_header_and_a_shorter_step_gives_more_rows() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    let passo = f.timeline_disegnata().passo.expect("il menu del passo");
+    assert!(passo.width() > 40.0);
+    // dall'API: l'ora fa 72 bucket (alti 3 punti l'uno entrano nell'altezza della finestra)
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Hour);
+    pronta(&mut f, &ctx);
+    assert_eq!(f.timeline_disegnata().righe, 72);
+    let _ = std::fs::remove_file(p);
+}

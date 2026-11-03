@@ -52,6 +52,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "time_range" => "⏱",
         "time_mask" => "🕘",
         "time_filter" => "🕒",
+        "timeline" => "⏳",
         "calendar" => "📅",
         _ => "?",
     }

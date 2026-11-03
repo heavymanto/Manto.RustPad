@@ -54,6 +54,8 @@ pub enum Cmd {
     TimeMask,
     /// Toglie l'intervallo di tempo (la vista torna a tutto il file).
     TimeFilter,
+    /// La timeline: la barra mappa del file nel tempo accanto alla scrollbar (si accende e si spegne).
+    Timeline,
 }
 
 /// La scheda di un comando.
@@ -273,6 +275,7 @@ pub const COMMANDS: &[Command] = &[
         "time_mask",
     ),
     comando(Cmd::TimeFilter, "gui.time_filter", None, "", "time_filter"),
+    comando(Cmd::Timeline, "gui.timeline", None, "", "timeline"),
     comando(
         Cmd::NextTab,
         "gui.next_tab",

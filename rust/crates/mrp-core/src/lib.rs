@@ -23,6 +23,7 @@ pub mod scan;
 pub mod search;
 pub mod session;
 pub mod source;
+pub mod timeline;
 pub mod timemask;
 pub mod timesearch;
 pub mod view;

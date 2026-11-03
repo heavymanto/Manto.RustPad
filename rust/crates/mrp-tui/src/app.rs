@@ -4,6 +4,7 @@
 pub mod dialogs;
 mod tempo;
 mod tempo_finestra;
+pub mod timeline;
 
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
@@ -764,6 +765,8 @@ pub struct App {
     /// Nella finestra "Tempo": la casella "Filtro attivo", il campo che ha il fuoco (0 pattern, 1 entro, 2 dal, 3 al), l'ultimo
     /// errore e la prima e l'ultima chiave del file (per i suggerimenti dei campi vuoti e il mese con cui si apre il calendario).
     time_check: bool,
+    /// La timeline (la barra mappa accanto alla scrollbar): spenta di fabbrica, una per scheda.
+    timeline: timeline::TimelineState,
     time_field: u8,
     time_error: String,
     time_bounds: Option<(i64, i64)>,
@@ -1008,6 +1011,7 @@ impl App {
             mask_matches: Vec::new(),
             mask_detected: None,
             time_check: false,
+            timeline: timeline::TimelineState::default(),
             time_field: 2,
             time_error: String::new(),
             time_bounds: None,

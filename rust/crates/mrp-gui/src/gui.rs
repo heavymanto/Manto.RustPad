@@ -88,6 +88,8 @@ pub struct Finestra {
     rettangolo_stato: Option<Rect>,
     /// Il rettangolo della pista della scrollbar nell'ultimo disegno (`None`: come sopra).
     rettangolo_scroll: Option<Rect>,
+    /// Cosa si e' disegnato della timeline nell'ultimo giro (per i test).
+    timeline: crate::timeline::StatoTimeline,
     /// I testi dell'ultima barra di stato disegnata (`None`: come sopra).
     testi: Option<TestiStato>,
     /// Dove si e' afferrato il pollice della scrollbar (dalla sua cima), mentre si preme sulla pista.
@@ -193,6 +195,7 @@ impl Finestra {
             pezzi: Vec::new(),
             rettangolo_stato: None,
             rettangolo_scroll: None,
+            timeline: crate::timeline::StatoTimeline::default(),
             testi: None,
             presa_scroll: None,
             pulsanti: Vec::new(),
@@ -957,6 +960,11 @@ impl Finestra {
         self.rettangolo_stato
     }
 
+    /// Cosa si e' disegnato della timeline nell'ultimo giro (per i test): il pannello, il corpo, le righe e le scritte.
+    pub fn timeline_disegnata(&self) -> &crate::timeline::StatoTimeline {
+        &self.timeline
+    }
+
     /// Il rettangolo della pista della scrollbar nell'ultimo disegno (per i test); `None` se non c'e'.
     pub fn scrollbar_rect(&self) -> Option<Rect> {
         self.rettangolo_scroll
@@ -1061,6 +1069,8 @@ impl Finestra {
             Cmd::Settings => self.impostazioni.aperta = !self.impostazioni.aperta,
             // il filtro per data si accende e si spegne (non ha un tasto: e' un comando del menu e della barra)
             Cmd::TimeFilter => self.ws.active_mut().toggle_time_filter(),
+            // la timeline si accende e si spegne
+            Cmd::Timeline => self.ws.active_mut().toggle_timeline(),
             c => {
                 self.ws.exec(c);
             }
@@ -1215,7 +1225,13 @@ impl Finestra {
         if !self.ws.active().chrome() {
             self.barra_stato(ctx);
             self.scrollbar(ctx);
+            // la timeline sta a sinistra della scrollbar; le tacche le cerca un thread, finche' lavora si ridisegna
+            if self.ws.active_mut().timeline_tick() {
+                ctx.request_repaint_after(Duration::from_millis(150));
+            }
+            crate::timeline::disegna(ctx, &mut self.ws, &self.tavolozza, &mut self.timeline);
         } else {
+            self.timeline = crate::timeline::StatoTimeline::default();
             self.pezzi.clear();
             self.rettangolo_stato = None;
             self.rettangolo_scroll = None;

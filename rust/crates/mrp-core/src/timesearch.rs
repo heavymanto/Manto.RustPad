@@ -219,17 +219,33 @@ pub fn key_of_line(doc: &Document, mask: &TimeMask, pos: u64) -> Option<i64> {
 /// La prima riga con l'orario della maschera, dall'inizio del documento in avanti (le righe senza
 /// orario si saltano una alla volta, come in `prima_con_orario_del_file`), con il suo offset e la
 /// sua chiave: `Ok(None)` se nessuna riga ha l'orario. Ogni riga guardata controlla `cancel` (vero
-/// -> `Err(Cancelled)`), anche la prima.
+/// -> `Err(Cancelled)`), anche la prima. E' il caso `0..len` di `first_key_in`.
 pub fn first_key(
     doc: &Document,
     mask: &TimeMask,
     cancel: &AtomicBool,
 ) -> Result<Option<(u64, i64)>, Cancelled> {
-    if doc.is_empty() {
+    first_key_in(doc, mask, 0, doc.len(), cancel)
+}
+
+/// La prima riga con l'orario della maschera dentro la finestra di byte `[lo, hi)`, dall'inizio
+/// della finestra in avanti (le righe senza orario si saltano una alla volta, come in
+/// `prima_con_orario_del_file`), con il suo offset e la sua chiave: `Ok(None)` se nessuna riga
+/// della finestra ha l'orario (o la finestra e' vuota). Ogni riga guardata controlla `cancel`
+/// (vero -> `Err(Cancelled)`), anche la prima.
+pub fn first_key_in(
+    doc: &Document,
+    mask: &TimeMask,
+    lo: u64,
+    hi: u64,
+    cancel: &AtomicBool,
+) -> Result<Option<(u64, i64)>, Cancelled> {
+    let hi = hi.min(doc.len());
+    if lo >= hi {
         return Ok(None);
     }
-    let mut r: u64 = 0;
-    while r < doc.len() {
+    let mut r: u64 = lo;
+    while r < hi {
         if cancel.load(Ordering::Relaxed) {
             return Err(Cancelled);
         }
@@ -247,16 +263,32 @@ pub fn first_key(
 /// L'ultima riga con l'orario della maschera, cercando all'indietro dalla fine del documento per al
 /// piu' `RIGHE_MAX` righe (le righe senza orario si saltano), con il suo offset e la sua chiave:
 /// `Ok(None)` se non se ne trova nessuna. Ogni riga guardata controlla `cancel` (vero ->
-/// `Err(Cancelled)`), anche la prima.
+/// `Err(Cancelled)`), anche la prima. E' il caso `0..len` di `last_key_in`.
 pub fn last_key(
     doc: &Document,
     mask: &TimeMask,
     cancel: &AtomicBool,
 ) -> Result<Option<(u64, i64)>, Cancelled> {
-    if doc.is_empty() {
+    last_key_in(doc, mask, 0, doc.len(), cancel)
+}
+
+/// L'ultima riga con l'orario della maschera dentro la finestra di byte `[lo, hi)`, cercando
+/// all'indietro dalla fine della finestra per al piu' `RIGHE_MAX` righe (le righe senza orario si
+/// saltano; contano le righe che cominciano prima di `hi`), con il suo offset e la sua chiave:
+/// `Ok(None)` se non se ne trova nessuna (o la finestra e' vuota). Ogni riga guardata controlla
+/// `cancel` (vero -> `Err(Cancelled)`), anche la prima.
+pub fn last_key_in(
+    doc: &Document,
+    mask: &TimeMask,
+    lo: u64,
+    hi: u64,
+    cancel: &AtomicBool,
+) -> Result<Option<(u64, i64)>, Cancelled> {
+    let hi = hi.min(doc.len());
+    if lo >= hi {
         return Ok(None);
     }
-    let mut pos = doc.len();
+    let mut pos = hi;
     for _ in 0..RIGHE_MAX {
         if cancel.load(Ordering::Relaxed) {
             return Err(Cancelled);
@@ -264,6 +296,10 @@ pub fn last_key(
         let Some(r) = scan::prev_row_start(doc, pos, PASSO) else {
             return Ok(None);
         };
+        // prima del limite basso della finestra non ci sono righe da guardare
+        if r < lo {
+            return Ok(None);
+        }
         if let Some(chiave) = chiave_maschera(doc, mask, r) {
             return Ok(Some((r, chiave)));
         }
@@ -276,30 +312,48 @@ pub fn last_key(
 /// uguale a `key`, in un documento con le chiavi non decrescenti: `Ok(None)` se non c'e' (documento
 /// vuoto, nessuna riga con chiave o tutte precedenti). E' la ricerca binaria di `find_time`, con le
 /// chiavi della maschera al posto degli orari di `loghl`: stessi `RIGHE_MAX` e `TESTO_MAX`, righe
-/// senza orario saltate. Ogni giro controlla `cancel` (vero -> `Err(Cancelled)`), anche subito.
+/// senza orario saltate. Ogni giro controlla `cancel` (vero -> `Err(Cancelled)`), anche subito. E'
+/// il caso `0..len` di `find_key_in`.
 pub fn find_key(
     doc: &Document,
     mask: &TimeMask,
     key: i64,
     cancel: &AtomicBool,
 ) -> Result<Option<u64>, Cancelled> {
-    let len = doc.len();
-    if len == 0 {
+    find_key_in(doc, mask, key, 0, doc.len(), cancel)
+}
+
+/// L'inizio della prima riga, in ordine di file, la cui chiave (quella della maschera) e' maggiore o
+/// uguale a `key` fra le righe che cominciano nella finestra di byte `[lo, hi)`, in un documento con
+/// le chiavi non decrescenti: `Ok(None)` se non c'e' (finestra vuota, nessuna riga con chiave o
+/// tutte precedenti). `lo` e' l'inizio di una riga: se la riga che contiene il punto di mezzo
+/// comincia prima di `lo`, da `lo` si parte. E' la ricerca binaria di `find_key`, con le chiavi
+/// della maschera al posto degli orari di `loghl`: stessi `RIGHE_MAX` e `TESTO_MAX`, righe senza
+/// orario saltate. Ogni giro controlla `cancel` (vero -> `Err(Cancelled)`), anche subito.
+pub fn find_key_in(
+    doc: &Document,
+    mask: &TimeMask,
+    key: i64,
+    mut lo: u64,
+    hi: u64,
+    cancel: &AtomicBool,
+) -> Result<Option<u64>, Cancelled> {
+    let mut hi = hi.min(doc.len());
+    if lo >= hi {
         return Ok(None);
     }
     if cancel.load(Ordering::Relaxed) {
         return Err(Cancelled);
     }
     // la ricerca binaria: in `[lo, hi)` c'e' sempre la prima riga che va bene (o la candidata trovata)
-    let mut lo: u64 = 0;
-    let mut hi: u64 = len;
     let mut candidata: Option<u64> = None;
     while lo < hi {
         if cancel.load(Ordering::Relaxed) {
             return Err(Cancelled);
         }
         let mid = lo + (hi - lo) / 2;
-        let inizio = inizio_riga(doc, mid);
+        // la riga che contiene `mid` puo' cominciare prima della finestra: allora si parte da `lo`
+        let inizio = inizio_riga(doc, mid).max(lo);
         match prima_con_chiave(doc, mask, inizio, hi) {
             // niente chiavi da qui in avanti, entro l'intervallo: la risposta non puo' stare oltre
             None => hi = inizio,
