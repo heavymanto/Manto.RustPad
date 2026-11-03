@@ -123,6 +123,13 @@ impl App {
         self.time_mask.as_ref().map(|m| m.pattern().to_string())
     }
 
+    /// La maschera dell'orario per colorarlo nella riga (con i colori dei log accesi): solo gli orari che la maschera legge
+    /// si colorano, quindi senza maschera niente.
+    pub fn time_mask_for_colors(&mut self) -> Option<TimeMask> {
+        self.assicura_maschera();
+        self.time_mask.clone()
+    }
+
     /// Quanto la maschera puo' stare lontana dall'inizio della riga (la finestra di ricerca).
     pub fn time_mask_within(&mut self) -> usize {
         self.assicura_maschera();

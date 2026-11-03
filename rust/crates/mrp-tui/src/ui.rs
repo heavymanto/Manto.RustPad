@@ -170,6 +170,12 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         righe = app.drawn_rows().to_vec();
         righe.truncate(text_rows);
     }
+    // gli orari si colorano solo dove li legge la maschera del file (riconosciuta o scelta): senza maschera, niente
+    let maschera = if app.log_colors() {
+        app.time_mask_for_colors()
+    } else {
+        None
+    };
     for (i, (gutter, text)) in righe.iter().enumerate() {
         let y = sopra + i as u16;
         // Ogni riga arriva fino in fondo allo schermo.
@@ -186,6 +192,10 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
                 _ => {}
             }
             for sp in loghl::highlight(&text) {
+                if sp.kind == Kind::Time {
+                    // gli orari li decide la maschera, non la forma
+                    continue;
+                }
                 let stile = match sp.kind {
                     Kind::Error => t.log.error,
                     Kind::Warn => t.log.warn,
@@ -197,6 +207,15 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
                 let da = Span::raw(&text[..sp.start]).width();
                 let fino = Span::raw(&text[..sp.end]).width();
                 celle_log.push((da, fino, stile));
+            }
+            if let Some((da, fino, _)) = maschera.as_ref().and_then(|m| m.find(text.as_bytes())) {
+                if let (Some(prima), Some(fino)) = (text.get(..da), text.get(..fino)) {
+                    celle_log.push((
+                        Span::raw(prima).width(),
+                        Span::raw(fino).width(),
+                        t.log.time,
+                    ));
+                }
             }
         }
         let manca = cells.saturating_sub(text.chars().count());

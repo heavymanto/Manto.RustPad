@@ -15,6 +15,8 @@ pub const POLLICE_MINIMO: f32 = 16.0;
 pub struct Pezzo {
     pub testo: String,
     pub comando: Option<Cmd>,
+    /// Un interruttore spento: il pezzo si vede lo stesso (per riaccenderlo con un clic) ma in grigio.
+    pub spento: bool,
 }
 
 /// I testi della barra di stato: a sinistra la posizione del cursore (o il messaggio transitorio), a destra i
@@ -83,6 +85,7 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
         destra.push(Pezzo {
             testo: cat.tf(chiave, &[&percentuale.to_string()]),
             comando: None,
+            spento: false,
         });
     }
     // il formato dell'orario di questo file: la scritta FORMAT, un clic apre l'elenco dei formati (la maschera riconosciuta o
@@ -90,12 +93,14 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
     destra.push(Pezzo {
         testo: cat.t("status.format").to_string(),
         comando: Some(Cmd::TimeMask),
+        spento: false,
     });
     // l'orario della prima riga visibile (se il file ha una maschera): un clic apre l'intervallo di tempo
     if let Some(t) = &s.time {
         destra.push(Pezzo {
             testo: t.clone(),
             comando: Some(Cmd::TimeRange),
+            spento: false,
         });
     }
     // il modo cambia al clic, la modalita' colonna pure, la codifica apre il suo menu; a-capo e dimensione no
@@ -110,37 +115,40 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             })
             .to_string(),
         comando: Some(Cmd::EditMode),
+        spento: false,
     });
     if s.column_mode {
         destra.push(Pezzo {
             testo: cat.t("mode.column").to_string(),
             comando: Some(Cmd::ColumnMode),
+            spento: false,
         });
     }
-    // gli interruttori accesi, a colpo d'occhio: caratteri speciali e colori dei log (un clic li spegne)
-    if s.special {
-        destra.push(Pezzo {
-            testo: "\u{b6}".to_string(),
-            comando: Some(Cmd::Special),
-        });
-    }
-    if s.log_colors {
-        destra.push(Pezzo {
-            testo: cat.t("status.log").to_string(),
-            comando: Some(Cmd::LogColors),
-        });
-    }
+    // gli interruttori sono sempre in barra, a colpo d'occhio: normali se accesi, in grigio se spenti (un clic li cambia)
+    destra.push(Pezzo {
+        testo: "\u{b6}".to_string(),
+        comando: Some(Cmd::Special),
+        spento: !s.special,
+    });
+    destra.push(Pezzo {
+        testo: cat.t("status.log").to_string(),
+        comando: Some(Cmd::LogColors),
+        spento: !s.log_colors,
+    });
     destra.push(Pezzo {
         testo: s.encoding.clone(),
         comando: Some(Cmd::Encoding),
+        spento: false,
     });
     destra.push(Pezzo {
         testo: s.line_ending.to_string(),
         comando: None,
+        spento: false,
     });
     destra.push(Pezzo {
         testo: fmt_size(s.size),
         comando: None,
+        spento: false,
     });
     TestiStato { sinistra, destra }
 }

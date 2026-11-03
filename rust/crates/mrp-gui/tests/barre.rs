@@ -47,6 +47,16 @@ fn pezzo(testo: &str, comando: Option<Cmd>) -> Pezzo {
     Pezzo {
         testo: testo.to_string(),
         comando,
+        spento: false,
+    }
+}
+
+/// Un interruttore spento: sta in barra lo stesso, in grigio.
+fn spento(testo: &str, comando: Cmd) -> Pezzo {
+    Pezzo {
+        testo: testo.to_string(),
+        comando: Some(comando),
+        spento: true,
     }
 }
 
@@ -59,6 +69,8 @@ fn the_status_text_in_english() {
         vec![
             pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("VIEW", Some(Cmd::EditMode)),
+            spento("\u{b6}", Cmd::Special),
+            spento("LOG", Cmd::LogColors),
             pezzo("UTF-8", Some(Cmd::Encoding)),
             pezzo("LF", None),
             pezzo("2.00 KiB", None),
@@ -81,6 +93,8 @@ fn edit_mode_column_mode_and_line_ending_show_up() {
             pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("EDIT", Some(Cmd::EditMode)),
             pezzo("COL", Some(Cmd::ColumnMode)),
+            spento("\u{b6}", Cmd::Special),
+            spento("LOG", Cmd::LogColors),
             pezzo("windows-1252", Some(Cmd::Encoding)),
             pezzo("CRLF", None),
             pezzo("0 B", None),
@@ -104,7 +118,7 @@ fn the_flash_replaces_the_position_but_not_the_right_side() {
     s.flash = Some("saved: a.txt".to_string());
     let t = testi_stato(&s, &Catalog::english());
     assert_eq!(t.sinistra, "saved: a.txt");
-    assert_eq!(t.destra.len(), 5);
+    assert_eq!(t.destra.len(), 7);
 }
 
 #[test]
@@ -117,7 +131,7 @@ fn background_work_comes_first_on_the_right() {
         let mut s = info();
         s.busy = Some(busy);
         let t = testi_stato(&s, &Catalog::english());
-        assert_eq!(t.destra.len(), 6, "{atteso}");
+        assert_eq!(t.destra.len(), 8, "{atteso}");
         assert_eq!(t.destra[0], pezzo(atteso, None));
         assert_eq!(t.destra[1], pezzo("FORMAT", Some(Cmd::TimeMask)));
         assert_eq!(t.destra[2], pezzo("VIEW", Some(Cmd::EditMode)));

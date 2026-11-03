@@ -204,18 +204,25 @@ impl TimeMask {
     /// dopo l'orario il testo puo' continuare. Una riga troppo corta, non UTF-8, con valori
     /// impossibili o che non corrisponde da' `None`, mai un panic.
     pub fn read(&self, line: &[u8]) -> Option<i64> {
+        self.find(line).map(|(_, _, chiave)| chiave)
+    }
+
+    /// Dove sta l'orario nella riga e che cosa vale: `(inizio, fine, chiave)`, con `inizio..fine` i byte che
+    /// l'orario occupa (il fuso e la frazione compresi) e `chiave` quella di `read`. E' la stessa lettura di `read`
+    /// (stessa prima posizione che corrisponde); serve a chi colora l'orario nella riga.
+    pub fn find(&self, line: &[u8]) -> Option<(usize, usize, i64)> {
         if std::str::from_utf8(line).is_err() {
             return None;
         }
         // oltre la fine della riga non c'e' niente da provare
         let fine = self.within.min(line.len().saturating_sub(1));
         for da in 0..=fine {
-            let chiave = match &self.corpo {
+            let letto = match &self.corpo {
                 Corpo::Pezzi(_) => self.leggi_pezzi(line, da),
                 Corpo::Epoch { secondi } => leggi_epoch(line, da, *secondi),
             };
-            if chiave.is_some() {
-                return chiave;
+            if let Some((chiave, fino)) = letto {
+                return Some((da, fino, chiave));
             }
         }
         None
@@ -223,7 +230,7 @@ impl TimeMask {
 
     /// L'orario che comincia in `da`, secondo i pezzi del pattern. Ogni accesso passa da `get` o da
     /// `cifre`, cosi' una riga corta non fa mai uscire un indice fuori misura.
-    fn leggi_pezzi(&self, line: &[u8], da: usize) -> Option<i64> {
+    fn leggi_pezzi(&self, line: &[u8], da: usize) -> Option<(i64, usize)> {
         let Corpo::Pezzi(pezzi) = &self.corpo else {
             return None;
         };
@@ -343,7 +350,7 @@ impl TimeMask {
         };
         if !self.ha_data {
             // la sola ora: i millisecondi del giorno
-            return Some(ms_giorno);
+            return Some((ms_giorno, i));
         }
         // la data: l'anno che manca viene da with_year, il mese e il giorno che mancano da gennaio
         let anno = anno.unwrap_or(self.anno);
@@ -352,7 +359,10 @@ impl TimeMask {
         if giorno > giorni_del_mese(anno, mese) {
             return None;
         }
-        Some(giorni_dal_1970(anno, mese, giorno) * MS_GIORNO + ms_giorno)
+        Some((
+            giorni_dal_1970(anno, mese, giorno) * MS_GIORNO + ms_giorno,
+            i,
+        ))
     }
 }
 
@@ -542,7 +552,7 @@ fn e_speciale(c: u8) -> bool {
 
 /// L'epoch che comincia in `da`: 9-10 cifre per i secondi (con frazione facoltativa), 12-13 per i
 /// millisecondi; dopo il numero il testo puo' continuare.
-fn leggi_epoch(line: &[u8], da: usize, secondi: bool) -> Option<i64> {
+fn leggi_epoch(line: &[u8], da: usize, secondi: bool) -> Option<(i64, usize)> {
     let mut n = 0;
     while line.get(da + n).is_some_and(|c| c.is_ascii_digit()) {
         n += 1;
@@ -555,16 +565,18 @@ fn leggi_epoch(line: &[u8], da: usize, secondi: bool) -> Option<i64> {
     for j in 0..n {
         valore = valore * 10 + i64::from(line[da + j] - b'0');
     }
+    let mut fino = da + n;
     if secondi {
         valore *= 1000;
         // la frazione e' facoltativa: se non c'e', quello che segue resta testo che continua
         if line.get(da + n) == Some(&b'.') {
-            if let Some((fra, _)) = frazione_cifre(line, da + n + 1) {
+            if let Some((fra, cifre)) = frazione_cifre(line, da + n + 1) {
                 valore += fra;
+                fino = da + n + 1 + cifre;
             }
         }
     }
-    Some(valore)
+    Some((valore, fino))
 }
 
 /// La frazione che comincia in `i`: i millisecondi delle prime tre cifre (con meno di tre cifre le

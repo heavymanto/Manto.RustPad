@@ -258,3 +258,44 @@ fn the_setting_is_off_by_default_written_only_when_on_and_read_back() {
         assert!(!Settings::from_text(no).log_colors, "{no}");
     }
 }
+
+#[test]
+fn a_time_is_coloured_only_where_the_format_of_the_file_reads_it() {
+    // il formato del file e' "yyyy-MM-dd HH:mm:ss" all'inizio della riga: un'altra data a meta' riga, o una scritta come
+    // un orario che il formato non legge, non si colora (prima si colorava tutto cio' che "somigliava" a una data)
+    let testo =
+        "2026-10-31 09:00:53 INFO a\n2026-10-31 09:00:54 INFO b\n2026-10-31 09:00:55 INFO c\n\
+                 2026-10-31 09:00:56 INFO see 2019-01-01 00:00:00 and 12:30:45 here\n";
+    let (d, mut ws) = ws_con(cfg(ThemeId::Console), testo);
+    ws.handle_key(alt_l());
+    // le righe con l'orario al suo posto: colorato (i 19 caratteri)
+    for riga in 0..4 {
+        assert_eq!(fg(&mut ws, 0, riga), ansi(Color::Cyan), "riga {riga}");
+        assert_eq!(fg(&mut ws, 18, riga), ansi(Color::Cyan), "riga {riga}");
+        assert_eq!(fg(&mut ws, 19, riga), ansi(Color::White), "riga {riga}");
+    }
+    // la data e l'orario dentro la quarta riga: "INFO see " finisce in colonna 28, la data comincia in 29 e l'orario in 52
+    assert_eq!(fg(&mut ws, 29, 3), ansi(Color::White), "data a meta' riga");
+    assert_eq!(
+        fg(&mut ws, 52, 3),
+        ansi(Color::White),
+        "orario a meta' riga"
+    );
+    let _ = std::fs::remove_dir_all(d);
+}
+
+#[test]
+fn without_a_recognised_format_there_is_no_time_colour_but_levels_and_addresses_still_are() {
+    let testo = "ERROR boom 10.0.0.1
+plain 2019 text
+";
+    let (d, mut ws) = ws_con(cfg(ThemeId::Console), testo);
+    ws.handle_key(alt_l());
+    assert!(ws.log_colors());
+    assert_eq!(ws.active_mut().time_mask_pattern(), None);
+    assert_eq!(ws.active_mut().time_mask_for_colors(), None);
+    // il livello e l'indirizzo si colorano come sempre
+    assert_eq!(fg(&mut ws, 0, 0), ansi(Color::LightRed), "ERROR");
+    assert_eq!(fg(&mut ws, 11, 0), ansi(Color::Magenta), "l'indirizzo");
+    let _ = std::fs::remove_dir_all(d);
+}

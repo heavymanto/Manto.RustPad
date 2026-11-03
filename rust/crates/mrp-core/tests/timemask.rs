@@ -509,3 +509,31 @@ fn a_strong_format_is_not_hidden_by_a_weak_one_that_reads_more_lines() {
     assert_eq!(p, "yyyy-MM-dd HH:mm:ss.SSS");
     assert_eq!((matched, total), (5, 200));
 }
+
+// ---------- dove sta l'orario nella riga (per colorarlo) ----------
+
+#[test]
+fn find_gives_the_bytes_the_time_occupies_and_the_same_key_as_read() {
+    let m = maschera("yyyy-MM-dd HH:mm:ss.SSS");
+    let riga = "2026-11-01 02:00:00.877 [INFO ] x";
+    assert_eq!(m.find(riga.as_bytes()), Some((0, 23, 1793498400877)));
+    assert_eq!(m.read(riga.as_bytes()), Some(1793498400877));
+    // il fuso (Z) e' dentro l'orario, il testo dopo no
+    let z = maschera("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+    assert_eq!(
+        z.find(b"2026-11-01T02:00:00.877Z rest"),
+        Some((0, 24, 1793498400877))
+    );
+    // la finestra: l'orario che comincia piu' avanti ha l'inizio giusto
+    let w = TimeMask::parse("yyyy-MM-dd HH:mm:ss", 6).unwrap();
+    assert_eq!(
+        w.find(b"[xyz] 2026-11-01 02:00:00 end"),
+        Some((6, 25, 1793498400000))
+    );
+    // e fuori dalla finestra, niente
+    assert_eq!(m.find(b"xx 2026-11-01 02:00:00.877"), None);
+    // l'epoch: le cifre (e la frazione, se c'e') sono l'orario
+    let e = maschera("epoch_s");
+    assert_eq!(e.find(b"1793498400.877 x"), Some((0, 14, 1793498400877)));
+    assert_eq!(e.find(b"1793498400 x"), Some((0, 10, 1793498400000)));
+}

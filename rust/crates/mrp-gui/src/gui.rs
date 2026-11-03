@@ -790,7 +790,12 @@ impl Finestra {
                         }
                         let r = match pezzo.comando {
                             Some(cmd) => {
-                                let l = Label::new(&pezzo.testo).sense(Sense::click());
+                                let testo = if pezzo.spento {
+                                    egui::RichText::new(&pezzo.testo).weak()
+                                } else {
+                                    egui::RichText::new(&pezzo.testo)
+                                };
+                                let l = Label::new(testo).sense(Sense::click());
                                 let mut r = ui.add(l).on_hover_cursor(CursorIcon::PointingHand);
                                 // sul FORMAT, il formato dell'orario che c'e' adesso (o che non c'e')
                                 if cmd == Cmd::TimeMask {

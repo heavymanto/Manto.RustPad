@@ -46,6 +46,16 @@ fn pezzo(testo: &str, comando: Option<Cmd>) -> Pezzo {
     Pezzo {
         testo: testo.to_string(),
         comando,
+        spento: false,
+    }
+}
+
+/// Un interruttore spento: sta in barra lo stesso, in grigio.
+fn spento(testo: &str, comando: Cmd) -> Pezzo {
+    Pezzo {
+        testo: testo.to_string(),
+        comando: Some(comando),
+        spento: true,
     }
 }
 
@@ -64,6 +74,8 @@ fn il_messaggio_e_il_lavoro_insieme_non_si_toccano() {
             pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("EDIT", Some(Cmd::EditMode)),
             pezzo("COL", Some(Cmd::ColumnMode)),
+            spento("\u{b6}", Cmd::Special),
+            spento("LOG", Cmd::LogColors),
             pezzo("utf-16le", Some(Cmd::Encoding)),
             pezzo("CRLF", None),
             pezzo("1.00 KiB", None),
@@ -167,6 +179,8 @@ fn i_pezzi_di_destra_della_finestra_vengono_dallo_stato() {
         vec![
             pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("VIEW", Some(Cmd::EditMode)),
+            spento("\u{b6}", Cmd::Special),
+            spento("LOG", Cmd::LogColors),
             pezzo("utf-8", Some(Cmd::Encoding)),
             pezzo("LF", None),
             pezzo("4 B", None),

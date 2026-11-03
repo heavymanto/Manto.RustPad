@@ -132,16 +132,18 @@ fn selection_without_the_line_index_says_only_bytes() {
 }
 
 #[test]
-fn the_switches_that_are_on_show_up_on_the_right_and_click_to_turn_off() {
+fn the_switches_are_always_on_the_right_grey_when_off_and_a_click_changes_them() {
     let (mut a, p) = app();
     let cat = Catalog::english();
     let pezzi = |a: &mut App| testi_stato(&a.status(), &cat).destra;
-    assert!(!pezzi(&mut a)
+    // spenti stanno in barra lo stesso (un clic li riaccende), in grigio
+    let v = pezzi(&mut a);
+    let sp = v.iter().find(|p| p.comando == Some(Cmd::Special)).unwrap();
+    let lg = v
         .iter()
-        .any(|p| p.comando == Some(Cmd::Special)));
-    assert!(!pezzi(&mut a)
-        .iter()
-        .any(|p| p.comando == Some(Cmd::LogColors)));
+        .find(|p| p.comando == Some(Cmd::LogColors))
+        .unwrap();
+    assert!(sp.spento && lg.spento);
     a.set_special_chars(true, false);
     a.set_log_colors(true, false);
     let v = pezzi(&mut a);
@@ -151,6 +153,7 @@ fn the_switches_that_are_on_show_up_on_the_right_and_click_to_turn_off() {
         .find(|p| p.comando == Some(Cmd::LogColors))
         .unwrap();
     assert_eq!((sp.testo.as_str(), lg.testo.as_str()), ("\u{b6}", "LOG"));
+    assert!(!sp.spento && !lg.spento);
     // stanno prima della codifica
     let i_sp = v
         .iter()
