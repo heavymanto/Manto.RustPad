@@ -149,6 +149,10 @@ pub enum DialogView {
         preview_label: String,
         preview: Vec<(String, String)>,
         auto: String,
+        /// I formati noti (pattern, esempio) da scegliere, quello evidenziato e il titolo della lista.
+        presets: Vec<(String, String)>,
+        preset: usize,
+        presets_label: String,
     },
     /// Il salvataggio in corso: il nome del file e la percentuale.
     Saving {
@@ -325,6 +329,9 @@ impl App {
                 preview_label: t("time.mask.preview"),
                 preview: self.time_mask_preview(),
                 auto: t("time.mask.auto"),
+                presets: self.time_presets().0,
+                preset: self.time_presets().1,
+                presets_label: t("time.mask.known"),
             },
             DialogKind::Overwrite => DialogView::Overwrite {
                 title: t("overwrite.title"),

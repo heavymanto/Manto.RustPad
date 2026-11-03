@@ -349,6 +349,8 @@ pub struct AppConfig {
     pub line_numbers: bool,
     /// Il corpo del testo della finestra in punti (vedi `Settings::font_size`).
     pub font_size: Option<u16>,
+    /// Il formato standard dell'orario (vedi `Settings::time_format`).
+    pub time_format: Option<(String, usize)>,
     /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
     /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
     pub eol: Option<LineEnding>,
@@ -373,6 +375,7 @@ impl Default for AppConfig {
             log_colors: false,
             line_numbers: true,
             font_size: None,
+            time_format: None,
             chrome: true,
             eol: None,
         }
@@ -472,6 +475,8 @@ pub struct StatusInfo {
     pub busy: Option<(Busy, u8)>,
     /// L'orario della prima riga visibile (`aaaa-mm-gg hh:mm:ss`), se il file ha una maschera dell'orario e la riga ne ha uno.
     pub time: Option<String>,
+    /// Il formato dell'orario di questo file (il pattern), `None` se non ne ha uno riconosciuto.
+    pub time_format: Option<String>,
 }
 
 /// Dove sta la finestra nel documento (`App::scroll_info`): da dove comincia e quanta parte ne mostra, da 0 a 1.
@@ -745,6 +750,8 @@ pub struct App {
     time_mask: Option<TimeMask>,
     /// Il riconoscimento della maschera e' gia' stato tentato (una volta per scheda; la scelta a mano lo sostituisce).
     time_mask_tried: bool,
+    /// Quale dei formati noti (`timemask::PRESETS`) e' evidenziato nel dialogo del formato.
+    mask_preset: usize,
     /// La finestra di tempo: la vista e' ristretta a `[inizio, fine)` (due inizi di riga); `None`: tutto il file.
     window: Option<(u64, u64)>,
     /// I campi del dialogo dell'intervallo di tempo (da, a), quale ha il fuoco e l'ultimo errore.
@@ -857,6 +864,8 @@ pub struct App {
     line_numbers: bool,
     /// Il corpo del testo della finestra (la scelta si salva, vale per tutte le schede).
     font_size: Option<u16>,
+    /// Il formato standard dell'orario scelto a mano (pattern, finestra): si prova per primo (vedi `Settings::time_format`).
+    time_default: Option<(String, usize)>,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
     /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
@@ -978,6 +987,7 @@ impl App {
             index_resume: None,
             time_mask: None,
             time_mask_tried: false,
+            mask_preset: 0,
             window: None,
             range_text: [String::new(), String::new()],
             range_field: 0,
@@ -1039,6 +1049,7 @@ impl App {
             log_colors: cfg.log_colors,
             line_numbers: cfg.line_numbers,
             font_size: cfg.font_size,
+            time_default: cfg.time_format.clone(),
             chrome: cfg.chrome,
             eol_forzato: cfg.eol,
             lang_picked,
@@ -1877,6 +1888,7 @@ impl App {
             log_colors: self.log_colors,
             line_numbers: self.line_numbers,
             font_size: self.font_size,
+            time_format: self.time_default.clone(),
             theme_set: self.theme_chosen,
         };
         let _ = s.save(&path);
@@ -3540,6 +3552,7 @@ impl App {
         let size = self.document_len();
         let offset = self.cursor;
         let time = self.time_at_top();
+        let time_format = self.time_mask_pattern();
         // la percentuale e' dentro la finestra di tempo, se c'e'
         let ampiezza = if self.window.is_some() {
             self.hi().saturating_sub(self.lo())
@@ -3578,6 +3591,7 @@ impl App {
             flash: self.flash.clone(),
             busy,
             time,
+            time_format,
         }
     }
 

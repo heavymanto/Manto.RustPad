@@ -39,6 +39,7 @@ fn info() -> StatusInfo {
         flash: None,
         busy: None,
         time: None,
+        time_format: None,
     }
 }
 
@@ -56,6 +57,7 @@ fn the_status_text_in_english() {
     assert_eq!(
         t.destra,
         vec![
+            pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("VIEW", Some(Cmd::EditMode)),
             pezzo("UTF-8", Some(Cmd::Encoding)),
             pezzo("LF", None),
@@ -76,6 +78,7 @@ fn edit_mode_column_mode_and_line_ending_show_up() {
     assert_eq!(
         t.destra,
         vec![
+            pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("EDIT", Some(Cmd::EditMode)),
             pezzo("COL", Some(Cmd::ColumnMode)),
             pezzo("windows-1252", Some(Cmd::Encoding)),
@@ -101,7 +104,7 @@ fn the_flash_replaces_the_position_but_not_the_right_side() {
     s.flash = Some("saved: a.txt".to_string());
     let t = testi_stato(&s, &Catalog::english());
     assert_eq!(t.sinistra, "saved: a.txt");
-    assert_eq!(t.destra.len(), 4);
+    assert_eq!(t.destra.len(), 5);
 }
 
 #[test]
@@ -114,9 +117,10 @@ fn background_work_comes_first_on_the_right() {
         let mut s = info();
         s.busy = Some(busy);
         let t = testi_stato(&s, &Catalog::english());
-        assert_eq!(t.destra.len(), 5, "{atteso}");
+        assert_eq!(t.destra.len(), 6, "{atteso}");
         assert_eq!(t.destra[0], pezzo(atteso, None));
-        assert_eq!(t.destra[1], pezzo("VIEW", Some(Cmd::EditMode)));
+        assert_eq!(t.destra[1], pezzo("FORMAT", Some(Cmd::TimeMask)));
+        assert_eq!(t.destra[2], pezzo("VIEW", Some(Cmd::EditMode)));
     }
 }
 
@@ -145,7 +149,8 @@ fn the_status_speaks_the_chosen_language() {
         .expect("c'e' l'italiano");
     let t = testi_stato(&info(), &Catalog::with(it));
     assert_eq!(t.sinistra, "Rg 3 / 120   Col 4   byte 23   2%");
-    assert_eq!(t.destra[0], pezzo("LETTURA", Some(Cmd::EditMode)));
+    assert_eq!(t.destra[0], pezzo("FORMATO", Some(Cmd::TimeMask)));
+    assert_eq!(t.destra[1], pezzo("LETTURA", Some(Cmd::EditMode)));
 }
 
 #[test]

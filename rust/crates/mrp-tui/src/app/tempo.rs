@@ -12,7 +12,7 @@ use std::sync::atomic::AtomicBool;
 
 /// Quanti byte del file si guardano per riconoscere la maschera, e quante righe al piu'.
 const CAMPIONE_BYTE: u64 = 64 * 1024;
-const CAMPIONE_RIGHE: usize = 200;
+const CAMPIONE_RIGHE: usize = 1000;
 
 /// Le maschere con cui si leggono gli orari scritti a mano nel dialogo "da / a", se non sono nel formato del file: dalla piu'
 /// lunga alla piu' corta. Gli orari soli (la data e' quella del file) sono in `ORARI_A_MANO`.
@@ -64,8 +64,9 @@ impl App {
         }
     }
 
-    /// Le prime righe del file (non vuote), per riconoscere la maschera: solo con gli a-capo a un byte e testo a byte (UTF-16 e
-    /// UTF-32 non si riconoscono: le righe sono a unita' piu' grandi).
+    /// Le righe del file con cui riconoscere la maschera: quelle all'inizio e, se il file e' piu' lungo del campione, quelle in
+    /// fondo (non vuote, al piu' `CAMPIONE_RIGHE` per parte). Solo con gli a-capo a un byte e testo a byte (UTF-16 e UTF-32 non si
+    /// riconoscono: le righe sono a unita' piu' grandi). Un log con grandi tabelle fra le righe con l'orario si riconosce lo stesso.
     fn campione_righe(&self) -> Vec<Vec<u8>> {
         let Some(doc) = self.doc.as_ref() else {
             return Vec::new();
@@ -73,19 +74,31 @@ impl App {
         if self.enc.unit() != 1 {
             return Vec::new();
         }
-        let dati = doc.read_range(0, doc.len().min(CAMPIONE_BYTE));
-        let mut righe: Vec<&[u8]> = dati.split(|&b| b == b'\n').collect();
-        // l'ultimo pezzo puo' essere una riga tagliata dal limite del campione
-        if doc.len() > CAMPIONE_BYTE {
-            righe.pop();
+        let len = doc.len();
+        // un pezzo di file in righe: la prima e l'ultima possono essere tagliate dai bordi del pezzo e si scartano
+        let righe_di =
+            |da: u64, quanti: u64, taglio_inizio: bool, taglio_fine: bool| -> Vec<Vec<u8>> {
+                let dati = doc.read_range(da, quanti);
+                let mut righe: Vec<&[u8]> = dati.split(|&b| b == b'\n').collect();
+                if taglio_fine {
+                    righe.pop();
+                }
+                if taglio_inizio && !righe.is_empty() {
+                    righe.remove(0);
+                }
+                righe
+                    .into_iter()
+                    .map(|r| r.strip_suffix(b"\r").unwrap_or(r))
+                    .filter(|r| !r.is_empty())
+                    .take(CAMPIONE_RIGHE)
+                    .map(<[u8]>::to_vec)
+                    .collect()
+            };
+        let mut v = righe_di(0, len.min(CAMPIONE_BYTE), false, len > CAMPIONE_BYTE);
+        if len > 2 * CAMPIONE_BYTE {
+            v.extend(righe_di(len - CAMPIONE_BYTE, CAMPIONE_BYTE, true, false));
         }
-        righe
-            .into_iter()
-            .map(|r| r.strip_suffix(b"\r").unwrap_or(r))
-            .filter(|r| !r.is_empty())
-            .take(CAMPIONE_RIGHE)
-            .map(<[u8]>::to_vec)
-            .collect()
+        v
     }
 
     /// Riconosce la maschera dalle prime righe, una volta sola per scheda (la scelta a mano la sostituisce).
@@ -96,7 +109,12 @@ impl App {
         self.time_mask_tried = true;
         let righe = self.campione_righe();
         let rif: Vec<&[u8]> = righe.iter().map(Vec::as_slice).collect();
-        self.time_mask = timemask::detect(&rif).map(|d| d.mask);
+        // il formato standard scelto a mano si prova per primo
+        let preferita = self
+            .time_default
+            .as_ref()
+            .and_then(|(p, w)| TimeMask::parse(p, *w).ok());
+        self.time_mask = timemask::detect_with(&rif, preferita.as_ref()).map(|d| d.mask);
     }
 
     /// Il pattern della maschera dell'orario di questo file (riconosciuta o scelta a mano), `None` se non c'e'.
@@ -133,6 +151,16 @@ impl App {
         self.time_mask_tried = true;
         self.window = None;
         Ok(())
+    }
+
+    /// Il formato standard dell'orario (pattern e finestra), se l'utente ne ha scelto uno a mano.
+    pub fn time_default(&self) -> Option<(String, usize)> {
+        self.time_default.clone()
+    }
+
+    /// Cambia il formato standard senza salvare (lo usa il `Workspace` per allineare le schede).
+    pub fn set_time_default(&mut self, formato: Option<(String, usize)>) {
+        self.time_default = formato;
     }
 
     /// La finestra di tempo attuale: l'inizio della prima riga e l'inizio di quella che la segue.
@@ -373,9 +401,12 @@ impl App {
         if self.dialog != Some(DialogKind::TimeMask) {
             return;
         }
+        // "riconoscilo di nuovo" e' il riconoscimento vero, senza la preferenza del formato standard
+        let standard = self.time_default.take();
         self.time_mask_tried = false;
         self.time_mask = None;
         self.assicura_maschera();
+        self.time_default = standard;
         let (pattern, within) = self.time_mask.as_ref().map_or((String::new(), 0), |m| {
             (m.pattern().to_string(), m.within())
         });
@@ -385,6 +416,29 @@ impl App {
         } else {
             String::new()
         };
+    }
+
+    /// I formati noti (pattern e un esempio) e quale e' evidenziato, per il dialogo del formato.
+    pub fn time_presets(&self) -> (Vec<(String, String)>, usize) {
+        (
+            timemask::PRESETS
+                .iter()
+                .map(|p| (p.pattern.to_string(), p.example.to_string()))
+                .collect(),
+            self.mask_preset,
+        )
+    }
+
+    /// Sceglie il formato noto `i` nel dialogo del formato: il suo pattern e la sua finestra vanno nei campi (poi OK lo applica).
+    pub fn dialog_time_preset(&mut self, i: usize) {
+        if self.dialog != Some(DialogKind::TimeMask) {
+            return;
+        }
+        if let Some(p) = timemask::PRESETS.get(i) {
+            self.mask_preset = i;
+            self.mask_text = [p.pattern.to_string(), p.within.to_string()];
+            self.mask_error.clear();
+        }
     }
 
     /// I tasti del dialogo dell'intervallo: Tab / frecce cambiano campo, i caratteri si scrivono, Invio applica (un errore resta nel
@@ -433,11 +487,25 @@ impl App {
                 let within = self.mask_text[1].trim().parse::<usize>().unwrap_or(0);
                 let pattern = self.mask_text[0].trim().to_string();
                 match self.set_time_mask(&pattern, within) {
-                    Ok(()) => self.dialog = None,
+                    Ok(()) => {
+                        // scelta a mano: diventa il formato standard, provato per primo sui file che si apriranno
+                        self.time_default = Some((pattern, within));
+                        self.save_settings();
+                        self.dialog = None;
+                    }
                     Err(e) => self.mask_error = e,
                 }
             }
             KeyCode::Char('a') | KeyCode::Char('A') if alt && !ctrl => self.dialog_time_auto(),
+            // Alt+N / Alt+P: il formato noto dopo / prima
+            KeyCode::Char('n') | KeyCode::Char('N') if alt && !ctrl => {
+                let n = timemask::PRESETS.len();
+                self.dialog_time_preset((self.mask_preset + 1) % n);
+            }
+            KeyCode::Char('p') | KeyCode::Char('P') if alt && !ctrl => {
+                let n = timemask::PRESETS.len();
+                self.dialog_time_preset((self.mask_preset + n - 1) % n);
+            }
             KeyCode::Backspace => {
                 self.mask_text[campo].pop();
                 self.mask_error.clear();

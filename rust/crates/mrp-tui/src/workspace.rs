@@ -773,6 +773,14 @@ impl Workspace {
         if let Some(v) = self.tabs[self.active].take_jump_apply() {
             self.set_jump_pages(v);
         }
+        // il formato standard dell'orario scelto a mano vale per tutte le schede (e per quelle che si apriranno)
+        let standard = self.tabs[self.active].time_default();
+        if standard != self.cfg.time_format {
+            self.cfg.time_format = standard.clone();
+            for a in &mut self.tabs {
+                a.set_time_default(standard.clone());
+            }
+        }
         if let Some((origine, pos)) = self.tabs[self.active].take_goto_original() {
             self.goto_original(&origine, pos);
         }

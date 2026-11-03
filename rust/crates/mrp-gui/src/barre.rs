@@ -85,6 +85,12 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             comando: None,
         });
     }
+    // il formato dell'orario di questo file: la scritta FORMAT, un clic apre l'elenco dei formati (la maschera riconosciuta o
+    // scelta si legge passandoci sopra)
+    destra.push(Pezzo {
+        testo: cat.t("status.format").to_string(),
+        comando: Some(Cmd::TimeMask),
+    });
     // l'orario della prima riga visibile (se il file ha una maschera): un clic apre l'intervallo di tempo
     if let Some(t) = &s.time {
         destra.push(Pezzo {

@@ -26,6 +26,9 @@ pub struct Settings {
     pub line_numbers: bool,
     /// Il corpo del testo della finestra in punti (8..=48); `None`: quello di fabbrica.
     pub font_size: Option<u16>,
+    /// Il formato standard dell'orario scelto a mano (pattern e quanto lontano dall'inizio riga puo' stare): si prova per primo
+    /// quando si apre un file. `None`: ci pensa il riconoscimento.
+    pub time_format: Option<(String, usize)>,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
 }
@@ -47,6 +50,7 @@ impl Default for Settings {
             log_colors: false,
             line_numbers: true,
             font_size: None,
+            time_format: None,
             theme_set: false,
         }
     }
@@ -96,6 +100,9 @@ impl Settings {
         }
         if let Some(n) = self.font_size {
             out.push_str(&format!("font_size={n}\n"));
+        }
+        if let Some((pattern, within)) = &self.time_format {
+            out.push_str(&format!("time_format={pattern}\ntime_within={within}\n"));
         }
         out
     }
@@ -150,6 +157,18 @@ impl Settings {
                 "font_size" => {
                     if let Some(n) = v.parse::<u16>().ok().filter(|n| (8..=48).contains(n)) {
                         s.font_size = Some(n);
+                    }
+                }
+                // il formato dell'orario: il pattern (si prova se e' valido) e quanto lontano dall'inizio riga (da 0 a 200)
+                "time_format" => {
+                    if mrp_core::timemask::TimeMask::parse(v, 0).is_ok() {
+                        let within = s.time_format.as_ref().map_or(0, |(_, w)| *w);
+                        s.time_format = Some((v.to_string(), within));
+                    }
+                }
+                "time_within" => {
+                    if let (Ok(n), Some(f)) = (v.parse::<usize>(), s.time_format.as_mut()) {
+                        f.1 = n.min(200);
                     }
                 }
                 "line_numbers" => match v.to_ascii_lowercase().as_str() {

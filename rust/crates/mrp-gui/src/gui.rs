@@ -791,7 +791,18 @@ impl Finestra {
                         let r = match pezzo.comando {
                             Some(cmd) => {
                                 let l = Label::new(&pezzo.testo).sense(Sense::click());
-                                let r = ui.add(l).on_hover_cursor(CursorIcon::PointingHand);
+                                let mut r = ui.add(l).on_hover_cursor(CursorIcon::PointingHand);
+                                // sul FORMAT, il formato dell'orario che c'e' adesso (o che non c'e')
+                                if cmd == Cmd::TimeMask {
+                                    r = r.on_hover_text(match &stato.time_format {
+                                        Some(f) => f.clone(),
+                                        None => self
+                                            .ws
+                                            .active()
+                                            .text("time.mask.none_known")
+                                            .to_string(),
+                                    });
+                                }
                                 if r.clicked() {
                                     scelta = Some(cmd);
                                 }

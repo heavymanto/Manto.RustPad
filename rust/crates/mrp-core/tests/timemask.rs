@@ -403,3 +403,109 @@ fn a_detected_mask_reads_the_lines_it_was_detected_on() {
     assert_eq!(d.mask.read(&r[0]), Some(1793498400877));
     assert_eq!(d.mask.read(&r[1]), Some(1793498401877));
 }
+
+// ---------- i log con grandi tabelle, la maschera preferita e i formati noti ----------
+
+use mrp_core::timemask::{detect_with, PRESETS};
+
+#[test]
+fn a_log_with_big_tables_between_the_lines_with_a_time_is_still_recognised() {
+    // il caso vero: un log di backtest con 5 righe con l'orario in mezzo a 195 righe di tabella (il 2,5%)
+    let mut v: Vec<String> = Vec::new();
+    for i in 0..5 {
+        v.push(format!(
+            "2026-11-03 11:14:{:02}.738 +01:00 [INF] BALANCE USDT: 0",
+            30 + i
+        ));
+        for k in 0..39 {
+            v.push(format!(
+                "|  [SEC-{k:02}] OPEN NEW POSITION   |   NONE --> DOWN   |"
+            ));
+        }
+    }
+    let (p, within, matched, total) = rileva(&come_str(&v)).expect("va riconosciuto");
+    assert_eq!(p, "yyyy-MM-dd HH:mm:ss.SSS");
+    assert_eq!((within, matched, total), (0, 5, 200));
+}
+
+#[test]
+fn two_lines_with_a_time_in_a_long_text_are_not_enough() {
+    let mut v: Vec<String> = ripeti("2026-11-01 02:00:{} [INFO ] x", 2);
+    v.extend((0..198).map(|i| format!("riga di tabella {i}")));
+    assert!(rileva(&come_str(&v)).is_none());
+}
+
+#[test]
+fn weak_formats_need_a_good_share_of_the_lines() {
+    // dieci cifre all'inizio di 3 righe su 100 (degli id, non degli epoch): niente
+    let mut v: Vec<String> = ripeti("17934984{} e' un identificativo", 3);
+    v.extend((0..97).map(|i| format!("altra riga {i}")));
+    assert!(rileva(&come_str(&v)).is_none());
+    // 12:30:45 all'inizio di 3 righe su 100: niente
+    let mut v: Vec<String> = ripeti("12:30:{} una riga", 3);
+    v.extend((0..97).map(|i| format!("altra riga {i}")));
+    assert!(rileva(&come_str(&v)).is_none());
+    // ma se sono la meta' si'
+    let mut v: Vec<String> = ripeti("12:30:{} una riga", 10);
+    v.extend((0..10).map(|i| format!("altra riga {i}")));
+    assert_eq!(rileva(&come_str(&v)).unwrap().0, "HH:mm:ss");
+}
+
+#[test]
+fn the_preferred_mask_wins_when_it_reads_enough_lines_and_otherwise_detection_goes_on() {
+    let preferita = TimeMask::parse("yyyy-MM-dd HH:mm:ss", 0).unwrap();
+    // il log ha anche i millisecondi: la riconoscita da sola sarebbe quella con i millisecondi, la preferita vince
+    let v = ripeti("2026-11-01 02:00:{}.877 x", 8);
+    let r = righe(&come_str(&v));
+    let rif: Vec<&[u8]> = r.iter().map(Vec::as_slice).collect();
+    assert_eq!(
+        detect(&rif).unwrap().mask.pattern(),
+        "yyyy-MM-dd HH:mm:ss.SSS"
+    );
+    assert_eq!(
+        detect_with(&rif, Some(&preferita)).unwrap().mask.pattern(),
+        "yyyy-MM-dd HH:mm:ss"
+    );
+    // se la preferita non legge niente di questo file, si riconosce da sola
+    let v = ripeti("01/11/2026 02:00:{} x", 8);
+    let r = righe(&come_str(&v));
+    let rif: Vec<&[u8]> = r.iter().map(Vec::as_slice).collect();
+    assert_eq!(
+        detect_with(&rif, Some(&preferita)).unwrap().mask.pattern(),
+        "dd/MM/yyyy HH:mm:ss"
+    );
+    assert_eq!(
+        detect_with(&rif, None).unwrap().mask.pattern(),
+        "dd/MM/yyyy HH:mm:ss"
+    );
+}
+
+#[test]
+fn the_known_formats_are_valid_distinct_and_their_examples_are_read_by_them() {
+    let mut visti = Vec::new();
+    for pr in PRESETS {
+        assert!(!visti.contains(&pr.pattern), "{} due volte", pr.pattern);
+        visti.push(pr.pattern);
+        let m = TimeMask::parse(pr.pattern, pr.within)
+            .unwrap_or_else(|e| panic!("{}: {e:?}", pr.pattern));
+        assert!(
+            m.read(pr.example.as_bytes()).is_some(),
+            "{}: l'esempio {:?}",
+            pr.pattern,
+            pr.example
+        );
+    }
+    // e il primo e' il piu' comune
+    assert_eq!(PRESETS[0].pattern, "yyyy-MM-dd HH:mm:ss.SSS");
+}
+
+#[test]
+fn a_strong_format_is_not_hidden_by_a_weak_one_that_reads_more_lines() {
+    // 5 righe con data e ora e 8 con un numero di dieci cifre (epoch debole, ma piu' righe) in 200: vince la forte
+    let mut v: Vec<String> = ripeti("2026-11-03 11:14:{}.738 +01:00 [INF] job", 5);
+    v.extend(ripeti("rif 17934984{} e basta", 8));
+    v.extend((0..187).map(|i| format!("riga di tabella {i}")));
+    let (p, _, matched, total) = rileva(&come_str(&v)).expect("la forte va riconosciuta");
+    assert_eq!(p, "yyyy-MM-dd HH:mm:ss.SSS");
+    assert_eq!((matched, total), (5, 200));
+}

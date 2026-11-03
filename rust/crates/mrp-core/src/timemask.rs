@@ -13,26 +13,43 @@ use std::fmt;
 /// Quanti millisecondi ha un giorno.
 const MS_GIORNO: i64 = 86_400_000;
 
-/// Le maschere che `detect` prova, nell'ordine di priorita': vince quella che legge piu' righe del
-/// campione, a parita' la prima di quest'ordine (con `within` 0 prima di 40).
-const CANDIDATI: [&str; 17] = [
-    "yyyy-MM-dd HH:mm:ss.SSS",
-    "yyyy-MM-dd HH:mm:ss,SSS",
-    "yyyy-MM-ddTHH:mm:ss.SSS",
-    "yyyy-MM-ddTHH:mm:ss,SSS",
-    "yyyy-MM-dd HH:mm:ss",
-    "yyyy-MM-ddTHH:mm:ss",
-    "yyyy/MM/dd HH:mm:ss",
-    "dd/MM/yyyy HH:mm:ss",
-    "dd-MM-yyyy HH:mm:ss",
-    "dd/MMM/yyyy:HH:mm:ss",
-    "MMM d HH:mm:ss",
-    "HH:mm:ss.SSS",
-    "HH:mm:ss,SSS",
-    "HH:mm:ss",
-    "epoch_ms",
-    "epoch_s",
-    "yyyy-MM-dd",
+/// Un formato noto dell'orario: il pattern, quanto lontano dall'inizio della riga puo' stare (`within`) e un esempio di come
+/// appare in un log. E' la lista che `detect` prova e quella che il dialogo del formato mostra da scegliere.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Preset {
+    pub pattern: &'static str,
+    pub within: usize,
+    pub example: &'static str,
+}
+
+const fn preset(pattern: &'static str, within: usize, example: &'static str) -> Preset {
+    Preset {
+        pattern,
+        within,
+        example,
+    }
+}
+
+/// I formati noti, nell'ordine di priorita': vince quello che legge piu' righe del campione, a parita' il primo di quest'ordine
+/// (con `within` 0 prima di 40).
+pub const PRESETS: [Preset; 17] = [
+    preset("yyyy-MM-dd HH:mm:ss.SSS", 0, "2026-11-01 02:00:00.877"),
+    preset("yyyy-MM-dd HH:mm:ss,SSS", 0, "2026-11-01 02:00:00,877"),
+    preset("yyyy-MM-ddTHH:mm:ss.SSS", 0, "2026-11-01T02:00:00.877Z"),
+    preset("yyyy-MM-ddTHH:mm:ss,SSS", 0, "2026-11-01T02:00:00,877"),
+    preset("yyyy-MM-dd HH:mm:ss", 0, "2026-11-01 02:00:00"),
+    preset("yyyy-MM-ddTHH:mm:ss", 0, "2026-11-01T02:00:00"),
+    preset("yyyy/MM/dd HH:mm:ss", 0, "2026/11/01 02:00:00"),
+    preset("dd/MM/yyyy HH:mm:ss", 0, "01/11/2026 02:00:00"),
+    preset("dd-MM-yyyy HH:mm:ss", 0, "01-11-2026 02:00:00"),
+    preset("dd/MMM/yyyy:HH:mm:ss", 40, "[01/Nov/2026:02:00:00 +0100]"),
+    preset("MMM d HH:mm:ss", 0, "Nov  1 02:00:00"),
+    preset("HH:mm:ss.SSS", 0, "02:00:00.877"),
+    preset("HH:mm:ss,SSS", 0, "02:00:00,877"),
+    preset("HH:mm:ss", 0, "02:00:00"),
+    preset("epoch_ms", 0, "1793498400877"),
+    preset("epoch_s", 0, "1793498400"),
+    preset("yyyy-MM-dd", 0, "2026-11-01"),
 ];
 
 /// Perche' un pattern non va.
@@ -350,36 +367,70 @@ pub struct Detected {
     pub total: usize,
 }
 
-/// La maschera che legge piu' righe di un campione (vedi `CANDIDATI`): `None` se nessuna ne legge
-/// almeno il 30% (e almeno una). Le righe vuote non contano nel totale.
+/// Una maschera "debole": un orario solo, una data sola o un numero (epoch). Corrispondono con piu' facilita' a un testo che
+/// non e' un log (un id di dieci cifre, una riga che comincia con `12:30:45`): per fidarsene ne servono molte righe.
+fn debole(mask: &TimeMask) -> bool {
+    !mask.has_date() || mask.pattern().starts_with("epoch") || mask.pattern() == "yyyy-MM-dd"
+}
+
+/// Il campione e' abbastanza per fidarsi di `mask`: le maschere forti (data e ora complete) bastano con almeno tre righe lette
+/// (o tutte, se il campione e' piccolo) anche se sono una piccola parte: in un log con grandi tabelle fra una riga con l'orario e
+/// l'altra e' normale. Le deboli ne vogliono almeno la meta'.
+fn basta(mask: &TimeMask, matched: usize, total: usize) -> bool {
+    if matched == 0 {
+        return false;
+    }
+    if debole(mask) {
+        matched * 2 >= total
+    } else {
+        matched >= 3 || matched == total
+    }
+}
+
+/// La maschera che legge piu' righe di un campione (vedi `PRESETS`), se il campione basta per fidarsene (vedi `basta`): `None`
+/// altrimenti. Le righe vuote non contano nel totale.
 pub fn detect(lines: &[&[u8]]) -> Option<Detected> {
     let piene: Vec<&[u8]> = lines.iter().copied().filter(|l| !l.is_empty()).collect();
     let total = piene.len();
     let mut mask: Option<TimeMask> = None;
     let mut massimo = 0;
-    for pattern in CANDIDATI {
+    for Preset { pattern, .. } in PRESETS {
         for within in [0, 40] {
             let Ok(maschera) = TimeMask::parse(pattern, within) else {
                 continue;
             };
             let matched = piene.iter().filter(|l| maschera.read(l).is_some()).count();
-            if matched > massimo {
+            // solo le maschere di cui ci si puo' fidare (vedi `basta`): una debole che legge piu' righe di una forte, ma troppo
+            // poche per fidarsene (un id di dieci cifre in qualche riga), non deve nascondere quella forte
+            if matched > massimo && basta(&maschera, matched, total) {
                 massimo = matched;
                 mask = Some(maschera);
             }
         }
     }
-    // serve che le righe lette siano almeno il 30% e almeno una
     let mask = mask?;
-    if massimo * 10 >= total * 3 {
-        Some(Detected {
-            mask,
-            matched: massimo,
-            total,
-        })
-    } else {
-        None
+    Some(Detected {
+        mask,
+        matched: massimo,
+        total,
+    })
+}
+
+/// Come `detect`, ma prima prova la maschera `preferita` (il formato standard scelto dall'utente): se legge abbastanza righe del
+/// campione (vedi `basta`) vince lei, altrimenti si riconosce da sola.
+pub fn detect_with(lines: &[&[u8]], preferita: Option<&TimeMask>) -> Option<Detected> {
+    if let Some(m) = preferita {
+        let piene: Vec<&[u8]> = lines.iter().copied().filter(|l| !l.is_empty()).collect();
+        let matched = piene.iter().filter(|l| m.read(l).is_some()).count();
+        if basta(m, matched, piene.len()) {
+            return Some(Detected {
+                mask: m.clone(),
+                matched,
+                total: piene.len(),
+            });
+        }
     }
+    detect(lines)
 }
 
 /// La chiave scritta per chi legge: `yyyy-MM-dd HH:mm:ss` con la data, o il solo `HH:mm:ss` senza; i

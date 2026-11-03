@@ -659,6 +659,17 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                     t.dialog,
                 ));
             }
+            // il formato noto evidenziato (Alt+N / Alt+P per scorrerli)
+            let (noti, scelto) = app.time_presets();
+            if let Some((pattern, esempio)) = noti.get(scelto) {
+                righe.push((
+                    format!(
+                        "{}  {pattern}   ({esempio})   Alt+N / Alt+P",
+                        cat.t("time.mask.known")
+                    ),
+                    t.hint,
+                ));
+            }
             righe.push((cat.t("time.mask.preview").to_string(), t.hint));
             for (testo, letto) in app.time_mask_preview() {
                 righe.push((format!("  {testo}  =>  {letto}"), t.dialog));

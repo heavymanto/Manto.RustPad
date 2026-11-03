@@ -38,6 +38,7 @@ fn info() -> StatusInfo {
         flash: None,
         busy: None,
         time: None,
+        time_format: None,
     }
 }
 
@@ -60,6 +61,7 @@ fn il_messaggio_e_il_lavoro_insieme_non_si_toccano() {
         t.destra,
         vec![
             pezzo("searching 50%", None),
+            pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("EDIT", Some(Cmd::EditMode)),
             pezzo("COL", Some(Cmd::ColumnMode)),
             pezzo("utf-16le", Some(Cmd::Encoding)),
@@ -163,6 +165,7 @@ fn i_pezzi_di_destra_della_finestra_vengono_dallo_stato() {
     assert_eq!(
         f.stato_disegnato().unwrap().destra,
         vec![
+            pezzo("FORMAT", Some(Cmd::TimeMask)),
             pezzo("VIEW", Some(Cmd::EditMode)),
             pezzo("utf-8", Some(Cmd::Encoding)),
             pezzo("LF", None),

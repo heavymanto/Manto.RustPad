@@ -403,6 +403,9 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             preview_label,
             preview,
             auto,
+            presets,
+            preset,
+            presets_label,
             ..
         } => {
             if !stato.campo_fuoco {
@@ -418,6 +421,30 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiusura_richiesta,
                 |ui| {
                     ui.label(RichText::new(hint).weak());
+                    // i formati noti: un clic ne mette il pattern nei campi (poi OK lo applica e lo ricorda come standard)
+                    ui.label(RichText::new(presets_label).weak());
+                    ScrollArea::vertical()
+                        .id_salt("formati_noti")
+                        .scroll_source(
+                            egui::scroll_area::ScrollSource::SCROLL_BAR
+                                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+                        )
+                        .max_height(150.0)
+                        .show(ui, |ui| {
+                            for (i, (pattern, esempio)) in presets.iter().enumerate() {
+                                let riga = ui.horizontal(|ui| {
+                                    let r = ui.selectable_label(i == *preset, pattern.as_str());
+                                    ui.label(RichText::new(esempio).weak().monospace());
+                                    r
+                                });
+                                if riga.inner.clicked() {
+                                    ws.active_mut().dialog_time_preset(i);
+                                    // i campi si rileggono dall'App al prossimo giro
+                                    stato.campo_fuoco = false;
+                                }
+                                stato.voci.push(riga.response.rect);
+                            }
+                        });
                     egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
                         for i in 0..2u8 {
                             let (etichetta, testo) = if i == 0 {

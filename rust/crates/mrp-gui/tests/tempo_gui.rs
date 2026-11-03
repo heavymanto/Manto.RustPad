@@ -198,3 +198,72 @@ fn the_format_dialog_has_a_recognise_again_button() {
     );
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_status_bar_has_the_format_label_that_opens_the_known_formats() {
+    let (mut f, ctx, p, _) = finestra();
+    let testi = f.stato_disegnato().expect("barra di stato").clone();
+    let i = testi
+        .destra
+        .iter()
+        .position(|z| z.testo == "FORMAT")
+        .expect("manca la scritta FORMAT");
+    assert_eq!(testi.destra[i].comando, Some(Cmd::TimeMask));
+    let (r, _) = f.pezzi_stato()[i];
+    // passandoci sopra si legge il formato che c'e' adesso
+    ctx.style_mut(|s| {
+        s.interaction.tooltip_delay = 0.0;
+        s.interaction.show_tooltips_only_when_still = false;
+    });
+    for _ in 0..3 {
+        giro(&mut f, &ctx, vec![Event::PointerMoved(r.center())]);
+    }
+    let o = giro(&mut f, &ctx, vec![Event::PointerMoved(r.center())]);
+    let testo_disegnato = {
+        fn visita(s: &egui::Shape, v: &mut Vec<String>) {
+            match s {
+                egui::Shape::Text(t) => v.push(t.galley.text().to_string()),
+                egui::Shape::Vec(tutte) => tutte.iter().for_each(|x| visita(x, v)),
+                _ => {}
+            }
+        }
+        let mut v = Vec::new();
+        for c in &o.shapes {
+            visita(&c.shape, &mut v);
+        }
+        v
+    };
+    assert!(
+        testo_disegnato.iter().any(|t| t == "yyyy-MM-dd HH:mm:ss"),
+        "{testo_disegnato:?}"
+    );
+    // un clic apre il dialogo, con l'elenco dei formati noti
+    clic(&mut f, &ctx, r.center());
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::TimeMask));
+    disegna(&mut f, &ctx);
+    // le voci dell'elenco (17 formati) sono rettangoli registrati nel dialogo
+    assert_eq!(f.dialogo_voci().len(), 17);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_click_on_a_known_format_fills_the_fields_and_ok_applies_it() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    // il formato "HH:mm:ss" (indice 13) e' piu' in basso nell'elenco che scorre: si sceglie con l'azione e si controlla la GUI
+    f.workspace().active_mut().dialog_time_preset(0);
+    disegna(&mut f, &ctx);
+    // il primo formato e' in vista: un clic sul suo rettangolo lo sceglie
+    let primo = f.dialogo_voci()[1].center();
+    clic(&mut f, &ctx, primo);
+    assert_eq!(f.app().time_mask_text(0), "yyyy-MM-dd HH:mm:ss.SSS");
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert_eq!(
+        f.app().time_default(),
+        Some(("yyyy-MM-dd HH:mm:ss.SSS".to_string(), 0))
+    );
+    let _ = std::fs::remove_file(p);
+}

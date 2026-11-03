@@ -117,6 +117,10 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         log_colors: profilo.settings.as_ref().is_some_and(|s| s.log_colors),
         line_numbers: profilo.settings.as_ref().is_none_or(|s| s.line_numbers),
         font_size: profilo.settings.as_ref().and_then(|s| s.font_size),
+        time_format: profilo
+            .settings
+            .as_ref()
+            .and_then(|s| s.time_format.clone()),
         chrome: true,
         eol,
         settings_path: profilo.path,
