@@ -203,3 +203,71 @@ fn the_status_carries_the_format_of_the_file() {
     let _ = std::fs::remove_dir_all(d);
     let _ = std::fs::remove_dir_all(d2);
 }
+
+#[test]
+fn the_dialog_says_what_was_recognised_and_how_many_lines_each_known_format_reads() {
+    // 3 blocchi: 3 righe con l'orario "yyyy-MM-dd HH:mm:ss.SSS +01:00" e 117 righe di tabella senza
+    let (mut a, d) = app_con(&log_a_tabelle(3), AppConfig::default());
+    alt(&mut a, 'o');
+    let Some(DialogView::TimeMask {
+        presets,
+        matches,
+        detected,
+        preset,
+        ..
+    }) = a.dialog_view()
+    else {
+        panic!("manca la vista");
+    };
+    assert_eq!(matches.len(), presets.len());
+    // riconosciuto: l'orario della prima riga e il pattern
+    assert_eq!(
+        detected,
+        Some((
+            "2026-11-03 11:14:00.738".to_string(),
+            "yyyy-MM-dd HH:mm:ss.SSS".to_string()
+        ))
+    );
+    // quelli che leggono il file: con i millisecondi (3 righe), senza (3 righe) e la sola data (3 righe); gli altri 0
+    let i = |p: &str| presets.iter().position(|(q, _)| q == p).unwrap();
+    assert_eq!(matches[i("yyyy-MM-dd HH:mm:ss.SSS")], 3);
+    assert_eq!(matches[i("yyyy-MM-dd HH:mm:ss")], 3);
+    assert_eq!(matches[i("yyyy-MM-dd")], 3);
+    assert_eq!(matches[i("dd/MMM/yyyy:HH:mm:ss")], 0);
+    assert_eq!(matches[i("HH:mm:ss")], 0);
+    // il formato in uso e' quello evidenziato
+    assert_eq!(preset, i("yyyy-MM-dd HH:mm:ss.SSS"));
+    let _ = std::fs::remove_dir_all(d);
+}
+
+#[test]
+fn a_file_without_times_says_none_was_recognised_and_every_format_reads_zero_lines() {
+    let (mut a, d) = app_con("niente orari qui\naltra riga\n", AppConfig::default());
+    alt(&mut a, 'o');
+    let Some(DialogView::TimeMask {
+        matches, detected, ..
+    }) = a.dialog_view()
+    else {
+        panic!("manca la vista");
+    };
+    assert_eq!(detected, None);
+    assert!(matches.iter().all(|&n| n == 0), "{matches:?}");
+    let _ = std::fs::remove_dir_all(d);
+}
+
+#[test]
+fn choosing_a_known_format_in_the_dialog_changes_the_headline_after_ok() {
+    let (mut a, d) = app_con(&log_a_tabelle(3), AppConfig::default());
+    alt(&mut a, 'o');
+    a.dialog_set_field(0, "yyyy-MM-dd");
+    a.dialog_submit();
+    alt(&mut a, 'o');
+    let Some(DialogView::TimeMask { detected, .. }) = a.dialog_view() else {
+        panic!("manca la vista");
+    };
+    assert_eq!(
+        detected,
+        Some(("2026-11-03 00:00:00".to_string(), "yyyy-MM-dd".to_string()))
+    );
+    let _ = std::fs::remove_dir_all(d);
+}

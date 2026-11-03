@@ -754,6 +754,10 @@ pub struct App {
     time_mask_tried: bool,
     /// Quale dei formati noti (`timemask::PRESETS`) e' evidenziato nel dialogo del formato.
     mask_preset: usize,
+    /// Per ogni formato noto, quante righe del campione del file legge (calcolato all'apertura del dialogo del formato).
+    mask_matches: Vec<usize>,
+    /// L'orario della prima riga che la maschera in uso legge e il suo pattern (per dire "riconosciuto: ...").
+    mask_detected: Option<(String, String)>,
     /// La finestra di tempo: la vista e' ristretta a `[inizio, fine)` (due inizi di riga); `None`: tutto il file.
     window: Option<(u64, u64)>,
     /// I campi del dialogo dell'intervallo di tempo (da, a), quale ha il fuoco e l'ultimo errore.
@@ -992,6 +996,8 @@ impl App {
             time_mask: None,
             time_mask_tried: false,
             mask_preset: 0,
+            mask_matches: Vec::new(),
+            mask_detected: None,
             window: None,
             range_text: [String::new(), String::new()],
             range_field: 0,

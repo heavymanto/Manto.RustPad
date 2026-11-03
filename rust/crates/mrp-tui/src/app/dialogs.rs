@@ -160,6 +160,10 @@ pub enum DialogView {
         presets: Vec<(String, String)>,
         preset: usize,
         presets_label: String,
+        /// Per ogni formato noto, quante righe del campione del file legge (0: non e' quello di questo file).
+        matches: Vec<usize>,
+        /// L'orario della prima riga letta dalla maschera in uso e il suo pattern (`None`: nessuna maschera riconosciuta).
+        detected: Option<(String, String)>,
     },
     /// Il salvataggio in corso: il nome del file e la percentuale.
     Saving {
@@ -349,6 +353,8 @@ impl App {
                 presets: self.time_presets().0,
                 preset: self.time_presets().1,
                 presets_label: t("time.mask.known"),
+                matches: self.time_preset_matches().to_vec(),
+                detected: self.time_detected(),
             },
             DialogKind::Overwrite => DialogView::Overwrite {
                 title: t("overwrite.title"),

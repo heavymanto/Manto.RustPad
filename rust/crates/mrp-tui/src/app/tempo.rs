@@ -310,7 +310,47 @@ impl App {
         self.mask_text = [pattern, within.to_string()];
         self.mask_field = 0;
         self.mask_error = String::new();
+        self.calcola_aiuti_formato();
         self.dialog = Some(DialogKind::TimeMask);
+    }
+
+    /// Per il dialogo del formato: quante righe del campione legge ognuno dei formati noti, e l'orario della prima riga che legge
+    /// la maschera in uso. Si calcola una volta all'apertura (il campione non cambia mentre il dialogo e' aperto).
+    fn calcola_aiuti_formato(&mut self) {
+        let righe = self.campione_righe();
+        self.mask_matches = timemask::PRESETS
+            .iter()
+            .map(|p| {
+                TimeMask::parse(p.pattern, p.within)
+                    .map_or(0, |m| righe.iter().filter(|r| m.read(r).is_some()).count())
+            })
+            .collect();
+        self.mask_detected = self.time_mask.as_ref().and_then(|m| {
+            righe
+                .iter()
+                .find_map(|r| m.read(r))
+                .map(|k| (timemask::iso(k, m.has_date()), m.pattern().to_string()))
+        });
+        // il formato noto evidenziato e' quello della maschera in uso, se e' uno di loro
+        self.mask_preset = self
+            .time_mask
+            .as_ref()
+            .and_then(|m| {
+                timemask::PRESETS
+                    .iter()
+                    .position(|p| p.pattern == m.pattern())
+            })
+            .unwrap_or(0);
+    }
+
+    /// Quante righe del campione legge ognuno dei formati noti (nell'ordine di `timemask::PRESETS`).
+    pub fn time_preset_matches(&self) -> &[usize] {
+        &self.mask_matches
+    }
+
+    /// L'orario della prima riga letta dalla maschera in uso e il suo pattern, se ce n'e' una.
+    pub fn time_detected(&self) -> Option<(String, String)> {
+        self.mask_detected.clone()
     }
 
     /// Il testo del campo `i` (0 da, 1 a) del dialogo dell'intervallo.

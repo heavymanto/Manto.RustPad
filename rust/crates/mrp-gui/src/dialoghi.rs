@@ -425,22 +425,22 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 },
             );
         }
-        // il formato dell'orario: il pattern, entro quanti caratteri, le prime righe del file con l'orario che ne legge il pattern,
-        // l'errore e i pulsanti (OK, Riconoscilo di nuovo, Annulla)
+        // il formato dell'orario: in alto cosa si e' riconosciuto in questo file, poi l'elenco dei formati noti (quelli che leggono
+        // questo file per primi, con quante righe leggono), un "formato personalizzato" che si apre solo se serve, e come il
+        // formato scelto legge le prime righe del file
         DialogView::TimeMask {
-            hint,
             pattern_label,
             within_label,
             pattern,
             within,
             field,
             error,
-            preview_label,
             preview,
             auto,
             presets,
             preset,
-            presets_label,
+            matches,
+            detected,
             ..
         } => {
             if !stato.campo_fuoco {
@@ -448,28 +448,70 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 stato.testo_due = within.clone();
             }
             let avviso = ctx.style().visuals.warn_fg_color;
+            let (t_riconosciuto, t_nessuno, t_scegli, t_personale, t_prime, t_entro) = {
+                let a = ws.active();
+                (
+                    a.text("time.mask.detected").to_string(),
+                    a.text("time.mask.not_detected").to_string(),
+                    a.text("time.mask.pick").to_string(),
+                    a.text("time.mask.custom").to_string(),
+                    a.text("time.mask.preview2").to_string(),
+                    a.text("time.mask.within_long").to_string(),
+                )
+            };
+            // i formati che leggono questo file prima, poi gli altri (ognuno nel suo ordine)
+            let mut ordine: Vec<usize> = (0..presets.len()).collect();
+            ordine.sort_by_key(|&i| (matches.get(i).copied().unwrap_or(0) == 0, i));
+            let letture: Vec<String> = (0..presets.len())
+                .map(|i| match matches.get(i).copied().unwrap_or(0) {
+                    0 => String::new(),
+                    n => ws.active().text_with("time.mask.reads", &[&n.to_string()]),
+                })
+                .collect();
+            let personalizzato_aperto =
+                !error.is_empty() || !presets.iter().any(|(p, _)| p == pattern);
             rect = finestra(
                 ctx,
                 titolo.as_str(),
-                600.0,
+                620.0,
                 &mut stato.chiudi,
                 &mut stato.chiusura_richiesta,
                 |ui| {
-                    ui.label(RichText::new(hint).weak());
-                    // i formati noti: un clic ne mette il pattern nei campi (poi OK lo applica e lo ricorda come standard)
-                    ui.label(RichText::new(presets_label).weak());
+                    // cosa si e' riconosciuto
+                    match detected {
+                        Some((tempo, pat)) => {
+                            ui.horizontal(|ui| {
+                                ui.label(RichText::new(&t_riconosciuto).strong());
+                                ui.label(RichText::new(tempo).monospace());
+                                ui.label(RichText::new(format!("({pat})")).weak());
+                            });
+                        }
+                        None => {
+                            ui.colored_label(avviso, t_nessuno.as_str());
+                        }
+                    }
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(&t_scegli).weak());
                     ScrollArea::vertical()
                         .id_salt("formati_noti")
                         .scroll_source(
                             egui::scroll_area::ScrollSource::SCROLL_BAR
                                 | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
                         )
-                        .max_height(150.0)
+                        .max_height(170.0)
                         .show(ui, |ui| {
-                            for (i, (pattern, esempio)) in presets.iter().enumerate() {
+                            for &i in &ordine {
+                                let (pat, esempio) = &presets[i];
+                                let legge = matches.get(i).copied().unwrap_or(0) > 0;
                                 let riga = ui.horizontal(|ui| {
-                                    let r = ui.selectable_label(i == *preset, pattern.as_str());
-                                    ui.label(RichText::new(esempio).weak().monospace());
+                                    // come appare nel log: e' quello che si riconosce a colpo d'occhio
+                                    let mut testo = RichText::new(esempio).monospace();
+                                    if !legge {
+                                        testo = testo.weak();
+                                    }
+                                    let r = ui.selectable_label(i == *preset, testo);
+                                    ui.label(RichText::new(pat).weak().small());
+                                    ui.label(RichText::new(&letture[i]).strong());
                                     r
                                 });
                                 if riga.inner.clicked() {
@@ -480,43 +522,55 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                 stato.voci.push(riga.response.rect);
                             }
                         });
-                    egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
-                        for i in 0..2u8 {
-                            let (etichetta, testo) = if i == 0 {
-                                (pattern_label.as_str(), &mut stato.testo)
-                            } else {
-                                (within_label.as_str(), &mut stato.testo_due)
-                            };
-                            ui.label(etichetta);
-                            let r =
-                                ui.add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
-                            stato.campi.push(r.rect);
-                            if stato.campo.is_none() {
-                                stato.campo = Some(r.rect);
-                            }
-                            if r.has_focus() && *field != i {
-                                ws.active_mut().dialog_focus(i);
-                            }
-                            if !stato.campo_fuoco && *field == i {
-                                r.request_focus();
-                                stato.campo_fuoco = true;
-                            }
-                            if r.changed() {
-                                ws.active_mut().dialog_set_field(i, testo);
-                            }
-                            if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                ws.active_mut().dialog_submit();
-                            }
-                            ui.end_row();
-                        }
-                    });
-                    ui.label(RichText::new(preview_label).weak());
+                    // il formato personalizzato: si apre da solo se il pattern non e' uno dei noti o c'e' un errore
+                    egui::CollapsingHeader::new(&t_personale)
+                        .default_open(personalizzato_aperto)
+                        .show(ui, |ui| {
+                            egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
+                                for i in 0..2u8 {
+                                    let (etichetta, testo) = if i == 0 {
+                                        (pattern_label.as_str(), &mut stato.testo)
+                                    } else {
+                                        (within_label.as_str(), &mut stato.testo_due)
+                                    };
+                                    ui.label(etichetta);
+                                    let r = ui.add(
+                                        TextEdit::singleline(testo).desired_width(f32::INFINITY),
+                                    );
+                                    stato.campi.push(r.rect);
+                                    if stato.campo.is_none() {
+                                        stato.campo = Some(r.rect);
+                                    }
+                                    if r.has_focus() && *field != i {
+                                        ws.active_mut().dialog_focus(i);
+                                    }
+                                    if !stato.campo_fuoco && *field == i {
+                                        r.request_focus();
+                                        stato.campo_fuoco = true;
+                                    }
+                                    if r.changed() {
+                                        ws.active_mut().dialog_set_field(i, testo);
+                                    }
+                                    if r.lost_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                    {
+                                        ws.active_mut().dialog_submit();
+                                    }
+                                    ui.end_row();
+                                }
+                            });
+                            ui.label(RichText::new(&t_entro).weak());
+                        });
+                    // come il formato scelto legge le prime righe del file
+                    ui.add_space(4.0);
+                    ui.label(RichText::new(&t_prime).weak());
                     egui::Grid::new("formato_anteprima")
-                        .num_columns(2)
+                        .num_columns(3)
                         .show(ui, |ui| {
                             for (testo, letto) in preview {
                                 ui.label(RichText::new(testo).monospace());
-                                ui.label(letto.as_str());
+                                ui.label("=>");
+                                ui.label(RichText::new(letto).strong());
                                 ui.end_row();
                             }
                         });
