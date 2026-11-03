@@ -4,6 +4,7 @@
 pub mod dialogs;
 mod tempo;
 mod tempo_finestra;
+pub use tempo_finestra::{CalendarInfo, Day, Month};
 pub mod timeline;
 
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};

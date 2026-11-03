@@ -141,21 +141,50 @@ fn the_calendar_opens_on_the_right_month_and_writes_the_format_of_the_file() {
     let (mut a, _, p) = app();
     a.open_time_dialog();
     // senza data scritta: il mese del primo orario del file (Dal) o dell'ultimo (Al)
-    assert_eq!(a.time_calendar(2), Some(((2026, 11), None)));
-    assert_eq!(a.time_calendar(3), Some(((2026, 11), None)));
+    let da = a.time_calendar(2).unwrap();
+    assert_eq!((da.month, da.selected), ((2026, 11), None));
+    // il file copre il solo 1 novembre (dalle 02:00 alle 03:39), scrive i secondi (unita' 1000) e il campo vuoto parte da mezzanotte /
+    // fine giornata
+    assert_eq!(
+        (da.first, da.last),
+        (Some((2026, 11, 1)), Some((2026, 11, 1)))
+    );
+    assert_eq!((da.unit_ms, da.time_ms), (1000, 0));
+    let al = a.time_calendar(3).unwrap();
+    assert_eq!(
+        (al.month, al.selected, al.time_ms),
+        ((2026, 11), None, 86_399_999)
+    );
     assert_eq!(a.time_calendar(1), None);
-    // un giorno scelto: Dal da mezzanotte, Al a fine giornata, scritti come le righe
-    a.dialog_time_pick(2, 2026, 11, 1);
+    // un giorno scelto: Dal da mezzanotte e Al a fine giornata, scritti come le righe; ma il giorno della prima (ultima) riga parte dall'ora
+    // della prima (ultima) riga, cosi' su un log di un giorno solo un clic non lascia il filtro largo come il file
+    a.dialog_time_pick(2, 2026, 10, 30);
     a.dialog_time_pick(3, 2026, 11, 2);
-    assert_eq!(a.time_field_text(2), "2026-11-01 00:00:00");
+    assert_eq!(a.time_field_text(2), "2026-10-30 00:00:00");
     assert_eq!(a.time_field_text(3), "2026-11-02 23:59:59");
+    a.dialog_time_pick(2, 2026, 11, 1);
+    assert_eq!(
+        a.time_field_text(2),
+        "2026-11-01 00:00:00",
+        "tiene l'ora gia' scritta"
+    );
+    a.dialog_time_clear_field(2);
+    a.dialog_time_clear_field(3);
+    a.dialog_time_pick(2, 2026, 11, 1);
+    a.dialog_time_pick(3, 2026, 11, 1);
+    assert_eq!(a.time_field_text(2), "2026-11-01 02:00:00");
+    assert_eq!(a.time_field_text(3), "2026-11-01 03:39:00");
     assert!(a.time_check());
     // con una data scritta il calendario la mostra e un nuovo giorno tiene l'ora gia' scritta
-    assert_eq!(a.time_calendar(2), Some(((2026, 11), Some((2026, 11, 1)))));
+    let info = a.time_calendar(2).unwrap();
+    assert_eq!(
+        (info.month, info.selected),
+        ((2026, 11), Some((2026, 11, 1)))
+    );
     a.dialog_set_field(2, "2026-10-15 08:30:00");
     a.dialog_time_pick(2, 2026, 10, 20);
     assert_eq!(a.time_field_text(2), "2026-10-20 08:30:00");
-    assert_eq!(a.time_calendar(2).unwrap().0, (2026, 10));
+    assert_eq!(a.time_calendar(2).unwrap().month, (2026, 10));
     let _ = std::fs::remove_file(p);
 }
 
@@ -168,5 +197,49 @@ fn a_mask_with_only_the_hour_has_no_calendar() {
     // e il pick non scrive niente
     a.dialog_time_pick(2, 2026, 11, 1);
     assert_eq!(a.time_field_text(2), "");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_time_of_day_is_written_into_the_field_keeping_the_date() {
+    let (mut a, offset, p) = app();
+    a.open_time_dialog();
+    // un campo vuoto: l'ora si scrive sul giorno della prima riga (Dal) o dell'ultima (Al)
+    a.dialog_time_set_time(2, 2 * 3_600_000 + 10 * 60_000);
+    assert_eq!(a.time_field_text(2), "2026-11-01 02:10:00");
+    a.dialog_time_set_time(3, 2 * 3_600_000 + 19 * 60_000 + 7 * 1000);
+    assert_eq!(a.time_field_text(3), "2026-11-01 02:19:07");
+    assert!(a.time_check());
+    // con la data gia' scritta l'ora cambia e la data resta; fuori misura si porta nel giorno
+    a.dialog_set_field(2, "2026-10-15 08:30:00");
+    a.dialog_time_set_time(2, 9 * 3_600_000);
+    assert_eq!(a.time_field_text(2), "2026-10-15 09:00:00");
+    a.dialog_time_set_time(2, 99 * 3_600_000);
+    assert_eq!(a.time_field_text(2), "2026-10-15 23:59:59");
+    // e con OK il filtro e' quello scritto: dalle 02:10 alle 02:19 (compresa)
+    a.dialog_set_field(2, "2026-11-01 02:10:00");
+    a.dialog_set_field(3, "2026-11-01 02:19:59");
+    a.dialog_submit();
+    assert_eq!(a.time_window(), Some((offset[10], offset[20])));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_range_outside_the_file_says_what_the_file_covers() {
+    let (mut a, offset, p) = app();
+    a.apply_time_range("02:10", "02:19").unwrap();
+    // un giorno che il file non ha: il messaggio dice da quando a quando va il file; la finestra di prima resta
+    let e = a.apply_time_range("2026-11-03", "").unwrap_err();
+    assert_eq!(
+        e,
+        "No lines from 2026-11-03 to \u{2026}: this file goes from 2026-11-01 02:00:00 to 2026-11-01 03:39:00"
+    );
+    assert_eq!(a.time_window(), Some((offset[10], offset[20])));
+    // la fine prima della prima riga: lo stesso
+    let e = a.apply_time_range("", "2026-10-30 23:59:59").unwrap_err();
+    assert!(
+        e.starts_with("No lines from \u{2026} to 2026-10-30 23:59:59: this file goes from"),
+        "{e}"
+    );
     let _ = std::fs::remove_file(p);
 }

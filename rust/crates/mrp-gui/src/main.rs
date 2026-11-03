@@ -180,6 +180,11 @@ fn run() -> i32 {
                 Ok("tempo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
                 // la timeline (barra mappa del file nel tempo)
                 Ok("timeline") => finestra.azione(mrp_tui::commands::Cmd::Timeline),
+                // il calendario del campo Dal nella finestra "Tempo"
+                Ok("calendario") => {
+                    finestra.azione(mrp_tui::commands::Cmd::TimeRange);
+                    finestra.apri_calendario(2);
+                }
                 _ => {}
             }
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce

@@ -255,10 +255,34 @@ impl App {
                 return Err(self.cat.t("time.err.order").to_string());
             }
         }
+        // "nessuna riga": il messaggio dice anche quali orari copre il file, cosi' si vede subito che la data era fuori
+        let nessuna_riga = || -> String {
+            let scritto = |k: i64| mask.write(k);
+            let primo = timesearch::first_key(doc, &mask, &AtomicBool::new(false))
+                .ok()
+                .flatten();
+            let ultimo = timesearch::last_key(doc, &mask, &AtomicBool::new(false))
+                .ok()
+                .flatten();
+            let ellissi = |t: &str| {
+                if t.trim().is_empty() {
+                    "\u{2026}".to_string()
+                } else {
+                    t.trim().to_string()
+                }
+            };
+            match (primo, ultimo) {
+                (Some((_, p)), Some((_, u))) => self.cat.tf(
+                    "time.err.empty_in",
+                    &[&ellissi(da), &ellissi(a), &scritto(p), &scritto(u)],
+                ),
+                _ => self.cat.t("time.err.empty").to_string(),
+            }
+        };
         let lo = match k_da {
             Some(k) => timesearch::find_key(doc, &mask, k, &libero)
                 .map_err(annullato)?
-                .ok_or_else(|| self.cat.t("time.err.empty").to_string())?,
+                .ok_or_else(nessuna_riga)?,
             None => 0,
         };
         let hi = match k_a {
@@ -268,7 +292,7 @@ impl App {
             None => doc.len(),
         };
         if lo >= hi {
-            return Err(self.cat.t("time.err.empty").to_string());
+            return Err(nessuna_riga());
         }
         self.window = Some((lo, hi));
         // le date si ricordano (per riaccendere il filtro dopo averlo spento senza riscriverle)

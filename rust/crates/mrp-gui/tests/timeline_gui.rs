@@ -137,6 +137,9 @@ fn the_bar_is_wide_and_sits_left_of_the_scrollbar() {
 fn it_draws_a_row_per_day_with_dates_and_a_click_jumps_there() {
     let (mut f, ctx, p, offset) = finestra();
     f.azione(Cmd::Timeline);
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
     pronta(&mut f, &ctx);
     let st = f.timeline_disegnata().clone();
     assert_eq!(st.righe, 3, "tre giorni, tre righe");
@@ -166,5 +169,42 @@ fn the_step_menu_is_in_the_header_and_a_shorter_step_gives_more_rows() {
         .set_timeline_step(mrp_core::timeline::Step::Hour);
     pronta(&mut f, &ctx);
     assert_eq!(f.timeline_disegnata().righe, 72);
+    let _ = std::fs::remove_file(p);
+}
+
+/// I testi disegnati in un giro (per sapere cosa c'e' scritto sullo schermo).
+fn testi(o: &FullOutput) -> Vec<String> {
+    fn visita(s: &egui::Shape, v: &mut Vec<String>) {
+        match s {
+            egui::Shape::Text(t) => v.push(t.galley.text().to_string()),
+            egui::Shape::Vec(tutte) => tutte.iter().for_each(|x| visita(x, v)),
+            _ => {}
+        }
+    }
+    let mut v = Vec::new();
+    for c in &o.shapes {
+        visita(&c.shape, &mut v);
+    }
+    v
+}
+
+#[test]
+fn the_step_is_automatic_and_the_header_says_which_one_was_chosen() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    // tre giorni di righe: da solo sceglie l'ora, e lo scrive nell'intestazione
+    let o = giro(&mut f, &ctx, vec![]);
+    let scritti = testi(&o);
+    assert!(scritti.iter().any(|t| t == "Auto: 1 hour"), "{scritti:?}");
+    assert_eq!(f.timeline_disegnata().righe, 72);
+    // un passo fisso: il nome del passo e basta
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
+    pronta(&mut f, &ctx);
+    let o = giro(&mut f, &ctx, vec![]);
+    let scritti = testi(&o);
+    assert!(scritti.iter().any(|t| t == "1 day"), "{scritti:?}");
     let _ = std::fs::remove_file(p);
 }

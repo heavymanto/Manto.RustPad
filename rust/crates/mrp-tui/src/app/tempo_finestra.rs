@@ -18,6 +18,22 @@ pub type Month = (i32, u32);
 /// Un giorno del calendario: `(anno, mese, giorno)`.
 pub type Day = (i32, u32, u32);
 
+/// Cosa serve a disegnare il calendario di un campo (vedi `App::time_calendar`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CalendarInfo {
+    /// Il mese con cui si apre.
+    pub month: Month,
+    /// Il giorno gia' scritto nel campo.
+    pub selected: Option<Day>,
+    /// L'ora del giorno, in millisecondi dalla mezzanotte.
+    pub time_ms: i64,
+    /// Il primo e l'ultimo giorno che il file copre.
+    pub first: Option<Day>,
+    pub last: Option<Day>,
+    /// La piu' piccola unita' che la maschera scrive (1: i millisecondi, 1000: i secondi...).
+    pub unit_ms: i64,
+}
+
 impl App {
     /// Alt+T (`intervallo`) e Alt+O: nella finestra con i controlli nativi aprono la finestra "Tempo" (con il fuoco sul filtro o sul
     /// formato); nel terminale i due dialoghi separati.
@@ -137,26 +153,63 @@ impl App {
         }
     }
 
-    /// Il calendario del campo Dal (2) o Al (3): `(anno, mese)` con cui si apre e il giorno gia' scelto, se il campo ha una data.
-    /// Si apre sul mese della data scritta, altrimenti su quello del primo (Dal) o dell'ultimo (Al) orario del file; `None` senza
-    /// maschera con la data (non c'e' un calendario da mostrare).
-    pub fn time_calendar(&self, i: u8) -> Option<(Month, Option<Day>)> {
+    /// Cosa serve a disegnare il calendario del campo Dal (2) o Al (3): il mese con cui si apre, il giorno gia' scelto, l'ora del giorno
+    /// (quella scritta nel campo, altrimenti mezzanotte per Dal e fine giornata per Al), i giorni che il file copre e la precisione
+    /// della maschera. Si apre sul mese della data scritta, altrimenti su quello del primo (Dal) o dell'ultimo (Al) orario del file;
+    /// `None` senza maschera con la data (non c'e' un calendario da mostrare).
+    pub fn time_calendar(&self, i: u8) -> Option<CalendarInfo> {
         let mask = self.time_mask.as_ref().filter(|m| m.has_date())?;
         if !(2..4).contains(&i) {
             return None;
         }
+        let giorno_di = |k: i64| timemask::civil(k);
         let scritto = Self::chiave_a_mano(&self.range_text[usize::from(i) - 2], mask, None);
-        if let Some((k, _)) = scritto {
-            let (a, m, g) = timemask::civil(k);
-            return Some(((a, m), Some((a, m, g))));
-        }
-        let (primo, ultimo) = self.time_bounds?;
-        let (a, m, _) = timemask::civil(if i == 2 { primo } else { ultimo });
-        Some(((a, m), None))
+        let (primo, ultimo) = match self.time_bounds {
+            Some((a, b)) => (Some(giorno_di(a)), Some(giorno_di(b))),
+            None => (None, None),
+        };
+        let (mese, scelto, ora) = match scritto {
+            Some((k, _)) => {
+                let (a, m, g) = giorno_di(k);
+                ((a, m), Some((a, m, g)), k.rem_euclid(GIORNO))
+            }
+            None => {
+                let (a, m, _) = if i == 2 { primo? } else { ultimo? };
+                ((a, m), None, if i == 2 { 0 } else { GIORNO - 1 })
+            }
+        };
+        Some(CalendarInfo {
+            month: mese,
+            selected: scelto,
+            time_ms: ora,
+            first: primo,
+            last: ultimo,
+            unit_ms: mask.unit_ms(),
+        })
     }
 
-    /// Sceglie dal calendario il giorno `anno-mese-giorno` per il campo Dal (2) o Al (3): lo scrive nel formato del file; se il campo
-    /// aveva gia' un'ora la tiene, altrimenti Dal parte da mezzanotte e Al arriva a fine giornata. Accende il filtro.
+    /// L'ora del giorno con cui scrivere un giorno scelto dal calendario nel campo `i`, se il campo non ha gia' un orario: per Dal la
+    /// mezzanotte (o l'ora della prima riga se il giorno e' quello della prima riga), per Al la fine giornata (o l'ora dell'ultima
+    /// riga se il giorno e' quello dell'ultima).
+    fn ora_predefinita(&self, i: u8, giorno: Day) -> i64 {
+        let Some((primo, ultimo)) = self.time_bounds else {
+            return if i == 2 { 0 } else { GIORNO - 1 };
+        };
+        let (k, predefinita) = if i == 2 {
+            (primo, 0)
+        } else {
+            (ultimo, GIORNO - 1)
+        };
+        let (a, m, g) = timemask::civil(k);
+        if (a, m, g) == giorno {
+            k.rem_euclid(GIORNO)
+        } else {
+            predefinita
+        }
+    }
+
+    /// Scrive nel campo Dal (2) o Al (3) il giorno `anno-mese-giorno` nel formato del file: se il campo aveva gia' un'ora la tiene,
+    /// altrimenti vale quella predefinita (vedi sopra). Accende il filtro.
     pub fn dialog_time_pick(&mut self, i: u8, anno: i32, mese: u32, giorno: u32) {
         if self.dialog != Some(DialogKind::Time) || !(2..4).contains(&i) {
             return;
@@ -168,8 +221,33 @@ impl App {
         let campo = usize::from(i) - 2;
         let ora = Self::chiave_a_mano(&self.range_text[campo], &mask, None)
             .map(|(k, _)| k.rem_euclid(GIORNO))
-            .unwrap_or(if i == 2 { 0 } else { GIORNO - 1 });
+            .unwrap_or_else(|| self.ora_predefinita(i, (anno, mese, giorno)));
         self.range_text[campo] = mask.write(timemask::key_from_civil(anno, mese, giorno) + ora);
+        self.time_check = true;
+        self.time_field = i;
+        self.time_error.clear();
+    }
+
+    /// Scrive nel campo Dal (2) o Al (3) l'ora del giorno `ms` (millisecondi dalla mezzanotte, da 0 a un giorno meno uno), tenendo la
+    /// data che il campo ha (o, se e' vuoto, il giorno della prima / ultima riga del file). Accende il filtro.
+    pub fn dialog_time_set_time(&mut self, i: u8, ms: i64) {
+        if self.dialog != Some(DialogKind::Time) || !(2..4).contains(&i) {
+            return;
+        }
+        let Some(mask) = self.time_mask.clone().filter(TimeMask::has_date) else {
+            return;
+        };
+        let campo = usize::from(i) - 2;
+        let giorno = match Self::chiave_a_mano(&self.range_text[campo], &mask, None) {
+            Some((k, _)) => timemask::civil(k),
+            None => match self.time_bounds {
+                Some((primo, ultimo)) => timemask::civil(if i == 2 { primo } else { ultimo }),
+                None => return,
+            },
+        };
+        let ms = ms.clamp(0, GIORNO - 1);
+        self.range_text[campo] =
+            mask.write(timemask::key_from_civil(giorno.0, giorno.1, giorno.2) + ms);
         self.time_check = true;
         self.time_field = i;
         self.time_error.clear();

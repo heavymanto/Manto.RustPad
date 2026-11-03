@@ -96,7 +96,6 @@ const LOG: &[Option<Cmd>] = &[
     None,
     Some(Cmd::TimeFilter),
     Some(Cmd::TimeRange),
-    Some(Cmd::TimeMask),
     None,
     Some(Cmd::Timeline),
 ];

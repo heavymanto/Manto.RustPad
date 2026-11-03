@@ -73,9 +73,34 @@ fn it_is_off_by_default_and_switches_on_and_off() {
 }
 
 #[test]
+fn the_step_is_automatic_by_default_and_a_fixed_step_turns_it_off() {
+    let (mut a, _, p) = app();
+    assert!(a.timeline_auto());
+    a.set_timeline(true);
+    pronta(&mut a);
+    // tre giorni di righe: il passo da solo e' l'ora (72 bucket), non il giorno
+    assert!(a.timeline_auto());
+    assert_eq!(a.timeline_step(), Step::Hour);
+    assert_eq!(a.timeline_rows(1000).len(), 72);
+    // un passo fisso lo spegne
+    a.set_timeline_step(Step::Day);
+    pronta(&mut a);
+    assert!(!a.timeline_auto());
+    assert_eq!(a.timeline_step(), Step::Day);
+    assert_eq!(a.timeline_rows(1000).len(), 3);
+    // e si torna all'automatico
+    a.set_timeline_auto();
+    pronta(&mut a);
+    assert!(a.timeline_auto());
+    assert_eq!(a.timeline_step(), Step::Hour);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
 fn the_rows_are_the_days_with_their_offsets_volumes_and_labels() {
     let (mut a, offset, p) = app();
     a.set_timeline(true);
+    a.set_timeline_step(Step::Day);
     pronta(&mut a);
     let righe = a.timeline_rows(100);
     assert_eq!(righe.len(), 3);
@@ -132,6 +157,7 @@ fn too_many_buckets_for_the_height_are_grouped() {
 fn in_byte_mode_the_height_is_the_bytes_and_empty_days_vanish() {
     let (mut a, offset, p) = app();
     a.set_timeline(true);
+    a.set_timeline_step(Step::Day);
     a.set_timeline_mode(TimelineMode::Bytes);
     pronta(&mut a);
     let len = *offset.last().unwrap() as f32;
@@ -183,6 +209,7 @@ fn a_click_jumps_to_the_line_and_the_time_under_the_pointer_is_known() {
 fn a_window_restricts_the_timeline_to_its_range() {
     let (mut a, offset, p) = app();
     a.set_timeline(true);
+    a.set_timeline_step(Step::Day);
     pronta(&mut a);
     assert_eq!(a.timeline_rows(100).len(), 3);
     // il filtro per data: solo il secondo giorno

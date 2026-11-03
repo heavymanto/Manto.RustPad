@@ -8,6 +8,7 @@
 use super::App;
 use mrp_core::timeline::{self, BuildError, Step, Timeline};
 use mrp_core::timemask;
+use mrp_core::timesearch;
 use mrp_core::Document;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
@@ -68,13 +69,16 @@ struct TimelineJob {
     /// Quante tacche si aspettano (note solo a lavoro finito: finche' non lo e' vale 0 e si mostra "in corso").
     len: u64,
     window: Option<(u64, u64)>,
-    step: Step,
+    /// Il passo chiesto (`None`: automatico).
+    step: Option<Step>,
 }
 
 /// Tutto cio' che una scheda sa della sua timeline.
 pub(super) struct TimelineState {
     pub on: bool,
+    /// Il passo fisso scelto dall'utente; con `auto` vale quello che dice `timeline::auto_step` per il file.
     pub step: Step,
+    pub auto: bool,
     pub mode: TimelineMode,
     data: Option<Arc<Timeline>>,
     job: Option<TimelineJob>,
@@ -84,7 +88,7 @@ pub(super) struct TimelineState {
     /// Per quale lunghezza del file, finestra e passo sono le tacche che ci sono (se cambiano, si ricalcolano).
     built_len: u64,
     built_window: Option<(u64, u64)>,
-    built_step: Option<Step>,
+    built_step: Option<Option<Step>>,
 }
 
 impl Default for TimelineState {
@@ -92,6 +96,7 @@ impl Default for TimelineState {
         TimelineState {
             on: false,
             step: Step::Day,
+            auto: true,
             mode: TimelineMode::Time,
             data: None,
             job: None,
@@ -134,16 +139,29 @@ impl App {
         self.set_timeline(!self.timeline.on);
     }
 
-    /// Il passo della timeline (di fabbrica un giorno).
+    /// Il passo della timeline in uso: quello delle tacche che ci sono (con il passo automatico, quello scelto per il file) o,
+    /// prima che ci siano, il passo fisso (di fabbrica un giorno).
     pub fn timeline_step(&self) -> Step {
-        self.timeline.step
+        self.timeline
+            .data
+            .as_ref()
+            .map_or(self.timeline.step, |t| t.step)
     }
 
-    /// Cambia il passo: le tacche si ricalcolano.
+    /// Il passo e' scelto da solo (di fabbrica): il piu' lungo che da' una barra leggibile per il file.
+    pub fn timeline_auto(&self) -> bool {
+        self.timeline.auto
+    }
+
+    /// Sceglie un passo fisso: le tacche si ricalcolano.
     pub fn set_timeline_step(&mut self, passo: Step) {
-        if self.timeline.step != passo {
-            self.timeline.step = passo;
-        }
+        self.timeline.step = passo;
+        self.timeline.auto = false;
+    }
+
+    /// Torna al passo scelto da solo: le tacche si ricalcolano.
+    pub fn set_timeline_auto(&mut self) {
+        self.timeline.auto = true;
     }
 
     /// Come si dispongono le righe (di fabbrica: l'altezza e' il tempo).
@@ -200,7 +218,7 @@ impl App {
         self.assicura_maschera();
         let len = self.document_len();
         let finestra = self.window;
-        let passo = self.timeline.step;
+        let passo = (!self.timeline.auto).then_some(self.timeline.step);
         let aggiornata = self.timeline.built_step == Some(passo)
             && self.timeline.built_window == finestra
             && self.timeline.built_len == len;
@@ -237,16 +255,37 @@ impl App {
         std::thread::spawn(move || {
             // il thread apre la SUA copia del file (come l'indicizzazione): il documento non si condivide
             let esito = match Document::open(&path) {
-                Ok(doc) => timeline::build(
-                    &doc,
-                    &mask,
-                    passo,
-                    lo,
-                    hi,
-                    &cancel_thread,
-                    TACCHE_MAX,
-                    Some(&progress_thread),
-                ),
+                Ok(doc) => {
+                    // il passo automatico dipende da quanto tempo copre il file: si guardano la prima e l'ultima riga
+                    let passo = match passo {
+                        Some(p) => Ok(p),
+                        None => {
+                            let primo =
+                                timesearch::first_key_in(&doc, &mask, lo, hi, &cancel_thread);
+                            let ultimo =
+                                timesearch::last_key_in(&doc, &mask, lo, hi, &cancel_thread);
+                            match (primo, ultimo) {
+                                (Ok(Some((_, a))), Ok(Some((_, b)))) => {
+                                    Ok(timeline::auto_step(a, b))
+                                }
+                                (Ok(_), Ok(_)) => Err(BuildError::NoTimes),
+                                _ => Err(BuildError::Cancelled),
+                            }
+                        }
+                    };
+                    passo.and_then(|passo| {
+                        timeline::build(
+                            &doc,
+                            &mask,
+                            passo,
+                            lo,
+                            hi,
+                            &cancel_thread,
+                            TACCHE_MAX,
+                            Some(&progress_thread),
+                        )
+                    })
+                }
                 Err(_) => Err(BuildError::NoTimes),
             };
             let _ = tx.send(esito);

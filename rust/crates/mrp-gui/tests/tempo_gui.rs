@@ -116,11 +116,13 @@ fn pulsante(f: &Finestra, testo: &str) -> Pos2 {
 }
 
 #[test]
-fn the_log_menu_has_the_time_filter_the_settings_and_the_format() {
+fn the_log_menu_has_the_time_filter_and_one_entry_for_the_format_and_filter_window() {
     let log: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
-    for c in [Cmd::TimeFilter, Cmd::TimeRange, Cmd::TimeMask] {
+    for c in [Cmd::TimeFilter, Cmd::TimeRange] {
         assert!(log.contains(&c), "{c:?} nel menu Log");
     }
+    // il formato e il filtro sono la stessa finestra: una voce sola (il formato resta su Alt+O e sul clic di FORMAT)
+    assert!(!log.contains(&Cmd::TimeMask));
     // il filtro per data e' un interruttore: sempre disponibile, acceso quando c'e' una finestra di tempo
     let (mut f, ctx, p, _) = finestra();
     assert!(commands::enabled(f.workspace(), Cmd::TimeFilter));
@@ -381,5 +383,108 @@ fn recognise_it_again_puts_the_detected_format_back() {
     clic(&mut f, &ctx, auto);
     assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
     assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_calendar_popup_has_month_and_year_combos_and_the_time_and_stays_open_until_done() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    // chiuso: niente giorni
+    assert!(!f
+        .dialogo_opzioni()
+        .iter()
+        .any(|(_, t)| t.starts_with("giorno")));
+    let cal = opzione(&f, "calendario 2");
+    clic(&mut f, &ctx, cal);
+    // aperto: mese e anno in tendina, le frecce, i giorni, l'ora (secondi: la maschera del file scrive i secondi) e "Fatto"
+    for e in [
+        "mese combo",
+        "anno combo",
+        "mese prima",
+        "mese dopo",
+        "giorno 1",
+        "giorno 30",
+        "ora",
+        "minuti",
+        "secondi",
+        "fatto",
+    ] {
+        opzione(&f, e);
+    }
+    assert!(
+        !f.dialogo_opzioni().iter().any(|(_, t)| t == "millisecondi"),
+        "la maschera del file non scrive i millisecondi"
+    );
+    // scegliere un giorno non chiude: l'ora si regola dopo
+    let giorno = opzione(&f, "giorno 5");
+    clic(&mut f, &ctx, giorno);
+    opzione(&f, "giorno 5");
+    // "Fatto" lo chiude
+    let fatto = opzione(&f, "fatto");
+    clic(&mut f, &ctx, fatto);
+    assert!(!f
+        .dialogo_opzioni()
+        .iter()
+        .any(|(_, t)| t.starts_with("giorno")));
+    // il campo ha il giorno scelto
+    assert_eq!(f.app().time_field_text(2), "2026-11-05 00:00:00");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_click_outside_the_calendar_closes_it() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    let cal = opzione(&f, "calendario 2");
+    clic(&mut f, &ctx, cal);
+    opzione(&f, "giorno 1");
+    // un clic lontano dal popup e dal bottone (in un angolo della finestra)
+    clic(&mut f, &ctx, Pos2::new(5.0, 790.0));
+    assert!(!f
+        .dialogo_opzioni()
+        .iter()
+        .any(|(_, t)| t.starts_with("giorno")));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_log_and_special_switches_say_how_they_are_and_what_a_click_does() {
+    let (mut f, ctx, p, _) = finestra();
+    ctx.style_mut(|s| {
+        s.interaction.tooltip_delay = 0.0;
+        s.interaction.show_tooltips_only_when_still = false;
+    });
+    let testi = f.stato_disegnato().expect("barra di stato").clone();
+    let i = testi
+        .destra
+        .iter()
+        .position(|z| z.testo == "LOG")
+        .expect("manca LOG");
+    assert!(testi.destra[i].spento);
+    let (r, _) = f.pezzi_stato()[i];
+    for _ in 0..3 {
+        giro(&mut f, &ctx, vec![Event::PointerMoved(r.center())]);
+    }
+    let o = giro(&mut f, &ctx, vec![Event::PointerMoved(r.center())]);
+    fn visita(s: &egui::Shape, v: &mut Vec<String>) {
+        match s {
+            egui::Shape::Text(t) => v.push(t.galley.text().to_string()),
+            egui::Shape::Vec(tutte) => tutte.iter().for_each(|x| visita(x, v)),
+            _ => {}
+        }
+    }
+    let mut scritti = Vec::new();
+    for c in &o.shapes {
+        visita(&c.shape, &mut scritti);
+    }
+    assert!(
+        scritti
+            .iter()
+            .any(|t| t == "Colour log lines: off (click to turn on)"),
+        "{scritti:?}"
+    );
     let _ = std::fs::remove_file(p);
 }

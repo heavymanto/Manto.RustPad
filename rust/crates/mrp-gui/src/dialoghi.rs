@@ -53,6 +53,17 @@ pub struct StatoDialogo {
     calendario: Option<(u8, i32, u32)>,
     /// Nella finestra "Tempo": i buffer dei campi Dal e Al (il padrone e' l'`App`, si rileggono a ogni giro).
     filtro: [String; 2],
+    /// Dove sta il bottone del calendario aperto (il calendario si apre sotto di lui).
+    cal_ancora: Option<egui::Rect>,
+    /// Un calendario da aprire appena la finestra e' disegnata (uso da sviluppatore, per le schermate).
+    cal_richiesto: Option<u8>,
+}
+
+impl StatoDialogo {
+    /// Chiede di aprire il calendario del campo `campo` appena la finestra "Tempo" e' disegnata.
+    pub fn apri_calendario(&mut self, campo: u8) {
+        self.cal_richiesto = Some(campo);
+    }
 }
 
 /// Disegna la finestra del dialogo della scheda attiva (se c'e' e ha una vista) e guida l'`App`: Esc la chiude, nel menu
@@ -462,6 +473,12 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 stato.testo_due = within.clone();
             }
             stato.filtro = [from.clone(), to.clone()];
+            if let Some(c) = stato.cal_richiesto.take() {
+                stato.calendario = ws
+                    .active()
+                    .time_calendar(c)
+                    .map(|i| (c, i.month.0, i.month.1));
+            }
             let avviso = ctx.style().visuals.warn_fg_color;
             let (t_riconosciuto, t_nessuno, t_formato, t_filtro, t_personale, t_prime, t_entro) = {
                 let a = ws.active();
@@ -488,6 +505,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     a.text("time.filter.pick_format").to_string(),
                 )
             };
+            let nomi_mesi: Vec<String> = (1..=12)
+                .map(|m| ws.active().text(&format!("cal.month.{m}")).to_string())
+                .collect();
+            let t_ora = ws.active().text("time.filter.time").to_string();
+            let t_fatto = ws.active().text("time.filter.done").to_string();
             let giorni_sett: Vec<String> = [
                 "cal.mon", "cal.tue", "cal.wed", "cal.thu", "cal.fri", "cal.sat", "cal.sun",
             ]
@@ -687,13 +709,19 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                                 )
                                                 .on_hover_text(t_data.as_str());
                                             stato.opzioni.push((c.rect, format!("calendario {i}")));
+                                            if stato
+                                                .calendario
+                                                .is_some_and(|(aperto, _, _)| aperto == i)
+                                            {
+                                                stato.cal_ancora = Some(c.rect);
+                                            }
                                             if c.clicked() {
                                                 stato.calendario = match stato.calendario {
                                                     Some((aperto, _, _)) if aperto == i => None,
-                                                    _ => ws
-                                                        .active()
-                                                        .time_calendar(i)
-                                                        .map(|((a, m), _)| (i, a, m)),
+                                                    _ => ws.active().time_calendar(i).map(|info| {
+                                                        stato.cal_ancora = Some(c.rect);
+                                                        (i, info.month.0, info.month.1)
+                                                    }),
                                                 };
                                             }
                                         }
@@ -723,67 +751,247 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                     ui.end_row();
                                 }
                             });
-                        // il calendario aperto: i giorni del mese, un clic sceglie
-                        if let Some((campo, anno, mese)) = stato.calendario {
-                            let scelto = ws
-                                .active()
-                                .time_calendar(campo)
-                                .and_then(|(_, giorno)| giorno);
-                            let primo = mrp_core::timemask::key_from_civil(anno, mese, 1);
-                            let sfasa = mrp_core::timemask::weekday(primo) as usize;
-                            let giorni = mrp_core::timemask::days_in_month(anno, mese);
-                            ui.add_space(2.0);
-                            ui.horizontal(|ui| {
-                                let (a_prima, m_prima) = if mese == 1 {
-                                    (anno - 1, 12)
-                                } else {
-                                    (anno, mese - 1)
-                                };
-                                let (a_dopo, m_dopo) = if mese == 12 {
-                                    (anno + 1, 1)
-                                } else {
-                                    (anno, mese + 1)
-                                };
-                                let r = ui.button("<");
-                                stato.opzioni.push((r.rect, "mese prima".to_string()));
-                                if r.clicked() {
-                                    stato.calendario = Some((campo, a_prima, m_prima));
+                        // il calendario aperto: un popup sotto il campo (mese e anno in tendina, i giorni, l'ora); ogni scelta scrive subito
+                        // nel campo, il popup resta finche' non si preme "Fatto" o si clicca fuori
+                        if let (Some((campo, anno, mese)), Some(ancora)) =
+                            (stato.calendario, stato.cal_ancora)
+                        {
+                            if let Some(info) = ws.active().time_calendar(campo) {
+                                let mut nuovo_mese: Option<(i32, u32)> = None;
+                                let mut chiudi = false;
+                                let area = egui::Area::new(egui::Id::new("calendario_popup"))
+                                    .order(egui::Order::Foreground)
+                                    .fixed_pos(egui::Pos2::new(
+                                        ancora.max.x + 40.0,
+                                        ancora.min.y - 6.0,
+                                    ))
+                                    .show(ctx, |ui| {
+                                        egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                            ui.set_width(236.0);
+                                            // l'intestazione: mese e anno in tendina, le frecce
+                                            ui.horizontal(|ui| {
+                                                let (a_prima, m_prima) = if mese == 1 {
+                                                    (anno - 1, 12)
+                                                } else {
+                                                    (anno, mese - 1)
+                                                };
+                                                let (a_dopo, m_dopo) = if mese == 12 {
+                                                    (anno + 1, 1)
+                                                } else {
+                                                    (anno, mese + 1)
+                                                };
+                                                let r = ui.button("<");
+                                                stato
+                                                    .opzioni
+                                                    .push((r.rect, "mese prima".to_string()));
+                                                if r.clicked() {
+                                                    nuovo_mese = Some((a_prima, m_prima));
+                                                }
+                                                let c = egui::ComboBox::from_id_salt("cal_mese")
+                                                    .width(86.0)
+                                                    .selected_text(
+                                                        nomi_mesi[(mese as usize - 1).min(11)]
+                                                            .as_str(),
+                                                    )
+                                                    .show_ui(ui, |ui| {
+                                                        for (m, nome) in
+                                                            nomi_mesi.iter().enumerate()
+                                                        {
+                                                            if ui
+                                                                .selectable_label(
+                                                                    m as u32 + 1 == mese,
+                                                                    nome,
+                                                                )
+                                                                .clicked()
+                                                            {
+                                                                nuovo_mese =
+                                                                    Some((anno, m as u32 + 1));
+                                                            }
+                                                        }
+                                                    });
+                                                stato.opzioni.push((
+                                                    c.response.rect,
+                                                    "mese combo".to_string(),
+                                                ));
+                                                let primo_anno =
+                                                    info.first.map_or(anno, |d| d.0).min(anno) - 3;
+                                                let ultimo_anno =
+                                                    info.last.map_or(anno, |d| d.0).max(anno) + 3;
+                                                let c = egui::ComboBox::from_id_salt("cal_anno")
+                                                    .width(60.0)
+                                                    .selected_text(anno.to_string())
+                                                    .show_ui(ui, |ui| {
+                                                        for a in primo_anno..=ultimo_anno {
+                                                            if ui
+                                                                .selectable_label(
+                                                                    a == anno,
+                                                                    a.to_string(),
+                                                                )
+                                                                .clicked()
+                                                            {
+                                                                nuovo_mese = Some((a, mese));
+                                                            }
+                                                        }
+                                                    });
+                                                stato.opzioni.push((
+                                                    c.response.rect,
+                                                    "anno combo".to_string(),
+                                                ));
+                                                let r = ui.button(">");
+                                                stato
+                                                    .opzioni
+                                                    .push((r.rect, "mese dopo".to_string()));
+                                                if r.clicked() {
+                                                    nuovo_mese = Some((a_dopo, m_dopo));
+                                                }
+                                            });
+                                            ui.add_space(4.0);
+                                            // i giorni: quelli che il file copre normali, gli altri attenuati
+                                            let primo =
+                                                mrp_core::timemask::key_from_civil(anno, mese, 1);
+                                            let sfasa = mrp_core::timemask::weekday(primo) as usize;
+                                            let giorni =
+                                                mrp_core::timemask::days_in_month(anno, mese);
+                                            let dentro = |g: u32| match (info.first, info.last) {
+                                                (Some(a), Some(b)) => {
+                                                    (anno, mese, g) >= a && (anno, mese, g) <= b
+                                                }
+                                                _ => true,
+                                            };
+                                            egui::Grid::new("calendario")
+                                                .num_columns(7)
+                                                .spacing(egui::Vec2::new(2.0, 2.0))
+                                                .show(ui, |ui| {
+                                                    for g in &giorni_sett {
+                                                        ui.add_sized(
+                                                            egui::Vec2::new(31.0, 18.0),
+                                                            egui::Label::new(
+                                                                RichText::new(g).small().weak(),
+                                                            ),
+                                                        );
+                                                    }
+                                                    ui.end_row();
+                                                    for cella in
+                                                        0..(sfasa + giorni as usize).div_ceil(7) * 7
+                                                    {
+                                                        if cella < sfasa
+                                                            || cella >= sfasa + giorni as usize
+                                                        {
+                                                            ui.add_sized(
+                                                                egui::Vec2::new(31.0, 24.0),
+                                                                egui::Label::new(""),
+                                                            );
+                                                        } else {
+                                                            let giorno = (cella - sfasa + 1) as u32;
+                                                            let scelto = info.selected
+                                                                == Some((anno, mese, giorno));
+                                                            let mut testo =
+                                                                RichText::new(giorno.to_string());
+                                                            if !dentro(giorno) {
+                                                                testo = testo.weak();
+                                                            }
+                                                            let r = ui.add_sized(
+                                                                egui::Vec2::new(31.0, 24.0),
+                                                                egui::Button::new(testo)
+                                                                    .selected(scelto),
+                                                            );
+                                                            stato.opzioni.push((
+                                                                r.rect,
+                                                                format!("giorno {giorno}"),
+                                                            ));
+                                                            if r.clicked() {
+                                                                ws.active_mut().dialog_time_pick(
+                                                                    campo, anno, mese, giorno,
+                                                                );
+                                                            }
+                                                        }
+                                                        if cella % 7 == 6 {
+                                                            ui.end_row();
+                                                        }
+                                                    }
+                                                });
+                                            ui.separator();
+                                            // l'ora: ore, minuti, secondi e (se la maschera li scrive) millisecondi
+                                            ui.horizontal(|ui| {
+                                                ui.label(&t_ora);
+                                                let ms = info.time_ms;
+                                                let mut parti = [
+                                                    (ms / 3_600_000, 23_i64, 3_600_000_i64, "ora"),
+                                                    ((ms / 60_000) % 60, 59, 60_000, "minuti"),
+                                                    ((ms / 1000) % 60, 59, 1000, "secondi"),
+                                                    (ms % 1000, 999, 1, "millisecondi"),
+                                                ];
+                                                let mut nuovo = ms;
+                                                let mut primo_pezzo = true;
+                                                for (v, massimo, peso, nome) in &mut parti {
+                                                    // si mostra fino alla precisione che la maschera scrive
+                                                    if *peso < info.unit_ms {
+                                                        continue;
+                                                    }
+                                                    // fra ore, minuti e secondi i due punti, prima dei millisecondi il punto
+                                                    if !primo_pezzo {
+                                                        ui.label(if *peso == 1 {
+                                                            "."
+                                                        } else {
+                                                            ":"
+                                                        });
+                                                    }
+                                                    primo_pezzo = false;
+                                                    let mut x = *v;
+                                                    let r = ui.add(
+                                                        egui::DragValue::new(&mut x)
+                                                            .range(0..=*massimo)
+                                                            .speed(0.2)
+                                                            .custom_formatter(|n, _| {
+                                                                if *massimo == 999 {
+                                                                    format!("{:03}", n as i64)
+                                                                } else {
+                                                                    format!("{:02}", n as i64)
+                                                                }
+                                                            }),
+                                                    );
+                                                    stato
+                                                        .opzioni
+                                                        .push((r.rect, (*nome).to_string()));
+                                                    if x != *v {
+                                                        nuovo += (x - *v) * *peso;
+                                                    }
+                                                }
+                                                if nuovo != ms {
+                                                    ws.active_mut()
+                                                        .dialog_time_set_time(campo, nuovo);
+                                                }
+                                            });
+                                            ui.add_space(2.0);
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    let r = ui.button(&t_fatto);
+                                                    stato
+                                                        .opzioni
+                                                        .push((r.rect, "fatto".to_string()));
+                                                    if r.clicked() {
+                                                        chiudi = true;
+                                                    }
+                                                },
+                                            );
+                                        });
+                                    });
+                                if let Some((a, m)) = nuovo_mese {
+                                    stato.calendario = Some((campo, a, m));
                                 }
-                                ui.label(RichText::new(format!("{anno}-{mese:02}")).strong());
-                                let r = ui.button(">");
-                                stato.opzioni.push((r.rect, "mese dopo".to_string()));
-                                if r.clicked() {
-                                    stato.calendario = Some((campo, a_dopo, m_dopo));
+                                // un clic fuori dal popup (e fuori dal bottone) lo chiude
+                                let fuori = ctx.input(|i| {
+                                    i.pointer.any_pressed()
+                                        && i.pointer.interact_pos().is_some_and(|p| {
+                                            !area.response.rect.contains(p) && !ancora.contains(p)
+                                        })
+                                });
+                                // le tendine del popup sono finestre a parte: finche' una e' aperta non si chiude
+                                if chiudi || (fuori && !egui::Popup::is_any_open(ctx)) {
+                                    stato.calendario = None;
                                 }
-                            });
-                            egui::Grid::new("calendario").num_columns(7).show(ui, |ui| {
-                                for g in &giorni_sett {
-                                    ui.label(RichText::new(g).weak());
-                                }
-                                ui.end_row();
-                                for cella in 0..(sfasa + giorni as usize).div_ceil(7) * 7 {
-                                    if cella < sfasa || cella >= sfasa + giorni as usize {
-                                        ui.label("");
-                                    } else {
-                                        let giorno = (cella - sfasa + 1) as u32;
-                                        let sel = scelto == Some((anno, mese, giorno));
-                                        let r = ui.add(
-                                            egui::Button::new(giorno.to_string())
-                                                .selected(sel)
-                                                .min_size(egui::Vec2::new(34.0, 22.0)),
-                                        );
-                                        stato.opzioni.push((r.rect, format!("giorno {giorno}")));
-                                        if r.clicked() {
-                                            ws.active_mut()
-                                                .dialog_time_pick(campo, anno, mese, giorno);
-                                            stato.calendario = None;
-                                        }
-                                    }
-                                    if cella % 7 == 6 {
-                                        ui.end_row();
-                                    }
-                                }
-                            });
+                            }
                         }
                         if acceso && from.trim().is_empty() && to.trim().is_empty() {
                             ui.label(RichText::new(&t_nessun_limite).weak());

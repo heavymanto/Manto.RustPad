@@ -49,6 +49,19 @@ impl Step {
     }
 }
 
+/// Quanti bucket almeno deve avere la barra perche' sia utile: sotto, si sceglie un passo piu' corto.
+pub const BUCKET_MIN: i64 = 12;
+
+/// Il passo che da' una barra leggibile per un log che va da `first` a `last` (chiavi in millisecondi): il piu' lungo fra giorno, ora
+/// e dieci minuti che fa almeno `BUCKET_MIN` bucket, altrimenti il minuto. Un log di due settimane va a giorni, uno di un giorno a
+/// ore, uno di sette minuti a minuti.
+pub fn auto_step(first: i64, last: i64) -> Step {
+    [Step::Day, Step::Hour, Step::TenMinutes]
+        .into_iter()
+        .find(|s| (s.floor(last) - s.floor(first)) / s.ms() + 1 >= BUCKET_MIN)
+        .unwrap_or(Step::Minute)
+}
+
 /// Una tacca della timeline: l'inizio del bucket (`start`, la chiave) e l'inizio della prima riga con
 /// chiave >= `start` (`offset`); le righe senza orario prima di quella riga appartengono al bucket.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

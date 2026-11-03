@@ -812,6 +812,18 @@ impl Finestra {
                                             .to_string(),
                                     });
                                 }
+                                // sugli interruttori (¶, LOG) il suggerimento dice com'e' adesso e cosa fa un clic
+                                if matches!(cmd, Cmd::LogColors | Cmd::Special) {
+                                    let cat = self.ws.active();
+                                    let chiave = if pezzo.spento {
+                                        "gui.tip.switch_off"
+                                    } else {
+                                        "gui.tip.switch_on"
+                                    };
+                                    r = r.on_hover_text(
+                                        cat.text_with(chiave, &[cat.text(cmd.info().label)]),
+                                    );
+                                }
                                 if r.clicked() {
                                     scelta = Some(cmd);
                                 }
@@ -958,6 +970,11 @@ impl Finestra {
     /// Il rettangolo della barra di stato nell'ultimo disegno (per i test); `None` se non c'e' (cornice).
     pub fn barra_stato_rect(&self) -> Option<Rect> {
         self.rettangolo_stato
+    }
+
+    /// Apre il calendario del campo Dal (2) o Al (3) della finestra "Tempo" (uso da sviluppatore, per le schermate).
+    pub fn apri_calendario(&mut self, campo: u8) {
+        self.dialogo.apri_calendario(campo);
     }
 
     /// Cosa si e' disegnato della timeline nell'ultimo giro (per i test): il pannello, il corpo, le righe e le scritte.

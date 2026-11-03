@@ -76,24 +76,41 @@ pub fn disegna(
                 Rect::from_min_max(Pos2::new(area.min.x, area.min.y + INTESTAZIONE), area.max),
             );
             let passo = ws.active().timeline_step();
+            let automatico = ws.active().timeline_auto();
             let nomi: Vec<String> = PASSI
                 .iter()
                 .map(|(_, k)| ws.active().text(k).to_string())
                 .collect();
-            let selezionato = ws.active().text(nome_passo(passo)).to_string();
+            let t_auto = ws.active().text("timeline.step.auto").to_string();
+            let nome_effettivo = ws.active().text(nome_passo(passo)).to_string();
+            let selezionato = if automatico {
+                format!("{t_auto}: {nome_effettivo}")
+            } else {
+                nome_effettivo
+            };
             let mut scelto = None;
+            let mut torna_auto = false;
             let mut ui_testa = ui.new_child(egui::UiBuilder::new().max_rect(testa.shrink(3.0)));
             let combo = egui::ComboBox::from_id_salt("timeline_passo")
                 .width(testa.width() - 14.0)
                 .selected_text(RichText::new(selezionato).small())
                 .show_ui(&mut ui_testa, |ui| {
+                    if ui.selectable_label(automatico, &t_auto).clicked() {
+                        torna_auto = true;
+                    }
                     for (i, (p, _)) in PASSI.iter().enumerate() {
-                        if ui.selectable_label(*p == passo, &nomi[i]).clicked() {
+                        if ui
+                            .selectable_label(!automatico && *p == passo, &nomi[i])
+                            .clicked()
+                        {
                             scelto = Some(*p);
                         }
                     }
                 });
             stato.passo = Some(combo.response.rect);
+            if torna_auto {
+                ws.active_mut().set_timeline_auto();
+            }
             if let Some(p) = scelto {
                 ws.active_mut().set_timeline_step(p);
             }
