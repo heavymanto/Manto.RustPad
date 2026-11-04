@@ -756,14 +756,6 @@ impl App {
                 0,
             );
         }
-        if let Some(m) = self.time_mask.as_ref() {
-            aggiungi(
-                tipo_fonte(m.pattern(), m.skip()),
-                m.pattern().to_string(),
-                m.within(),
-                m.skip(),
-            );
-        }
         let attiva = self
             .time_mask
             .as_ref()
@@ -778,6 +770,16 @@ impl App {
         }
         for (p, w, k) in &self.time_rules {
             aggiungi(SourceKind::Rule, p.clone(), *w, *k);
+        }
+        // quello in uso per ultimo: se e' gia' fra i precedenti resta dov'e' (e col suo tipo), altrimenti e' una voce in piu' in coda al suo
+        // tipo. Cosi' le voci non cambiano posto a ogni OK (prima il tempo in uso saltava in cima e le altre si rimescolavano)
+        if let Some(m) = self.time_mask.as_ref() {
+            aggiungi(
+                tipo_fonte(m.pattern(), m.skip()),
+                m.pattern().to_string(),
+                m.within(),
+                m.skip(),
+            );
         }
         // l'ordine non dipende da quale e' in uso: prima gli orari all'inizio della riga, poi le date dentro le righe, poi quelle
         // numerate, poi le regole dell'utente (a parita' resta l'ordine in cui sono state trovate)

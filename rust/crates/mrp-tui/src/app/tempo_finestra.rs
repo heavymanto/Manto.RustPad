@@ -62,7 +62,9 @@ impl App {
         self.mask_text = [pattern, within.to_string()];
         self.mask_error = String::new();
         self.calcola_aiuti_formato();
-        self.time_bounds = self.limiti_tempo();
+        let limiti = self.limiti_tempo();
+        self.time_bounds = limiti.map(|l| l.0);
+        self.time_last_known = limiti.is_some_and(|l| l.1);
         self.time_check = self.window.is_some();
         self.time_timeline = self.timeline_on();
         // un testo selezionato nel documento e' l'esempio da cui ricavare la regola
@@ -77,13 +79,15 @@ impl App {
     }
 
     /// La prima e l'ultima chiave del file (con la maschera in uso), `None` senza maschera o senza righe con l'orario.
-    fn limiti_tempo(&self) -> Option<(i64, i64)> {
+    fn limiti_tempo(&self) -> Option<((i64, i64), bool)> {
         let mask = self.time_mask.as_ref()?;
         let doc = self.doc.as_ref()?;
         let libero = AtomicBool::new(false);
         let primo = timesearch::first_key(doc, mask, &libero).ok()??.1;
-        let ultimo = timesearch::last_key(doc, mask, &libero).ok()??.1;
-        Some((primo, ultimo))
+        // l'ultima si cerca solo nelle ultime righe: una regola che legge righe sparse (un banner ogni tanto) puo' non trovarne in
+        // fondo, e senza limiti non si apre nemmeno il calendario; si parte allora dalla prima
+        let ultimo = timesearch::last_key(doc, mask, &libero).ok().flatten();
+        Some(((primo, ultimo.map_or(primo, |(_, k)| k)), ultimo.is_some()))
     }
 
     /// Una chiave scritta nel formato del file (o, senza maschera, come `aaaa-mm-gg hh:mm:ss`).
@@ -182,7 +186,12 @@ impl App {
             check: self.time_check,
             timeline: self.time_timeline,
             from_hint: suggerimento("time.filter.from_hint", self.time_bounds.map(|b| b.0)),
-            to_hint: suggerimento("time.filter.to_hint", self.time_bounds.map(|b| b.1)),
+            to_hint: suggerimento(
+                "time.filter.to_hint",
+                self.time_bounds
+                    .filter(|_| self.time_last_known)
+                    .map(|b| b.1),
+            ),
             field: self.time_field,
             error: self.time_error.clone(),
             levels: self.timeline_filter_levels(),

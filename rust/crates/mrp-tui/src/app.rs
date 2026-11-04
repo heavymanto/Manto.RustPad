@@ -790,6 +790,8 @@ pub struct App {
     time_field: u8,
     time_error: String,
     time_bounds: Option<(i64, i64)>,
+    /// L'ultimo orario di `time_bounds` e' davvero quello dell'ultima riga letta (altrimenti e' la prima: la fine non si e' trovata).
+    time_last_known: bool,
     /// La finestra di tempo: la vista e' ristretta a `[inizio, fine)` (due inizi di riga); `None`: tutto il file.
     window: Option<(u64, u64)>,
     /// I campi del dialogo dell'intervallo di tempo (da, a), quale ha il fuoco e l'ultimo errore.
@@ -1059,6 +1061,7 @@ impl App {
             time_field: 2,
             time_error: String::new(),
             time_bounds: None,
+            time_last_known: false,
             window: None,
             range_text: [String::new(), String::new()],
             range_field: 0,
