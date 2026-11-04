@@ -903,6 +903,8 @@ pub struct App {
     /// I tempi che il file offre nel dialogo del formato (vedi `tempo::TimeSource`) e i gruppi di "date dentro le righe" trovati.
     mask_sources: Vec<tempo::TimeSource>,
     mask_groups: Vec<tempo::TimeSuggestion>,
+    /// Il nome da dare alla vista filtrata che sta per partire, se non e' il testo cercato (il filtro per livelli).
+    filter_name: Option<String>,
     /// L'esempio scritto (o selezionato) per ricavare la regola e quello che se ne e' ricavato (vedi `tempo_esempio`).
     example_text: String,
     example_result: Option<tempo_esempio::ExampleOutcome>,
@@ -1106,6 +1108,7 @@ impl App {
             time_rules: cfg.time_rules.clone(),
             mask_sources: Vec::new(),
             mask_groups: Vec::new(),
+            filter_name: None,
             example_text: String::new(),
             example_result: None,
             chrome: cfg.chrome,
@@ -4998,12 +5001,14 @@ impl App {
         };
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
+        // il nome della vista: di solito il testo cercato, per il filtro per livelli i livelli scelti
+        let nome = self.filter_name.take().unwrap_or_else(|| testo.to_string());
         self.search_job = Some(spawn_filter_job(
             snap,
             pattern,
             self.find_invert,
             self.filter_limit,
-            testo,
+            &nome,
             self.path.clone(),
             &cancel,
             &progress,

@@ -478,7 +478,8 @@ impl Finestra {
                     delta,
                     modifiers,
                 } => {
-                    if modifiers.command || modifiers.ctrl {
+                    // la rotella sopra una finestra (un dialogo o le impostazioni) e' sua: non fa scorrere anche il documento sotto
+                    if modifiers.command || modifiers.ctrl || dialogo || self.impostazioni.aperta {
                         continue;
                     }
                     let (su, giu) = match unit {
@@ -952,6 +953,11 @@ impl Finestra {
         };
         // il corpo scelto si ricorda per la prossima volta
         self.ws.set_font_size(self.corpo.round() as u16);
+    }
+
+    /// Sceglie la scheda delle impostazioni (0 Generale, 1 Tasti): uso da sviluppatore, per le schermate.
+    pub fn scheda_impostazioni(&mut self, i: u8) {
+        self.impostazioni.scheda = i;
     }
 
     /// La finestra delle impostazioni e' aperta (per i test).

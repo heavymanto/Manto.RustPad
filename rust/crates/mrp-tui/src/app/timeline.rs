@@ -443,6 +443,12 @@ impl App {
             return;
         }
         let regola = format!(r"{b}({}){b}", scelte.join("|"), b = BORDO_PAROLA);
+        // la scheda si chiama coi livelli scelti ("levels: ERROR, WARN"), non con l'espressione regolare
+        let nomi: Vec<&str> = (0..4)
+            .filter(|&i| self.timeline.filter_levels[i])
+            .map(|i| TIMELINE_LEVELS[i])
+            .collect();
+        self.filter_name = Some(self.cat.tf("timeline.filter_name", &[&nomi.join(", ")]));
         self.search_mode = Mode::Regex;
         self.search_case = true;
         self.find_invert = false;

@@ -138,17 +138,15 @@ fn the_chosen_levels_open_a_view_with_only_their_lines() {
     assert!(a.wait_idle(Duration::from_secs(20)));
     let fatto = a.take_filter_done().expect("la vista filtrata");
     assert_eq!(fatto.lines, 72);
-    assert!(
-        fatto.pattern.contains("ERROR|ERR") && fatto.pattern.contains("WARN|WARNING|WRN"),
-        "{}",
-        fatto.pattern
-    );
+    // la scheda si chiama coi livelli scelti, non con l'espressione regolare
+    assert_eq!(fatto.pattern, "levels: ERROR, WARN");
     // solo DEBUG: 36 righe
     a.set_timeline_filter_level(0, false);
     a.set_timeline_filter_level(1, false);
     a.set_timeline_filter_level(3, true);
     a.timeline_apply_level_filter();
     assert!(a.wait_idle(Duration::from_secs(20)));
-    assert_eq!(a.take_filter_done().expect("DEBUG").lines, 36);
+    let fatto = a.take_filter_done().expect("DEBUG");
+    assert_eq!((fatto.lines, fatto.pattern.as_str()), (36, "levels: DEBUG"));
     let _ = std::fs::remove_file(p);
 }

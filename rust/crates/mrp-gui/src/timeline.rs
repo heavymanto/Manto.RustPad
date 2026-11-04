@@ -39,7 +39,12 @@ pub struct StatoTimeline {
     pub chip: Vec<(Rect, String)>,
     /// Quanti segni di livello si sono disegnati (uno per riga e per livello presente).
     pub strisce: usize,
+    /// Quando si e' scelto o tolto l'ultimo livello: poco dopo (se non se ne sceglie un altro) la vista filtrata si apre da sola.
+    pub livelli_in_attesa: Option<std::time::Instant>,
 }
+
+/// Quanto si aspetta, dopo l'ultima scelta di un livello, prima di aprire la vista filtrata (il tempo di sceglierne un altro).
+pub const ATTESA_LIVELLI: std::time::Duration = std::time::Duration::from_millis(700);
 
 const PASSI: [(Step, &str); 4] = [
     (Step::Minute, "timeline.step.minute"),
@@ -173,6 +178,7 @@ pub fn disegna(
                     .push((r.rect, ["ERROR", "WARN", "INFO", "DEBUG"][i].to_string()));
                 if r.clicked() {
                     ws.active_mut().set_timeline_filter_level(i, !scelti[i]);
+                    stato.livelli_in_attesa = Some(std::time::Instant::now());
                 }
             }
             let f = ui_liv
@@ -183,7 +189,19 @@ pub fn disegna(
             crate::strumenti::imbuto(ui_liv.painter(), f.rect.center(), colore_imbuto, 10.0);
             stato.chip.push((f.rect, "filtra".to_string()));
             if f.clicked() {
+                stato.livelli_in_attesa = None;
                 ws.active_mut().timeline_apply_level_filter();
+            }
+            // scelti i livelli, la vista filtrata si apre da sola dopo un attimo (senza dover premere l'imbuto); togliendo l'ultimo no
+            if let Some(quando) = stato.livelli_in_attesa {
+                if quando.elapsed() >= ATTESA_LIVELLI {
+                    stato.livelli_in_attesa = None;
+                    if ws.active().timeline_filter_levels().contains(&true) {
+                        ws.active_mut().timeline_apply_level_filter();
+                    }
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(100));
+                }
             }
             // il corpo: lo sfondo tenue e le righe
             let altezza = corpo.height().max(1.0);

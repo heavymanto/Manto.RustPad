@@ -361,3 +361,86 @@ fn the_time_window_has_a_timeline_box_next_to_the_filter_box() {
     assert!(!f.app().timeline_on());
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn choosing_a_level_opens_the_filtered_view_by_itself_after_a_moment() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
+    pronta(&mut f, &ctx);
+    assert_eq!(f.workspace().len(), 1);
+    // un clic su I (INFO): non si apre subito (si potrebbe voler sceglierne un altro)...
+    let i = f
+        .timeline_disegnata()
+        .chip
+        .iter()
+        .find(|(_, t)| t == "INFO")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, i);
+    assert_eq!(
+        f.app().timeline_filter_levels(),
+        [false, false, true, false]
+    );
+    assert_eq!(f.workspace().len(), 1);
+    // ...ma dopo un attimo la scheda filtrata c'e', col nome dei livelli
+    std::thread::sleep(mrp_gui::timeline::ATTESA_LIVELLI + Duration::from_millis(100));
+    let fine = Instant::now() + Duration::from_secs(20);
+    while f.workspace().len() == 1 && Instant::now() < fine {
+        disegna(&mut f, &ctx);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(f.workspace().len(), 2, "la vista filtrata");
+    assert_eq!(f.app().file_name(), "[filter] levels: INFO");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn choosing_two_levels_in_a_row_opens_one_view_and_the_funnel_does_not_wait() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    let chip = |f: &Finestra, nome: &str| {
+        f.timeline_disegnata()
+            .chip
+            .iter()
+            .find(|(_, t)| t == nome)
+            .unwrap()
+            .0
+            .center()
+    };
+    // INFO e DEBUG uno dopo l'altro (meno di un attimo): una vista sola, coi due livelli
+    let i = chip(&f, "INFO");
+    clic(&mut f, &ctx, i);
+    let d = chip(&f, "DEBUG");
+    clic(&mut f, &ctx, d);
+    assert_eq!(f.workspace().len(), 1);
+    std::thread::sleep(mrp_gui::timeline::ATTESA_LIVELLI + Duration::from_millis(100));
+    let fine = Instant::now() + Duration::from_secs(20);
+    while f.workspace().len() == 1 && Instant::now() < fine {
+        disegna(&mut f, &ctx);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(f.workspace().len(), 2);
+    assert_eq!(f.app().file_name(), "[filter] levels: INFO, DEBUG");
+    // l'imbuto apre subito (qui senza livelli scelti non apre niente e lo dice, come prima)
+    f.workspace().select(0);
+    disegna(&mut f, &ctx);
+    f.workspace()
+        .active_mut()
+        .set_timeline_filter_level(2, false);
+    f.workspace()
+        .active_mut()
+        .set_timeline_filter_level(3, false);
+    disegna(&mut f, &ctx);
+    let filtra = chip(&f, "filtra");
+    clic(&mut f, &ctx, filtra);
+    assert_eq!(
+        f.app().flash(),
+        Some("Choose at least one level first (E, W, I, D)")
+    );
+    let _ = std::fs::remove_file(p);
+}

@@ -407,10 +407,14 @@ fn dei_tasti(ui: &mut egui::Ui, ws: &mut Workspace, stato: &mut StatoImpostazion
                 | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
         )
         .max_height(420.0)
+        // la lista occupa tutta la larghezza della finestra: la barra di scorrimento sta sul suo bordo destro, non a tre quarti
+        .auto_shrink([false, false])
         .show(ui, |ui| {
+            let meta = ((ui.available_width() - 24.0) / 2.0).max(120.0);
             egui::Grid::new("tasti")
                 .num_columns(2)
                 .striped(true)
+                .min_col_width(meta)
                 .show(ui, |ui| {
                     for (nome, scorciatoia) in &righe {
                         ui.label(nome.as_str());

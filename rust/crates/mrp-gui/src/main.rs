@@ -174,8 +174,12 @@ fn run() -> i32 {
                 .con_salvataggio(Box::new(|t: &str, nome: &str| scegli_dove_salvare(t, nome)));
             // uso da sviluppatore: MRPG_IMPOSTAZIONI=1 apre la finestra delle impostazioni (per le schermate)
             let mut finestra = finestra;
-            if std::env::var_os("MRPG_IMPOSTAZIONI").is_some() {
+            if let Some(v) = std::env::var_os("MRPG_IMPOSTAZIONI") {
                 finestra.azione(mrp_tui::commands::Cmd::Settings);
+                // MRPG_IMPOSTAZIONI=tasti apre la scheda dei tasti
+                if v == "tasti" {
+                    finestra.scheda_impostazioni(1);
+                }
             }
             // uso da sviluppatore: MRPG_AZIONE=intervallo|formato apre il dialogo del tempo (per le schermate)
             match std::env::var("MRPG_AZIONE").as_deref() {
