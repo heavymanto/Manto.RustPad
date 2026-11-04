@@ -5,7 +5,7 @@
 //! si dispongono le righe (l'altezza e' il tempo, oppure sono i byte) e se si vedono i periodi senza righe (nascosti di fabbrica). I colori sono quelli del tema (`Tavolozza`).
 
 use crate::stile::{miscela, Tavolozza};
-use eframe::egui::{self, Align2, Color32, FontId, Frame, Pos2, Rect, RichText, Sense, Vec2};
+use eframe::egui::{self, Color32, FontId, Frame, Pos2, Rect, RichText, Sense, Vec2};
 use mrp_core::timeline::Step;
 use mrp_tui::app::timeline::{TimelineMode, TimelineStatus};
 use mrp_tui::workspace::Workspace;
@@ -219,6 +219,7 @@ pub fn disegna(
             let barra = miscela(tav.acceso_bg, tav.schermo_bg, 0.15);
             let testo = tav.schermo_fg;
             let mut ultima_scritta = f32::NEG_INFINITY;
+            let mut scritte: Vec<(f32, &String)> = Vec::new();
             // il bucket con piu' righe di ogni livello: i segni si misurano su di lui
             let massimi = [
                 righe.iter().map(|r| r.levels.error).max().unwrap_or(0),
@@ -263,16 +264,25 @@ pub fn disegna(
                     }
                 }
                 if y0 - ultima_scritta >= SCRITTA_ALTEZZA {
-                    ui.painter().text(
-                        Pos2::new(corpo.min.x + 3.0, y0),
-                        Align2::LEFT_TOP,
-                        &r.label,
-                        FontId::monospace(9.5),
-                        con_alfa(testo, 235),
-                    );
+                    scritte.push((y0, &r.label));
                     ultima_scritta = y0;
-                    stato.scritte += 1;
                 }
+            }
+            // le date si scrivono dopo tutte le barre e i segni: le righe sotto non le coprono, e uno sfondo tenue le stacca dalle barre
+            for (y0, etichetta) in scritte {
+                let galleggiante = ui.painter().layout_no_wrap(
+                    etichetta.clone(),
+                    FontId::monospace(9.5),
+                    con_alfa(testo, 245),
+                );
+                let posto = Pos2::new(corpo.min.x + 3.0, y0);
+                ui.painter().rect_filled(
+                    Rect::from_min_size(posto, galleggiante.size()).expand2(Vec2::new(2.0, 0.0)),
+                    2.0,
+                    con_alfa(tav.schermo_bg, 190),
+                );
+                ui.painter().galley(posto, galleggiante, testo);
+                stato.scritte += 1;
             }
             // la passata dei livelli sta contando: una linea sottile in cima al corpo che avanza
             if let Some(f) = ws.active().timeline_levels_progress() {
