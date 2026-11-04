@@ -421,6 +421,11 @@ impl App {
         }
     }
 
+    /// Toglie tutti i livelli dal filtro.
+    pub fn clear_timeline_filter_levels(&mut self) {
+        self.timeline.filter_levels = [false; 4];
+    }
+
     /// Quanto e' avanzata la passata che conta i livelli, da 0 a 1 (`None`: non sta lavorando).
     pub fn timeline_levels_progress(&self) -> Option<f32> {
         let job = self.timeline.levels_job.as_ref()?;

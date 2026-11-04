@@ -5081,6 +5081,16 @@ impl App {
         self.filter_limit = n;
     }
 
+    /// Tolto l'ultimo livello da una vista filtrata: si torna al file originale, alla riga del cursore (la vista resta aperta).
+    /// Ritorna vero se e' una vista filtrata e senza livelli scelti.
+    pub fn filter_view_back_if_no_levels(&mut self) -> bool {
+        if self.filter_view.is_none() || self.timeline_filter_levels().contains(&true) {
+            return false;
+        }
+        self.filter_goto();
+        true
+    }
+
     /// Invio nella vista filtrata: chiede di andare alla riga di dov'e' venuta quella del cursore.
     fn filter_goto(&mut self) {
         let Some(riga) = self.cursor_line() else {

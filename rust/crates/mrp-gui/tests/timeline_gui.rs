@@ -399,6 +399,50 @@ fn choosing_a_level_opens_the_filtered_view_by_itself_after_a_moment() {
 }
 
 #[test]
+fn clicking_the_same_level_again_in_the_filtered_view_goes_back_to_the_file() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
+    pronta(&mut f, &ctx);
+    let info = |f: &Finestra| {
+        f.timeline_disegnata()
+            .chip
+            .iter()
+            .find(|(_, t)| t == "INFO")
+            .unwrap()
+            .0
+            .center()
+    };
+    let i = info(&f);
+    clic(&mut f, &ctx, i);
+    std::thread::sleep(mrp_gui::timeline::ATTESA_LIVELLI + Duration::from_millis(100));
+    let fine = Instant::now() + Duration::from_secs(20);
+    while f.workspace().len() == 1 && Instant::now() < fine {
+        disegna(&mut f, &ctx);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(f.workspace().len(), 2);
+    assert!(f.app().is_filter_view());
+    // la scheda di partenza non resta con INFO acceso: mostra tutto
+    assert_eq!(f.workspace().tabs()[0].timeline_filter_levels(), [false; 4]);
+    pronta(&mut f, &ctx);
+    // secondo clic su I nella vista filtrata: toglie il livello e torna al file vero
+    let i = info(&f);
+    clic(&mut f, &ctx, i);
+    disegna(&mut f, &ctx);
+    assert_eq!(
+        f.workspace().active_index(),
+        0,
+        "torna alla scheda del file"
+    );
+    assert!(!f.app().is_filter_view());
+    assert_eq!(f.workspace().len(), 2, "la vista resta aperta");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
 fn choosing_two_levels_in_a_row_opens_one_view_and_the_funnel_does_not_wait() {
     let (mut f, ctx, p, _) = finestra();
     f.azione(Cmd::Timeline);

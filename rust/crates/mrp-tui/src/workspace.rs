@@ -648,8 +648,10 @@ impl Workspace {
                 app.set_filter_view(fatto);
                 // la vista filtrata continua la scheda da cui viene: il formato dell'orario, la timeline (accesa, col suo passo) e i
                 // livelli scelti (le sue righe sono quelle del file, quindi valgono ancora)
-                if let Some(da) = self.tabs.get(origine) {
+                if let Some(da) = self.tabs.get_mut(origine) {
                     app.inherit_time_view(da);
+                    // i livelli passano alla vista che li mostra: la scheda di partenza torna senza (mostra tutto)
+                    da.clear_timeline_filter_levels();
                 }
                 self.tabs.push(app);
                 self.select(self.tabs.len() - 1);

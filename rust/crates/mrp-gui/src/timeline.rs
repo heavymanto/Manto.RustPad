@@ -178,7 +178,12 @@ pub fn disegna(
                     .push((r.rect, ["ERROR", "WARN", "INFO", "DEBUG"][i].to_string()));
                 if r.clicked() {
                     ws.active_mut().set_timeline_filter_level(i, !scelti[i]);
-                    stato.livelli_in_attesa = Some(std::time::Instant::now());
+                    // tolto l'ultimo livello da una vista filtrata: si torna al file vero (il "reset")
+                    if ws.active_mut().filter_view_back_if_no_levels() {
+                        stato.livelli_in_attesa = None;
+                    } else {
+                        stato.livelli_in_attesa = Some(std::time::Instant::now());
+                    }
                 }
             }
             let f = ui_liv
