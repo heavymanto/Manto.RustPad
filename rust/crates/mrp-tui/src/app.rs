@@ -3,8 +3,10 @@
 
 pub mod dialogs;
 mod tempo;
+mod tempo_esempio;
 mod tempo_finestra;
-pub use tempo::TimeSuggestion;
+pub use tempo::{SourceKind, TimeSource, TimeSuggestion};
+pub use tempo_esempio::{ExampleCandidate, ExampleOutcome, ExampleProblem};
 pub use tempo_finestra::{CalendarInfo, Day, Month};
 pub mod timeline;
 
@@ -355,6 +357,8 @@ pub struct AppConfig {
     pub font_size: Option<u16>,
     /// Il formato standard dell'orario (vedi `Settings::time_format`).
     pub time_format: Option<(String, usize)>,
+    /// Le regole per leggere il tempo scritte dall'utente (vedi `Settings::time_rules`).
+    pub time_rules: Vec<(String, usize, usize)>,
     /// `Some(stile)`: lo stile di fine riga che scrive Invio, al posto di quello del file (o della piattaforma, per un
     /// documento nuovo); le righe che ci sono gia' non cambiano. `None`: lo decide il file.
     pub eol: Option<LineEnding>,
@@ -380,6 +384,7 @@ impl Default for AppConfig {
             line_numbers: true,
             font_size: None,
             time_format: None,
+            time_rules: Vec::new(),
             chrome: true,
             eol: None,
         }
@@ -891,6 +896,14 @@ pub struct App {
     font_size: Option<u16>,
     /// Il formato standard dell'orario scelto a mano (pattern, finestra): si prova per primo (vedi `Settings::time_format`).
     time_default: Option<(String, usize)>,
+    /// Le regole per leggere il tempo scritte dall'utente (vedi `Settings::time_rules`).
+    time_rules: Vec<(String, usize, usize)>,
+    /// I tempi che il file offre nel dialogo del formato (vedi `tempo::TimeSource`) e i gruppi di "date dentro le righe" trovati.
+    mask_sources: Vec<tempo::TimeSource>,
+    mask_groups: Vec<tempo::TimeSuggestion>,
+    /// L'esempio scritto (o selezionato) per ricavare la regola e quello che se ne e' ricavato (vedi `tempo_esempio`).
+    example_text: String,
+    example_result: Option<tempo_esempio::ExampleOutcome>,
     /// Lo schermo ha la cornice del terminale (vedi `AppConfig::chrome`).
     chrome: bool,
     /// Lo stile di fine riga imposto da `--eol` (vedi `AppConfig::eol`).
@@ -1087,6 +1100,11 @@ impl App {
             line_numbers: cfg.line_numbers,
             font_size: cfg.font_size,
             time_default: cfg.time_format.clone(),
+            time_rules: cfg.time_rules.clone(),
+            mask_sources: Vec::new(),
+            mask_groups: Vec::new(),
+            example_text: String::new(),
+            example_result: None,
             chrome: cfg.chrome,
             eol_forzato: cfg.eol,
             lang_picked,
@@ -1940,6 +1958,7 @@ impl App {
             font_size: self.font_size,
             index: self.index,
             time_format: self.time_default.clone(),
+            time_rules: self.time_rules.clone(),
             theme_set: self.theme_chosen,
         };
         let _ = s.save(&path);

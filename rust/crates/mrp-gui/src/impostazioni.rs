@@ -258,27 +258,37 @@ fn generale(ui: &mut egui::Ui, ws: &mut Workspace, stato: &mut StatoImpostazioni
             // il tema: Automatico (come il sistema) o uno dei quattro: Blu (stile Total Commander), Debian, Scuro, Chiaro
             let etichetta = t(ws, "settings.theme");
             riga(ui, &etichetta, "F6", |ui| {
-                ui.horizontal(|ui| {
-                    let nome = t(ws, "settings.theme_auto");
-                    let r = ui.selectable_label(b.tema.is_none(), nome.as_str());
-                    stato.controlli.push((r.rect, nome));
-                    if r.clicked() {
-                        b.tema = None;
-                    }
-                    for id in [
-                        ThemeId::Night,
-                        ThemeId::Debian,
-                        ThemeId::Dark,
-                        ThemeId::Light,
-                    ] {
-                        let nome = t(ws, id.key());
-                        let r = ui.selectable_label(b.tema == Some(id), nome.as_str());
+                // una tendina, come la lingua: il tema scelto e' il testo, l'elenco ha Automatico e i quattro temi
+                let scelto = match b.tema {
+                    None => t(ws, "settings.theme_auto"),
+                    Some(id) => t(ws, id.key()),
+                };
+                let combo = egui::ComboBox::from_id_salt("tema")
+                    .selected_text(scelto.as_str())
+                    .show_ui(ui, |ui| {
+                        let nome = t(ws, "settings.theme_auto");
+                        let r = ui.selectable_label(b.tema.is_none(), nome.as_str());
                         stato.controlli.push((r.rect, nome));
                         if r.clicked() {
-                            b.tema = Some(id);
+                            b.tema = None;
                         }
-                    }
-                });
+                        for id in [
+                            ThemeId::Night,
+                            ThemeId::Debian,
+                            ThemeId::Dark,
+                            ThemeId::Light,
+                        ] {
+                            let nome = t(ws, id.key());
+                            let r = ui.selectable_label(b.tema == Some(id), nome.as_str());
+                            stato.controlli.push((r.rect, nome));
+                            if r.clicked() {
+                                b.tema = Some(id);
+                            }
+                        }
+                    });
+                stato
+                    .controlli
+                    .push((combo.response.rect, "tema".to_string()));
             });
             // la lingua
             let lingue = ws.active().language_list();

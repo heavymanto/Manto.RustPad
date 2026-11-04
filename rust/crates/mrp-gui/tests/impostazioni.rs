@@ -86,6 +86,14 @@ fn clic(f: &mut Finestra, ctx: &Context, pos: Pos2) {
     giro(f, ctx, vec![]);
 }
 
+/// Sceglie un tema dalla tendina delle impostazioni: apre la tendina e clicca la voce.
+fn scegli_tema(f: &mut Finestra, ctx: &Context, nome: &str) {
+    let combo = controllo(f, "tema");
+    clic(f, ctx, combo);
+    let voce = controllo(f, nome);
+    clic(f, ctx, voce);
+}
+
 fn controllo(f: &Finestra, testo: &str) -> Pos2 {
     f.impostazioni_controlli()
         .iter()
@@ -123,9 +131,7 @@ fn every_setting_is_there() {
     for atteso in [
         "General",
         "Keys",
-        "Automatic (system)",
-        "Dark",
-        "Light",
+        "tema",
         "-",
         "+",
         "Default",
@@ -147,6 +153,26 @@ fn every_setting_is_there() {
         for (b, nb) in &v[i + 1..] {
             assert!(!a.intersects(*b), "{na:?} {a:?} copre {nb:?} {b:?}");
         }
+    }
+    // il tema e' una tendina: chiusa mostra solo il tema scelto, aperta ha Automatico e i quattro temi
+    let combo = controllo(&f, "tema");
+    clic(&mut f, &ctx, combo);
+    let nomi: Vec<String> = f
+        .impostazioni_controlli()
+        .iter()
+        .map(|(_, t)| t.clone())
+        .collect();
+    for atteso in [
+        "Automatic (system)",
+        "Blue (Total Commander)",
+        "Debian (blue)",
+        "Dark",
+        "Light",
+    ] {
+        assert!(
+            nomi.iter().any(|n| n == atteso),
+            "manca {atteso:?} in {nomi:?}"
+        );
     }
     let _ = std::fs::remove_file(p);
 }
@@ -199,8 +225,7 @@ fn picking_a_theme_applies_and_saves_it() {
     let (mut f, ctx, p, settings) = finestra();
     apri(&mut f, &ctx);
     let prima = f.app().theme_id();
-    let pos = controllo(&f, "Light");
-    clic(&mut f, &ctx, pos);
+    scegli_tema(&mut f, &ctx, "Light");
     assert_eq!(f.app().theme_id(), prima, "la scelta aspetta OK");
     let pos = controllo(&f, "OK");
     clic(&mut f, &ctx, pos);
@@ -209,8 +234,7 @@ fn picking_a_theme_applies_and_saves_it() {
         .unwrap()
         .contains("theme=light"));
     apri(&mut f, &ctx);
-    let pos = controllo(&f, "Dark");
-    clic(&mut f, &ctx, pos);
+    scegli_tema(&mut f, &ctx, "Dark");
     let pos = controllo(&f, "OK");
     clic(&mut f, &ctx, pos);
     assert_eq!(f.app().theme_id(), ThemeId::Dark);
@@ -362,10 +386,11 @@ fn tasto_giu(key: Key) -> Event {
 
 /// Cambia un po' di cose senza confermare: un interruttore, il tema e il corpo.
 fn cambia_tutto(f: &mut Finestra, ctx: &Context) {
-    for nome in ["Show special characters", "Light", "+"] {
+    for nome in ["Show special characters", "+"] {
         let pos = controllo(f, nome);
         clic(f, ctx, pos);
     }
+    scegli_tema(f, ctx, "Light");
 }
 
 fn niente_e_cambiato(f: &mut Finestra, corpo: f32, tema: ThemeId, settings: &PathBuf) {

@@ -32,10 +32,49 @@ const GIORNO: i64 = 86_400_000;
 
 /// Quanti byte dall'inizio del file si guardano al piu' per trovare le righe che leggono un formato (anteprima e suggerimento), e
 /// a pezzi di quanti.
-const SCANSIONE_BYTE: u64 = 4 * 1024 * 1024;
+pub(super) const SCANSIONE_BYTE: u64 = 4 * 1024 * 1024;
 const PEZZO_SCANSIONE: u64 = 256 * 1024;
 /// "Entro quanti caratteri" con cui si legge la seconda data di una riga.
 const SUGGERIMENTO_ENTRO: usize = 200;
+
+/// Da dove viene un tempo che il file offre da usare.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SourceKind {
+    /// L'orario all'inizio della riga.
+    Start,
+    /// Una data dentro la riga, dopo questo testo (`@ `).
+    After(String),
+    /// La N-esima data della riga.
+    Number(usize),
+    /// Una regola scritta a mano dall'utente.
+    Rule,
+}
+
+/// Un tempo che il file offre da usare nel dialogo del formato: come si legge (pattern, quanto lontano dall'inizio riga, quale
+/// occorrenza), un esempio di come e' scritto nel file e quante righe lo hanno (fra quelle guardate).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TimeSource {
+    pub kind: SourceKind,
+    pub pattern: String,
+    pub within: usize,
+    pub skip: usize,
+    pub example: String,
+    pub lines: usize,
+}
+
+/// Che tempo e' una maschera: all'inizio della riga, dopo un testo fra apici, la N-esima data.
+fn tipo_fonte(pattern: &str, skip: usize) -> SourceKind {
+    if let Some(resto) = pattern.strip_prefix('\'') {
+        if let Some(fine) = resto.find('\'') {
+            return SourceKind::After(resto[..fine].to_string());
+        }
+    }
+    if skip > 0 {
+        SourceKind::Number(skip + 1)
+    } else {
+        SourceKind::Start
+    }
+}
 
 /// L'anteprima del formato gia' calcolata, con la chiave (pattern, finestra, occorrenza, lunghezza) con cui lo e' stata.
 pub(super) type PreviewMemo = (String, Vec<(String, String)>);
@@ -435,6 +474,7 @@ impl App {
                 .find_map(|r| m.read(r))
                 .map(|k| (timemask::iso(k, m.has_date()), m.pattern().to_string()))
         });
+        self.calcola_fonti();
         // il formato noto evidenziato e' quello della maschera in uso, se e' uno di loro
         self.mask_preset = self
             .time_mask
@@ -489,7 +529,12 @@ impl App {
 
     /// Chiama `f` per ogni riga (senza a-capo) dall'inizio del file, fino a `SCANSIONE_BYTE` byte, finche' ritorna vero. Solo con gli
     /// a-capo a un byte e testo a byte (come `campione_righe`).
-    fn scansiona_righe(&self, mut f: impl FnMut(&[u8]) -> bool) {
+    fn scansiona_righe(&self, f: impl FnMut(&[u8]) -> bool) {
+        self.scansiona_righe_per(SCANSIONE_BYTE, f);
+    }
+
+    /// Come `scansiona_righe`, ma guardando al piu' `max` byte.
+    pub(super) fn scansiona_righe_per(&self, max: u64, mut f: impl FnMut(&[u8]) -> bool) {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
@@ -497,7 +542,7 @@ impl App {
             return;
         }
         let len = doc.len();
-        let fine = len.min(SCANSIONE_BYTE);
+        let fine = len.min(max);
         let mut pos = 0u64;
         let mut resto: Vec<u8> = Vec::new();
         while pos < fine {
@@ -645,30 +690,156 @@ impl App {
                 && diversi.len() >= 5
                 && in_ordine * 100 >= g.chiavi.len().saturating_sub(1) * 95
         };
-        let massimo = gruppi
-            .values()
-            .filter(|g| utile(g))
-            .map(|g| g.righe)
-            .max()
-            .unwrap_or(0);
-        if massimo == 0 {
+        // per ogni testo che precede la data, il formato piu' preciso fra quelli che la leggono (quasi) quante il migliore; poi i tre
+        // testi con piu' righe
+        let mut per_testo: std::collections::HashMap<String, Vec<(usize, &Gruppo)>> =
+            std::collections::HashMap::new();
+        for (chiave, g) in gruppi.iter().filter(|(_, g)| utile(g)) {
+            per_testo
+                .entry(chiave.1.clone())
+                .or_default()
+                .push((chiave.0, g));
+        }
+        let mut scelti: Vec<TimeSuggestion> = Vec::new();
+        for (prima, candidati) in per_testo {
+            let massimo = candidati.iter().map(|(_, g)| g.righe).max().unwrap_or(0);
+            let meglio = candidati
+                .iter()
+                .filter(|(_, g)| g.righe * 10 >= massimo * 8)
+                .min_by_key(|(i, g)| (maschere[*i].unit_ms(), usize::MAX - g.righe));
+            if let Some((i, g)) = meglio {
+                scelti.push(TimeSuggestion {
+                    pattern: format!("'{prima}'{}", CANDIDATI[*i]),
+                    skip: 0,
+                    example: g.esempio.clone(),
+                    lines: g.righe,
+                });
+            }
+        }
+        // l'ordine della mappa non conta: piu' righe prima, a parita' il testo
+        scelti.sort_by(|a, b| {
+            b.lines
+                .cmp(&a.lines)
+                .then_with(|| a.pattern.cmp(&b.pattern))
+        });
+        scelti.truncate(3);
+        self.mask_suggestion = scelti.first().cloned();
+        self.mask_groups = scelti;
+    }
+
+    /// I tempi che il file offre da usare, per il dialogo del formato: quello in uso (il primo), le date dentro le righe trovate da
+    /// `calcola_suggerimento` e le regole scritte dall'utente che leggono almeno una riga delle prime del file. Una passata sola.
+    pub(super) fn calcola_fonti(&mut self) {
+        // le candidate: (tipo, pattern, entro, occorrenza)
+        let mut candidate: Vec<(SourceKind, String, usize, usize)> = Vec::new();
+        let mut aggiungi = |k: SourceKind, p: String, w: usize, s: usize| {
+            if !candidate.iter().any(|c| c.1 == p && c.2 == w && c.3 == s) {
+                candidate.push((k, p, w, s));
+            }
+        };
+        if let Some(m) = self.time_mask.as_ref() {
+            aggiungi(
+                tipo_fonte(m.pattern(), m.skip()),
+                m.pattern().to_string(),
+                m.within(),
+                m.skip(),
+            );
+        }
+        for g in &self.mask_groups {
+            aggiungi(
+                tipo_fonte(&g.pattern, g.skip),
+                g.pattern.clone(),
+                SUGGERIMENTO_ENTRO,
+                g.skip,
+            );
+        }
+        for (p, w, k) in &self.time_rules {
+            aggiungi(SourceKind::Rule, p.clone(), *w, *k);
+        }
+        let maschere: Vec<Option<TimeMask>> = candidate
+            .iter()
+            .map(|(_, p, w, k)| TimeMask::parse(p, *w).ok().map(|m| m.with_skip(*k)))
+            .collect();
+        let mut conti = vec![0usize; candidate.len()];
+        let mut esempi: Vec<String> = vec![String::new(); candidate.len()];
+        let mut righe = 0usize;
+        self.scansiona_righe(|riga| {
+            righe += 1;
+            for (i, m) in maschere.iter().enumerate() {
+                if let Some((a, b, _)) = m.as_ref().and_then(|m| m.find(riga)) {
+                    conti[i] += 1;
+                    if esempi[i].is_empty() {
+                        esempi[i] = String::from_utf8_lossy(&riga[a..b]).into_owned();
+                    }
+                }
+            }
+            righe < 80_000
+        });
+        self.mask_sources = candidate
+            .into_iter()
+            .enumerate()
+            // il tempo in uso si mostra sempre; gli altri solo se leggono qualcosa
+            .filter(|(i, c)| {
+                *i == 0 && self.time_mask.is_some() && c.0 != SourceKind::Rule || conti[*i] > 0
+            })
+            .map(|(i, (kind, pattern, within, skip))| TimeSource {
+                kind,
+                pattern,
+                within,
+                skip,
+                example: esempi[i].clone(),
+                lines: conti[i],
+            })
+            .collect();
+    }
+
+    /// I tempi che il file offre da usare nel dialogo del formato.
+    pub fn time_sources(&self) -> &[TimeSource] {
+        &self.mask_sources
+    }
+
+    /// Quale dei tempi offerti e' quello scritto adesso nel dialogo (pattern, entro e occorrenza uguali); `None` se e' un formato
+    /// scritto a mano che non e' nell'elenco.
+    pub fn time_source_selected(&self) -> Option<usize> {
+        let pattern = self.mask_text[0].trim();
+        let within = self.mask_text[1].trim().parse::<usize>().ok()?;
+        self.mask_sources
+            .iter()
+            .position(|s| s.pattern == pattern && s.within == within && s.skip == self.mask_skip)
+    }
+
+    /// Sceglie nel dialogo il tempo `i` dell'elenco: il suo pattern, entro e occorrenza vanno nei campi (poi OK lo applica).
+    pub fn dialog_time_pick_source(&mut self, i: usize) {
+        if !matches!(self.dialog, Some(DialogKind::TimeMask | DialogKind::Time)) {
             return;
         }
-        // fra i gruppi che leggono (quasi) quante il migliore, il formato piu' preciso (poi il piu' numeroso, poi il testo: l'ordine
-        // della mappa non conta)
-        let scelto = gruppi
-            .iter()
-            .filter(|(_, g)| utile(g) && g.righe * 10 >= massimo * 8)
-            .min_by_key(|((i, prima), g)| {
-                (maschere[*i].unit_ms(), usize::MAX - g.righe, prima.clone())
-            });
-        if let Some(((i, prima), g)) = scelto {
-            self.mask_suggestion = Some(TimeSuggestion {
-                pattern: format!("'{prima}'{}", CANDIDATI[*i]),
-                skip: 0,
-                example: g.esempio.clone(),
-                lines: g.righe,
-            });
+        if let Some(s) = self.mask_sources.get(i).cloned() {
+            self.mask_text = [s.pattern, s.within.to_string()];
+            self.mask_skip = s.skip;
+            self.mask_error.clear();
+            self.time_error.clear();
+        }
+    }
+
+    /// Le regole per leggere il tempo scritte dall'utente (pattern, entro, occorrenza).
+    pub fn time_rules(&self) -> Vec<(String, usize, usize)> {
+        self.time_rules.clone()
+    }
+
+    /// Cambia le regole senza salvare (lo usa il `Workspace` per allineare le schede).
+    pub fn set_time_rules(&mut self, regole: Vec<(String, usize, usize)>) {
+        self.time_rules = regole;
+    }
+
+    /// Ricorda una regola scritta a mano (se non c'e' gia'): al piu' otto, la piu' vecchia esce.
+    pub(super) fn aggiungi_regola(&mut self, pattern: &str, within: usize, skip: usize) {
+        let regola = (pattern.to_string(), within, skip);
+        if self.time_rules.contains(&regola) {
+            return;
+        }
+        self.time_rules.push(regola);
+        if self.time_rules.len() > 8 {
+            self.time_rules.remove(0);
         }
     }
 

@@ -819,6 +819,14 @@ impl Workspace {
                 a.set_time_default(standard.clone());
             }
         }
+        // le regole scritte a mano valgono per tutte le schede (e per quelle che si apriranno)
+        let regole = self.tabs[self.active].time_rules();
+        if regole != self.cfg.time_rules {
+            self.cfg.time_rules = regole.clone();
+            for a in &mut self.tabs {
+                a.set_time_rules(regole.clone());
+            }
+        }
         if let Some((origine, pos)) = self.tabs[self.active].take_goto_original() {
             self.goto_original(&origine, pos);
         }

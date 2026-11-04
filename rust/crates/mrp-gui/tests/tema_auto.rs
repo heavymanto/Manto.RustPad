@@ -69,6 +69,14 @@ fn clic(f: &mut Finestra, ctx: &Context, sistema: Option<Theme>, pos: Pos2) {
     giro(f, ctx, sistema, vec![]);
 }
 
+/// Sceglie un tema dalla tendina delle impostazioni: apre la tendina e clicca la voce.
+fn scegli_tema(f: &mut Finestra, ctx: &Context, sistema: Option<Theme>, nome: &str) {
+    let combo = controllo(f, "tema");
+    clic(f, ctx, sistema, combo);
+    let voce = controllo(f, nome);
+    clic(f, ctx, sistema, voce);
+}
+
 fn controllo(f: &Finestra, testo: &str) -> Pos2 {
     f.impostazioni_controlli()
         .iter()
@@ -125,6 +133,9 @@ fn changing_any_other_setting_does_not_pin_the_theme() {
 fn the_settings_offer_automatic_light_and_dark_only() {
     let (mut f, ctx, p, _) = finestra();
     apri_impostazioni(&mut f, &ctx, Some(Theme::Light));
+    // il tema e' una tendina: si apre per vedere le voci
+    let combo = controllo(&f, "tema");
+    clic(&mut f, &ctx, Some(Theme::Light), combo);
     let nomi: Vec<String> = f
         .impostazioni_controlli()
         .iter()
@@ -157,8 +168,7 @@ fn choosing_dark_or_light_pins_it_and_automatic_gives_the_system_back() {
     let sistema = Some(Theme::Light);
     giro(&mut f, &ctx, sistema, vec![]);
     apri_impostazioni(&mut f, &ctx, sistema);
-    let pos = controllo(&f, "Dark");
-    clic(&mut f, &ctx, sistema, pos);
+    scegli_tema(&mut f, &ctx, sistema, "Dark");
     let ok = controllo(&f, "OK");
     clic(&mut f, &ctx, sistema, ok);
     assert_eq!(f.app().theme_id(), ThemeId::Dark);
@@ -170,8 +180,7 @@ fn choosing_dark_or_light_pins_it_and_automatic_gives_the_system_back() {
     assert_eq!(f.app().theme_id(), ThemeId::Dark);
     // Automatico: torna come il sistema e la scelta sparisce dal file
     apri_impostazioni(&mut f, &ctx, sistema);
-    let pos = controllo(&f, "Automatic (system)");
-    clic(&mut f, &ctx, sistema, pos);
+    scegli_tema(&mut f, &ctx, sistema, "Automatic (system)");
     let ok = controllo(&f, "OK");
     clic(&mut f, &ctx, sistema, ok);
     assert_eq!(f.app().theme_id(), ThemeId::Light);

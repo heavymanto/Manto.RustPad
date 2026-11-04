@@ -62,9 +62,15 @@ impl App {
         self.calcola_aiuti_formato();
         self.time_bounds = self.limiti_tempo();
         self.time_check = self.window.is_some();
+        // un testo selezionato nel documento e' l'esempio da cui ricavare la regola
+        self.example_text = self.esempio_dalla_selezione();
+        self.example_result = None;
         self.time_field = 2;
         self.time_error = String::new();
         self.dialog = Some(DialogKind::Time);
+        if !self.example_text.is_empty() {
+            self.dialog_time_find_rule();
+        }
     }
 
     /// La prima e l'ultima chiave del file (con la maschera in uso), `None` senza maschera o senza righe con l'orario.
@@ -104,11 +110,66 @@ impl App {
             pattern: self.mask_text[0].clone(),
             within: self.mask_text[1].clone(),
             skip: self.mask_skip,
-            suggestion: self
-                .mask_suggestion
-                .as_ref()
-                .filter(|_| self.mask_skip == 0)
-                .map(|s| (s.example.clone(), s.lines)),
+            sources: self
+                .mask_sources
+                .iter()
+                .map(|s| {
+                    let etichetta = match &s.kind {
+                        crate::app::SourceKind::Start => cat.t("time.source.start").to_string(),
+                        crate::app::SourceKind::After(p) => cat.tf("time.source.after", &[p]),
+                        crate::app::SourceKind::Number(n) => {
+                            cat.tf("time.source.number", &[&n.to_string()])
+                        }
+                        crate::app::SourceKind::Rule => cat.tf("time.source.rule", &[&s.pattern]),
+                    };
+                    (etichetta, s.example.clone(), s.lines)
+                })
+                .collect(),
+            source: self.time_source_selected(),
+            example: self.example_text.clone(),
+            example_problem: self.time_example_result().and_then(|r| {
+                r.problem.as_ref().map(|p| match p {
+                    crate::app::ExampleProblem::NoDate => cat.t("time.example.no_date").to_string(),
+                    crate::app::ExampleProblem::NotInFile => {
+                        cat.t("time.example.not_in_file").to_string()
+                    }
+                })
+            }),
+            example_candidates: self
+                .time_example_result()
+                .map(|r| {
+                    let scelta = self.time_example_selected();
+                    r.candidates
+                        .iter()
+                        .enumerate()
+                        .map(|(i, c)| {
+                            let etichetta = match &c.kind {
+                                crate::app::SourceKind::Start => {
+                                    cat.t("time.source.start").to_string()
+                                }
+                                crate::app::SourceKind::After(p) => {
+                                    cat.tf("time.source.after", &[p])
+                                }
+                                crate::app::SourceKind::Number(n) => {
+                                    cat.tf("time.source.number", &[&n.to_string()])
+                                }
+                                crate::app::SourceKind::Rule => {
+                                    cat.t("time.source.rule").to_string()
+                                }
+                            };
+                            let mut dettaglio = cat.tf(
+                                "time.example.reads",
+                                &[&c.lines.to_string(), &c.first, &c.last],
+                            );
+                            if !c.ordered {
+                                dettaglio.push_str(" \u{2014} ");
+                                dettaglio.push_str(cat.t("time.example.unordered"));
+                            }
+                            (etichetta, dettaglio, scelta == Some(i))
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
             preview: self.time_mask_preview(),
             auto: cat.t("time.mask.auto").to_string(),
             has_mask: self.time_mask.is_some(),
@@ -291,8 +352,22 @@ impl App {
         }
         // scelta a mano: diventa il formato standard, provato per primo sui file che si apriranno; non se vale un'occorrenza che non
         // sia la prima (e' una scelta per questo file, non per tutti)
-        if cambia && skip == 0 {
-            self.time_default = Some((pattern, within));
+        let standard = cambia && skip == 0;
+        if standard {
+            self.time_default = Some((pattern.clone(), within));
+        }
+        // una regola scritta a mano (ne' uno dei tempi offerti ne' un formato noto all'inizio della riga) si ricorda: la volta dopo e'
+        // una riga dell'elenco, nei file dove legge qualcosa
+        let offerto = self
+            .mask_sources
+            .iter()
+            .any(|s| s.pattern == pattern && s.within == within && s.skip == skip);
+        let noto = skip == 0 && timemask::PRESETS.iter().any(|p| p.pattern == pattern);
+        let regola = !offerto && !noto;
+        if regola {
+            self.aggiungi_regola(&pattern, within, skip);
+        }
+        if standard || regola {
             self.save_settings();
         }
         self.dialog = None;

@@ -271,3 +271,73 @@ fn choosing_a_known_format_in_the_dialog_changes_the_headline_after_ok() {
     );
     let _ = std::fs::remove_dir_all(d);
 }
+
+#[test]
+fn the_rules_written_by_hand_are_saved_read_back_and_limited() {
+    let s = Settings {
+        time_rules: vec![
+            ("'@ 'yyyy-MM-dd HH:mm".to_string(), 200, 0),
+            ("yyyy-MM-dd HH:mm".to_string(), 200, 1),
+        ],
+        ..Settings::default()
+    };
+    let testo = s.to_text();
+    assert!(
+        testo.contains("time_rule='@ 'yyyy-MM-dd HH:mm|200|0\n"),
+        "{testo}"
+    );
+    assert!(
+        testo.contains("time_rule=yyyy-MM-dd HH:mm|200|1\n"),
+        "{testo}"
+    );
+    assert_eq!(Settings::from_text(&testo).time_rules, s.time_rules);
+    // senza regole niente si scrive
+    assert!(!Settings::default().to_text().contains("time_rule"));
+    // un pattern che non va, una riga senza i tre pezzi e un numero fuori misura: le regole buone restano, il resto si limita o si salta
+    let t = Settings::from_text(
+        "time_rule=yyyyy|0|0\ntime_rule=senza pezzi\ntime_rule=HH:mm:ss|999|99\ntime_rule=HH:mm:ss|999|99\n",
+    );
+    assert_eq!(t.time_rules, vec![("HH:mm:ss".to_string(), 200, 9)]);
+    // al piu' otto
+    let molte: String = (0..12)
+        .map(|i| format!("time_rule='x{i} 'yyyy-MM-dd HH:mm|200|0\n"))
+        .collect();
+    assert_eq!(Settings::from_text(&molte).time_rules.len(), 8);
+    // un pattern con la barra verticale dentro si rilegge (si divide dalla destra)
+    let barra = Settings::from_text("time_rule='a|b 'yyyy-MM-dd HH:mm|200|0\n");
+    assert_eq!(
+        barra.time_rules,
+        vec![("'a|b 'yyyy-MM-dd HH:mm".to_string(), 200, 0)]
+    );
+}
+
+#[test]
+fn a_rule_written_in_one_tab_reaches_the_other_tabs_and_the_next_ones() {
+    use mrp_tui::workspace::Workspace;
+    // la finestra con i controlli nativi: la finestra "Tempo"
+    let cfg = AppConfig {
+        chrome: false,
+        ..AppConfig::default()
+    };
+    let (a, d) = app_con(&log_a_tabelle(3), cfg.clone());
+    let mut w = Workspace::new(a, cfg);
+    w.resize(100, 24);
+    let altro = d.join("b.log");
+    std::fs::write(
+        &altro, "x
+",
+    )
+    .unwrap();
+    w.open(&altro).unwrap();
+    w.select(0);
+    // una regola scritta a mano: un formato che non e' fra quelli noti
+    w.active_mut().open_time_dialog();
+    w.active_mut().dialog_set_field(0, "yyyy-MM-dd HH:mm");
+    w.active_mut().dialog_submit();
+    w.tick();
+    let regola = vec![("yyyy-MM-dd HH:mm".to_string(), 0, 0)];
+    assert_eq!(w.tabs()[0].time_rules(), regola);
+    // l'altra scheda la conosce, e' una riga dell'elenco anche li' (se il file la legge)
+    assert_eq!(w.tabs()[1].time_rules(), regola);
+    let _ = std::fs::remove_dir_all(d);
+}

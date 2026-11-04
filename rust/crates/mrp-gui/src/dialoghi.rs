@@ -55,6 +55,8 @@ pub struct StatoDialogo {
     filtro: [String; 2],
     /// Dove sta il bottone del calendario aperto (il calendario si apre sotto di lui).
     cal_ancora: Option<egui::Rect>,
+    /// Nella finestra "Tempo": il buffer dell'esempio da cui ricavare la regola (il padrone e' l'`App`).
+    esempio: String,
     /// Un calendario da aprire appena la finestra e' disegnata (uso da sviluppatore, per le schermate).
     cal_richiesto: Option<u8>,
 }
@@ -447,16 +449,18 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         }
         // la finestra "Tempo": il formato dell'orario in alto, sotto il filtro per data (casella, Dal / Al con calendario e X)
         DialogView::Time {
-            detected,
             presets,
-            preset,
             matches,
             pattern_label,
             within_label,
             pattern,
             within,
             skip,
-            suggestion,
+            sources,
+            source,
+            example,
+            example_problem,
+            example_candidates,
             preview,
             auto,
             has_mask,
@@ -475,6 +479,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 stato.testo_due = within.clone();
             }
             stato.filtro = [from.clone(), to.clone()];
+            stato.esempio = example.clone();
             if let Some(c) = stato.cal_richiesto.take() {
                 stato.calendario = ws
                     .active()
@@ -482,12 +487,10 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     .map(|i| (c, i.month.0, i.month.1));
             }
             let avviso = ctx.style().visuals.warn_fg_color;
-            let (t_riconosciuto, t_nessuno, t_formato, t_filtro, t_personale, t_prime, t_entro) = {
+            let (t_nessuno, t_filtro, t_personale, t_prime, t_entro) = {
                 let a = ws.active();
                 (
-                    a.text("time.mask.detected").to_string(),
                     a.text("time.mask.not_detected").to_string(),
-                    a.text("time.section.format").to_string(),
                     a.text("time.section.filter").to_string(),
                     a.text("time.mask.custom").to_string(),
                     a.text("time.mask.preview2").to_string(),
@@ -511,11 +514,19 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 .map(|m| ws.active().text(&format!("cal.month.{m}")).to_string())
                 .collect();
             let t_occorrenza = ws.active().text("time.mask.occurrence").to_string();
-            let t_usa = ws.active().text("time.mask.suggest_use").to_string();
-            let t_suggerimento = suggestion.as_ref().map(|(esempio, righe)| {
-                ws.active()
-                    .text_with("time.mask.suggest", &[esempio, &righe.to_string()])
-            });
+            let t_esempio_titolo = ws.active().text("time.example.title").to_string();
+            let t_esempio_aiuto = ws.active().text("time.example.hint").to_string();
+            let t_trova = ws.active().text("time.example.button").to_string();
+            let t_titolo_fonti = ws.active().text("time.source.title").to_string();
+            let t_altro = ws.active().text("time.source.other").to_string();
+            let t_aiuto_regola = ws.active().text("time.source.rule_help").to_string();
+            let righe_fonti: Vec<String> = sources
+                .iter()
+                .map(|(_, _, n)| {
+                    ws.active()
+                        .text_with("time.source.lines", &[&n.to_string()])
+                })
+                .collect();
             let t_ora = ws.active().text("time.filter.time").to_string();
             let t_fatto = ws.active().text("time.filter.done").to_string();
             let giorni_sett: Vec<String> = [
@@ -542,9 +553,10 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     }
                 })
                 .collect();
+            // "Altro" e' scelto se il tempo scritto adesso non e' uno di quelli che il file offre
             let mut pers = *stato
                 .personalizzato
-                .get_or_insert_with(|| *skip > 0 || !presets.iter().any(|(p, _)| p == pattern));
+                .get_or_insert_with(|| source.is_none() || !example.is_empty());
             rect = finestra(
                 ctx,
                 titolo.as_str(),
@@ -552,131 +564,168 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiudi,
                 &mut stato.chiusura_richiesta,
                 |ui| {
-                    // 1. il formato
-                    ui.label(RichText::new(&t_formato).strong());
-                    match detected {
-                        Some((tempo, pat)) => {
-                            ui.horizontal(|ui| {
-                                ui.label(RichText::new(&t_riconosciuto).strong());
-                                ui.label(RichText::new(tempo).monospace());
-                                ui.label(RichText::new(format!("({pat})")).weak());
-                            });
-                        }
-                        None => {
-                            ui.colored_label(avviso, t_nessuno.as_str());
+                    // 1. quale tempo usare: l'elenco di quelli che il file offre, e "Altro" con la regola scritta a mano
+                    ui.label(RichText::new(&t_titolo_fonti).strong());
+                    if sources.is_empty() {
+                        ui.colored_label(avviso, t_nessuno.as_str());
+                    }
+                    let mut scelta_fonte: Option<usize> = None;
+                    for (i, (etichetta, esempio, _)) in sources.iter().enumerate() {
+                        let r = ui.horizontal(|ui| {
+                            let r = ui.radio(!pers && *source == Some(i), etichetta.as_str());
+                            ui.label(RichText::new(esempio).monospace().strong());
+                            ui.label(RichText::new(&righe_fonti[i]).weak().small());
+                            r
+                        });
+                        stato.opzioni.push((r.inner.rect, format!("fonte {i}")));
+                        if r.inner.clicked() {
+                            scelta_fonte = Some(i);
                         }
                     }
-                    ui.label(RichText::new(&t_scegli).weak());
-                    let scelto = if pers {
-                        t_personale.clone()
-                    } else {
-                        etichette[(*preset).min(etichette.len() - 1)].clone()
-                    };
-                    let mut nuovo: Option<Option<usize>> = None;
-                    let combo = egui::ComboBox::from_id_salt("formato_orario")
-                        .width(ui.available_width() - 8.0)
-                        .selected_text(RichText::new(scelto).monospace())
-                        .show_ui(ui, |ui| {
-                            let r = ui.selectable_label(pers, RichText::new(&t_personale).strong());
-                            stato.voci.push(r.rect);
-                            if r.clicked() {
-                                nuovo = Some(None);
-                            }
-                            ui.separator();
-                            for &i in &ordine {
-                                let mut testo = RichText::new(&etichette[i]).monospace();
-                                if !legge[i] {
-                                    testo = testo.weak();
-                                }
-                                let r = ui.selectable_label(!pers && i == *preset, testo);
-                                stato.voci.push(r.rect);
-                                if r.clicked() {
-                                    nuovo = Some(Some(i));
-                                }
-                            }
-                        });
-                    stato
-                        .opzioni
-                        .push((combo.response.rect, "formato".to_string()));
-                    match nuovo {
-                        Some(None) => {
-                            pers = true;
-                            stato.campo_fuoco = false;
-                        }
-                        Some(Some(i)) => {
-                            pers = false;
-                            ws.active_mut().dialog_time_preset(i);
-                            stato.campo_fuoco = false;
-                        }
-                        None => {}
-                    }
-                    // un'altra data nelle righe: il suggerimento, con il pulsante che la usa
-                    if let Some(testo) = &t_suggerimento {
-                        ui.horizontal_wrapped(|ui| {
-                            ui.label(RichText::new(testo).weak());
-                            let r = ui.button(&t_usa);
-                            stato.opzioni.push((r.rect, "suggerimento".to_string()));
-                            if r.clicked() {
-                                ws.active_mut().dialog_time_use_suggestion();
-                                pers = true;
-                                stato.campo_fuoco = false;
-                            }
-                        });
+                    let r_altro = ui.radio(pers, t_altro.as_str());
+                    stato.opzioni.push((r_altro.rect, "altro".to_string()));
+                    if let Some(i) = scelta_fonte {
+                        pers = false;
+                        ws.active_mut().dialog_time_pick_source(i);
+                        stato.campo_fuoco = false;
+                    } else if r_altro.clicked() {
+                        pers = true;
+                        stato.campo_fuoco = false;
                     }
                     stato.personalizzato = Some(pers);
+                    // "Altro": un formato fra quelli noti, oppure la regola scritta a mano
                     if pers || (!error.is_empty() && !*has_mask) {
-                        ui.add_space(4.0);
-                        egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
-                            for i in 0..2u8 {
-                                let (etichetta, testo) = if i == 0 {
-                                    (pattern_label.as_str(), &mut stato.testo)
-                                } else {
-                                    (within_label.as_str(), &mut stato.testo_due)
-                                };
-                                ui.label(etichetta);
-                                let r = ui
-                                    .add(TextEdit::singleline(testo).desired_width(f32::INFINITY));
-                                stato.campi.push(r.rect);
-                                if stato.campo.is_none() {
-                                    stato.campo = Some(r.rect);
-                                }
-                                if r.has_focus() && *field != i {
-                                    ws.active_mut().dialog_focus(i);
-                                }
-                                if !stato.campo_fuoco && *field == i {
-                                    r.request_focus();
-                                    stato.campo_fuoco = true;
-                                }
-                                if r.changed() {
-                                    ws.active_mut().dialog_set_field(i, testo);
-                                }
-                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                    ws.active_mut().dialog_submit();
-                                }
-                                ui.end_row();
-                            }
-                            // quale data della riga: la prima, la seconda...
-                            ui.label(&t_occorrenza);
-                            let c = egui::ComboBox::from_id_salt("occorrenza")
-                                .width(60.0)
-                                .selected_text((*skip + 1).to_string())
+                        ui.indent("altro_regola", |ui| {
+                            ui.label(RichText::new(&t_scegli).weak());
+                            let in_uso = (*skip == 0)
+                                .then(|| presets.iter().position(|(p, _)| p == pattern))
+                                .flatten();
+                            let scelto = in_uso
+                                .map_or_else(|| t_personale.clone(), |i| etichette[i].clone());
+                            let mut nuovo: Option<usize> = None;
+                            let combo = egui::ComboBox::from_id_salt("formato_orario")
+                                .width(ui.available_width() - 8.0)
+                                .selected_text(RichText::new(scelto).monospace())
                                 .show_ui(ui, |ui| {
-                                    for n in 0..5usize {
-                                        if ui
-                                            .selectable_label(n == *skip, (n + 1).to_string())
-                                            .clicked()
-                                        {
-                                            ws.active_mut().dialog_time_set_skip(n);
-                                            stato.campo_fuoco = false;
+                                    for &i in &ordine {
+                                        let mut testo = RichText::new(&etichette[i]).monospace();
+                                        if !legge[i] {
+                                            testo = testo.weak();
+                                        }
+                                        let r = ui.selectable_label(in_uso == Some(i), testo);
+                                        stato.voci.push(r.rect);
+                                        if r.clicked() {
+                                            nuovo = Some(i);
                                         }
                                     }
                                 });
                             stato
                                 .opzioni
-                                .push((c.response.rect, "occorrenza".to_string()));
-                            ui.end_row();
+                                .push((combo.response.rect, "formato".to_string()));
+                            if let Some(i) = nuovo {
+                                ws.active_mut().dialog_time_preset(i);
+                                stato.campo_fuoco = false;
+                            }
+                            ui.add_space(4.0);
+                            egui::Grid::new("formato").num_columns(2).show(ui, |ui| {
+                                for i in 0..2u8 {
+                                    let (etichetta, testo) = if i == 0 {
+                                        (pattern_label.as_str(), &mut stato.testo)
+                                    } else {
+                                        (within_label.as_str(), &mut stato.testo_due)
+                                    };
+                                    ui.label(etichetta);
+                                    let r = ui.add(
+                                        TextEdit::singleline(testo).desired_width(f32::INFINITY),
+                                    );
+                                    stato.campi.push(r.rect);
+                                    if stato.campo.is_none() {
+                                        stato.campo = Some(r.rect);
+                                    }
+                                    if r.has_focus() && *field != i {
+                                        ws.active_mut().dialog_focus(i);
+                                    }
+                                    if !stato.campo_fuoco && *field == i {
+                                        r.request_focus();
+                                        stato.campo_fuoco = true;
+                                    }
+                                    if r.changed() {
+                                        ws.active_mut().dialog_set_field(i, testo);
+                                    }
+                                    if r.lost_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                    {
+                                        ws.active_mut().dialog_submit();
+                                    }
+                                    ui.end_row();
+                                }
+                                // quale data della riga: la prima, la seconda...
+                                ui.label(&t_occorrenza);
+                                let c = egui::ComboBox::from_id_salt("occorrenza")
+                                    .width(60.0)
+                                    .selected_text((*skip + 1).to_string())
+                                    .show_ui(ui, |ui| {
+                                        for n in 0..5usize {
+                                            if ui
+                                                .selectable_label(n == *skip, (n + 1).to_string())
+                                                .clicked()
+                                            {
+                                                ws.active_mut().dialog_time_set_skip(n);
+                                                stato.campo_fuoco = false;
+                                            }
+                                        }
+                                    });
+                                stato
+                                    .opzioni
+                                    .push((c.response.rect, "occorrenza".to_string()));
+                                ui.end_row();
+                            });
+                            ui.label(RichText::new(&t_entro).weak());
+                            ui.label(RichText::new(&t_aiuto_regola).weak().small());
+                            // insegnare con un esempio: si incolla un pezzo di riga e il programma ricava la regola
+                            ui.add_space(6.0);
+                            ui.label(RichText::new(&t_esempio_titolo).strong());
+                            ui.label(RichText::new(&t_esempio_aiuto).weak().small());
+                            ui.horizontal(|ui| {
+                                let r = ui.add(
+                                    TextEdit::singleline(&mut stato.esempio)
+                                        .hint_text(
+                                            RichText::new("funding @ 2022-01-01 08:00").weak(),
+                                        )
+                                        .desired_width((ui.available_width() - 130.0).max(120.0)),
+                                );
+                                stato.opzioni.push((r.rect, "esempio".to_string()));
+                                if r.changed() {
+                                    let testo = stato.esempio.clone();
+                                    ws.active_mut().dialog_time_set_example(&testo);
+                                }
+                                let b = ui.button(&t_trova);
+                                stato.opzioni.push((b.rect, "trova".to_string()));
+                                if b.clicked()
+                                    || (r.lost_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter)))
+                                {
+                                    ws.active_mut().dialog_time_find_rule();
+                                }
+                            });
+                            if let Some(problema) = example_problem {
+                                ui.colored_label(avviso, problema.as_str());
+                            }
+                            for (i, (etichetta, dettaglio, scelta)) in
+                                example_candidates.iter().enumerate()
+                            {
+                                let r = ui.horizontal(|ui| {
+                                    let r = ui.radio(*scelta, etichetta.as_str());
+                                    ui.label(RichText::new(dettaglio).weak().small());
+                                    r
+                                });
+                                stato.opzioni.push((r.inner.rect, format!("regola {i}")));
+                                if r.inner.clicked() {
+                                    ws.active_mut().dialog_time_use_example(i);
+                                    stato.campo_fuoco = false;
+                                }
+                            }
                         });
-                        ui.label(RichText::new(&t_entro).weak());
                     }
                     ui.add_space(4.0);
                     ui.label(RichText::new(&t_prime).weak());

@@ -323,50 +323,89 @@ fn the_calendar_picks_a_day_and_writes_it_in_the_format_of_the_file() {
 }
 
 #[test]
-fn the_custom_format_shows_its_fields_only_when_chosen() {
+fn the_window_lists_the_times_of_the_file_and_other_opens_the_rule() {
     let (mut f, ctx, p, _) = finestra();
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
-    // con un formato noto restano solo i campi Dal e Al
+    // l'elenco: il tempo in uso (l'orario all'inizio della riga) e "Altro"; con un tempo dell'elenco restano solo i campi Dal e Al
+    opzione(&f, "fonte 0");
+    opzione(&f, "altro");
+    assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "fonte 1"));
+    assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "formato"));
     assert_eq!(f.dialogo_campi().len(), 2);
-    // i formati stanno in una tendina chiusa: le voci (il formato personalizzato e i 17 noti) ci sono solo da aperta
+    // "Altro" apre i formati noti in una tendina, il pattern, "entro quanti caratteri" e quale data della riga
+    let altro = opzione(&f, "altro");
+    clic(&mut f, &ctx, altro);
+    assert_eq!(f.dialogo_campi().len(), 4);
+    opzione(&f, "formato");
+    opzione(&f, "occorrenza");
+    // la tendina dei formati ha i 17 noti, quelli che leggono il file per primi
     assert!(f.dialogo_voci().is_empty());
     let tendina = apri_tendina(&mut f, &ctx);
     assert!(tendina.width() > 300.0, "{tendina:?}");
-    assert_eq!(f.dialogo_voci().len(), 18);
-    // il formato personalizzato (la prima voce) aggiunge i campi del pattern e di "entro quanti caratteri"
-    let personalizzato = f.dialogo_voci()[0].center();
-    clic(&mut f, &ctx, personalizzato);
-    assert_eq!(f.dialogo_campi().len(), 4);
-    // un formato noto li toglie
-    apri_tendina(&mut f, &ctx);
-    let noto = f.dialogo_voci()[1].center();
-    clic(&mut f, &ctx, noto);
+    assert_eq!(f.dialogo_voci().len(), 17);
+    // un tempo dell'elenco toglie di nuovo i campi
+    f.app().dialog_cancel();
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    let altro = opzione(&f, "altro");
+    clic(&mut f, &ctx, altro);
+    let fonte = opzione(&f, "fonte 0");
+    clic(&mut f, &ctx, fonte);
     assert_eq!(f.dialogo_campi().len(), 2);
     assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
     let _ = std::fs::remove_file(p);
 }
 
 #[test]
-fn a_known_format_chosen_in_the_window_becomes_the_standard_with_ok() {
+fn a_known_format_chosen_under_other_becomes_the_standard_with_ok_and_a_written_rule_is_remembered()
+{
     let (mut f, ctx, p, _) = finestra();
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
-    // aprire e dare OK senza toccare il formato non lo fa diventare quello standard
+    // aprire e dare OK senza toccare niente non fa diventare standard il formato
     let ok = pulsante(&f, "OK");
     clic(&mut f, &ctx, ok);
     assert_eq!(f.app().time_default(), None);
+    assert!(f.app().time_rules().is_empty());
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
-    // il secondo formato che legge il file e' la sola data: scelto e confermato, e' quello standard
+    // Altro, poi un formato noto: il secondo che legge il file e' la sola data; confermato, e' quello standard
+    let altro = opzione(&f, "altro");
+    clic(&mut f, &ctx, altro);
     apri_tendina(&mut f, &ctx);
-    let data = f.dialogo_voci()[2].center();
+    let data = f.dialogo_voci()[1].center();
     clic(&mut f, &ctx, data);
     assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd");
     let ok = pulsante(&f, "OK");
     clic(&mut f, &ctx, ok);
     assert_eq!(f.app().dialog_kind(), None);
     assert_eq!(f.app().time_default(), Some(("yyyy-MM-dd".to_string(), 0)));
+    // un formato noto non e' una regola: niente da ricordare
+    assert!(f.app().time_rules().is_empty());
+    // una regola scritta a mano (qui un formato che legge le stesse righe, con un testo qualunque prima dell'ora)
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    let altro = opzione(&f, "altro");
+    clic(&mut f, &ctx, altro);
+    f.app().dialog_set_field(0, "yyyy-MM-dd HH:mm");
+    disegna(&mut f, &ctx);
+    let ok = pulsante(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(
+        f.app().time_rules(),
+        vec![("yyyy-MM-dd HH:mm".to_string(), 0, 0)]
+    );
+    // la volta dopo e' una riga dell'elenco (il file la legge)
+    f.azione(Cmd::TimeMask);
+    disegna(&mut f, &ctx);
+    let regola = f
+        .app()
+        .time_sources()
+        .iter()
+        .position(|s| s.pattern == "yyyy-MM-dd HH:mm")
+        .expect("la regola e' nell'elenco");
+    opzione(&f, &format!("fonte {regola}"));
     let _ = std::fs::remove_file(p);
 }
 

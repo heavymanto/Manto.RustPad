@@ -85,24 +85,58 @@ fn opzione(f: &Finestra, e: &str) -> Pos2 {
 }
 
 #[test]
-fn the_suggestion_has_a_button_that_uses_it_and_the_custom_format_has_the_date_number() {
+fn the_dates_inside_the_lines_are_rows_of_the_list_and_other_has_the_date_number() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
-    // il formato riconosciuto e' l'ora di scrittura; nelle righe c'e' anche la data dei dati: il suggerimento e il suo pulsante
-    let usa = opzione(&f, "suggerimento");
-    // il numero della data non si vede finche' il formato personalizzato non e' aperto
+    // il tempo in uso (l'orario all'inizio della riga) e la data dei dati dentro la riga, dopo "@ ": due righe dell'elenco
+    opzione(&f, "fonte 0");
+    let dati = opzione(&f, "fonte 1");
+    // il numero della data non si vede finche' "Altro" non e' aperto
     assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "occorrenza"));
-    clic(&mut f, &ctx, usa);
-    // usato: il pattern con il testo prima della data, "entro" 200, e ora i campi personalizzati con il numero della data
+    clic(&mut f, &ctx, dati);
+    // scelta: il pattern con il testo prima della data e "entro" 200; i campi del formato restano chiusi
     assert_eq!(f.app().time_field_text(0), "'@ 'yyyy-MM-dd HH:mm");
     assert_eq!(f.app().time_field_text(1), "200");
+    assert_eq!(f.dialogo_campi().len(), 2, "solo Dal e Al");
+    // "Altro" li apre, con il numero della data nella riga
+    let altro = opzione(&f, "altro");
+    clic(&mut f, &ctx, altro);
     opzione(&f, "occorrenza");
     assert_eq!(f.dialogo_campi().len(), 4, "pattern, entro, dal, al");
-    // il suggerimento sparisce da solo quando il formato e' stato scelto
-    // (con un numero di data diverso dal primo non ha piu' senso proporlo)
-    f.app().dialog_time_set_skip(1);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn under_other_an_example_gives_the_rule_to_pick() {
+    let (mut f, ctx, p) = finestra();
+    f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
-    assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "suggerimento"));
+    // il campo dell'esempio e il pulsante stanno sotto "Altro"
+    assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "esempio"));
+    let altro = opzione(&f, "altro");
+    clic(&mut f, &ctx, altro);
+    opzione(&f, "esempio");
+    // un esempio e il pulsante: appaiono le regole ricavate, con la loro prima e ultima data
+    f.app()
+        .dialog_time_set_example("funding @ 2019-09-10 08:00");
+    disegna(&mut f, &ctx);
+    let trova = opzione(&f, "trova");
+    clic(&mut f, &ctx, trova);
+    let regola = opzione(&f, "regola 0");
+    assert_eq!(f.app().time_example_selected(), None);
+    // sceglierla mette il pattern nei campi, e la riga risulta scelta
+    clic(&mut f, &ctx, regola);
+    assert_eq!(f.app().time_field_text(0), "'@ 'yyyy-MM-dd HH:mm");
+    assert_eq!(f.app().time_example_selected(), Some(0));
+    // un esempio senza date: il messaggio, nessuna regola
+    f.app().dialog_time_set_example("niente");
+    disegna(&mut f, &ctx);
+    let trova = opzione(&f, "trova");
+    clic(&mut f, &ctx, trova);
+    assert!(!f
+        .dialogo_opzioni()
+        .iter()
+        .any(|(_, t)| t.starts_with("regola ")));
     let _ = std::fs::remove_file(p);
 }

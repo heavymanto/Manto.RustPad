@@ -88,6 +88,11 @@ fn run() -> i32 {
             .settings
             .as_ref()
             .and_then(|s| s.time_format.clone()),
+        time_rules: profilo
+            .settings
+            .as_ref()
+            .map(|s| s.time_rules.clone())
+            .unwrap_or_default(),
         chrome: false,
         eol,
         settings_path: profilo.path,

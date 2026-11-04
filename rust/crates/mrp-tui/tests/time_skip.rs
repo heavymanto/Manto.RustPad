@@ -157,3 +157,47 @@ fn the_preview_shows_the_lines_the_format_reads_around_the_date() {
     assert!(niente[0].0.starts_with("| tabella"));
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_list_has_the_time_in_use_then_the_dates_inside_the_lines_then_the_rules_that_read_something()
+{
+    use mrp_tui::app::SourceKind;
+    let (mut a, offset, p) = app(true, false);
+    // una regola che il file legge e una che non legge niente
+    a.set_time_rules(vec![
+        ("'funding @ 'yyyy-MM-dd".to_string(), 200, 0),
+        ("'ZZZ 'yyyy-MM-dd".to_string(), 200, 0),
+    ]);
+    a.open_time_dialog();
+    let fonti = a.time_sources().to_vec();
+    // il tempo in uso, la data dopo "@ " e la regola che legge (non quella che non legge)
+    assert_eq!(fonti.len(), 3, "{fonti:?}");
+    assert_eq!(fonti[0].kind, SourceKind::Start);
+    assert_eq!(fonti[0].pattern, "yyyy-MM-dd HH:mm:ss.SSS");
+    assert_eq!(fonti[0].lines, 30);
+    assert_eq!(fonti[1].kind, SourceKind::After("@ ".to_string()));
+    assert_eq!(fonti[1].pattern, "'@ 'yyyy-MM-dd HH:mm");
+    assert_eq!(
+        (fonti[1].lines, fonti[1].example.as_str()),
+        (30, "@ 2019-09-10 08:00")
+    );
+    assert_eq!(fonti[2].kind, SourceKind::Rule);
+    assert_eq!(fonti[2].pattern, "'funding @ 'yyyy-MM-dd");
+    assert_eq!(fonti[2].lines, 30);
+    // quello scritto adesso e' il primo; sceglierne un altro cambia i campi; un formato a mano non e' nell'elenco
+    assert_eq!(a.time_source_selected(), Some(0));
+    a.dialog_time_pick_source(1);
+    assert_eq!(a.time_source_selected(), Some(1));
+    assert_eq!(a.time_field_text(0), "'@ 'yyyy-MM-dd HH:mm");
+    assert_eq!(a.time_field_text(1), "200");
+    a.dialog_set_field(2, "2019-09-11");
+    a.dialog_set_field(3, "2019-09-11");
+    a.dialog_submit();
+    assert_eq!(a.time_window(), Some((offset[2], offset[5])));
+    // un tempo dell'elenco non e' una regola nuova: le regole sono quelle di prima
+    assert_eq!(a.time_rules().len(), 2);
+    a.open_time_dialog();
+    a.dialog_set_field(0, "yyyy-MM-dd");
+    assert_eq!(a.time_source_selected(), None);
+    let _ = std::fs::remove_file(p);
+}

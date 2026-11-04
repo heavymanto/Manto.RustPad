@@ -32,6 +32,9 @@ pub struct Settings {
     /// Il formato standard dell'orario scelto a mano (pattern e quanto lontano dall'inizio riga puo' stare): si prova per primo
     /// quando si apre un file. `None`: ci pensa il riconoscimento.
     pub time_format: Option<(String, usize)>,
+    /// Le regole per leggere il tempo che l'utente ha scritto a mano (pattern, quanto lontano dall'inizio riga, quale occorrenza):
+    /// compaiono fra i tempi da scegliere nei file dove leggono qualcosa. Al piu' otto, le piu' recenti in fondo.
+    pub time_rules: Vec<(String, usize, usize)>,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
 }
@@ -55,6 +58,7 @@ impl Default for Settings {
             font_size: None,
             index: true,
             time_format: None,
+            time_rules: Vec::new(),
             theme_set: false,
         }
     }
@@ -110,6 +114,9 @@ impl Settings {
         }
         if let Some((pattern, within)) = &self.time_format {
             out.push_str(&format!("time_format={pattern}\ntime_within={within}\n"));
+        }
+        for (pattern, within, skip) in &self.time_rules {
+            out.push_str(&format!("time_rule={pattern}|{within}|{skip}\n"));
         }
         out
     }
@@ -171,6 +178,23 @@ impl Settings {
                     if mrp_core::timemask::TimeMask::parse(v, 0).is_ok() {
                         let within = s.time_format.as_ref().map_or(0, |(_, w)| *w);
                         s.time_format = Some((v.to_string(), within));
+                    }
+                }
+                // una regola scritta a mano: pattern|entro|occorrenza (il pattern deve andare; al piu' otto)
+                "time_rule" => {
+                    let mut parti = v.rsplitn(3, '|');
+                    if let (Some(skip), Some(within), Some(pattern)) =
+                        (parti.next(), parti.next(), parti.next())
+                    {
+                        if let (Ok(w), Ok(k)) = (within.parse::<usize>(), skip.parse::<usize>()) {
+                            let regola = (pattern.to_string(), w.min(200), k.min(9));
+                            if mrp_core::timemask::TimeMask::parse(pattern, 0).is_ok()
+                                && !s.time_rules.contains(&regola)
+                                && s.time_rules.len() < 8
+                            {
+                                s.time_rules.push(regola);
+                            }
+                        }
                     }
                 }
                 "time_within" => {
