@@ -5,6 +5,7 @@ Format inspired by "Keep a Changelog". No release has been made yet.
 ## [Unreleased]
 
 ### Changed
+- **Two toolbar buttons: the clock is the timeline, the funnel is the date filter**: the clock shows or hides the timeline of the tab and is lit while it is on; the **funnel** (the classic filter sign, drawn by hand) turns the date filter on and off (the dates are kept) and is lit while it is on; each has a tooltip that says what a click does. In the Time window, next to *Filter active* there is now a **Timeline** check box (applied with OK), because whoever turns the filter on may expect the bar too.
 - **The status bar writes the time format in use** (`yyyy-MM-dd HH:mm`, or the rule like `'@ 'yyyy-MM-dd HH:mm`, or `… #2` for the second date of the line) instead of the word FORMAT: you see the data, and a click still opens the Time window. Without a format it says FORMAT.
 - **Times with hours and minutes but no seconds are recognised by themselves**: `yyyy-MM-dd HH:mm` and `dd/MM/yyyy HH:mm` are among the known formats (19 now), so a log that starts with `2019-01-01 00:00 - MEXC - …` is read with its hour (before it was only the date).
 - **The list in the Time window keeps its order** whichever time is in use (the one you pick no longer jumps to the top at the next opening): start-of-line times first, then the dates inside the lines, then your rules; it also offers the time the recognition would choose by itself, so you can always go back to it.

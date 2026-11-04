@@ -253,3 +253,111 @@ fn the_level_buttons_toggle_the_filter_and_the_marks_show_the_counted_levels() {
     );
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_clock_button_turns_the_timeline_on_and_off_and_the_funnel_is_the_date_filter() {
+    let (mut f, ctx, p, _) = finestra();
+    let bottone = |f: &Finestra, c: Cmd| {
+        f.pulsanti()
+            .iter()
+            .find(|b| b.cmd == c)
+            .map(|b| (b.rect, b.attivo, b.acceso))
+            .unwrap_or_else(|| panic!("manca il pulsante di {c:?}"))
+    };
+    // l'orologio (timeline) e l'imbuto (filtro per data) sono due pulsanti, uno accanto all'altro
+    let (orologio, _, acceso) = bottone(&f, Cmd::Timeline);
+    let (imbuto, _, _) = bottone(&f, Cmd::TimeFilter);
+    assert!(
+        !acceso && orologio.max.x <= imbuto.min.x + 0.5,
+        "{orologio:?} {imbuto:?}"
+    );
+    // un clic sull'orologio accende la timeline e il pulsante si accende; un altro la spegne
+    clic(&mut f, &ctx, orologio.center());
+    assert!(f.app().timeline_on());
+    assert!(bottone(&f, Cmd::Timeline).2);
+    clic(&mut f, &ctx, orologio.center());
+    assert!(!f.app().timeline_on());
+    assert!(!bottone(&f, Cmd::Timeline).2);
+    // l'imbuto non tocca la timeline: senza date ricordate apre la finestra del filtro
+    let (imbuto, _, _) = bottone(&f, Cmd::TimeFilter);
+    clic(&mut f, &ctx, imbuto.center());
+    assert!(!f.app().timeline_on());
+    assert!(f.app().dialog_kind().is_some());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_time_window_has_a_timeline_box_next_to_the_filter_box() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    // la casella Timeline sta accanto a "Filtro attivo", spenta finche' la timeline e' spenta
+    let filtro = f
+        .dialogo_opzioni()
+        .iter()
+        .find(|(_, t)| t == "filtro")
+        .unwrap()
+        .0;
+    let barra = f
+        .dialogo_opzioni()
+        .iter()
+        .find(|(_, t)| t == "timeline")
+        .unwrap()
+        .0;
+    assert!(barra.min.x > filtro.max.x && (barra.center().y - filtro.center().y).abs() < 3.0);
+    assert!(!f.app().time_timeline_check());
+    // spuntarla e dare OK accende la timeline (il filtro resta spento: sono due cose)
+    clic(&mut f, &ctx, barra.center());
+    assert!(f.app().time_timeline_check());
+    assert!(!f.app().timeline_on(), "si applica con OK");
+    let ok = f
+        .dialogo_pulsanti()
+        .iter()
+        .find(|(_, t)| t == "OK")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, ok);
+    assert!(f.app().timeline_on());
+    assert!(!f.app().time_filter_on());
+    // riaperta, la casella e' spuntata; toglierla e OK spegne la timeline
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    assert!(f.app().time_timeline_check());
+    let barra = f
+        .dialogo_opzioni()
+        .iter()
+        .find(|(_, t)| t == "timeline")
+        .unwrap()
+        .0;
+    clic(&mut f, &ctx, barra.center());
+    let ok = f
+        .dialogo_pulsanti()
+        .iter()
+        .find(|(_, t)| t == "OK")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, ok);
+    assert!(!f.app().timeline_on());
+    // Annulla non cambia niente
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    let barra = f
+        .dialogo_opzioni()
+        .iter()
+        .find(|(_, t)| t == "timeline")
+        .unwrap()
+        .0;
+    clic(&mut f, &ctx, barra.center());
+    let annulla = f
+        .dialogo_pulsanti()
+        .iter()
+        .find(|(_, t)| t == "Cancel")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, annulla);
+    assert!(!f.app().timeline_on());
+    let _ = std::fs::remove_file(p);
+}

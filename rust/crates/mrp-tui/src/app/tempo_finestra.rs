@@ -62,6 +62,7 @@ impl App {
         self.calcola_aiuti_formato();
         self.time_bounds = self.limiti_tempo();
         self.time_check = self.window.is_some();
+        self.time_timeline = self.timeline_on();
         // un testo selezionato nel documento e' l'esempio da cui ricavare la regola
         self.example_text = self.esempio_dalla_selezione();
         self.example_result = None;
@@ -177,6 +178,7 @@ impl App {
             from: self.range_text[0].clone(),
             to: self.range_text[1].clone(),
             check: self.time_check,
+            timeline: self.time_timeline,
             from_hint: suggerimento("time.filter.from_hint", self.time_bounds.map(|b| b.0)),
             to_hint: suggerimento("time.filter.to_hint", self.time_bounds.map(|b| b.1)),
             field: self.time_field,
@@ -196,6 +198,18 @@ impl App {
     /// La casella "Filtro attivo" della finestra "Tempo".
     pub fn time_check(&self) -> bool {
         self.time_check
+    }
+
+    /// La casella "Timeline" della finestra "Tempo": si applica con OK.
+    pub fn time_timeline_check(&self) -> bool {
+        self.time_timeline
+    }
+
+    /// Accende o spegne la casella "Timeline" della finestra "Tempo".
+    pub fn dialog_time_set_timeline(&mut self, acceso: bool) {
+        if self.dialog == Some(DialogKind::Time) {
+            self.time_timeline = acceso;
+        }
     }
 
     /// L'ultimo errore della finestra "Tempo" (vuoto: nessuno).
@@ -352,6 +366,9 @@ impl App {
         }
         // scelta a mano: diventa il formato standard, provato per primo sui file che si apriranno; non se vale un'occorrenza che non
         // sia la prima (e' una scelta per questo file, non per tutti)
+        // la timeline si accende o si spegne come dice la casella (non dipende dal filtro: sono due cose, ma chi accende il filtro se
+        // la aspetta, quindi la casella e' li' accanto)
+        self.set_timeline(self.time_timeline);
         let standard = cambia && skip == 0;
         if standard {
             self.time_default = Some((pattern.clone(), within));

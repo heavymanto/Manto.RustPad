@@ -51,8 +51,10 @@ pub fn glifo(icona: &str) -> &'static str {
         "line_index" => "☰",
         "time_range" => "⏱",
         "time_mask" => "🕘",
-        "time_filter" => "🕒",
-        "timeline" => "⏳",
+        // il filtro per data ha l'imbuto, che nel font non c'e': si disegna a mano (`imbuto`); qui un segno qualunque, diverso dagli altri
+        "time_filter" => "⏷",
+        // la timeline ha l'orologio
+        "timeline" => "🕒",
         "calendar" => "📅",
         _ => "?",
     }
@@ -65,7 +67,7 @@ pub fn gruppi() -> Vec<Vec<Cmd>> {
         vec![Cmd::Undo, Cmd::Redo],
         vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
         vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
-        vec![Cmd::TimeFilter],
+        vec![Cmd::Timeline, Cmd::TimeFilter],
         vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
         vec![Cmd::ZoomOut, Cmd::ZoomIn],
     ]
@@ -93,8 +95,36 @@ pub fn tooltip_percorso(percorso: Option<&str>, cat: &Catalog) -> String {
     }
 }
 
+/// Disegna un imbuto (il segno del filtro) centrato in `c`, di colore `colore`, alto circa `alto` punti: nel font non c'e' il glifo.
+pub fn imbuto(
+    painter: &eframe::egui::Painter,
+    c: eframe::egui::Pos2,
+    colore: eframe::egui::Color32,
+    alto: f32,
+) {
+    let k = alto / 10.0;
+    painter.add(eframe::egui::Shape::convex_polygon(
+        vec![
+            eframe::egui::Pos2::new(c.x - 5.0 * k, c.y - 4.0 * k),
+            eframe::egui::Pos2::new(c.x + 5.0 * k, c.y - 4.0 * k),
+            eframe::egui::Pos2::new(c.x + 1.0 * k, c.y + 1.0 * k),
+            eframe::egui::Pos2::new(c.x + 1.0 * k, c.y + 5.0 * k),
+            eframe::egui::Pos2::new(c.x - 1.0 * k, c.y + 5.0 * k),
+            eframe::egui::Pos2::new(c.x - 1.0 * k, c.y + 1.0 * k),
+        ],
+        colore,
+        eframe::egui::Stroke::NONE,
+    ));
+}
+
 /// Il tooltip di un pulsante: il nome del comando nella lingua attiva e la sua scorciatoia, `nome (scorciatoia)`.
 pub fn tooltip(cmd: Cmd, cat: &Catalog) -> String {
+    // la timeline e il filtro per data non hanno un tasto: il suggerimento dice cosa fa un clic
+    match cmd {
+        Cmd::Timeline => return cat.t("gui.tip.timeline").to_string(),
+        Cmd::TimeFilter => return cat.t("gui.tip.time_filter").to_string(),
+        _ => {}
+    }
     let info = cmd.info();
     let tasto = crate::menu::scorciatoia(info.cmd);
     if tasto.is_empty() {

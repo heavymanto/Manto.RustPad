@@ -180,19 +180,7 @@ pub fn disegna(
                 .on_hover_text(t_filtra.as_str());
             // l'imbuto si disegna a mano (nel font il glifo non c'e' e uscirebbe un quadratino)
             let colore_imbuto = ui_liv.style().interact(&f).fg_stroke.color;
-            let c = f.rect.center();
-            ui_liv.painter().add(egui::Shape::convex_polygon(
-                vec![
-                    Pos2::new(c.x - 5.0, c.y - 4.0),
-                    Pos2::new(c.x + 5.0, c.y - 4.0),
-                    Pos2::new(c.x + 1.0, c.y + 1.0),
-                    Pos2::new(c.x + 1.0, c.y + 5.0),
-                    Pos2::new(c.x - 1.0, c.y + 5.0),
-                    Pos2::new(c.x - 1.0, c.y + 1.0),
-                ],
-                colore_imbuto,
-                egui::Stroke::NONE,
-            ));
+            crate::strumenti::imbuto(ui_liv.painter(), f.rect.center(), colore_imbuto, 10.0);
             stato.chip.push((f.rect, "filtra".to_string()));
             if f.clicked() {
                 ws.active_mut().timeline_apply_level_filter();

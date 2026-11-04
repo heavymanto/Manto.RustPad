@@ -199,6 +199,8 @@ pub enum DialogView {
         from: String,
         to: String,
         check: bool,
+        /// La casella "Timeline" (la barra del file nel tempo).
+        timeline: bool,
         from_hint: String,
         to_hint: String,
         field: u8,

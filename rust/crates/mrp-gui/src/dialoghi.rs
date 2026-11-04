@@ -468,6 +468,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             from,
             to,
             check,
+            timeline,
             from_hint,
             to_hint,
             field,
@@ -527,6 +528,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         .text_with("time.source.lines", &[&n.to_string()])
                 })
                 .collect();
+            let t_timeline = ws.active().text("time.filter.timeline").to_string();
             let t_ora = ws.active().text("time.filter.time").to_string();
             let t_fatto = ws.active().text("time.filter.done").to_string();
             let giorni_sett: Vec<String> = [
@@ -746,11 +748,20 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         ui.colored_label(avviso, t_serve.as_str());
                     } else {
                         let mut acceso = *check;
-                        let r = ui.checkbox(&mut acceso, t_attivo.as_str());
-                        stato.opzioni.push((r.rect, "filtro".to_string()));
-                        if r.changed() {
-                            ws.active_mut().dialog_time_set_check(acceso);
-                        }
+                        let mut barra = *timeline;
+                        ui.horizontal(|ui| {
+                            let r = ui.checkbox(&mut acceso, t_attivo.as_str());
+                            stato.opzioni.push((r.rect, "filtro".to_string()));
+                            if r.changed() {
+                                ws.active_mut().dialog_time_set_check(acceso);
+                            }
+                            ui.add_space(16.0);
+                            let r = ui.checkbox(&mut barra, t_timeline.as_str());
+                            stato.opzioni.push((r.rect, "timeline".to_string()));
+                            if r.changed() {
+                                ws.active_mut().dialog_time_set_timeline(barra);
+                            }
+                        });
                         egui::Grid::new("filtro_date")
                             .num_columns(2)
                             .show(ui, |ui| {

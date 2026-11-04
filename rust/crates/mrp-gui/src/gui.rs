@@ -649,9 +649,16 @@ impl Finestra {
                             Cmd::ColumnMode => self.ws.active().column_mode(),
                             Cmd::NavBar => self.ws.nav_bar(),
                             Cmd::TimeFilter => self.ws.active().time_filter_on(),
+                            Cmd::Timeline => self.ws.active().timeline_on(),
                             _ => false,
                         };
-                        let mut testo = egui::RichText::new(glifo(info.icon)).size(16.0);
+                        // il filtro per data ha l'imbuto, disegnato a mano sul pulsante (il glifo nel font non c'e')
+                        let icona = if cmd == Cmd::TimeFilter {
+                            ""
+                        } else {
+                            glifo(info.icon)
+                        };
+                        let mut testo = egui::RichText::new(icona).size(16.0);
                         let mut b = egui::Button::new(testo.clone()).min_size(ALTEZZA_PULSANTE);
                         if acceso {
                             // acceso: fondo, testo e contorno netti, ben diversi dallo spento (in tutti i temi)
@@ -668,6 +675,14 @@ impl Finestra {
                             .add_enabled(attivo, b)
                             .on_hover_text(tip.clone())
                             .on_disabled_hover_text(tip);
+                        if cmd == Cmd::TimeFilter {
+                            let colore = if acceso {
+                                self.tavolozza.acceso_fg
+                            } else {
+                                ui.style().interact(&r).fg_stroke.color
+                            };
+                            crate::strumenti::imbuto(ui.painter(), r.rect.center(), colore, 12.0);
+                        }
                         if r.clicked() {
                             scelta = Some(cmd);
                         }

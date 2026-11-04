@@ -58,8 +58,8 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("zoom_reset", "◎"),
         ("time_range", "⏱"),
         ("time_mask", "🕘"),
-        ("time_filter", "🕒"),
-        ("timeline", "⏳"),
+        ("time_filter", "⏷"),
+        ("timeline", "🕒"),
         ("line_index", "☰"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un'icona per comando");
@@ -90,7 +90,7 @@ fn the_toolbar_groups() {
             vec![Cmd::Undo, Cmd::Redo],
             vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
             vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
-            vec![Cmd::TimeFilter],
+            vec![Cmd::Timeline, Cmd::TimeFilter],
             vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
             vec![Cmd::ZoomOut, Cmd::ZoomIn],
         ]
@@ -110,6 +110,15 @@ fn a_tooltip_is_the_name_and_the_shortcut() {
         (Cmd::NavBar, "Page-jump bar (Ctrl+B)"),
         (Cmd::ZoomIn, "Zoom in (Ctrl++)"),
         (Cmd::Home, "Go to start (Ctrl+Home)"),
+        // senza tasto: il suggerimento dice cosa fa il clic
+        (
+            Cmd::Timeline,
+            "Timeline: show or hide the bar of the file in time",
+        ),
+        (
+            Cmd::TimeFilter,
+            "Filter by date: on or off (the dates are kept)",
+        ),
     ] {
         assert_eq!(tooltip(cmd, &en), atteso, "{cmd:?}");
     }
