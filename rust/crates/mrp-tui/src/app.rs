@@ -366,6 +366,8 @@ pub struct AppConfig {
     /// Vero (predefinito): lo schermo ha la cornice del terminale (titolo, riga di stato, tasti). Falso: l'`App` disegna
     /// solo il testo e la finestra disegna il resto (`status`, `scroll_info`).
     pub chrome: bool,
+    /// Com'era la timeline quando si e' chiuso (vedi `Settings::timeline`).
+    pub timeline: timeline::TimelinePref,
 }
 
 impl Default for AppConfig {
@@ -388,6 +390,7 @@ impl Default for AppConfig {
             time_rules: Vec::new(),
             chrome: true,
             eol: None,
+            timeline: timeline::TimelinePref::default(),
         }
     }
 }
@@ -782,6 +785,8 @@ pub struct App {
     time_timeline: bool,
     /// La timeline (la barra mappa accanto alla scrollbar): spenta di fabbrica, una per scheda.
     timeline: timeline::TimelineState,
+    /// Com'era la timeline l'ultima volta che l'utente l'ha cambiata (nelle impostazioni, per le schede che si apriranno).
+    timeline_pref: timeline::TimelinePref,
     time_field: u8,
     time_error: String,
     time_bounds: Option<(i64, i64)>,
@@ -1045,7 +1050,12 @@ impl App {
             preview_memo: std::cell::RefCell::new(None),
             time_check: false,
             time_timeline: false,
-            timeline: timeline::TimelineState::default(),
+            // il TUI non disegna la timeline: parte spenta (la preferenza resta com'e', per non cancellarla dalle impostazioni)
+            timeline: timeline::TimelineState::from_pref(timeline::TimelinePref {
+                on: cfg.timeline.on && !cfg.chrome,
+                ..cfg.timeline
+            }),
+            timeline_pref: cfg.timeline,
             time_field: 2,
             time_error: String::new(),
             time_bounds: None,
@@ -1976,6 +1986,7 @@ impl App {
             time_format: self.time_default.clone(),
             time_rules: self.time_rules.clone(),
             theme_set: self.theme_chosen,
+            timeline: self.timeline_pref,
         };
         let _ = s.save(&path);
     }

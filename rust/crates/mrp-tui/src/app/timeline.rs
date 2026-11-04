@@ -89,6 +89,20 @@ struct LevelsJob {
     total: u64,
 }
 
+/// Cosa si ricorda della timeline fra una sessione e l'altra (le impostazioni dell'utente): com'era quando si e' chiusa, per
+/// riaprirla uguale. Non e' lo stato di una scheda: e' il punto di partenza di quelle che si aprono.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TimelinePref {
+    /// Accesa.
+    pub on: bool,
+    /// Il passo fisso scelto; `None`: lo sceglie da solo (di fabbrica).
+    pub step: Option<Step>,
+    /// Le righe seguono i byte invece del tempo.
+    pub bytes: bool,
+    /// Si vedono anche i periodi senza righe.
+    pub empty: bool,
+}
+
 /// I livelli che la timeline sa filtrare, nell'ordine in cui si mostrano.
 pub const TIMELINE_LEVELS: [&str; 4] = ["ERROR", "WARN", "INFO", "DEBUG"];
 
@@ -99,6 +113,8 @@ pub(super) struct TimelineState {
     pub step: Step,
     pub auto: bool,
     pub mode: TimelineMode,
+    /// Si disegnano anche i periodi senza righe (di fabbrica no: la barra e' fatta solo di quello che c'e').
+    pub show_empty: bool,
     data: Option<Arc<Timeline>>,
     job: Option<TimelineJob>,
     /// I livelli per bucket (stessa lunghezza delle tacche) e la passata che li sta contando.
@@ -122,6 +138,7 @@ impl Default for TimelineState {
             step: Step::Day,
             auto: true,
             mode: TimelineMode::Time,
+            show_empty: false,
             data: None,
             job: None,
             levels: None,
@@ -132,6 +149,34 @@ impl Default for TimelineState {
             built_len: 0,
             built_window: None,
             built_step: None,
+        }
+    }
+}
+
+impl TimelineState {
+    /// Lo stato di una scheda che si apre: come lo lascia la preferenza.
+    pub(super) fn from_pref(p: TimelinePref) -> Self {
+        TimelineState {
+            on: p.on,
+            step: p.step.unwrap_or(Step::Day),
+            auto: p.step.is_none(),
+            mode: if p.bytes {
+                TimelineMode::Bytes
+            } else {
+                TimelineMode::Time
+            },
+            show_empty: p.empty,
+            ..TimelineState::default()
+        }
+    }
+
+    /// Lo stato com'e' adesso, come preferenza.
+    fn pref(&self) -> TimelinePref {
+        TimelinePref {
+            on: self.on,
+            step: (!self.auto).then_some(self.step),
+            bytes: self.mode == TimelineMode::Bytes,
+            empty: self.show_empty,
         }
     }
 }
@@ -153,6 +198,7 @@ impl App {
             return;
         }
         self.timeline.on = acceso;
+        self.remember_timeline();
         if !acceso {
             self.timeline_stop();
             self.levels_stop();
@@ -186,11 +232,13 @@ impl App {
     pub fn set_timeline_step(&mut self, passo: Step) {
         self.timeline.step = passo;
         self.timeline.auto = false;
+        self.remember_timeline();
     }
 
     /// Torna al passo scelto da solo: le tacche si ricalcolano.
     pub fn set_timeline_auto(&mut self) {
         self.timeline.auto = true;
+        self.remember_timeline();
     }
 
     /// Come si dispongono le righe (di fabbrica: l'altezza e' il tempo).
@@ -201,6 +249,37 @@ impl App {
     /// Cambia la disposizione delle righe.
     pub fn set_timeline_mode(&mut self, modo: TimelineMode) {
         self.timeline.mode = modo;
+        self.remember_timeline();
+    }
+
+    /// Si disegnano anche i periodi senza righe.
+    pub fn timeline_show_empty(&self) -> bool {
+        self.timeline.show_empty
+    }
+
+    /// Mostra o nasconde i periodi senza righe.
+    pub fn set_timeline_show_empty(&mut self, si: bool) {
+        self.timeline.show_empty = si;
+        self.remember_timeline();
+    }
+
+    /// Cosa si ricorda della timeline (vedi `TimelinePref`): lo prende il `Workspace` per darlo alle altre schede.
+    pub fn timeline_pref(&self) -> TimelinePref {
+        self.timeline_pref
+    }
+
+    /// Ricorda la preferenza senza scrivere le impostazioni (chi l'ha scelta le ha gia' scritte).
+    pub fn set_timeline_pref(&mut self, p: TimelinePref) {
+        self.timeline_pref = p;
+    }
+
+    /// La scelta dell'utente sulla timeline di questa scheda diventa la preferenza e si scrive nelle impostazioni.
+    fn remember_timeline(&mut self) {
+        let p = self.timeline.pref();
+        if p != self.timeline_pref {
+            self.timeline_pref = p;
+            self.save_settings();
+        }
     }
 
     /// Ferma il lavoro in corso (il thread si accorge dell'annullamento e muore da solo).
@@ -492,7 +571,12 @@ impl App {
         let Some(t) = self.timeline.data.as_ref() else {
             return Vec::new();
         };
-        let n = t.ticks.len();
+        // i bucket che si disegnano: tutti, oppure (di fabbrica) solo quelli con delle righe, cosi' un periodo vuoto non fa una
+        // distesa di righe uguali
+        let usati: Vec<usize> = (0..t.ticks.len())
+            .filter(|&k| self.timeline.show_empty || t.bytes(k) > 0)
+            .collect();
+        let n = usati.len();
         let g = gruppo(n, max_righe);
         let passo = t.step.ms();
         let lunghezza = t.hi.saturating_sub(t.lo).max(1) as f32;
@@ -500,9 +584,12 @@ impl App {
         let mut i = 0;
         while i < n {
             let fine = (i + g).min(n);
-            let bytes: u64 = (i..fine).map(|k| t.bytes(k)).sum();
-            let span_ms = passo * (fine - i) as i64;
-            let offset = t.ticks[i].offset;
+            let gruppo_k = &usati[i..fine];
+            let bytes: u64 = gruppo_k.iter().map(|&k| t.bytes(k)).sum();
+            // dal primo bucket al fondo dell'ultimo (con i vuoti nascosti in mezzo non sono tanti quanti i bucket del gruppo)
+            let (primo, ultimo) = (gruppo_k[0], gruppo_k[gruppo_k.len() - 1]);
+            let span_ms = t.ticks[ultimo].start + passo - t.ticks[primo].start;
+            let offset = t.ticks[primo].offset;
             let (y0, y1) = match self.timeline.mode {
                 TimelineMode::Time => (i as f32 / n as f32, fine as f32 / n as f32),
                 TimelineMode::Bytes => (
@@ -511,25 +598,27 @@ impl App {
                 ),
             };
             righe.push(TimelineRow {
-                start: t.ticks[i].start,
+                start: t.ticks[primo].start,
                 span_ms,
                 offset,
                 bytes,
                 y0,
                 y1,
                 weight: 0.0,
-                label: etichetta(t.ticks[i].start, span_ms),
+                label: etichetta(t.ticks[primo].start, span_ms),
                 levels: self
                     .timeline
                     .levels
                     .as_ref()
                     .map_or_else(LevelCounts::default, |lv| {
-                        (i..fine).fold(LevelCounts::default(), |a, k| LevelCounts {
-                            error: a.error + lv.get(k).map_or(0, |c| c.error),
-                            warn: a.warn + lv.get(k).map_or(0, |c| c.warn),
-                            info: a.info + lv.get(k).map_or(0, |c| c.info),
-                            debug: a.debug + lv.get(k).map_or(0, |c| c.debug),
-                        })
+                        gruppo_k
+                            .iter()
+                            .fold(LevelCounts::default(), |a, &k| LevelCounts {
+                                error: a.error + lv.get(k).map_or(0, |c| c.error),
+                                warn: a.warn + lv.get(k).map_or(0, |c| c.warn),
+                                info: a.info + lv.get(k).map_or(0, |c| c.info),
+                                debug: a.debug + lv.get(k).map_or(0, |c| c.debug),
+                            })
                     }),
                 levels_known: self.timeline.levels.is_some(),
             });

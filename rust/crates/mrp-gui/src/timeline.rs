@@ -2,7 +2,7 @@
 //! come quella di Visual Studio: una riga per bucket, lunga quanto il volume di righe di quel periodo, con la data accanto e un
 //! riquadro trasparente sulla parte che si vede. Un clic salta a quel punto, trascinando si scorre, e un suggerimento dice l'orario
 //! sotto il puntatore. In alto un menu a tendina sceglie il passo (minuto, dieci minuti, ora, giorno); il clic destro sceglie come
-//! si dispongono le righe (l'altezza e' il tempo, oppure sono i byte). I colori sono quelli del tema (`Tavolozza`).
+//! si dispongono le righe (l'altezza e' il tempo, oppure sono i byte) e se si vedono i periodi senza righe (nascosti di fabbrica). I colori sono quelli del tema (`Tavolozza`).
 
 use crate::stile::{miscela, Tavolozza};
 use eframe::egui::{self, Align2, Color32, FontId, Frame, Pos2, Rect, RichText, Sense, Vec2};
@@ -310,6 +310,8 @@ pub fn disegna(
                         cat.text_with("timeline.too_many", &[&n.to_string()])
                     }
                     TimelineStatus::Unavailable => cat.text("timeline.unavailable").to_string(),
+                    // pronta ma senza righe da mostrare (i periodi vuoti sono nascosti)
+                    TimelineStatus::Ready => cat.text("timeline.no_data").to_string(),
                     _ => String::new(),
                 };
                 if !msg.is_empty() {
@@ -348,12 +350,20 @@ pub fn disegna(
                     ws.active().text("timeline.mode.bytes").to_string(),
                 ),
             ];
+            let t_vuoti = ws.active().text("timeline.show_empty").to_string();
+            let mostra_vuoti = ws.active().timeline_show_empty();
             risposta.context_menu(|ui| {
                 for (m, nome) in &nomi_modo {
                     if ui.selectable_label(*m == modo, nome).clicked() {
                         ws.active_mut().set_timeline_mode(*m);
                         ui.close();
                     }
+                }
+                ui.separator();
+                let mut vuoti = mostra_vuoti;
+                if ui.checkbox(&mut vuoti, &t_vuoti).clicked() {
+                    ws.active_mut().set_timeline_show_empty(vuoti);
+                    ui.close();
                 }
             });
             stato.corpo = Some(corpo);

@@ -44,6 +44,23 @@ pub enum Step {
 }
 
 impl Step {
+    /// Il nome nel file delle impostazioni.
+    pub fn code(self) -> &'static str {
+        match self {
+            Step::Minute => "minute",
+            Step::TenMinutes => "10min",
+            Step::Hour => "hour",
+            Step::Day => "day",
+        }
+    }
+
+    /// Il passo dal suo nome (`code`); `None` se non lo e'.
+    pub fn parse(testo: &str) -> Option<Step> {
+        [Step::Minute, Step::TenMinutes, Step::Hour, Step::Day]
+            .into_iter()
+            .find(|s| s.code().eq_ignore_ascii_case(testo))
+    }
+
     /// La larghezza del bucket in millisecondi.
     pub fn ms(self) -> i64 {
         match self {

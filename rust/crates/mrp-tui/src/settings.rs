@@ -37,6 +37,8 @@ pub struct Settings {
     pub time_rules: Vec<(String, usize, usize)>,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
+    /// La timeline com'era quando si e' chiuso: si riapre uguale (accesa, passo, disposizione, periodi vuoti).
+    pub timeline: crate::app::timeline::TimelinePref,
 }
 
 /// I salti di pagina di fabbrica: 10, 100 e 1000 pagine.
@@ -60,6 +62,7 @@ impl Default for Settings {
             time_format: None,
             time_rules: Vec::new(),
             theme_set: false,
+            timeline: crate::app::timeline::TimelinePref::default(),
         }
     }
 }
@@ -114,6 +117,18 @@ impl Settings {
         }
         if let Some((pattern, within)) = &self.time_format {
             out.push_str(&format!("time_format={pattern}\ntime_within={within}\n"));
+        }
+        if self.timeline.on {
+            out.push_str("timeline=1\n");
+        }
+        if let Some(passo) = self.timeline.step {
+            out.push_str(&format!("timeline_step={}\n", passo.code()));
+        }
+        if self.timeline.bytes {
+            out.push_str("timeline_mode=bytes\n");
+        }
+        if self.timeline.empty {
+            out.push_str("timeline_empty=1\n");
         }
         for (pattern, within, skip) in &self.time_rules {
             out.push_str(&format!("time_rule={pattern}|{within}|{skip}\n"));
@@ -210,6 +225,26 @@ impl Settings {
                 "line_numbers" => match v.to_ascii_lowercase().as_str() {
                     "1" | "on" | "true" => s.line_numbers = true,
                     "0" | "off" | "false" => s.line_numbers = false,
+                    _ => {}
+                },
+                "timeline" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.timeline.on = true,
+                    "0" | "off" | "false" => s.timeline.on = false,
+                    _ => {}
+                },
+                "timeline_step" => {
+                    if let Some(p) = mrp_core::timeline::Step::parse(v) {
+                        s.timeline.step = Some(p);
+                    }
+                }
+                "timeline_mode" => match v.to_ascii_lowercase().as_str() {
+                    "bytes" => s.timeline.bytes = true,
+                    "time" => s.timeline.bytes = false,
+                    _ => {}
+                },
+                "timeline_empty" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.timeline.empty = true,
+                    "0" | "off" | "false" => s.timeline.empty = false,
                     _ => {}
                 },
                 "log_colors" => match v.to_ascii_lowercase().as_str() {

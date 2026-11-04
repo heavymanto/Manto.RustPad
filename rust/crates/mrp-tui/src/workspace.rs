@@ -851,6 +851,14 @@ impl Workspace {
         if self.closing_all && !self.quit && self.tabs[self.active].dialog_kind().is_none() {
             self.closing_all = false;
         }
+        // com'era la timeline quando l'utente l'ha cambiata: vale per tutte le schede (e per quelle che si apriranno)
+        let pref = self.tabs[self.active].timeline_pref();
+        if pref != self.cfg.timeline {
+            self.cfg.timeline = pref;
+            for a in &mut self.tabs {
+                a.set_timeline_pref(pref);
+            }
+        }
         let (tema, lingua) = self.look();
         for a in &mut self.tabs {
             if a.theme_id() != tema || a.lang_code() != lingua {

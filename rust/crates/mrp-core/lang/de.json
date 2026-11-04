@@ -363,6 +363,8 @@
   "timeline.step.day": "1 Tag",
   "timeline.mode.time": "Höhe = Zeit",
   "timeline.mode.bytes": "Höhe = Bytes",
+  "timeline.show_empty": "Leere Zeiträume anzeigen",
+  "timeline.no_data": "Keine Zeilen in diesem Zeitraum.",
   "timeline.building": "Suche die Zeiten… {} gefunden",
   "timeline.no_times": "Keine Zeiten anzuzeigen: wähle zuerst ein Zeitformat.",
   "timeline.too_many": "{} Abschnitte: zu viele, wähle einen längeren Schritt.",

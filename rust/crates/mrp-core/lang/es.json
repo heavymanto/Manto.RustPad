@@ -363,6 +363,8 @@
   "timeline.step.day": "1 día",
   "timeline.mode.time": "Altura = tiempo",
   "timeline.mode.bytes": "Altura = bytes",
+  "timeline.show_empty": "Mostrar los periodos vacíos",
+  "timeline.no_data": "No hay líneas en este periodo.",
   "timeline.building": "Buscando las horas… {} encontradas",
   "timeline.no_times": "No hay horas que mostrar: elige primero un formato.",
   "timeline.too_many": "{} tramos: demasiados, elige un paso más largo.",

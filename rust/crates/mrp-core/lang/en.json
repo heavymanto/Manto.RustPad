@@ -362,6 +362,8 @@
   "timeline.step.day": "1 day",
   "timeline.mode.time": "Height = time",
   "timeline.mode.bytes": "Height = bytes",
+  "timeline.show_empty": "Show empty periods",
+  "timeline.no_data": "No lines in this period.",
   "timeline.building": "Looking for the times… {} found",
   "timeline.no_times": "No times to show: pick a time format first.",
   "timeline.too_many": "{} buckets: too many, pick a longer step.",

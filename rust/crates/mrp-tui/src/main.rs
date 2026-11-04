@@ -113,6 +113,10 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             .as_ref()
             .map_or(mrp_tui::settings::JUMP_PAGES, |s| s.jump_pages),
         nav_bar: profilo.settings.as_ref().is_some_and(|s| s.nav_bar),
+        timeline: profilo
+            .settings
+            .as_ref()
+            .map_or_else(Default::default, |s| s.timeline),
         special_chars: profilo.settings.as_ref().is_some_and(|s| s.special_chars),
         log_colors: profilo.settings.as_ref().is_some_and(|s| s.log_colors),
         line_numbers: profilo.settings.as_ref().is_none_or(|s| s.line_numbers),

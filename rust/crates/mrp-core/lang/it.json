@@ -362,6 +362,8 @@
   "timeline.step.day": "1 giorno",
   "timeline.mode.time": "Altezza = tempo",
   "timeline.mode.bytes": "Altezza = byte",
+  "timeline.show_empty": "Mostra i periodi vuoti",
+  "timeline.no_data": "Nessuna riga in questo periodo.",
   "timeline.building": "Cerco gli orari… ne ho trovati {}",
   "timeline.no_times": "Nessun orario da mostrare: scegli prima un formato.",
   "timeline.too_many": "{} bucket: troppi, scegli un passo più lungo.",

@@ -259,6 +259,9 @@ fn a_minute_step_over_three_days_is_under_the_cap() {
     pronta(&mut a);
     // dalla prima riga (2026-11-01 00:00) all'ultima (2026-11-03 23:30): 4290 minuti, quindi 4291 bucket, sotto il tetto
     assert_eq!(a.timeline_status(), TimelineStatus::Ready);
+    // di fabbrica solo i minuti che hanno una riga (144: una ogni mezz'ora); chiedendo i vuoti, tutti
+    assert_eq!(a.timeline_rows(100_000).len(), 144);
+    a.set_timeline_show_empty(true);
     assert_eq!(a.timeline_rows(100_000).len(), 4291);
     let _ = std::fs::remove_file(p);
 }

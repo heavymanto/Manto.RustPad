@@ -363,6 +363,8 @@
   "timeline.step.day": "1 天",
   "timeline.mode.time": "高度 = 时间",
   "timeline.mode.bytes": "高度 = 字节",
+  "timeline.show_empty": "显示空的时间段",
+  "timeline.no_data": "此时间段没有行。",
   "timeline.building": "正在查找时间… 已找到 {}",
   "timeline.no_times": "没有可显示的时间:请先选择时间格式。",
   "timeline.too_many": "{} 个区间:太多,请选择更长的间隔。",
