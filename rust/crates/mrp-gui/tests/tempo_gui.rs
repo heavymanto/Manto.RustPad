@@ -233,7 +233,7 @@ fn the_time_window_applies_format_and_filter_with_ok() {
     assert_eq!(f.dialogo_titolo(), Some("FILTERS"));
     assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
     // due campi (Dal e Al), la casella spenta, niente filtro ancora
-    assert_eq!(f.dialogo_campi().len(), 2);
+    assert_eq!(f.dialogo_campi().len(), 3);
     assert!(!f.app().time_check());
     // scrivere una data accende da sola la casella
     f.workspace().active_mut().dialog_set_field(2, "02:10");
@@ -348,10 +348,10 @@ fn the_window_lists_the_times_of_the_file_and_other_opens_the_rule() {
     // un secondo clic la richiude
     clic(&mut f, &ctx, tendina);
     assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "formato"));
-    assert_eq!(f.dialogo_campi().len(), 2);
+    assert_eq!(f.dialogo_campi().len(), 3);
     // "Altro" apre i formati noti in una tendina, il pattern, "entro quanti caratteri" e quale data della riga
     dalla_tendina(&mut f, &ctx, "altro");
-    assert_eq!(f.dialogo_campi().len(), 4);
+    assert_eq!(f.dialogo_campi().len(), 5);
     opzione(&f, "formato");
     opzione(&f, "occorrenza");
     // la tendina dei formati ha i 17 noti, quelli che leggono il file per primi
@@ -365,7 +365,7 @@ fn the_window_lists_the_times_of_the_file_and_other_opens_the_rule() {
     disegna(&mut f, &ctx);
     dalla_tendina(&mut f, &ctx, "altro");
     dalla_tendina(&mut f, &ctx, "fonte 0");
-    assert_eq!(f.dialogo_campi().len(), 2);
+    assert_eq!(f.dialogo_campi().len(), 3);
     assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
     let _ = std::fs::remove_file(p);
 }

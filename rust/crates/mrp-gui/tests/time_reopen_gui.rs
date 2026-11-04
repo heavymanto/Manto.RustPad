@@ -249,21 +249,45 @@ fn a_rule_of_mine_can_be_taken_off_the_list_with_its_cross() {
 }
 
 #[test]
-fn the_filters_window_keeps_its_height_going_from_a_tab_to_another() {
+fn the_filters_page_fits_a_normal_screen_with_everything_in_it() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
-    let altezza = |f: &Finestra| f.dialogo_rect().expect("la finestra").height();
-    let tempo = altezza(&f);
-    for (sezione, nome) in [(1, "Livelli"), (2, "Testo"), (0, "Tempo")] {
-        let c = opzione(&f, &format!("sezione {sezione}"));
-        clic(&mut f, &ctx, c);
-        disegna(&mut f, &ctx);
-        let h = altezza(&f);
-        assert!(
-            (h - tempo).abs() < 1.0,
-            "{nome}: alta {h}, il Tempo era alto {tempo}"
-        );
+    let r = f.dialogo_rect().expect("la finestra");
+    println!("ALTEZZA chiusa {}", r.height());
+    // con i tre riquadri la pagina sta in meno di 600 punti (uno schermo da 768 con la barra del sistema)
+    assert!(r.height() < 600.0, "alta {}", r.height());
+    // aperto "Altro" (la regola scritta a mano) cresce, ma resta sotto i 900
+    dalla_tendina(&mut f, &ctx, "altro");
+    disegna(&mut f, &ctx);
+    let r = f.dialogo_rect().expect("la finestra");
+    println!("ALTEZZA altro {}", r.height());
+    assert!(r.height() < 900.0, "alta {}", r.height());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn on_a_low_screen_the_boxes_scroll_and_the_window_stays_on_screen() {
+    let (mut f, ctx, p) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    dalla_tendina(&mut f, &ctx, "altro");
+    // uno schermo basso: 560 punti
+    for _ in 0..3 {
+        let raw = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 560.0))),
+            ..Default::default()
+        };
+        let _ = ctx.run(raw, |ctx| f.giro(ctx));
     }
+    let r = f.dialogo_rect().expect("la finestra");
+    assert!(
+        r.height() <= 560.0,
+        "alta {} su uno schermo di 560",
+        r.height()
+    );
+    // i pulsanti restano visibili
+    let ok = pulsante(&f, "OK");
+    assert!(ok.y < 560.0, "OK a {}", ok.y);
     let _ = std::fs::remove_file(p);
 }

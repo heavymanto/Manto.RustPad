@@ -252,6 +252,8 @@ fn every_dialog_window_moves_when_you_drag_its_title_band() {
             f.workspace().set_theme(tema);
             giro(&mut f, &ctx, vec![]);
             apri(&mut f, &ctx);
+            // tre giri: una finestra con un'area che scorre (i Filtri) prende la sua altezza al secondo
+            giro(&mut f, &ctx, vec![]);
             giro(&mut f, &ctx, vec![]);
             giro(&mut f, &ctx, vec![]);
             let prima = f

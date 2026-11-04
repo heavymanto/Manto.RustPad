@@ -108,11 +108,11 @@ fn the_dates_inside_the_lines_are_rows_of_the_list_and_other_has_the_date_number
     // scelta: il pattern con il testo prima della data e "entro" 200; i campi del formato restano chiusi
     assert_eq!(f.app().time_field_text(0), "'@ 'yyyy-MM-dd HH:mm");
     assert_eq!(f.app().time_field_text(1), "200");
-    assert_eq!(f.dialogo_campi().len(), 2, "solo Dal e Al");
+    assert_eq!(f.dialogo_campi().len(), 3, "solo Dal, Al e il testo");
     // "Altro" li apre, con il numero della data nella riga
     dalla_tendina(&mut f, &ctx, "altro");
     opzione(&f, "occorrenza");
-    assert_eq!(f.dialogo_campi().len(), 4, "pattern, entro, dal, al");
+    assert_eq!(f.dialogo_campi().len(), 5, "pattern, entro, dal, al, testo");
     let _ = std::fs::remove_file(p);
 }
 

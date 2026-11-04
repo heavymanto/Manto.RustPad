@@ -113,40 +113,39 @@ fn riassunto(f: &mut Finestra) -> String {
 }
 
 #[test]
-fn the_window_has_three_sections_and_each_shows_its_own_controls() {
+fn the_window_is_one_page_with_three_boxes_and_all_their_controls() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
     assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
     assert_eq!(f.dialogo_titolo(), Some("FILTERS"));
+    // i titoli dei tre riquadri
     for i in 0..3 {
-        assert!(ha_opzione(&f, &format!("sezione {i}")), "scheda {i}");
+        assert!(ha_opzione(&f, &format!("sezione {i}")), "riquadro {i}");
     }
-    // si apre sul Tempo: le due date, i tre pulsanti, niente livelli ne' testo
-    assert_eq!(f.dialogo_campi().len(), 2);
-    assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
-    assert!(!ha_opzione(&f, "livello 0") && !ha_opzione(&f, "modo 0"));
-    // Livelli: le quattro caselle, nessun campo, OK e Annulla
-    let s = opzione(&f, "sezione 1");
-    clic(&mut f, &ctx, s);
+    // tutto insieme: le due date e il testo (3 campi), i quattro livelli, i tre modi e le due caselle, i tre pulsanti
+    assert_eq!(f.dialogo_campi().len(), 3);
     for i in 0..4 {
         assert!(ha_opzione(&f, &format!("livello {i}")), "livello {i}");
     }
-    assert_eq!(f.dialogo_campi().len(), 0);
-    assert_eq!(pulsanti(&f), vec!["OK", "Cancel"]);
-    // Testo: un campo, i tre modi, le due caselle
-    let s = opzione(&f, "sezione 2");
-    clic(&mut f, &ctx, s);
-    assert_eq!(f.dialogo_campi().len(), 1);
     for e in ["modo 0", "modo 1", "modo 2", "maiuscole", "nascondi"] {
         assert!(ha_opzione(&f, e), "{e}");
     }
-    assert!(!ha_opzione(&f, "livello 0"));
-    // si torna al Tempo senza perdere la finestra
-    let s = opzione(&f, "sezione 0");
-    clic(&mut f, &ctx, s);
-    assert_eq!(f.dialogo_campi().len(), 2);
-    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
+    // i riquadri stanno uno sotto l'altro, nell'ordine Tempo, Livelli, Testo
+    let y = |f: &Finestra, e: &str| {
+        f.dialogo_opzioni()
+            .iter()
+            .find(|(_, t)| t == e)
+            .unwrap()
+            .0
+            .min
+            .y
+    };
+    assert!(y(&f, "sezione 0") < y(&f, "sezione 1") && y(&f, "sezione 1") < y(&f, "sezione 2"));
+    // i livelli stanno su una riga sola
+    let (a, b) = (y(&f, "livello 0"), y(&f, "livello 3"));
+    assert!((a - b).abs() < 1.0, "livelli su righe diverse: {a} {b}");
     let _ = std::fs::remove_file(p);
 }
 
@@ -156,8 +155,6 @@ fn the_levels_are_the_same_as_the_timeline_buttons_and_the_summary_follows() {
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
     assert_eq!(riassunto(&mut f), "no filter chosen");
-    let s = opzione(&f, "sezione 1");
-    clic(&mut f, &ctx, s);
     let c = opzione(&f, "livello 1");
     clic(&mut f, &ctx, c);
     assert_eq!(
@@ -189,12 +186,8 @@ fn ok_with_levels_and_text_opens_one_filtered_tab() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
-    let s = opzione(&f, "sezione 1");
-    clic(&mut f, &ctx, s);
     let c = opzione(&f, "livello 0");
     clic(&mut f, &ctx, c);
-    let s = opzione(&f, "sezione 2");
-    clic(&mut f, &ctx, s);
     f.app().dialog_filters_set_text("riga 1");
     disegna(&mut f, &ctx);
     assert_eq!(riassunto(&mut f), "Levels: ERROR \u{b7} Text: \"riga 1\"");
@@ -218,11 +211,11 @@ fn ok_with_levels_and_text_opens_one_filtered_tab() {
 }
 
 #[test]
-fn a_section_with_a_condition_is_marked_in_its_tab() {
+fn a_box_with_a_condition_is_marked_in_its_title() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
-    // il segno e' nel titolo della scheda: cambia la larghezza della scheda "Livelli" quando ha una condizione
+    // il segno e' nel titolo del riquadro: cambia la larghezza del titolo "Livelli" quando ha una condizione
     let larghezza = |f: &Finestra| {
         f.dialogo_opzioni()
             .iter()
