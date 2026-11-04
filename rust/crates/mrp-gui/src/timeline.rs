@@ -80,7 +80,13 @@ pub fn disegna(
     stato.scritte = 0;
     stato.chip.clear();
     stato.strisce = 0;
-    let pannello = egui::SidePanel::right("timeline")
+    // di fabbrica a sinistra del testo; a destra sta accanto alla scrollbar
+    let lato = if ws.active().timeline_right() {
+        egui::panel::Side::Right
+    } else {
+        egui::panel::Side::Left
+    };
+    let pannello = egui::SidePanel::new(lato, "timeline")
         .exact_width(LARGHEZZA)
         .frame(Frame::NONE)
         .show(ctx, |ui| {
@@ -361,6 +367,8 @@ pub fn disegna(
                 ),
             ];
             let t_vuoti = ws.active().text("timeline.show_empty").to_string();
+            let t_destra = ws.active().text("timeline.on_right").to_string();
+            let t_da_sola = ws.active().text("timeline.autostart").to_string();
             let mostra_vuoti = ws.active().timeline_show_empty();
             risposta.context_menu(|ui| {
                 for (m, nome) in &nomi_modo {
@@ -373,6 +381,18 @@ pub fn disegna(
                 let mut vuoti = mostra_vuoti;
                 if ui.checkbox(&mut vuoti, &t_vuoti).clicked() {
                     ws.active_mut().set_timeline_show_empty(vuoti);
+                    ui.close();
+                }
+                // il lato e la partenza da sola valgono per tutte le schede
+                ui.separator();
+                let mut destra = ws.active().timeline_right();
+                if ui.checkbox(&mut destra, &t_destra).clicked() {
+                    ws.active_mut().set_timeline_right(destra);
+                    ui.close();
+                }
+                let mut da_sola = ws.active().timeline_autostart();
+                if ui.checkbox(&mut da_sola, &t_da_sola).clicked() {
+                    ws.active_mut().set_timeline_autostart(da_sola);
                     ui.close();
                 }
             });

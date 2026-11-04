@@ -130,6 +130,12 @@ impl Settings {
         if self.timeline.empty {
             out.push_str("timeline_empty=1\n");
         }
+        if self.timeline.right {
+            out.push_str("timeline_side=right\n");
+        }
+        if self.timeline.no_autostart {
+            out.push_str("timeline_autostart=0\n");
+        }
         for (pattern, within, skip) in &self.time_rules {
             out.push_str(&format!("time_rule={pattern}|{within}|{skip}\n"));
         }
@@ -245,6 +251,16 @@ impl Settings {
                 "timeline_empty" => match v.to_ascii_lowercase().as_str() {
                     "1" | "on" | "true" => s.timeline.empty = true,
                     "0" | "off" | "false" => s.timeline.empty = false,
+                    _ => {}
+                },
+                "timeline_side" => match v.to_ascii_lowercase().as_str() {
+                    "right" => s.timeline.right = true,
+                    "left" => s.timeline.right = false,
+                    _ => {}
+                },
+                "timeline_autostart" => match v.to_ascii_lowercase().as_str() {
+                    "1" | "on" | "true" => s.timeline.no_autostart = false,
+                    "0" | "off" | "false" => s.timeline.no_autostart = true,
                     _ => {}
                 },
                 "log_colors" => match v.to_ascii_lowercase().as_str() {

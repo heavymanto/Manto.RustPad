@@ -367,6 +367,8 @@
   "timeline.mode.time": "高さ = 時間",
   "timeline.mode.bytes": "高さ = バイト",
   "timeline.show_empty": "空の期間を表示",
+  "timeline.on_right": "タイムラインを右に表示（スクロールバーの隣）",
+  "timeline.autostart": "ファイルに日時があれば自動で開始",
   "timeline.no_data": "この期間に行はありません。",
   "timeline.building": "時刻を検索中… {} 件",
   "timeline.no_times": "表示できる時刻がありません。先に時刻の形式を選んでください。",

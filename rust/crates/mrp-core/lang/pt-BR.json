@@ -367,6 +367,8 @@
   "timeline.mode.time": "Altura = tempo",
   "timeline.mode.bytes": "Altura = bytes",
   "timeline.show_empty": "Mostrar os períodos vazios",
+  "timeline.on_right": "Linha do tempo à direita (junto à barra de rolagem)",
+  "timeline.autostart": "Inicia sozinha se o arquivo tiver datas",
   "timeline.no_data": "Nenhuma linha neste período.",
   "timeline.building": "Procurando os horários… {} encontrados",
   "timeline.no_times": "Nenhum horário para mostrar: escolha antes um formato.",

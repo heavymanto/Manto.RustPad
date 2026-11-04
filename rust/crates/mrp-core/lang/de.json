@@ -367,6 +367,8 @@
   "timeline.mode.time": "Höhe = Zeit",
   "timeline.mode.bytes": "Höhe = Bytes",
   "timeline.show_empty": "Leere Zeiträume anzeigen",
+  "timeline.on_right": "Timeline rechts (neben der Bildlaufleiste)",
+  "timeline.autostart": "Startet von selbst, wenn die Datei Zeiten hat",
   "timeline.no_data": "Keine Zeilen in diesem Zeitraum.",
   "timeline.building": "Suche die Zeiten… {} gefunden",
   "timeline.no_times": "Keine Zeiten anzuzeigen: wähle zuerst ein Zeitformat.",

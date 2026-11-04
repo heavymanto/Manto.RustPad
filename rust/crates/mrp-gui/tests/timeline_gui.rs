@@ -5,7 +5,7 @@
 use eframe::egui::{self, Context, Event, FullOutput, Modifiers, Pos2, RawInput, Rect, Vec2};
 use mrp_gui::gui::Finestra;
 use mrp_gui::menu::{self, MENU};
-use mrp_tui::app::timeline::TimelineStatus;
+use mrp_tui::app::timeline::{TimelinePref, TimelineStatus};
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::commands::Cmd;
 use std::path::PathBuf;
@@ -17,11 +17,27 @@ static COUNTER: AtomicUsize = AtomicUsize::new(0);
 fn cfg() -> AppConfig {
     AppConfig {
         chrome: false,
+        timeline: TimelinePref {
+            no_autostart: true,
+            ..TimelinePref::default()
+        },
+        ..AppConfig::default()
+    }
+}
+
+/// Come `cfg`, ma con la partenza da sola di fabbrica.
+fn cfg_di_fabbrica() -> AppConfig {
+    AppConfig {
+        chrome: false,
         ..AppConfig::default()
     }
 }
 
 fn finestra() -> (Finestra, Context, PathBuf, Vec<u64>) {
+    finestra_con(cfg())
+}
+
+fn finestra_con(configurazione: AppConfig) -> (Finestra, Context, PathBuf, Vec<u64>) {
     let mut dati = String::new();
     let mut offset = Vec::new();
     for i in 0..144u32 {
@@ -37,9 +53,9 @@ fn finestra() -> (Finestra, Context, PathBuf, Vec<u64>) {
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
     let p = std::env::temp_dir().join(format!("mrp_tlgui_{}_{}.log", std::process::id(), n));
     std::fs::write(&p, dati).unwrap();
-    let mut app = App::open(&p, cfg()).unwrap();
+    let mut app = App::open(&p, configurazione.clone()).unwrap();
     assert!(app.wait_idle(Duration::from_secs(20)));
-    let mut f = Finestra::da_app(app, Box::new(cfg));
+    let mut f = Finestra::da_app(app, Box::new(move || configurazione.clone()));
     let ctx = Context::default();
     ctx.style_mut(|s| s.animation_time = 0.0);
     giro(&mut f, &ctx, vec![]);
@@ -114,7 +130,7 @@ fn it_is_off_by_default_and_the_log_menu_switches_it_on() {
 }
 
 #[test]
-fn the_bar_is_wide_and_sits_left_of_the_scrollbar() {
+fn the_bar_is_wide_and_sits_on_the_left_of_the_text_by_default() {
     let (mut f, ctx, p, _) = finestra();
     f.azione(Cmd::Timeline);
     pronta(&mut f, &ctx);
@@ -124,12 +140,85 @@ fn the_bar_is_wide_and_sits_left_of_the_scrollbar() {
         barra.width() >= 90.0,
         "larga abbastanza da leggere le date: {barra:?}"
     );
+    // a sinistra: attaccata al bordo della finestra, e il testo parte dopo di lei
+    assert!(barra.min.x < 1.0, "{barra:?}");
+    assert!(barra.max.x < scroll.min.x - 200.0, "{barra:?} {scroll:?}");
+    // la barra e la scrollbar sono alte uguali (sotto il menu, sopra la barra di stato)
+    assert!((barra.min.y - scroll.min.y).abs() < 1.0 && (barra.max.y - scroll.max.y).abs() < 1.0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn with_the_right_flag_the_bar_sits_next_to_the_scrollbar() {
+    let (mut f, ctx, p, _) = finestra();
+    f.app().set_timeline_right(true);
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    let barra = f.timeline_disegnata().rect.expect("la barra");
+    let scroll = f.scrollbar_rect().expect("la scrollbar");
     assert!(
         barra.max.x <= scroll.min.x + 0.5 && barra.min.x < scroll.min.x,
         "{barra:?} {scroll:?}"
     );
-    // la barra e la scrollbar sono alte uguali (sotto il menu, sopra la barra di stato)
-    assert!((barra.min.y - scroll.min.y).abs() < 1.0 && (barra.max.y - scroll.max.y).abs() < 1.0);
+    assert!(barra.min.x > 500.0, "a destra, non a sinistra: {barra:?}");
+    // e si cambia di nuovo: torna a sinistra
+    f.app().set_timeline_right(false);
+    disegna(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.expect("la barra").min.x < 1.0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_file_with_dates_starts_the_timeline_by_itself() {
+    let (mut f, ctx, p, _) = finestra_con(cfg_di_fabbrica());
+    pronta(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.is_some());
+    assert!(f.app().timeline_on());
+    // e' l'apertura che l'ha accesa, non una scelta: la preferenza non cambia
+    assert!(!f.app().timeline_pref().on);
+    // l'utente la spegne: resta spenta
+    f.azione(Cmd::Timeline);
+    disegna(&mut f, &ctx);
+    disegna(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.is_none());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_file_without_dates_does_not_start_it() {
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let p = std::env::temp_dir().join(format!("mrp_tlgui_nd_{}_{}.log", std::process::id(), n));
+    std::fs::write(
+        &p,
+        "niente di niente
+solo parole
+nessuna data qui
+",
+    )
+    .unwrap();
+    let mut app = App::open(&p, cfg_di_fabbrica()).unwrap();
+    assert!(app.wait_idle(Duration::from_secs(20)));
+    let mut f = Finestra::da_app(app, Box::new(cfg_di_fabbrica));
+    let ctx = Context::default();
+    disegna(&mut f, &ctx);
+    disegna(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.is_none());
+    assert!(!f.app().timeline_on());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn with_the_switch_off_a_file_with_dates_does_not_start_it() {
+    let (mut f, ctx, p, _) = finestra_con(cfg());
+    assert!(!f.app().timeline_autostart());
+    disegna(&mut f, &ctx);
+    disegna(&mut f, &ctx);
+    assert!(f.timeline_disegnata().rect.is_none());
+    assert!(!f.app().timeline_on());
+    // si riaccende: vale per i file che si apriranno, e si ricorda
+    f.app().set_timeline_autostart(true);
+    assert!(f.app().timeline_autostart());
+    assert!(!f.app().timeline_pref().no_autostart);
     let _ = std::fs::remove_file(p);
 }
 

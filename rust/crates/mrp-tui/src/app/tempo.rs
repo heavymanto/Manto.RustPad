@@ -291,6 +291,10 @@ impl App {
         if self.window.take().is_some() {
             self.found = None;
             self.flash = Some(self.cat.t("time.range_off").to_string());
+            // spento a mano: la finestra Filtri non lo ripropone acceso (le date restano scritte)
+            if let Some(c) = self.last_filters.as_mut() {
+                c.time = false;
+            }
         }
     }
 

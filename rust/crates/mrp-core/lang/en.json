@@ -366,6 +366,8 @@
   "timeline.mode.time": "Height = time",
   "timeline.mode.bytes": "Height = bytes",
   "timeline.show_empty": "Show empty periods",
+  "timeline.on_right": "Timeline on the right (next to the scrollbar)",
+  "timeline.autostart": "Start by itself when the file has dates",
   "timeline.no_data": "No lines in this period.",
   "timeline.building": "Looking for the times… {} found",
   "timeline.no_times": "No times to show: pick a time format first.",

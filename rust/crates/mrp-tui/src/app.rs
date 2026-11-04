@@ -793,6 +793,8 @@ pub struct App {
     timeline: timeline::TimelineState,
     /// Com'era la timeline l'ultima volta che l'utente l'ha cambiata (nelle impostazioni, per le schede che si apriranno).
     timeline_pref: timeline::TimelinePref,
+    /// La scheda e' appena aperta: la timeline puo' partire da sola, una volta (`timeline_autostart_check`).
+    autostart_pending: bool,
     time_field: u8,
     time_error: String,
     time_bounds: Option<(i64, i64)>,
@@ -1071,6 +1073,7 @@ impl App {
                 ..cfg.timeline
             }),
             timeline_pref: cfg.timeline,
+            autostart_pending: true,
             time_field: 2,
             time_error: String::new(),
             time_bounds: None,

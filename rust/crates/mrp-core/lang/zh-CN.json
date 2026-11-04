@@ -367,6 +367,8 @@
   "timeline.mode.time": "高度 = 时间",
   "timeline.mode.bytes": "高度 = 字节",
   "timeline.show_empty": "显示空的时间段",
+  "timeline.on_right": "时间线显示在右侧（滚动条旁）",
+  "timeline.autostart": "文件含有日期时自动启动",
   "timeline.no_data": "此时间段没有行。",
   "timeline.building": "正在查找时间… 已找到 {}",
   "timeline.no_times": "没有可显示的时间:请先选择时间格式。",

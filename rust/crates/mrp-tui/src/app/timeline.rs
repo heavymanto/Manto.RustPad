@@ -101,7 +101,15 @@ pub struct TimelinePref {
     pub bytes: bool,
     /// Si vedono anche i periodi senza righe.
     pub empty: bool,
+    /// La barra sta a destra, accanto alla scrollbar (di fabbrica a sinistra del testo).
+    pub right: bool,
+    /// Non parte da sola all'apertura di un file con un orario riconosciuto (di fabbrica parte).
+    pub no_autostart: bool,
 }
+
+/// Oltre questa dimensione la timeline non parte da sola: la passata dei livelli legge tutto il file, e su un file enorme, a
+/// freddo, e' un lavoro che l'utente deve chiedere.
+pub const AUTOSTART_MAX: u64 = 2 << 30;
 
 /// I livelli che la timeline sa filtrare, nell'ordine in cui si mostrano.
 pub const TIMELINE_LEVELS: [&str; 4] = ["ERROR", "WARN", "INFO", "DEBUG"];
@@ -170,13 +178,15 @@ impl TimelineState {
         }
     }
 
-    /// Lo stato com'e' adesso, come preferenza.
-    fn pref(&self) -> TimelinePref {
+    /// Lo stato com'e' adesso, come preferenza; il lato e la partenza da sola non sono dello stato di una scheda: li dice `lato`.
+    fn pref(&self, lato: TimelinePref) -> TimelinePref {
         TimelinePref {
             on: self.on,
             step: (!self.auto).then_some(self.step),
             bytes: self.mode == TimelineMode::Bytes,
             empty: self.show_empty,
+            right: lato.right,
+            no_autostart: lato.no_autostart,
         }
     }
 }
@@ -268,6 +278,55 @@ impl App {
         self.timeline_pref
     }
 
+    /// La barra sta a destra (accanto alla scrollbar) invece che a sinistra del testo.
+    pub fn timeline_right(&self) -> bool {
+        self.timeline_pref.right
+    }
+
+    /// Sceglie il lato della barra (vale per tutte le schede e si ricorda).
+    pub fn set_timeline_right(&mut self, destra: bool) {
+        if self.timeline_pref.right != destra {
+            self.timeline_pref.right = destra;
+            self.save_settings();
+        }
+    }
+
+    /// La barra parte da sola quando un file si apre e ha un orario riconosciuto.
+    pub fn timeline_autostart(&self) -> bool {
+        !self.timeline_pref.no_autostart
+    }
+
+    /// Accende o spegne la partenza da sola (vale per tutte le schede e si ricorda).
+    pub fn set_timeline_autostart(&mut self, si: bool) {
+        if self.timeline_pref.no_autostart == si {
+            self.timeline_pref.no_autostart = !si;
+            self.save_settings();
+        }
+    }
+
+    /// Se la scheda e' appena aperta e il file ha un orario riconosciuto, accende la timeline (una volta sola per scheda, senza
+    /// cambiare la preferenza: e' l'apertura che la fa partire, non una scelta). Non parte nel terminale, per un documento
+    /// senza file o modificato, per una vista filtrata (eredita dal file) e oltre `AUTOSTART_MAX`.
+    fn timeline_autostart_check(&mut self) {
+        if !self.autostart_pending {
+            return;
+        }
+        self.autostart_pending = false;
+        if self.timeline.on
+            || self.chrome
+            || self.timeline_pref.no_autostart
+            || self.path.as_os_str().is_empty()
+            || self.document_len() > AUTOSTART_MAX
+            || self.doc.as_ref().is_none_or(Document::is_modified)
+        {
+            return;
+        }
+        self.assicura_maschera();
+        if self.time_mask.is_some() {
+            self.timeline.on = true;
+        }
+    }
+
     /// Ricorda la preferenza senza scrivere le impostazioni (chi l'ha scelta le ha gia' scritte).
     pub fn set_timeline_pref(&mut self, p: TimelinePref) {
         self.timeline_pref = p;
@@ -275,7 +334,7 @@ impl App {
 
     /// La scelta dell'utente sulla timeline di questa scheda diventa la preferenza e si scrive nelle impostazioni.
     fn remember_timeline(&mut self) {
-        let p = self.timeline.pref();
+        let p = self.timeline.pref(self.timeline_pref);
         if p != self.timeline_pref {
             self.timeline_pref = p;
             self.save_settings();
@@ -299,6 +358,7 @@ impl App {
         self.timeline.auto = da.timeline.auto;
         self.timeline.mode = da.timeline.mode;
         self.timeline.filter_levels = da.timeline.filter_levels;
+        self.autostart_pending = false;
     }
 
     /// Ferma la passata dei livelli (il thread si accorge dell'annullamento e muore da solo).
@@ -369,6 +429,7 @@ impl App {
     /// accesa e non ci sono tacche per questa lunghezza del file, finestra e passo). Ritorna vero se la barra e' in attesa di
     /// qualcosa (chi disegna deve ridisegnare fra poco).
     pub fn timeline_tick(&mut self) -> bool {
+        self.timeline_autostart_check();
         if !self.timeline.on {
             return false;
         }

@@ -306,3 +306,25 @@ fn the_level_buttons_of_the_timeline_in_a_view_also_filter_the_original() {
     );
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn a_date_filter_switched_off_by_hand_comes_back_unchecked_with_its_dates() {
+    let (mut w, p) = ws();
+    let a = w.active_mut();
+    a.open_time_dialog();
+    a.dialog_time_set_check(true);
+    a.dialog_set_field(2, "2026-11-02 00:00:00");
+    a.dialog_set_field(3, "2026-11-02 23:59:59");
+    a.dialog_submit();
+    assert!(w.active().time_filter_on());
+    w.active_mut().toggle_time_filter();
+    assert!(!w.active().time_filter_on());
+    w.active_mut().open_time_dialog();
+    let (_, _, _, _, _, check, from, to) = finestra(&w);
+    assert!(!check, "spento a mano: la casella e' spenta");
+    assert_eq!(
+        (from.as_str(), to.as_str()),
+        ("2026-11-02 00:00:00", "2026-11-02 23:59:59")
+    );
+    let _ = std::fs::remove_file(p);
+}

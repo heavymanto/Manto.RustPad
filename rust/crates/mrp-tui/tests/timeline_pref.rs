@@ -58,6 +58,8 @@ fn the_settings_file_keeps_the_timeline_and_ignores_what_it_does_not_understand(
             step: Some(Step::Hour),
             bytes: true,
             empty: true,
+            right: false,
+            no_autostart: false,
         },
         ..Settings::default()
     };
@@ -112,6 +114,8 @@ fn what_the_user_chooses_is_written_and_a_new_app_opens_the_same() {
             step: Some(Step::Hour),
             bytes: true,
             empty: true,
+            right: false,
+            no_autostart: false,
         }
     );
     // chiusa e riaperta: com'era
