@@ -152,12 +152,17 @@ fn run() -> i32 {
             }
         }
     };
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([1000.0, 700.0])
+        .with_min_inner_size([320.0, 200.0])
+        .with_drag_and_drop(true)
+        .with_title("Manto.RustPad");
+    // l'icona del progetto nella barra del titolo e in quella delle applicazioni
+    if let Some(icona) = mrp_gui::icona::icona_finestra() {
+        viewport = viewport.with_icon(std::sync::Arc::new(icona));
+    }
     let opzioni = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1000.0, 700.0])
-            .with_min_inner_size([320.0, 200.0])
-            .with_drag_and_drop(true)
-            .with_title("Manto.RustPad"),
+        viewport,
         ..Default::default()
     };
     let esito = eframe::run_native(

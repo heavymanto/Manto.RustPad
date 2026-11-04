@@ -8,6 +8,7 @@ pub mod barre;
 pub mod dialoghi;
 pub mod fonts;
 pub mod gui;
+pub mod icona;
 pub mod impostazioni;
 pub mod input;
 pub mod menu;
