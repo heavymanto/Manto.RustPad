@@ -310,6 +310,8 @@
   "filters.text_help": "只保留包含以下内容的行:",
   "filters.summary": "应用:",
   "filters.sum.none": "未选择过滤器",
+  "status.filters": "过滤: {}",
+  "filter.origin_gone": "无法重新打开原文件",
   "filters.sum.time": "时间:{} 到 {}",
   "filters.sum.levels": "级别:{}",
   "filters.sum.text": "文本:\"{}\"",

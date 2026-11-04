@@ -310,6 +310,8 @@
   "filters.text_help": "次を含む行だけを残します:",
   "filters.summary": "適用:",
   "filters.sum.none": "フィルター未選択",
+  "status.filters": "フィルター: {}",
+  "filter.origin_gone": "元のファイルを開き直せません",
   "filters.sum.time": "時間: {} から {}",
   "filters.sum.levels": "レベル: {}",
   "filters.sum.text": "テキスト: \"{}\"",

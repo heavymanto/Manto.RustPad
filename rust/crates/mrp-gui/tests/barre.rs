@@ -40,6 +40,7 @@ fn info() -> StatusInfo {
         busy: None,
         time: None,
         time_format: None,
+        filters: None,
     }
 }
 
@@ -48,6 +49,7 @@ fn pezzo(testo: &str, comando: Option<Cmd>) -> Pezzo {
         testo: testo.to_string(),
         comando,
         spento: false,
+        tip: None,
     }
 }
 
@@ -57,6 +59,7 @@ fn spento(testo: &str, comando: Cmd) -> Pezzo {
         testo: testo.to_string(),
         comando: Some(comando),
         spento: true,
+        tip: None,
     }
 }
 
@@ -76,6 +79,45 @@ fn the_status_text_in_english() {
             pezzo("2.00 KiB", None),
         ]
     );
+}
+
+#[test]
+fn the_active_filters_sit_first_on_the_right_and_a_click_opens_the_filters_window() {
+    let mut s = info();
+    s.filters = Some("Levels: ERROR, WARN".to_string());
+    let t = testi_stato(&s, &Catalog::english());
+    // prima del formato; il suggerimento e' la descrizione intera
+    assert_eq!(
+        t.destra[0],
+        Pezzo {
+            testo: "FILTER: Levels: ERROR, WARN".to_string(),
+            comando: Some(Cmd::TimeRange),
+            spento: false,
+            tip: Some("Levels: ERROR, WARN".to_string()),
+        }
+    );
+    assert_eq!(t.destra[1], pezzo("FORMAT", Some(Cmd::TimeMask)));
+    // senza filtri il pezzo non c'e'
+    s.filters = None;
+    assert_eq!(
+        testi_stato(&s, &Catalog::english()).destra[0].testo,
+        "FORMAT"
+    );
+}
+
+#[test]
+fn a_long_list_of_filters_is_cut_in_the_bar_and_whole_in_the_tip() {
+    let lunga =
+        "Levels: ERROR, WARN, INFO, DEBUG \u{b7} Text: \"un testo molto lungo da cercare\" (regex)";
+    assert!(lunga.chars().count() > 56);
+    let mut s = info();
+    s.filters = Some(lunga.to_string());
+    let t = testi_stato(&s, &Catalog::english());
+    let pezzo = &t.destra[0];
+    // "FILTER: " + 55 caratteri + i puntini
+    let corto: String = lunga.chars().take(55).collect();
+    assert_eq!(pezzo.testo, format!("FILTER: {corto}\u{2026}"));
+    assert_eq!(pezzo.tip.as_deref(), Some(lunga));
 }
 
 #[test]

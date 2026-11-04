@@ -309,6 +309,8 @@
   "filters.text_help": "Keep only the lines that contain:",
   "filters.summary": "Applies:",
   "filters.sum.none": "no filter chosen",
+  "status.filters": "FILTER: {}",
+  "filter.origin_gone": "the original file can't be opened again",
   "filters.sum.time": "Time: {} to {}",
   "filters.sum.levels": "Levels: {}",
   "filters.sum.text": "Text: \"{}\"",

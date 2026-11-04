@@ -10,6 +10,7 @@ use mrp_core::pattern::{LineFilter, Mode, Pattern};
 use mrp_core::timemask::{self, TimeMask};
 use mrp_core::timesearch;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use std::path::Path;
 use std::sync::atomic::AtomicBool;
 
 /// I millisecondi di un giorno.
@@ -34,6 +35,33 @@ pub struct CalendarInfo {
     pub last: Option<Day>,
     /// La piu' piccola unita' che la maschera scrive (1: i millisecondi, 1000: i secondi...).
     pub unit_ms: i64,
+}
+
+/// Le condizioni della finestra Filtri: il tempo, i livelli e il testo. Si ricordano dopo OK (la finestra le ripropone), la vista
+/// filtrata le porta con se' (la barra di stato le elenca) e si passano al file originale per rifare il filtro.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilterConditions {
+    pub levels: [bool; 4],
+    pub text: String,
+    pub mode: Mode,
+    pub case: bool,
+    pub invert: bool,
+    /// Il filtro per data e' acceso, con questi estremi (un campo vuoto: senza limite).
+    pub time: bool,
+    pub from: String,
+    pub to: String,
+}
+
+impl FilterConditions {
+    /// Nessuna condizione: il file si vede intero.
+    fn is_empty(&self) -> bool {
+        !self.levels.contains(&true) && self.text.is_empty() && !self.has_time()
+    }
+
+    /// C'e' un filtro per data con almeno un estremo.
+    fn has_time(&self) -> bool {
+        self.time && !(self.from.trim().is_empty() && self.to.trim().is_empty())
+    }
 }
 
 impl App {
@@ -65,7 +93,16 @@ impl App {
         let limiti = self.limiti_tempo();
         self.time_bounds = limiti.map(|l| l.0);
         self.time_last_known = limiti.is_some_and(|l| l.1);
+        // le condizioni dell'ultima volta tornano (livelli, testo, date): con una finestra di tempo accesa le date sono le sue
         self.time_check = self.window.is_some();
+        let ricordate = match &self.filter_view {
+            Some(v) => v.conditions.clone(),
+            None => self.last_filters.clone(),
+        };
+        if let Some(c) = ricordate {
+            self.carica_condizioni(&c, self.window.is_none());
+            self.time_check |= c.time;
+        }
         self.time_timeline = self.timeline_on();
         // un testo selezionato nel documento e' l'esempio da cui ricavare la regola
         self.example_text = self.esempio_dalla_selezione();
@@ -385,6 +422,8 @@ impl App {
         let livelli = self.timeline_filter_levels();
         let con_livelli = livelli.iter().any(|&x| x);
         let con_testo = !self.fl_text.is_empty();
+        // in una vista filtrata le condizioni non si applicano alle sue righe (sono gia' quelle filtrate): le rifa' il file originale
+        let in_vista = self.filter_view.is_some();
         // livelli e/o testo: una vista filtrata sola con tutte le condizioni (anche il tempo, come intervallo); la finestra di tempo di
         // questa scheda non cambia. Senza: il filtro per data restringe la vista di adesso
         let mut vista = None;
@@ -406,7 +445,9 @@ impl App {
                 self.time_error = self.cat.t("flash.regex_utf8").to_string();
                 return;
             }
-            let intervallo = if con_date {
+            let intervallo = if in_vista {
+                None
+            } else if con_date {
                 match self.intervallo_tempo(&da, &a) {
                     Ok(r) => Some(r),
                     Err(e) => {
@@ -425,6 +466,8 @@ impl App {
             };
             let nome = self.nome_vista_filtri(&da, &a, con_date);
             vista = Some((filtro, intervallo, nome));
+        } else if in_vista {
+            // niente da fare qui: le date (o nessuna condizione) le applica il file originale
         } else if con_date {
             if let Err(e) = self.apply_time_range(&da, &a) {
                 (self.time_mask, self.time_mask_tried, self.window) = prima;
@@ -458,11 +501,17 @@ impl App {
             self.save_settings();
         }
         self.dialog = None;
+        let condizioni = self.condizioni_attuali();
+        if in_vista {
+            self.refilter = Some(condizioni);
+            return;
+        }
+        self.last_filters = Some(condizioni.clone());
         if let Some((filtro, intervallo, nome)) = vista {
             if !self.fl_text.is_empty() {
                 self.last_find = Some(self.fl_text.clone());
             }
-            self.filter_start(filtro, intervallo, &nome);
+            self.filter_start(filtro, intervallo, &nome, condizioni);
         }
     }
 
@@ -492,36 +541,115 @@ impl App {
 
     /// Il riassunto delle condizioni della finestra Filtri, in una riga ("Time: ... \u{b7} Levels: ... \u{b7} Text: ..."), o "nessun filtro".
     pub(super) fn filters_summary(&self) -> String {
+        self.riassumi(&self.condizioni_attuali())
+    }
+
+    /// Le condizioni di `c` in una riga, o "nessun filtro". Il testo dice anche il modo se non e' semplice (`glob`, `regex`).
+    fn riassumi(&self, c: &FilterConditions) -> String {
         let cat = &self.cat;
         let mut parti = Vec::new();
-        if self.time_check
-            && !(self.range_text[0].trim().is_empty() && self.range_text[1].trim().is_empty())
-        {
-            parti.push(cat.tf(
-                "filters.sum.time",
-                &[&punti(&self.range_text[0]), &punti(&self.range_text[1])],
-            ));
+        if c.has_time() {
+            parti.push(cat.tf("filters.sum.time", &[&punti(&c.from), &punti(&c.to)]));
         }
         let nomi: Vec<&str> = (0..4)
-            .filter(|&i| self.timeline_filter_levels()[i])
+            .filter(|&i| c.levels[i])
             .map(|i| TIMELINE_LEVELS[i])
             .collect();
         if !nomi.is_empty() {
             parti.push(cat.tf("filters.sum.levels", &[&nomi.join(", ")]));
         }
-        if !self.fl_text.is_empty() {
-            let chiave = if self.fl_invert {
+        if !c.text.is_empty() {
+            let chiave = if c.invert {
                 "filters.sum.not_text"
             } else {
                 "filters.sum.text"
             };
-            parti.push(cat.tf(chiave, &[&self.fl_text]));
+            let modo = match c.mode {
+                Mode::Text => "",
+                Mode::Glob => " (glob)",
+                Mode::Regex => " (regex)",
+            };
+            parti.push(format!("{}{modo}", cat.tf(chiave, &[&c.text])));
         }
         if parti.is_empty() {
             cat.t("filters.sum.none").to_string()
         } else {
             parti.join(" \u{b7} ")
         }
+    }
+
+    /// Le condizioni scritte adesso nella finestra Filtri.
+    fn condizioni_attuali(&self) -> FilterConditions {
+        FilterConditions {
+            levels: self.timeline_filter_levels(),
+            text: self.fl_text.clone(),
+            mode: self.fl_mode,
+            case: self.fl_case,
+            invert: self.fl_invert,
+            time: self.time_check,
+            from: self.range_text[0].clone(),
+            to: self.range_text[1].clone(),
+        }
+    }
+
+    /// Scrive nella finestra Filtri le condizioni di `c` (le date solo se `con_date`: con una finestra di tempo accesa sono le sue).
+    fn carica_condizioni(&mut self, c: &FilterConditions, con_date: bool) {
+        for (i, &scelto) in c.levels.iter().enumerate() {
+            self.set_timeline_filter_level(i, scelto);
+        }
+        self.fl_text = c.text.clone();
+        self.fl_mode = c.mode;
+        self.fl_case = c.case;
+        self.fl_invert = c.invert;
+        if con_date {
+            self.range_text = [c.from.clone(), c.to.clone()];
+        }
+    }
+
+    /// Le condizioni che mostrano le righe di questa scheda, in una riga per la barra di stato; `None` se la scheda mostra tutto.
+    /// Una vista filtrata ha quelle che l'hanno fatta; una scheda con una finestra di tempo, le sue date.
+    pub fn active_filters(&self) -> Option<String> {
+        let c = if let Some(v) = &self.filter_view {
+            v.conditions.clone()?
+        } else if self.window.is_some() {
+            FilterConditions {
+                levels: [false; 4],
+                text: String::new(),
+                mode: Mode::Text,
+                case: false,
+                invert: false,
+                time: true,
+                from: self.range_text[0].clone(),
+                to: self.range_text[1].clone(),
+            }
+        } else {
+            return None;
+        };
+        (!c.is_empty()).then(|| self.riassumi(&c))
+    }
+
+    /// Una vista filtrata ha chiesto nuove condizioni (OK nella finestra Filtri): le rifa' il file originale, non la vista.
+    pub fn take_refilter(&mut self) -> Option<FilterConditions> {
+        self.refilter.take()
+    }
+
+    /// Il file di cui questa scheda e' la vista filtrata.
+    pub fn filter_origin(&self) -> Option<&Path> {
+        self.filter_view.as_ref().map(|v| v.origin.as_path())
+    }
+
+    /// Un filtro (o una ricerca) e' in corso in questa scheda.
+    pub fn filter_job_running(&self) -> bool {
+        self.search_job.is_some()
+    }
+
+    /// Le condizioni di `c` come se si fossero scritte nella finestra Filtri di questa scheda e si fosse premuto OK: e' il modo in
+    /// cui il file originale rifa' la vista filtrata. Un errore resta nella finestra (aperta).
+    pub fn apply_filter_conditions(&mut self, c: &FilterConditions) {
+        self.open_time_dialog();
+        self.carica_condizioni(c, true);
+        self.time_check = c.time;
+        self.time_submit();
     }
 
     /// Il testo del filtro per righe della finestra Filtri.

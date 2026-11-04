@@ -7,7 +7,9 @@
 //! scheda, Alt+1..9 va alla scheda col numero; F10 e Ctrl+Q chiudono tutto, chiedendo scheda per scheda per quelle con
 //! modifiche.
 
-use crate::app::{App, AppConfig, ReplaceAsk, ReplaceDone, ReplaceSpec, MAX_REPLACE};
+use crate::app::{
+    App, AppConfig, FilterConditions, ReplaceAsk, ReplaceDone, ReplaceSpec, MAX_REPLACE,
+};
 use crate::sessionstore;
 use crate::theme::{Theme, ThemeId};
 use crate::ui;
@@ -120,6 +122,8 @@ pub struct Workspace {
     nav_spans: Vec<(u16, u16, NavAzione)>,
     /// La barra dei salti si disegna a celle (il TUI si', la finestra no: ha i suoi pulsanti e legge `nav_bar`).
     nav_cells: bool,
+    /// Una vista filtrata che il filtro in corso (rifatto dal file originale con nuove condizioni) sostituira': il suo file di appoggio.
+    sostituita: Option<PathBuf>,
 }
 
 impl Drop for Workspace {
@@ -173,6 +177,7 @@ impl Workspace {
             nav,
             nav_spans: Vec::new(),
             nav_cells: true,
+            sostituita: None,
         }
     }
 
@@ -654,6 +659,10 @@ impl Workspace {
                     da.clear_timeline_filter_levels();
                 }
                 self.tabs.push(app);
+                // un filtro rifatto dal file originale prende il posto della vista di prima
+                if let Some(vecchia) = self.sostituita.take() {
+                    self.togli_vista(&vecchia);
+                }
                 self.select(self.tabs.len() - 1);
             }
             Err(e) => {
@@ -662,6 +671,59 @@ impl Workspace {
                 let testo = a.text_with("filter.failed", &[&e.to_string()]);
                 a.set_flash(testo);
             }
+        }
+    }
+
+    /// Toglie la vista filtrata col file di appoggio `scratch` (e il file), senza chiedere: una vista non si modifica.
+    fn togli_vista(&mut self, scratch: &Path) {
+        let Some(i) = self
+            .tabs
+            .iter()
+            .position(|a| a.filter_scratch() == Some(scratch))
+        else {
+            return;
+        };
+        if self.tabs.len() == 1 {
+            return;
+        }
+        let tolta = self.tabs.remove(i);
+        Workspace::pulisci_scheda(&tolta);
+        if i < self.active {
+            self.active -= 1;
+        }
+        self.active = self.active.min(self.tabs.len() - 1);
+        self.apply_size();
+    }
+
+    /// OK nella finestra Filtri di una vista filtrata (la scheda `i`), o un livello scelto sulla timeline: le nuove condizioni valgono
+    /// per il file ORIGINALE, non per le righe gia' filtrate. Si porta avanti la scheda del file (la riapre se si e' chiusa), che le
+    /// applica come se fossero scritte nella sua finestra; la vista di prima viene sostituita da quella nuova quando il filtro
+    /// finisce (subito, se le nuove condizioni non fanno una vista). Un errore resta nella finestra del file originale.
+    fn rifiltra_dall_originale(&mut self, i: usize, c: &FilterConditions) {
+        let Some(origine) = self.tabs[i].filter_origin().map(Path::to_path_buf) else {
+            return;
+        };
+        let vecchia = self.tabs[i].filter_scratch().map(Path::to_path_buf);
+        let canon = origine.canonicalize().unwrap_or(origine);
+        let mut o = self.tabs.iter().position(|a| a.path() == canon);
+        if o.is_none() && self.open(&canon).is_ok() {
+            o = Some(self.tabs.len() - 1);
+        }
+        let Some(o) = o else {
+            let a = &mut self.tabs[i];
+            let testo = a.text("filter.origin_gone").to_string();
+            a.set_flash(testo);
+            return;
+        };
+        self.select(o);
+        self.tabs[o].apply_filter_conditions(c);
+        if self.tabs[o].dialog_kind().is_some() {
+            return;
+        }
+        match vecchia {
+            Some(v) if self.tabs[o].filter_job_running() => self.sostituita = Some(v),
+            Some(v) => self.togli_vista(&v),
+            None => {}
         }
     }
 
@@ -809,6 +871,17 @@ impl Workspace {
                 self.open_filter_tab(fatto, i);
                 break;
             }
+        }
+        // nuove condizioni chieste da una vista filtrata: le rifa' il file originale
+        for i in 0..self.tabs.len() {
+            if let Some(c) = self.tabs[i].take_refilter() {
+                self.rifiltra_dall_originale(i, &c);
+                break;
+            }
+        }
+        // se il filtro non e' partito o e' finito senza righe, la vista di prima resta
+        if self.sostituita.is_some() && !self.tabs.iter().any(App::filter_job_running) {
+            self.sostituita = None;
         }
         if let Some(v) = self.tabs[self.active].take_jump_apply() {
             self.set_jump_pages(v);

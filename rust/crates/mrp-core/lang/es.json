@@ -310,6 +310,8 @@
   "filters.text_help": "Conservar solo las líneas que contienen:",
   "filters.summary": "Se aplica:",
   "filters.sum.none": "ningún filtro elegido",
+  "status.filters": "FILTROS: {}",
+  "filter.origin_gone": "no se puede volver a abrir el archivo original",
   "filters.sum.time": "Tiempo: de {} a {}",
   "filters.sum.levels": "Niveles: {}",
   "filters.sum.text": "Texto: \"{}\"",

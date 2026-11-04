@@ -7,7 +7,7 @@ mod tempo_esempio;
 mod tempo_finestra;
 pub use tempo::{SourceKind, TimeSource, TimeSuggestion};
 pub use tempo_esempio::{ExampleCandidate, ExampleOutcome, ExampleProblem};
-pub use tempo_finestra::{CalendarInfo, Day, Month};
+pub use tempo_finestra::{CalendarInfo, Day, FilterConditions, Month};
 pub mod timeline;
 
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
@@ -304,6 +304,7 @@ fn spawn_filter_job(
                     truncated: st.truncated,
                     pattern: pattern_testo,
                     origin,
+                    conditions: None,
                 }),
                 Err(SearchError::Cancelled) => {
                     let _ = std::fs::remove_file(&path);
@@ -494,6 +495,8 @@ pub struct StatusInfo {
     pub time: Option<String>,
     /// Il formato dell'orario di questo file (il pattern), `None` se non ne ha uno riconosciuto.
     pub time_format: Option<String>,
+    /// Le condizioni che mostrano le righe di questa scheda (tempo, livelli, testo) in una riga, `None` se mostra tutto.
+    pub filters: Option<String>,
 }
 
 /// Dove sta la finestra nel documento (`App::scroll_info`): da dove comincia e quanta parte ne mostra, da 0 a 1.
@@ -571,13 +574,16 @@ pub struct FilterDone {
     pub pattern: String,
     /// Il file di cui e' la vista.
     pub origin: PathBuf,
+    /// Le condizioni che hanno fatto la vista (le mette la scheda che ha lanciato il filtro, a lavoro finito).
+    pub conditions: Option<FilterConditions>,
 }
 
-/// Una scheda che e' la vista filtrata di un altro file: da dove viene e dove stavano le sue righe.
+/// Una scheda che e' la vista filtrata di un altro file: da dove viene, dove stavano le sue righe e quali condizioni l'hanno fatta.
 struct FilterView {
     origin: PathBuf,
     offsets: Vec<u64>,
     scratch: PathBuf,
+    conditions: Option<FilterConditions>,
 }
 
 /// Il massimo di righe di una vista filtrata (l'elenco delle posizioni costa 8 byte per riga).
@@ -841,6 +847,13 @@ pub struct App {
     fl_mode: Mode,
     fl_case: bool,
     fl_invert: bool,
+    /// Le condizioni dell'ultima volta che la finestra Filtri e' stata confermata: la finestra le ripropone, e una vista filtrata le
+    /// mostra nella barra di stato (sono quelle che l'hanno fatta).
+    last_filters: Option<FilterConditions>,
+    /// Una vista filtrata ha chiesto nuove condizioni: le applica il file originale (`take_refilter`), non la vista.
+    refilter: Option<FilterConditions>,
+    /// Le condizioni del filtro che sta girando: passano alla vista quando finisce.
+    job_conditions: Option<FilterConditions>,
     /// Un filtro finito, in attesa che il `Workspace` apra la vista (`take_filter_done`).
     filter_done: Option<FilterDone>,
     /// Questa scheda e' la vista filtrata di un altro file.
@@ -1088,6 +1101,9 @@ impl App {
             fl_mode: Mode::Text,
             fl_case: false,
             fl_invert: false,
+            last_filters: None,
+            refilter: None,
+            job_conditions: None,
             filter_done: None,
             filter_view: None,
             goto_original: None,
@@ -3186,6 +3202,8 @@ impl App {
                     let _ = std::fs::remove_file(&fatto.path);
                     self.flash = Some(self.cat.t("filter.none").to_string());
                 } else {
+                    let mut fatto = fatto;
+                    fatto.conditions = self.job_conditions.take();
                     self.filter_done = Some(fatto);
                 }
             }
@@ -3736,6 +3754,7 @@ impl App {
             busy,
             time,
             time_format,
+            filters: self.active_filters(),
         }
     }
 
@@ -5025,20 +5044,34 @@ impl App {
             invert: self.find_invert,
             levels: [false; 4],
         };
-        self.filter_start(filtro, None, testo);
+        let condizioni = FilterConditions {
+            levels: [false; 4],
+            text: testo.to_string(),
+            mode: self.search_mode,
+            case: self.search_case,
+            invert: self.find_invert,
+            time: false,
+            from: String::new(),
+            to: String::new(),
+        };
+        self.filter_start(filtro, None, testo, condizioni);
     }
 
     /// Fa partire il filtro con le condizioni di `filtro` (testo, livelli) nell'intervallo di byte `intervallo` (`None`: tutto il file).
-    /// La scheda si chiama `nome_predefinito`, salvo che `filter_name` ne abbia gia' scelto uno.
+    /// La scheda si chiama `nome_predefinito`, salvo che `filter_name` ne abbia gia' scelto uno. `condizioni` e' come le scrive la
+    /// finestra Filtri: la vista che nasce le porta con se'.
     pub(crate) fn filter_start(
         &mut self,
         filtro: LineFilter,
         intervallo: Option<(u64, u64)>,
         nome_predefinito: &str,
+        condizioni: FilterConditions,
     ) {
         let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
             return;
         };
+        self.job_conditions = Some(condizioni.clone());
+        self.last_filters = Some(condizioni);
         let intervallo = intervallo.unwrap_or((0, snap.len()));
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
@@ -5071,6 +5104,7 @@ impl App {
             origin: fatto.origin,
             offsets: fatto.offsets,
             scratch: fatto.path,
+            conditions: fatto.conditions,
         });
         let testo = if fatto.truncated {
             self.cat.tf("filter.truncated", &[&fatto.lines.to_string()])

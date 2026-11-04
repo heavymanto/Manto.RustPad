@@ -5,8 +5,8 @@
 //! bucket sono piu' di quelli che stanno nell'altezza), dov'e' la parte che si vede, il salto a un punto e l'orario sotto il mouse.
 //! Ogni file e' un mondo a se': niente fusione di piu' file.
 
-use super::App;
-use mrp_core::pattern::LineFilter;
+use super::{App, FilterConditions};
+use mrp_core::pattern::{LineFilter, Mode};
 use mrp_core::timeline::{self, BuildError, LevelCounts, Step, Timeline};
 use mrp_core::timemask;
 use mrp_core::timesearch;
@@ -541,8 +541,35 @@ impl App {
             invert: false,
             levels: livelli,
         };
+        let con_date = self.window.is_some();
+        let condizioni = FilterConditions {
+            levels: livelli,
+            text: String::new(),
+            mode: Mode::Text,
+            case: false,
+            invert: false,
+            time: con_date,
+            from: if con_date {
+                self.time_range_text(0).to_string()
+            } else {
+                String::new()
+            },
+            to: if con_date {
+                self.time_range_text(1).to_string()
+            } else {
+                String::new()
+            },
+        };
+        // in una vista filtrata i livelli si cambiano alle condizioni che l'hanno fatta, e li rifa' il file originale
+        if let Some(v) = &self.filter_view {
+            if let Some(mut c) = v.conditions.clone() {
+                c.levels = livelli;
+                self.refilter = Some(c);
+                return;
+            }
+        }
         // dentro la finestra di tempo, se c'e'
-        self.filter_start(filtro, Some((self.lo(), self.hi())), &nome);
+        self.filter_start(filtro, Some((self.lo(), self.hi())), &nome, condizioni);
     }
 
     /// Lo stato della timeline, per scrivere cosa sta succedendo.

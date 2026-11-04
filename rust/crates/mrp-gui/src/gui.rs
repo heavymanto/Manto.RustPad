@@ -817,6 +817,10 @@ impl Finestra {
                                 };
                                 let l = Label::new(testo).sense(Sense::click());
                                 let mut r = ui.add(l).on_hover_cursor(CursorIcon::PointingHand);
+                                // i filtri attivi: il suggerimento li dice per intero
+                                if let Some(tip) = &pezzo.tip {
+                                    r = r.on_hover_text(tip);
+                                }
                                 // sul FORMAT, il formato dell'orario che c'e' adesso (o che non c'e')
                                 if cmd == Cmd::TimeMask {
                                     // il formato e' scritto nel pezzo: il suggerimento dice cosa fa il clic (o che non ce n'e' uno)

@@ -309,6 +309,8 @@
   "filters.text_help": "Tieni solo le righe che contengono:",
   "filters.summary": "Si applica:",
   "filters.sum.none": "nessun filtro scelto",
+  "status.filters": "FILTRI: {}",
+  "filter.origin_gone": "non riesco a riaprire il file originale",
   "filters.sum.time": "Tempo: da {} a {}",
   "filters.sum.levels": "Livelli: {}",
   "filters.sum.text": "Testo: \"{}\"",

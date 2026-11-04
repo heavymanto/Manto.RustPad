@@ -39,6 +39,7 @@ fn info() -> StatusInfo {
         busy: None,
         time: None,
         time_format: None,
+        filters: None,
     }
 }
 
@@ -47,6 +48,7 @@ fn pezzo(testo: &str, comando: Option<Cmd>) -> Pezzo {
         testo: testo.to_string(),
         comando,
         spento: false,
+        tip: None,
     }
 }
 
@@ -56,6 +58,7 @@ fn spento(testo: &str, comando: Cmd) -> Pezzo {
         testo: testo.to_string(),
         comando: Some(comando),
         spento: true,
+        tip: None,
     }
 }
 

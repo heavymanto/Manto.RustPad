@@ -17,7 +17,12 @@ pub struct Pezzo {
     pub comando: Option<Cmd>,
     /// Un interruttore spento: il pezzo si vede lo stesso (per riaccenderlo con un clic) ma in grigio.
     pub spento: bool,
+    /// Il suggerimento al passaggio del mouse, se il pezzo ne ha uno suo (altrimenti lo decide il comando).
+    pub tip: Option<String>,
 }
+
+/// Quanti caratteri al massimo il pezzo dei filtri mostra in barra (il resto si legge passandoci sopra).
+pub const FILTRI_LARGHEZZA: usize = 56;
 
 /// I testi della barra di stato: a sinistra la posizione del cursore (o il messaggio transitorio), a destra i
 /// pezzi, da sinistra a destra.
@@ -86,6 +91,24 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             testo: cat.tf(chiave, &[&percentuale.to_string()]),
             comando: None,
             spento: false,
+            tip: None,
+        });
+    }
+    // i filtri che mostrano le righe di questa scheda, a colpo d'occhio: un clic apre la finestra Filtri, il suggerimento li dice per
+    // intero (la barra ne mostra l'inizio)
+    if let Some(f) = &s.filters {
+        let corto = if f.chars().count() > FILTRI_LARGHEZZA {
+            let mut t: String = f.chars().take(FILTRI_LARGHEZZA - 1).collect();
+            t.push('\u{2026}');
+            t
+        } else {
+            f.clone()
+        };
+        destra.push(Pezzo {
+            testo: cat.tf("status.filters", &[&corto]),
+            comando: Some(Cmd::TimeRange),
+            spento: false,
+            tip: Some(f.clone()),
         });
     }
     // il formato dell'orario di questo file: la scritta FORMAT, un clic apre l'elenco dei formati (la maschera riconosciuta o
@@ -98,6 +121,7 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             .unwrap_or_else(|| cat.t("status.format").to_string()),
         comando: Some(Cmd::TimeMask),
         spento: false,
+        tip: None,
     });
     // l'orario della prima riga visibile (se il file ha una maschera): un clic apre l'intervallo di tempo
     if let Some(t) = &s.time {
@@ -105,6 +129,7 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             testo: t.clone(),
             comando: Some(Cmd::TimeRange),
             spento: false,
+            tip: None,
         });
     }
     // il modo cambia al clic, la modalita' colonna pure, la codifica apre il suo menu; a-capo e dimensione no
@@ -120,12 +145,14 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             .to_string(),
         comando: Some(Cmd::EditMode),
         spento: false,
+        tip: None,
     });
     if s.column_mode {
         destra.push(Pezzo {
             testo: cat.t("mode.column").to_string(),
             comando: Some(Cmd::ColumnMode),
             spento: false,
+            tip: None,
         });
     }
     // gli interruttori sono sempre in barra, a colpo d'occhio: normali se accesi, in grigio se spenti (un clic li cambia)
@@ -133,26 +160,31 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
         testo: "\u{b6}".to_string(),
         comando: Some(Cmd::Special),
         spento: !s.special,
+        tip: None,
     });
     destra.push(Pezzo {
         testo: cat.t("status.log").to_string(),
         comando: Some(Cmd::LogColors),
         spento: !s.log_colors,
+        tip: None,
     });
     destra.push(Pezzo {
         testo: s.encoding.clone(),
         comando: Some(Cmd::Encoding),
         spento: false,
+        tip: None,
     });
     destra.push(Pezzo {
         testo: s.line_ending.to_string(),
         comando: None,
         spento: false,
+        tip: None,
     });
     destra.push(Pezzo {
         testo: fmt_size(s.size),
         comando: None,
         spento: false,
+        tip: None,
     });
     TestiStato { sinistra, destra }
 }

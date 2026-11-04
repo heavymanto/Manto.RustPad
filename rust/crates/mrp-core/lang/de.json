@@ -310,6 +310,8 @@
   "filters.text_help": "Nur Zeilen behalten, die Folgendes enthalten:",
   "filters.summary": "Gilt:",
   "filters.sum.none": "kein Filter gewählt",
+  "status.filters": "FILTER: {}",
+  "filter.origin_gone": "die Originaldatei lässt sich nicht öffnen",
   "filters.sum.time": "Zeit: {} bis {}",
   "filters.sum.levels": "Stufen: {}",
   "filters.sum.text": "Text: \"{}\"",
