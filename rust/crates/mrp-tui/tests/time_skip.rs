@@ -201,3 +201,31 @@ fn the_list_has_the_time_in_use_then_the_dates_inside_the_lines_then_the_rules_t
     assert_eq!(a.time_source_selected(), None);
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_list_keeps_its_order_whatever_time_is_in_use() {
+    let (mut a, offset, p) = app(true, false);
+    a.open_time_dialog();
+    let prima: Vec<(String, usize)> = a
+        .time_sources()
+        .iter()
+        .map(|s| (s.pattern.clone(), s.skip))
+        .collect();
+    assert_eq!(prima.len(), 2);
+    // la riga 1 e' la data dopo "@ ": sceglierla e dare OK
+    a.dialog_time_pick_source(1);
+    a.dialog_set_field(2, "2019-09-11");
+    a.dialog_set_field(3, "2019-09-11");
+    a.dialog_submit();
+    assert_eq!(a.time_window(), Some((offset[2], offset[5])));
+    // riaperta, l'elenco e' lo stesso nello stesso ordine e la scelta e' ancora la riga 1 (non e' passata in cima)
+    a.open_time_dialog();
+    let dopo: Vec<(String, usize)> = a
+        .time_sources()
+        .iter()
+        .map(|s| (s.pattern.clone(), s.skip))
+        .collect();
+    assert_eq!(dopo, prima);
+    assert_eq!(a.time_source_selected(), Some(1));
+    let _ = std::fs::remove_file(p);
+}

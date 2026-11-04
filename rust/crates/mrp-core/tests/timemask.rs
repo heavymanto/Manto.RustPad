@@ -537,3 +537,36 @@ fn find_gives_the_bytes_the_time_occupies_and_the_same_key_as_read() {
     assert_eq!(e.find(b"1793498400.877 x"), Some((0, 14, 1793498400877)));
     assert_eq!(e.find(b"1793498400 x"), Some((0, 10, 1793498400000)));
 }
+
+#[test]
+fn a_log_that_starts_with_the_date_and_minutes_is_recognised_with_the_minutes() {
+    // il log di un backtest dove la riga comincia col tempo di simulazione, senza secondi: `2019-01-01 00:00 - MEXC - ...`
+    let righe: Vec<String> = (0..30)
+        .map(|i| {
+            format!(
+                "2019-01-{:02} {:02}:00 - MEXC - BTC_USDT - SPOT - MARKET PRICE: 3701,23",
+                1 + i / 24,
+                i % 24
+            )
+        })
+        .collect();
+    let rif: Vec<&[u8]> = righe.iter().map(|r| r.as_bytes()).collect();
+    let d = detect(&rif).expect("riconosciuto");
+    // con le ore e i minuti, non solo la data (due righe al giorno e' la stessa data: la sola data perderebbe l'ora)
+    assert_eq!(d.mask.pattern(), "yyyy-MM-dd HH:mm");
+    assert_eq!((d.matched, d.total), (30, 30));
+    // 2019-01-01 05:00 in millisecondi dal 1970 (calendar.timegm di Python)
+    assert_eq!(d.mask.read(righe[5].as_bytes()), Some(1546318800000));
+    // lo stesso con giorno/mese/anno
+    let it: Vec<String> = (0..30)
+        .map(|i| format!("{:02}/01/2019 {:02}:30 - riga", 1 + i / 24, i % 24))
+        .collect();
+    let rif: Vec<&[u8]> = it.iter().map(|r| r.as_bytes()).collect();
+    assert_eq!(detect(&rif).unwrap().mask.pattern(), "dd/MM/yyyy HH:mm");
+    // se la riga ha i secondi vince il formato con i secondi, come prima
+    let s: Vec<String> = (0..30)
+        .map(|i| format!("2019-01-01 {:02}:00:{:02} riga", i % 24, i))
+        .collect();
+    let rif: Vec<&[u8]> = s.iter().map(|r| r.as_bytes()).collect();
+    assert_eq!(detect(&rif).unwrap().mask.pattern(), "yyyy-MM-dd HH:mm:ss");
+}

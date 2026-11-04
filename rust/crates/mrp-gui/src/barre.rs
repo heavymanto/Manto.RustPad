@@ -91,7 +91,11 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
     // il formato dell'orario di questo file: la scritta FORMAT, un clic apre l'elenco dei formati (la maschera riconosciuta o
     // scelta si legge passandoci sopra)
     destra.push(Pezzo {
-        testo: cat.t("status.format").to_string(),
+        // il formato in uso (con la regola, se e' una regola: `'@ 'yyyy-MM-dd HH:mm`); senza, la parola FORMAT. Un clic apre la finestra
+        testo: s
+            .time_format
+            .clone()
+            .unwrap_or_else(|| cat.t("status.format").to_string()),
         comando: Some(Cmd::TimeMask),
         spento: false,
     });

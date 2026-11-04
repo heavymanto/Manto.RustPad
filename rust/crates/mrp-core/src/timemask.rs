@@ -32,7 +32,7 @@ const fn preset(pattern: &'static str, within: usize, example: &'static str) -> 
 
 /// I formati noti, nell'ordine di priorita': vince quello che legge piu' righe del campione, a parita' il primo di quest'ordine
 /// (con `within` 0 prima di 40).
-pub const PRESETS: [Preset; 17] = [
+pub const PRESETS: [Preset; 19] = [
     preset("yyyy-MM-dd HH:mm:ss.SSS", 0, "2026-11-01 02:00:00.877"),
     preset("yyyy-MM-dd HH:mm:ss,SSS", 0, "2026-11-01 02:00:00,877"),
     preset("yyyy-MM-ddTHH:mm:ss.SSS", 0, "2026-11-01T02:00:00.877Z"),
@@ -42,6 +42,8 @@ pub const PRESETS: [Preset; 17] = [
     preset("yyyy/MM/dd HH:mm:ss", 0, "2026/11/01 02:00:00"),
     preset("dd/MM/yyyy HH:mm:ss", 0, "01/11/2026 02:00:00"),
     preset("dd-MM-yyyy HH:mm:ss", 0, "01-11-2026 02:00:00"),
+    preset("yyyy-MM-dd HH:mm", 0, "2026-11-01 02:00"),
+    preset("dd/MM/yyyy HH:mm", 0, "01/11/2026 02:00"),
     preset("dd/MMM/yyyy:HH:mm:ss", 40, "[01/Nov/2026:02:00:00 +0100]"),
     preset("MMM d HH:mm:ss", 0, "Nov  1 02:00:00"),
     preset("HH:mm:ss.SSS", 0, "02:00:00.877"),

@@ -737,6 +737,18 @@ impl App {
                 candidate.push((k, p, w, s));
             }
         };
+        // l'orario all'inizio della riga che il riconoscimento sceglierebbe da solo, e quello in uso: cosi' l'elenco e' lo stesso a ogni
+        // apertura, qualunque sia il tempo scelto
+        let righe_campione = self.campione_righe();
+        let rif: Vec<&[u8]> = righe_campione.iter().map(Vec::as_slice).collect();
+        if let Some(d) = timemask::detect(&rif) {
+            aggiungi(
+                SourceKind::Start,
+                d.mask.pattern().to_string(),
+                d.mask.within(),
+                0,
+            );
+        }
         if let Some(m) = self.time_mask.as_ref() {
             aggiungi(
                 tipo_fonte(m.pattern(), m.skip()),
@@ -745,6 +757,10 @@ impl App {
                 m.skip(),
             );
         }
+        let attiva = self
+            .time_mask
+            .as_ref()
+            .map(|m| (m.pattern().to_string(), m.within(), m.skip()));
         for g in &self.mask_groups {
             aggiungi(
                 tipo_fonte(&g.pattern, g.skip),
@@ -756,6 +772,15 @@ impl App {
         for (p, w, k) in &self.time_rules {
             aggiungi(SourceKind::Rule, p.clone(), *w, *k);
         }
+        // l'ordine non dipende da quale e' in uso: prima gli orari all'inizio della riga, poi le date dentro le righe, poi quelle
+        // numerate, poi le regole dell'utente (a parita' resta l'ordine in cui sono state trovate)
+        let rango = |k: &SourceKind| match k {
+            SourceKind::Start => 0,
+            SourceKind::After(_) => 1,
+            SourceKind::Number(_) => 2,
+            SourceKind::Rule => 3,
+        };
+        candidate.sort_by_key(|c| rango(&c.0));
         let maschere: Vec<Option<TimeMask>> = candidate
             .iter()
             .map(|(_, p, w, k)| TimeMask::parse(p, *w).ok().map(|m| m.with_skip(*k)))
@@ -778,9 +803,10 @@ impl App {
         self.mask_sources = candidate
             .into_iter()
             .enumerate()
-            // il tempo in uso si mostra sempre; gli altri solo se leggono qualcosa
+            // il tempo in uso si mostra sempre (a meno che sia una regola che non legge niente); gli altri solo se leggono qualcosa
             .filter(|(i, c)| {
-                *i == 0 && self.time_mask.is_some() && c.0 != SourceKind::Rule || conti[*i] > 0
+                conti[*i] > 0
+                    || attiva.as_ref() == Some(&(c.1.clone(), c.2, c.3)) && c.0 != SourceKind::Rule
             })
             .map(|(i, (kind, pattern, within, skip))| TimeSource {
                 kind,

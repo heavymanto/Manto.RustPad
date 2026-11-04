@@ -166,7 +166,7 @@ fn the_known_formats_can_be_chosen_in_the_dialog() {
     else {
         panic!("manca la vista");
     };
-    assert_eq!(presets.len(), 17);
+    assert_eq!(presets.len(), 19);
     assert_eq!(presets[0].0, "yyyy-MM-dd HH:mm:ss.SSS");
     assert_eq!(presets[0].1, "2026-11-01 02:00:00.877");
     assert_eq!(preset, 0);
@@ -185,7 +185,7 @@ fn the_known_formats_can_be_chosen_in_the_dialog() {
     alt(&mut a, 'p');
     assert_eq!(a.time_mask_text(0), presets[apache - 1].0);
     // e dopo l'ultimo si ricomincia dal primo
-    a.dialog_time_preset(16);
+    a.dialog_time_preset(18);
     alt(&mut a, 'n');
     assert_eq!(a.time_mask_text(0), presets[0].0);
     let _ = std::fs::remove_dir_all(d);
@@ -332,10 +332,10 @@ fn a_rule_written_in_one_tab_reaches_the_other_tabs_and_the_next_ones() {
     w.select(0);
     // una regola scritta a mano: un formato che non e' fra quelli noti
     w.active_mut().open_time_dialog();
-    w.active_mut().dialog_set_field(0, "yyyy-MM-dd HH:mm");
+    w.active_mut().dialog_set_field(0, "yyyy-MM-dd HH");
     w.active_mut().dialog_submit();
     w.tick();
-    let regola = vec![("yyyy-MM-dd HH:mm".to_string(), 0, 0)];
+    let regola = vec![("yyyy-MM-dd HH".to_string(), 0, 0)];
     assert_eq!(w.tabs()[0].time_rules(), regola);
     // l'altra scheda la conosce, e' una riga dell'elenco anche li' (se il file la legge)
     assert_eq!(w.tabs()[1].time_rules(), regola);
