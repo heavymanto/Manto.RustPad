@@ -95,6 +95,24 @@ pub fn tooltip_percorso(percorso: Option<&str>, cat: &Catalog) -> String {
     }
 }
 
+/// Disegna una croce (X) centrata in `c`, di colore `colore`, con i bracci lunghi `mezza` punti dal centro: nel font non c'e' il glifo.
+pub fn croce(
+    painter: &eframe::egui::Painter,
+    c: eframe::egui::Pos2,
+    colore: eframe::egui::Color32,
+    mezza: f32,
+) {
+    for (a, b) in [(-1.0_f32, -1.0_f32), (-1.0, 1.0)] {
+        painter.line_segment(
+            [
+                c + eframe::egui::Vec2::new(a * mezza, b * mezza),
+                c + eframe::egui::Vec2::new(-a * mezza, -b * mezza),
+            ],
+            eframe::egui::Stroke::new(1.5_f32, colore),
+        );
+    }
+}
+
 /// Disegna un imbuto (il segno del filtro) centrato in `c`, di colore `colore`, alto circa `alto` punti: nel font non c'e' il glifo.
 pub fn imbuto(
     painter: &eframe::egui::Painter,

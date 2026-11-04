@@ -284,6 +284,7 @@
   "time.source.number": "Date number {} in the line",
   "time.source.rule": "My rule: {}",
   "time.source.other": "Other… (write a rule)",
+  "time.source.remove": "Remove this rule from the list",
   "time.source.lines": "{} lines",
   "time.source.rule_help": "To read a date that is not at the start of the line, write the text before it between quotes, like '@ 'yyyy-MM-dd HH:mm. The rule is remembered and appears in the list for the files where it reads something.",
   "time.example.title": "Teach it with an example",

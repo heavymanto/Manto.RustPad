@@ -285,6 +285,7 @@
   "time.source.number": "行内第 {} 个日期",
   "time.source.rule": "我的规则: {}",
   "time.source.other": "其他…(编写规则)",
+  "time.source.remove": "从列表中删除此规则",
   "time.source.lines": "{} 行",
   "time.source.rule_help": "要读取不在行首的日期,请把它前面的文字写在引号里,例如 '@ 'yyyy-MM-dd HH:mm。规则会被记住,并出现在能读取到内容的文件的列表中。",
   "time.example.title": "用示例来教",

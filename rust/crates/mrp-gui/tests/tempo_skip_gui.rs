@@ -84,12 +84,22 @@ fn opzione(f: &Finestra, e: &str) -> Pos2 {
         .center()
 }
 
+/// Apre la tendina dei tempi del dialogo e ne sceglie la voce con quell'etichetta (`fonte N` o `altro`).
+fn dalla_tendina(f: &mut Finestra, ctx: &Context, voce: &str) {
+    let tendina = opzione(f, "fonti");
+    clic(f, ctx, tendina);
+    let v = opzione(f, voce);
+    clic(f, ctx, v);
+}
+
 #[test]
 fn the_dates_inside_the_lines_are_rows_of_the_list_and_other_has_the_date_number() {
     let (mut f, ctx, p) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
     // il tempo in uso (l'orario all'inizio della riga) e la data dei dati dentro la riga, dopo "@ ": due righe dell'elenco
+    let tendina = opzione(&f, "fonti");
+    clic(&mut f, &ctx, tendina);
     opzione(&f, "fonte 0");
     let dati = opzione(&f, "fonte 1");
     // il numero della data non si vede finche' "Altro" non e' aperto
@@ -100,8 +110,7 @@ fn the_dates_inside_the_lines_are_rows_of_the_list_and_other_has_the_date_number
     assert_eq!(f.app().time_field_text(1), "200");
     assert_eq!(f.dialogo_campi().len(), 2, "solo Dal e Al");
     // "Altro" li apre, con il numero della data nella riga
-    let altro = opzione(&f, "altro");
-    clic(&mut f, &ctx, altro);
+    dalla_tendina(&mut f, &ctx, "altro");
     opzione(&f, "occorrenza");
     assert_eq!(f.dialogo_campi().len(), 4, "pattern, entro, dal, al");
     let _ = std::fs::remove_file(p);
@@ -114,8 +123,7 @@ fn under_other_an_example_gives_the_rule_to_pick() {
     disegna(&mut f, &ctx);
     // il campo dell'esempio e il pulsante stanno sotto "Altro"
     assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "esempio"));
-    let altro = opzione(&f, "altro");
-    clic(&mut f, &ctx, altro);
+    dalla_tendina(&mut f, &ctx, "altro");
     opzione(&f, "esempio");
     // un esempio e il pulsante: appaiono le regole ricavate, con la loro prima e ultima data
     f.app()

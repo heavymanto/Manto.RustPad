@@ -856,6 +856,24 @@ impl App {
         }
     }
 
+    /// Toglie dall'elenco una delle "mie regole" (la voce `i` dei tempi offerti): non e' piu' offerta e sparisce dalle impostazioni.
+    /// Una voce che non e' una regola dell'utente non si tocca. Se la regola e' quella in uso resta in uso, ma come un tempo del file.
+    pub fn dialog_time_remove_rule(&mut self, i: usize) {
+        if !matches!(self.dialog, Some(DialogKind::TimeMask | DialogKind::Time)) {
+            return;
+        }
+        let Some(s) = self.mask_sources.get(i) else {
+            return;
+        };
+        if s.kind != SourceKind::Rule {
+            return;
+        }
+        let regola = (s.pattern.clone(), s.within, s.skip);
+        self.time_rules.retain(|r| *r != regola);
+        self.calcola_fonti();
+        self.save_settings();
+    }
+
     /// Le regole per leggere il tempo scritte dall'utente (pattern, entro, occorrenza).
     pub fn time_rules(&self) -> Vec<(String, usize, usize)> {
         self.time_rules.clone()

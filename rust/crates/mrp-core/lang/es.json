@@ -285,6 +285,7 @@
   "time.source.number": "Fecha número {} en la línea",
   "time.source.rule": "Mi regla: {}",
   "time.source.other": "Otro… (escribir una regla)",
+  "time.source.remove": "Quitar esta regla de la lista",
   "time.source.lines": "{} líneas",
   "time.source.rule_help": "Para leer una fecha que no está al inicio de la línea, escribe el texto que la precede entre comillas, como '@ 'yyyy-MM-dd HH:mm. La regla se recuerda y aparece en la lista de los archivos donde lee algo.",
   "time.example.title": "Enséñalo con un ejemplo",

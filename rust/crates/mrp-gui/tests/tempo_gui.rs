@@ -99,6 +99,14 @@ fn opzione(f: &Finestra, etichetta: &str) -> Pos2 {
         .center()
 }
 
+/// Apre la tendina dei tempi del dialogo e ne sceglie la voce con quell'etichetta (`fonte N` o `altro`).
+fn dalla_tendina(f: &mut Finestra, ctx: &Context, voce: &str) {
+    let tendina = opzione(f, "fonti");
+    clic(f, ctx, tendina);
+    let v = opzione(f, voce);
+    clic(f, ctx, v);
+}
+
 fn pulsanti(f: &Finestra) -> Vec<String> {
     f.dialogo_pulsanti()
         .iter()
@@ -330,14 +338,19 @@ fn the_window_lists_the_times_of_the_file_and_other_opens_the_rule() {
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
     // l'elenco: il tempo in uso (l'orario all'inizio della riga) e "Altro"; con un tempo dell'elenco restano solo i campi Dal e Al
+    // una tendina sola, chiusa: dentro ci sono i tempi e "Altro"
+    let tendina = opzione(&f, "fonti");
+    assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "altro"));
+    clic(&mut f, &ctx, tendina);
     opzione(&f, "fonte 0");
     opzione(&f, "altro");
     assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "fonte 1"));
+    // un secondo clic la richiude
+    clic(&mut f, &ctx, tendina);
     assert!(!f.dialogo_opzioni().iter().any(|(_, t)| t == "formato"));
     assert_eq!(f.dialogo_campi().len(), 2);
     // "Altro" apre i formati noti in una tendina, il pattern, "entro quanti caratteri" e quale data della riga
-    let altro = opzione(&f, "altro");
-    clic(&mut f, &ctx, altro);
+    dalla_tendina(&mut f, &ctx, "altro");
     assert_eq!(f.dialogo_campi().len(), 4);
     opzione(&f, "formato");
     opzione(&f, "occorrenza");
@@ -350,10 +363,8 @@ fn the_window_lists_the_times_of_the_file_and_other_opens_the_rule() {
     f.app().dialog_cancel();
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
-    let altro = opzione(&f, "altro");
-    clic(&mut f, &ctx, altro);
-    let fonte = opzione(&f, "fonte 0");
-    clic(&mut f, &ctx, fonte);
+    dalla_tendina(&mut f, &ctx, "altro");
+    dalla_tendina(&mut f, &ctx, "fonte 0");
     assert_eq!(f.dialogo_campi().len(), 2);
     assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
     let _ = std::fs::remove_file(p);
@@ -373,8 +384,7 @@ fn a_known_format_chosen_under_other_becomes_the_standard_with_ok_and_a_written_
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
     // Altro, poi un formato noto: il terzo che legge il file e' la sola data; confermato, e' quello standard
-    let altro = opzione(&f, "altro");
-    clic(&mut f, &ctx, altro);
+    dalla_tendina(&mut f, &ctx, "altro");
     apri_tendina(&mut f, &ctx);
     let data = f.dialogo_voci()[2].center();
     clic(&mut f, &ctx, data);
@@ -388,8 +398,7 @@ fn a_known_format_chosen_under_other_becomes_the_standard_with_ok_and_a_written_
     // una regola scritta a mano (qui un formato che legge le stesse righe, con un testo qualunque prima dell'ora)
     f.azione(Cmd::TimeMask);
     disegna(&mut f, &ctx);
-    let altro = opzione(&f, "altro");
-    clic(&mut f, &ctx, altro);
+    dalla_tendina(&mut f, &ctx, "altro");
     f.app().dialog_set_field(0, "yyyy-MM-dd HH");
     disegna(&mut f, &ctx);
     let ok = pulsante(&f, "OK");
@@ -407,6 +416,8 @@ fn a_known_format_chosen_under_other_becomes_the_standard_with_ok_and_a_written_
         .iter()
         .position(|s| s.pattern == "yyyy-MM-dd HH")
         .expect("la regola e' nell'elenco");
+    let tendina = opzione(&f, "fonti");
+    clic(&mut f, &ctx, tendina);
     opzione(&f, &format!("fonte {regola}"));
     let _ = std::fs::remove_file(p);
 }

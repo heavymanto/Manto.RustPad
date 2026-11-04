@@ -285,6 +285,7 @@
   "time.source.number": "Data número {} na linha",
   "time.source.rule": "Minha regra: {}",
   "time.source.other": "Outro… (escrever uma regra)",
+  "time.source.remove": "Remover esta regra da lista",
   "time.source.lines": "{} linhas",
   "time.source.rule_help": "Para ler uma data que não está no início da linha, escreva o texto que a precede entre aspas, como '@ 'yyyy-MM-dd HH:mm. A regra é lembrada e aparece na lista dos arquivos em que lê algo.",
   "time.example.title": "Ensine com um exemplo",

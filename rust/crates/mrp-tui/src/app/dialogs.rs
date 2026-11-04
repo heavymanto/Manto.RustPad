@@ -181,9 +181,9 @@ pub enum DialogView {
         /// Quale occorrenza dell'orario nella riga vale (0: la prima) e, se nelle righe c'e' anche un'altra data, il suggerimento:
         /// un esempio di come e' scritta e quante righe ce l'hanno.
         skip: usize,
-        /// I tempi che il file offre da usare (etichetta, esempio, quante righe) e quale e' quello scelto adesso (`None`: un formato
-        /// scritto a mano che non e' nell'elenco).
-        sources: Vec<(String, String, usize)>,
+        /// I tempi che il file offre da usare (etichetta, esempio, quante righe, se e' una regola scritta dall'utente e quindi si puo'
+        /// togliere) e quale e' quello scelto adesso (`None`: un formato scritto a mano che non e' nell'elenco).
+        sources: Vec<(String, String, usize, bool)>,
         source: Option<usize>,
         /// L'esempio scritto per ricavare la regola, il motivo per cui non se ne e' ricavata (vuoto: nessun problema) e le regole
         /// ricavate (etichetta, dettaglio, scelta adesso).

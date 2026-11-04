@@ -63,6 +63,9 @@ pub struct StatoDialogo {
     pub sezione: u8,
     /// Nella finestra "Filtri": il buffer del testo del filtro per righe (il padrone e' l'`App`).
     ftesto: String,
+    /// Nella finestra "Filtri": l'altezza piu' grande che il corpo ha avuto da quando e' aperta; ogni sezione si allunga fino a lei,
+    /// cosi' la finestra non si accorcia e non si allunga passando da una sezione all'altra.
+    altezza_corpo: f32,
 }
 
 impl StatoDialogo {
@@ -126,6 +129,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         stato.personalizzato = None;
         stato.calendario = None;
         stato.sezione = 0;
+        stato.altezza_corpo = 0.0;
     }
     // dei ricordi del giro scorso restano solo testo e fuoco del campo e la voce del menu: il resto si ridisegna
     stato.pulsanti.clear();
@@ -569,10 +573,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             let t_trova = ws.active().text("time.example.button").to_string();
             let t_titolo_fonti = ws.active().text("time.source.title").to_string();
             let t_altro = ws.active().text("time.source.other").to_string();
+            let t_togli = ws.active().text("time.source.remove").to_string();
             let t_aiuto_regola = ws.active().text("time.source.rule_help").to_string();
             let righe_fonti: Vec<String> = sources
                 .iter()
-                .map(|(_, _, n)| {
+                .map(|(_, _, n, _)| {
                     ws.active()
                         .text_with("time.source.lines", &[&n.to_string()])
                 })
@@ -632,6 +637,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         }
                     });
                     ui.separator();
+                    let corpo_inizio = ui.cursor().min.y;
                     if sezione == 1 {
                         ui.label(RichText::new(&t_aiuto_livelli).weak());
                         for (i, nome) in t_livelli.iter().enumerate() {
@@ -689,26 +695,74 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         if sources.is_empty() {
                             ui.colored_label(avviso, t_nessuno.as_str());
                         }
+                        // una tendina sola: i tempi che il file offre (le "mie regole" con la X per toglierle) e in fondo "Altro"
                         let mut scelta_fonte: Option<usize> = None;
-                        for (i, (etichetta, esempio, _)) in sources.iter().enumerate() {
-                            let r = ui.horizontal(|ui| {
-                                let r = ui.radio(!pers && *source == Some(i), etichetta.as_str());
-                                ui.label(RichText::new(esempio).monospace().strong());
-                                ui.label(RichText::new(&righe_fonti[i]).weak().small());
-                                r
-                            });
-                            stato.opzioni.push((r.inner.rect, format!("fonte {i}")));
-                            if r.inner.clicked() {
-                                scelta_fonte = Some(i);
+                        let mut togli_regola: Option<usize> = None;
+                        let mut scelto_altro = false;
+                        let in_uso_testo = match (pers, *source) {
+                            (false, Some(i)) if i < sources.len() => {
+                                format!("{}    {}", sources[i].0, sources[i].1)
                             }
-                        }
-                        let r_altro = ui.radio(pers, t_altro.as_str());
-                        stato.opzioni.push((r_altro.rect, "altro".to_string()));
-                        if let Some(i) = scelta_fonte {
+                            _ => t_altro.clone(),
+                        };
+                        let tendina = egui::ComboBox::from_id_salt("fonte_tempo")
+                            .width(ui.available_width() - 8.0)
+                            .selected_text(RichText::new(in_uso_testo))
+                            .show_ui(ui, |ui| {
+                                for (i, (etichetta, esempio, _, e_regola)) in
+                                    sources.iter().enumerate()
+                                {
+                                    ui.horizontal(|ui| {
+                                        let testo = format!(
+                                            "{etichetta}    {esempio}    {}",
+                                            righe_fonti[i]
+                                        );
+                                        let r =
+                                            ui.selectable_label(!pers && *source == Some(i), testo);
+                                        stato.opzioni.push((r.rect, format!("fonte {i}")));
+                                        if r.clicked() {
+                                            scelta_fonte = Some(i);
+                                        }
+                                        if *e_regola {
+                                            let x = ui
+                                                .add(
+                                                    egui::Button::new("")
+                                                        .frame(false)
+                                                        .min_size(egui::Vec2::new(20.0, 18.0)),
+                                                )
+                                                .on_hover_text(t_togli.as_str());
+                                            let colore = ui.style().interact(&x).fg_stroke.color;
+                                            crate::strumenti::croce(
+                                                ui.painter(),
+                                                x.rect.center(),
+                                                colore,
+                                                3.5,
+                                            );
+                                            stato.opzioni.push((x.rect, format!("togli {i}")));
+                                            if x.clicked() {
+                                                togli_regola = Some(i);
+                                            }
+                                        }
+                                    });
+                                }
+                                ui.separator();
+                                let r = ui.selectable_label(pers, t_altro.as_str());
+                                stato.opzioni.push((r.rect, "altro".to_string()));
+                                if r.clicked() {
+                                    scelto_altro = true;
+                                }
+                            });
+                        stato
+                            .opzioni
+                            .push((tendina.response.rect, "fonti".to_string()));
+                        if let Some(i) = togli_regola {
+                            ws.active_mut().dialog_time_remove_rule(i);
+                            stato.campo_fuoco = false;
+                        } else if let Some(i) = scelta_fonte {
                             pers = false;
                             ws.active_mut().dialog_time_pick_source(i);
                             stato.campo_fuoco = false;
-                        } else if r_altro.clicked() {
+                        } else if scelto_altro {
                             pers = true;
                             stato.campo_fuoco = false;
                         }
@@ -963,16 +1017,12 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                                 )
                                                 .on_hover_text(t_svuota.as_str());
                                             let colore = ui.style().interact(&x).fg_stroke.color;
-                                            let cx = x.rect.center();
-                                            for (a, b) in [(-1.0_f32, -1.0_f32), (-1.0, 1.0)] {
-                                                ui.painter().line_segment(
-                                                    [
-                                                        cx + egui::Vec2::new(a * 4.5, b * 4.5),
-                                                        cx + egui::Vec2::new(-a * 4.5, -b * 4.5),
-                                                    ],
-                                                    egui::Stroke::new(1.5_f32, colore),
-                                                );
-                                            }
+                                            crate::strumenti::croce(
+                                                ui.painter(),
+                                                x.rect.center(),
+                                                colore,
+                                                4.5,
+                                            );
                                             stato.opzioni.push((x.rect, format!("svuota {i}")));
                                             if x.clicked() {
                                                 ws.active_mut().dialog_time_clear_field(i);
@@ -1252,6 +1302,12 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                             }
                         }
                     }
+                    // il corpo ha sempre la stessa altezza: la piu' grande vista (la finestra non balla fra Tempo, Livelli e Testo)
+                    let usato = ui.cursor().min.y - corpo_inizio;
+                    if usato < stato.altezza_corpo {
+                        ui.add_space(stato.altezza_corpo - usato);
+                    }
+                    stato.altezza_corpo = stato.altezza_corpo.max(usato);
                     if !error.is_empty() {
                         ui.colored_label(avviso, error.as_str());
                     }

@@ -237,3 +237,52 @@ fn a_rule_that_reads_only_a_few_lines_still_opens_the_calendar_on_its_first_date
     }
     let _ = std::fs::remove_file(p);
 }
+
+/// "Mie regole": una si toglie dall'elenco e anche dal file delle impostazioni; un tempo che non e' una regola non si toglie.
+#[test]
+fn taking_a_rule_off_the_list_removes_it_from_the_settings_file_too() {
+    let (_, p) = app();
+    let imp = std::env::temp_dir().join(format!("mrp_trm_{}_settings.txt", std::process::id()));
+    let _ = std::fs::remove_file(&imp);
+    let mia = ("yyyy-MM-dd HH:mm".to_string(), 0, 0);
+    let altra = ("'@ 'yyyy-MM-dd HH:mm".to_string(), 200, 0);
+    let cfg = AppConfig {
+        chrome: false,
+        time_rules: vec![mia.clone(), altra.clone()],
+        settings_path: Some(imp.clone()),
+        ..AppConfig::default()
+    };
+    let mut a = App::open(&p, cfg).unwrap();
+    assert!(a.wait_idle(Duration::from_secs(20)));
+    a.open_time_dialog();
+    let voce = |a: &App, r: &(String, usize, usize)| {
+        a.time_sources()
+            .iter()
+            .position(|s| s.pattern == r.0 && s.within == r.1 && s.skip == r.2)
+    };
+    // un tempo trovato da solo non e' una regola: toglierlo non fa niente (neppure se l'utente ha scritto la stessa regola: e' la
+    // data dopo "@ ", che il file offre comunque)
+    let n = a.time_sources().len();
+    a.dialog_time_remove_rule(0);
+    let uguale = voce(&a, &altra).expect("la data dopo \"@ \" e' nell'elenco");
+    a.dialog_time_remove_rule(uguale);
+    assert_eq!(a.time_sources().len(), n);
+    assert_eq!(a.time_rules().len(), 2);
+    // la regola dell'utente esce dall'elenco e dalle regole
+    let i = voce(&a, &mia).expect("la mia regola e' nell'elenco");
+    a.dialog_time_remove_rule(i);
+    assert_eq!(voce(&a, &mia), None);
+    assert_eq!(a.time_rules(), vec![altra.clone()]);
+    // e dal file delle impostazioni
+    let scritto = std::fs::read_to_string(&imp).unwrap();
+    assert!(
+        !scritto.contains("time_rule=yyyy-MM-dd HH:mm|0|0"),
+        "{scritto}"
+    );
+    assert!(
+        scritto.contains("time_rule='@ 'yyyy-MM-dd HH:mm|200|0"),
+        "{scritto}"
+    );
+    let _ = std::fs::remove_file(imp);
+    let _ = std::fs::remove_file(p);
+}

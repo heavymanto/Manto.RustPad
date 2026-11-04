@@ -85,6 +85,14 @@ fn opzione(f: &Finestra, etichetta: &str) -> Pos2 {
         .center()
 }
 
+/// Apre la tendina dei tempi del dialogo e ne sceglie la voce con quell'etichetta (`fonte N` o `altro`).
+fn dalla_tendina(f: &mut Finestra, ctx: &Context, voce: &str) {
+    let tendina = opzione(f, "fonti");
+    clic(f, ctx, tendina);
+    let v = opzione(f, voce);
+    clic(f, ctx, v);
+}
+
 fn pulsante(f: &Finestra, testo: &str) -> Pos2 {
     f.dialogo_pulsanti()
         .iter()
@@ -104,8 +112,7 @@ fn scegli_la_regola(f: &mut Finestra, ctx: &Context) {
         .iter()
         .position(|s| s.pattern == REGOLA)
         .expect("la regola e' fra i tempi offerti");
-    let c = opzione(f, &format!("fonte {i}"));
-    clic(f, ctx, c);
+    dalla_tendina(f, ctx, &format!("fonte {i}"));
     assert_eq!(f.app().time_field_text(0), REGOLA);
     let ok = pulsante(f, "OK");
     clic(f, ctx, ok);
@@ -196,5 +203,67 @@ fn the_rule_survives_with_the_timeline_on() {
     );
     let cal = f.app().time_calendar(2).expect("il calendario");
     assert_eq!(cal.first.map(|d| d.0), Some(2019), "{cal:?}");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn a_rule_of_mine_can_be_taken_off_the_list_with_its_cross() {
+    let (mut f, ctx, p) = finestra();
+    // una regola dell'utente che legge righe del file ma non coincide con un tempo trovato da solo (quella di `cfg`, invece, e' la
+    // stessa della data dopo "@ " e vale come quella)
+    let mia = "yyyy-MM-dd HH:mm";
+    f.app().set_time_rules(vec![(mia.to_string(), 0, 0)]);
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    let i = f
+        .app()
+        .time_sources()
+        .iter()
+        .position(|s| s.pattern == mia)
+        .expect("la regola e' fra i tempi offerti");
+    // chiusa la tendina non ci sono ne' voci ne' croci
+    assert!(!f
+        .dialogo_opzioni()
+        .iter()
+        .any(|(_, t)| t.starts_with("togli")));
+    let tendina = opzione(&f, "fonti");
+    clic(&mut f, &ctx, tendina);
+    // la croce c'e' solo sulle regole dell'utente
+    let croci = f
+        .dialogo_opzioni()
+        .iter()
+        .filter(|(_, t)| t.starts_with("togli"))
+        .count();
+    assert_eq!(croci, 1);
+    let x = opzione(&f, &format!("togli {i}"));
+    clic(&mut f, &ctx, x);
+    assert!(
+        f.app().time_rules().is_empty(),
+        "{:?}",
+        f.app().time_rules()
+    );
+    assert!(f.app().time_sources().iter().all(|s| s.pattern != mia));
+    // resta aperta la finestra Filtri, con gli altri tempi
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_filters_window_keeps_its_height_going_from_a_tab_to_another() {
+    let (mut f, ctx, p) = finestra();
+    f.azione(Cmd::TimeRange);
+    disegna(&mut f, &ctx);
+    let altezza = |f: &Finestra| f.dialogo_rect().expect("la finestra").height();
+    let tempo = altezza(&f);
+    for (sezione, nome) in [(1, "Livelli"), (2, "Testo"), (0, "Tempo")] {
+        let c = opzione(&f, &format!("sezione {sezione}"));
+        clic(&mut f, &ctx, c);
+        disegna(&mut f, &ctx);
+        let h = altezza(&f);
+        assert!(
+            (h - tempo).abs() < 1.0,
+            "{nome}: alta {h}, il Tempo era alto {tempo}"
+        );
+    }
     let _ = std::fs::remove_file(p);
 }

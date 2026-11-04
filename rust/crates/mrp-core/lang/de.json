@@ -285,6 +285,7 @@
   "time.source.number": "Datum Nr. {} in der Zeile",
   "time.source.rule": "Meine Regel: {}",
   "time.source.other": "Andere… (Regel schreiben)",
+  "time.source.remove": "Diese Regel aus der Liste entfernen",
   "time.source.lines": "{} Zeilen",
   "time.source.rule_help": "Um ein Datum zu lesen, das nicht am Zeilenanfang steht, schreibe den Text davor in Anführungszeichen, etwa '@ 'yyyy-MM-dd HH:mm. Die Regel wird gemerkt und erscheint in der Liste bei den Dateien, in denen sie etwas liest.",
   "time.example.title": "Mit einem Beispiel beibringen",

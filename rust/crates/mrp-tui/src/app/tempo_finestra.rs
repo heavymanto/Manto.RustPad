@@ -129,7 +129,12 @@ impl App {
                         }
                         crate::app::SourceKind::Rule => cat.tf("time.source.rule", &[&s.pattern]),
                     };
-                    (etichetta, s.example.clone(), s.lines)
+                    (
+                        etichetta,
+                        s.example.clone(),
+                        s.lines,
+                        s.kind == crate::app::SourceKind::Rule,
+                    )
                 })
                 .collect(),
             source: self.time_source_selected(),
