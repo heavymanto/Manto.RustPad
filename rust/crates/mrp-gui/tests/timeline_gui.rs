@@ -444,3 +444,49 @@ fn choosing_two_levels_in_a_row_opens_one_view_and_the_funnel_does_not_wait() {
     );
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_filtered_view_keeps_the_timeline_on_with_the_chosen_levels() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
+    pronta(&mut f, &ctx);
+    // un livello scelto: apre la vista filtrata da sola
+    let i = f
+        .timeline_disegnata()
+        .chip
+        .iter()
+        .find(|(_, t)| t == "INFO")
+        .unwrap()
+        .0
+        .center();
+    clic(&mut f, &ctx, i);
+    std::thread::sleep(mrp_gui::timeline::ATTESA_LIVELLI + Duration::from_millis(100));
+    let fine = Instant::now() + Duration::from_secs(20);
+    while f.workspace().len() == 1 && Instant::now() < fine {
+        disegna(&mut f, &ctx);
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    assert_eq!(f.workspace().len(), 2);
+    // la scheda filtrata e' quella attiva e la barra c'e' ancora (non si chiude), con il livello gia' scelto
+    pronta(&mut f, &ctx);
+    assert!(f.app().timeline_on(), "la timeline resta accesa");
+    assert!(f.timeline_disegnata().rect.is_some());
+    assert_eq!(
+        f.app().timeline_filter_levels(),
+        [false, false, true, false]
+    );
+    // ha le sue tacche (con l'orario ereditato) e non e' vuota
+    assert!(
+        f.timeline_disegnata().righe > 0,
+        "{:?}",
+        f.timeline_disegnata()
+    );
+    // la scheda di partenza ha ancora la sua timeline
+    f.workspace().select(0);
+    disegna(&mut f, &ctx);
+    assert!(f.app().timeline_on());
+    let _ = std::fs::remove_file(p);
+}

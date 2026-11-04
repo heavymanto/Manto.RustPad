@@ -116,13 +116,15 @@ fn pulsante(f: &Finestra, testo: &str) -> Pos2 {
 }
 
 #[test]
-fn the_log_menu_has_the_time_filter_and_one_entry_for_the_format_and_filter_window() {
+fn the_log_menu_has_one_entry_for_the_time_window_and_the_filter_switch_is_the_funnel_button() {
     let log: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
-    for c in [Cmd::TimeFilter, Cmd::TimeRange] {
+    for c in [Cmd::TimeRange, Cmd::Timeline] {
         assert!(log.contains(&c), "{c:?} nel menu Log");
     }
-    // il formato e il filtro sono la stessa finestra: una voce sola (il formato resta su Alt+O e sul clic di FORMAT)
+    // il formato e il filtro sono la stessa finestra: una voce sola (il formato resta su Alt+O e sul clic di FORMAT); l'interruttore
+    // del filtro per data e' il pulsante a imbuto della barra (nel menu era una seconda voce che portava alla stessa finestra)
     assert!(!log.contains(&Cmd::TimeMask));
+    assert!(!log.contains(&Cmd::TimeFilter));
     // il filtro per data e' un interruttore: sempre disponibile, acceso quando c'e' una finestra di tempo
     let (mut f, ctx, p, _) = finestra();
     assert!(commands::enabled(f.workspace(), Cmd::TimeFilter));

@@ -213,6 +213,18 @@ impl App {
         }
     }
 
+    /// Una scheda che continua un'altra (la vista filtrata): prende il formato dell'orario, la timeline (se e' accesa, col passo e la
+    /// disposizione) e i livelli scelti; le tacche e i conteggi si ricalcolano sulle sue righe.
+    pub fn inherit_time_view(&mut self, da: &App) {
+        self.time_mask = da.time_mask.clone();
+        self.time_mask_tried = da.time_mask_tried;
+        self.timeline.on = da.timeline.on;
+        self.timeline.step = da.timeline.step;
+        self.timeline.auto = da.timeline.auto;
+        self.timeline.mode = da.timeline.mode;
+        self.timeline.filter_levels = da.timeline.filter_levels;
+    }
+
     /// Ferma la passata dei livelli (il thread si accorge dell'annullamento e muore da solo).
     fn levels_stop(&mut self) {
         if let Some(job) = self.timeline.levels_job.take() {

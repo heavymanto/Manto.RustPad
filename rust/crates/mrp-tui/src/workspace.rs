@@ -633,7 +633,7 @@ impl Workspace {
     }
 
     /// Apre in una scheda nuova (e la porta avanti) la vista filtrata: il file di appoggio con le righe che corrispondono.
-    fn open_filter_tab(&mut self, fatto: crate::app::FilterDone) {
+    fn open_filter_tab(&mut self, fatto: crate::app::FilterDone, origine: usize) {
         let attiva = &self.tabs[self.active];
         let cfg = AppConfig {
             theme: attiva.theme_id(),
@@ -646,6 +646,11 @@ impl Workspace {
         match App::open(&percorso, cfg) {
             Ok(mut app) => {
                 app.set_filter_view(fatto);
+                // la vista filtrata continua la scheda da cui viene: il formato dell'orario, la timeline (accesa, col suo passo) e i
+                // livelli scelti (le sue righe sono quelle del file, quindi valgono ancora)
+                if let Some(da) = self.tabs.get(origine) {
+                    app.inherit_time_view(da);
+                }
                 self.tabs.push(app);
                 self.select(self.tabs.len() - 1);
             }
@@ -799,7 +804,7 @@ impl Workspace {
         // un filtro finito (in qualunque scheda) apre la sua vista; Invio su una riga della vista va al file originale
         for i in 0..self.tabs.len() {
             if let Some(fatto) = self.tabs[i].take_filter_done() {
-                self.open_filter_tab(fatto);
+                self.open_filter_tab(fatto, i);
                 break;
             }
         }

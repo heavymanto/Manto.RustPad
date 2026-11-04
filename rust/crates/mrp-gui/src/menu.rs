@@ -94,7 +94,6 @@ const LOG: &[Option<Cmd>] = &[
     Some(Cmd::Follow),
     Some(Cmd::LogColors),
     None,
-    Some(Cmd::TimeFilter),
     Some(Cmd::TimeRange),
     None,
     Some(Cmd::Timeline),
