@@ -509,6 +509,14 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     a.text("filters.summary").to_string(),
                 )
             };
+            // i titoli: grassetto su una banda appena piu' chiara (o scura) del fondo, calcolata dal tema: sta bene su ogni tema e font
+            let (fondo_titolo, testo_titolo) = {
+                let tav = crate::stile::corrente(ctx);
+                (
+                    crate::stile::miscela(tav.popup_bg, tav.popup_fg, 0.12),
+                    tav.popup_fg,
+                )
+            };
             let colori_livelli = {
                 let tav = crate::stile::corrente(ctx);
                 [tav.log_errore, tav.log_avviso, tav.log_info, tav.log_debug]
@@ -619,364 +627,400 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         } else {
                             t_sez[i].clone()
                         };
-                        ui.label(RichText::new(testo).strong()).rect
+                        crate::strumenti::titolo_banda(ui, &testo, fondo_titolo, testo_titolo)
                     };
                     // se lo schermo e' basso (e "Altro" e' aperto) i riquadri scorrono, il titolo e i pulsanti restano
-                    let altezza_max = (ctx.screen_rect().height() - 220.0).max(240.0);
+                    let altezza_max = (ctx.screen_rect().height() - 160.0).max(240.0);
                     egui::ScrollArea::vertical()
                         .max_height(altezza_max)
                         .auto_shrink([false, true])
                         .show(ui, |ui| {
-                            egui::Frame::group(ui.style()).show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                let t = titolo_riquadro(ui, 0);
-                                stato.opzioni.push((t, "sezione 0".to_string()));
-                                {
-                                    // 1. quale tempo usare: l'elenco di quelli che il file offre, e "Altro" con la regola scritta a mano
-                                    ui.label(RichText::new(&t_titolo_fonti).strong());
-                                    if sources.is_empty() {
-                                        ui.colored_label(avviso, t_nessuno.as_str());
-                                    }
-                                    // una tendina sola: i tempi che il file offre (le "mie regole" con la X per toglierle) e in fondo "Altro"
-                                    let mut scelta_fonte: Option<usize> = None;
-                                    let mut togli_regola: Option<usize> = None;
-                                    let mut scelto_altro = false;
-                                    let in_uso_testo = match (pers, *source) {
-                                        (false, Some(i)) if i < sources.len() => {
-                                            format!("{}    {}", sources[i].0, sources[i].1)
+                            ui.spacing_mut().item_spacing.y = 6.0;
+                            egui::Frame::group(ui.style())
+                                .inner_margin(egui::Margin::symmetric(12, 8))
+                                .outer_margin(egui::Margin::symmetric(0, 4))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    let t = titolo_riquadro(ui, 0);
+                                    stato.opzioni.push((t, "sezione 0".to_string()));
+                                    ui.add_space(6.0);
+                                    {
+                                        // 1. quale tempo usare: l'elenco di quelli che il file offre, e "Altro" con la regola scritta a mano
+                                        crate::strumenti::grassetto(
+                                            ui,
+                                            &t_titolo_fonti,
+                                            testo_titolo,
+                                        );
+                                        if sources.is_empty() {
+                                            ui.colored_label(avviso, t_nessuno.as_str());
                                         }
-                                        _ => t_altro.clone(),
-                                    };
-                                    let tendina = egui::ComboBox::from_id_salt("fonte_tempo")
-                                        .width(ui.available_width() - 8.0)
-                                        .selected_text(RichText::new(in_uso_testo))
-                                        .show_ui(ui, |ui| {
-                                            for (i, (etichetta, esempio, _, e_regola)) in
-                                                sources.iter().enumerate()
-                                            {
-                                                ui.horizontal(|ui| {
-                                                    let testo = format!(
-                                                        "{etichetta}    {esempio}    {}",
-                                                        righe_fonti[i]
-                                                    );
-                                                    let r = ui.selectable_label(
-                                                        !pers && *source == Some(i),
-                                                        testo,
-                                                    );
-                                                    stato
-                                                        .opzioni
-                                                        .push((r.rect, format!("fonte {i}")));
-                                                    if r.clicked() {
-                                                        scelta_fonte = Some(i);
-                                                    }
-                                                    if *e_regola {
-                                                        let x = ui
-                                                            .add(
-                                                                egui::Button::new("")
-                                                                    .frame(false)
-                                                                    .min_size(egui::Vec2::new(
-                                                                        20.0, 18.0,
-                                                                    )),
-                                                            )
-                                                            .on_hover_text(t_togli.as_str());
-                                                        let colore =
-                                                            ui.style().interact(&x).fg_stroke.color;
-                                                        crate::strumenti::croce(
-                                                            ui.painter(),
-                                                            x.rect.center(),
-                                                            colore,
-                                                            3.5,
+                                        // una tendina sola: i tempi che il file offre (le "mie regole" con la X per toglierle) e in fondo "Altro"
+                                        let mut scelta_fonte: Option<usize> = None;
+                                        let mut togli_regola: Option<usize> = None;
+                                        let mut scelto_altro = false;
+                                        let in_uso_testo = match (pers, *source) {
+                                            (false, Some(i)) if i < sources.len() => {
+                                                format!("{}    {}", sources[i].0, sources[i].1)
+                                            }
+                                            _ => t_altro.clone(),
+                                        };
+                                        let tendina = egui::ComboBox::from_id_salt("fonte_tempo")
+                                            .width(ui.available_width() - 8.0)
+                                            .selected_text(RichText::new(in_uso_testo))
+                                            .show_ui(ui, |ui| {
+                                                for (i, (etichetta, esempio, _, e_regola)) in
+                                                    sources.iter().enumerate()
+                                                {
+                                                    ui.horizontal(|ui| {
+                                                        let testo = format!(
+                                                            "{etichetta}    {esempio}    {}",
+                                                            righe_fonti[i]
+                                                        );
+                                                        let r = ui.selectable_label(
+                                                            !pers && *source == Some(i),
+                                                            testo,
                                                         );
                                                         stato
                                                             .opzioni
-                                                            .push((x.rect, format!("togli {i}")));
-                                                        if x.clicked() {
-                                                            togli_regola = Some(i);
+                                                            .push((r.rect, format!("fonte {i}")));
+                                                        if r.clicked() {
+                                                            scelta_fonte = Some(i);
                                                         }
-                                                    }
-                                                });
-                                            }
-                                            ui.separator();
-                                            let r = ui.selectable_label(pers, t_altro.as_str());
-                                            stato.opzioni.push((r.rect, "altro".to_string()));
-                                            if r.clicked() {
-                                                scelto_altro = true;
-                                            }
-                                        });
-                                    stato
-                                        .opzioni
-                                        .push((tendina.response.rect, "fonti".to_string()));
-                                    if let Some(i) = togli_regola {
-                                        ws.active_mut().dialog_time_remove_rule(i);
-                                        stato.campo_fuoco = false;
-                                    } else if let Some(i) = scelta_fonte {
-                                        pers = false;
-                                        ws.active_mut().dialog_time_pick_source(i);
-                                        stato.campo_fuoco = false;
-                                    } else if scelto_altro {
-                                        pers = true;
-                                        stato.campo_fuoco = false;
-                                    }
-                                    stato.personalizzato = Some(pers);
-                                    // "Altro": un formato fra quelli noti, oppure la regola scritta a mano
-                                    if pers || (!error.is_empty() && !*has_mask) {
-                                        ui.indent("altro_regola", |ui| {
-                                            ui.label(RichText::new(&t_scegli).weak());
-                                            let in_uso = (*skip == 0)
-                                                .then(|| {
-                                                    presets.iter().position(|(p, _)| p == pattern)
-                                                })
-                                                .flatten();
-                                            let scelto = in_uso.map_or_else(
-                                                || t_personale.clone(),
-                                                |i| etichette[i].clone(),
-                                            );
-                                            let mut nuovo: Option<usize> = None;
-                                            let combo =
-                                                egui::ComboBox::from_id_salt("formato_orario")
-                                                    .width(ui.available_width() - 8.0)
-                                                    .selected_text(
-                                                        RichText::new(scelto).monospace(),
-                                                    )
-                                                    .show_ui(ui, |ui| {
-                                                        for &i in &ordine {
-                                                            let mut testo =
-                                                                RichText::new(&etichette[i])
-                                                                    .monospace();
-                                                            if !legge[i] {
-                                                                testo = testo.weak();
-                                                            }
-                                                            let r = ui.selectable_label(
-                                                                in_uso == Some(i),
-                                                                testo,
+                                                        if *e_regola {
+                                                            let x = ui
+                                                                .add(
+                                                                    egui::Button::new("")
+                                                                        .frame(false)
+                                                                        .min_size(egui::Vec2::new(
+                                                                            20.0, 18.0,
+                                                                        )),
+                                                                )
+                                                                .on_hover_text(t_togli.as_str());
+                                                            let colore = ui
+                                                                .style()
+                                                                .interact(&x)
+                                                                .fg_stroke
+                                                                .color;
+                                                            crate::strumenti::croce(
+                                                                ui.painter(),
+                                                                x.rect.center(),
+                                                                colore,
+                                                                3.5,
                                                             );
-                                                            stato.voci.push(r.rect);
-                                                            if r.clicked() {
-                                                                nuovo = Some(i);
+                                                            stato.opzioni.push((
+                                                                x.rect,
+                                                                format!("togli {i}"),
+                                                            ));
+                                                            if x.clicked() {
+                                                                togli_regola = Some(i);
                                                             }
                                                         }
                                                     });
-                                            stato
-                                                .opzioni
-                                                .push((combo.response.rect, "formato".to_string()));
-                                            if let Some(i) = nuovo {
-                                                ws.active_mut().dialog_time_preset(i);
-                                                stato.campo_fuoco = false;
-                                            }
-                                            ui.add_space(4.0);
-                                            egui::Grid::new("formato").num_columns(2).show(
-                                                ui,
-                                                |ui| {
-                                                    for i in 0..2u8 {
-                                                        let (etichetta, testo) = if i == 0 {
-                                                            (
-                                                                pattern_label.as_str(),
-                                                                &mut stato.testo,
-                                                            )
-                                                        } else {
-                                                            (
-                                                                within_label.as_str(),
-                                                                &mut stato.testo_due,
-                                                            )
-                                                        };
-                                                        ui.label(etichetta);
-                                                        let r = ui.add(
-                                                            TextEdit::singleline(testo)
-                                                                .desired_width(f32::INFINITY),
-                                                        );
-                                                        stato.campi.push(r.rect);
-                                                        if stato.campo.is_none() {
-                                                            stato.campo = Some(r.rect);
-                                                        }
-                                                        if r.has_focus() && *field != i {
-                                                            ws.active_mut().dialog_focus(i);
-                                                        }
-                                                        if !stato.campo_fuoco && *field == i {
-                                                            r.request_focus();
-                                                            stato.campo_fuoco = true;
-                                                        }
-                                                        if r.changed() {
-                                                            ws.active_mut()
-                                                                .dialog_set_field(i, testo);
-                                                        }
-                                                        if r.lost_focus()
-                                                            && ui.input(|i| {
-                                                                i.key_pressed(egui::Key::Enter)
-                                                            })
-                                                        {
-                                                            ws.active_mut().dialog_submit();
-                                                        }
-                                                        ui.end_row();
-                                                    }
-                                                    // quale data della riga: la prima, la seconda...
-                                                    ui.label(&t_occorrenza);
-                                                    let c =
-                                                        egui::ComboBox::from_id_salt("occorrenza")
-                                                            .width(60.0)
-                                                            .selected_text((*skip + 1).to_string())
-                                                            .show_ui(ui, |ui| {
-                                                                for n in 0..5usize {
-                                                                    if ui
-                                                                        .selectable_label(
-                                                                            n == *skip,
-                                                                            (n + 1).to_string(),
-                                                                        )
-                                                                        .clicked()
-                                                                    {
-                                                                        ws.active_mut()
-                                                                            .dialog_time_set_skip(
-                                                                                n,
-                                                                            );
-                                                                        stato.campo_fuoco = false;
-                                                                    }
-                                                                }
-                                                            });
-                                                    stato.opzioni.push((
-                                                        c.response.rect,
-                                                        "occorrenza".to_string(),
-                                                    ));
-                                                    ui.end_row();
-                                                },
-                                            );
-                                            ui.label(RichText::new(&t_entro).weak());
-                                            ui.label(RichText::new(&t_aiuto_regola).weak().small());
-                                            // insegnare con un esempio: si incolla un pezzo di riga e il programma ricava la regola
-                                            ui.add_space(6.0);
-                                            ui.label(RichText::new(&t_esempio_titolo).strong());
-                                            ui.label(
-                                                RichText::new(&t_esempio_aiuto).weak().small(),
-                                            );
-                                            ui.horizontal(|ui| {
-                                                let r = ui.add(
-                                                    TextEdit::singleline(&mut stato.esempio)
-                                                        .hint_text(
-                                                            RichText::new(
-                                                                "funding @ 2022-01-01 08:00",
-                                                            )
-                                                            .weak(),
-                                                        )
-                                                        .desired_width(
-                                                            (ui.available_width() - 130.0)
-                                                                .max(120.0),
-                                                        ),
-                                                );
-                                                stato.opzioni.push((r.rect, "esempio".to_string()));
-                                                if r.changed() {
-                                                    let testo = stato.esempio.clone();
-                                                    ws.active_mut().dialog_time_set_example(&testo);
                                                 }
-                                                let b = ui.button(&t_trova);
-                                                stato.opzioni.push((b.rect, "trova".to_string()));
-                                                if b.clicked()
-                                                    || (r.lost_focus()
-                                                        && ui.input(|i| {
-                                                            i.key_pressed(egui::Key::Enter)
-                                                        }))
-                                                {
-                                                    ws.active_mut().dialog_time_find_rule();
+                                                ui.separator();
+                                                let r = ui.selectable_label(pers, t_altro.as_str());
+                                                stato.opzioni.push((r.rect, "altro".to_string()));
+                                                if r.clicked() {
+                                                    scelto_altro = true;
                                                 }
                                             });
-                                            if let Some(problema) = example_problem {
-                                                ui.colored_label(avviso, problema.as_str());
-                                            }
-                                            for (i, (etichetta, dettaglio, scelta)) in
-                                                example_candidates.iter().enumerate()
-                                            {
-                                                let r = ui.horizontal(|ui| {
-                                                    let r = ui.radio(*scelta, etichetta.as_str());
-                                                    ui.label(
-                                                        RichText::new(dettaglio).weak().small(),
-                                                    );
-                                                    r
-                                                });
-                                                stato
-                                                    .opzioni
-                                                    .push((r.inner.rect, format!("regola {i}")));
-                                                if r.inner.clicked() {
-                                                    ws.active_mut().dialog_time_use_example(i);
+                                        stato
+                                            .opzioni
+                                            .push((tendina.response.rect, "fonti".to_string()));
+                                        if let Some(i) = togli_regola {
+                                            ws.active_mut().dialog_time_remove_rule(i);
+                                            stato.campo_fuoco = false;
+                                        } else if let Some(i) = scelta_fonte {
+                                            pers = false;
+                                            ws.active_mut().dialog_time_pick_source(i);
+                                            stato.campo_fuoco = false;
+                                        } else if scelto_altro {
+                                            pers = true;
+                                            stato.campo_fuoco = false;
+                                        }
+                                        stato.personalizzato = Some(pers);
+                                        // "Altro": un formato fra quelli noti, oppure la regola scritta a mano
+                                        if pers || (!error.is_empty() && !*has_mask) {
+                                            ui.indent("altro_regola", |ui| {
+                                                ui.label(RichText::new(&t_scegli).weak());
+                                                let in_uso = (*skip == 0)
+                                                    .then(|| {
+                                                        presets
+                                                            .iter()
+                                                            .position(|(p, _)| p == pattern)
+                                                    })
+                                                    .flatten();
+                                                let scelto = in_uso.map_or_else(
+                                                    || t_personale.clone(),
+                                                    |i| etichette[i].clone(),
+                                                );
+                                                let mut nuovo: Option<usize> = None;
+                                                let combo =
+                                                    egui::ComboBox::from_id_salt("formato_orario")
+                                                        .width(ui.available_width() - 8.0)
+                                                        .selected_text(
+                                                            RichText::new(scelto).monospace(),
+                                                        )
+                                                        .show_ui(ui, |ui| {
+                                                            for &i in &ordine {
+                                                                let mut testo =
+                                                                    RichText::new(&etichette[i])
+                                                                        .monospace();
+                                                                if !legge[i] {
+                                                                    testo = testo.weak();
+                                                                }
+                                                                let r = ui.selectable_label(
+                                                                    in_uso == Some(i),
+                                                                    testo,
+                                                                );
+                                                                stato.voci.push(r.rect);
+                                                                if r.clicked() {
+                                                                    nuovo = Some(i);
+                                                                }
+                                                            }
+                                                        });
+                                                stato.opzioni.push((
+                                                    combo.response.rect,
+                                                    "formato".to_string(),
+                                                ));
+                                                if let Some(i) = nuovo {
+                                                    ws.active_mut().dialog_time_preset(i);
                                                     stato.campo_fuoco = false;
                                                 }
-                                            }
-                                        });
-                                    }
-                                    ui.add_space(4.0);
-                                    ui.label(RichText::new(&t_prime).weak());
-                                    egui::Grid::new("formato_anteprima").num_columns(3).show(
-                                        ui,
-                                        |ui| {
-                                            for (testo, letto) in preview {
-                                                ui.label(RichText::new(testo).monospace());
-                                                ui.label("=>");
-                                                ui.label(RichText::new(letto).strong());
-                                                ui.end_row();
-                                            }
-                                        },
-                                    );
-                                    ui.separator();
-                                    // 2. il filtro per data
-                                    ui.label(RichText::new(&t_filtro).strong());
-                                    if !*has_mask {
-                                        ui.colored_label(avviso, t_serve.as_str());
-                                    } else {
-                                        let mut acceso = *check;
-                                        let mut barra = *timeline;
-                                        ui.horizontal(|ui| {
-                                            let r = ui.checkbox(&mut acceso, t_attivo.as_str());
-                                            stato.opzioni.push((r.rect, "filtro".to_string()));
-                                            if r.changed() {
-                                                ws.active_mut().dialog_time_set_check(acceso);
-                                            }
-                                            ui.add_space(16.0);
-                                            let r = ui.checkbox(&mut barra, t_timeline.as_str());
-                                            stato.opzioni.push((r.rect, "timeline".to_string()));
-                                            if r.changed() {
-                                                ws.active_mut().dialog_time_set_timeline(barra);
-                                            }
-                                        });
-                                        egui::Grid::new("filtro_date").num_columns(2).show(
-                                            ui,
-                                            |ui| {
-                                                for i in 2..4u8 {
-                                                    let (etichetta, suggerimento) = if i == 2 {
-                                                        (t_dal.as_str(), from_hint.as_str())
-                                                    } else {
-                                                        (t_al.as_str(), to_hint.as_str())
-                                                    };
-                                                    ui.label(etichetta);
-                                                    ui.horizontal(|ui| {
-                                                        let k = usize::from(i) - 2;
-                                                        let r = ui.add(
-                                                            TextEdit::singleline(
-                                                                &mut stato.filtro[k],
-                                                            )
+                                                ui.add_space(4.0);
+                                                egui::Grid::new("formato").num_columns(2).show(
+                                                    ui,
+                                                    |ui| {
+                                                        for i in 0..2u8 {
+                                                            let (etichetta, testo) = if i == 0 {
+                                                                (
+                                                                    pattern_label.as_str(),
+                                                                    &mut stato.testo,
+                                                                )
+                                                            } else {
+                                                                (
+                                                                    within_label.as_str(),
+                                                                    &mut stato.testo_due,
+                                                                )
+                                                            };
+                                                            ui.label(etichetta);
+                                                            let r = ui.add(
+                                                                TextEdit::singleline(testo)
+                                                                    .desired_width(f32::INFINITY),
+                                                            );
+                                                            stato.campi.push(r.rect);
+                                                            if stato.campo.is_none() {
+                                                                stato.campo = Some(r.rect);
+                                                            }
+                                                            if r.has_focus() && *field != i {
+                                                                ws.active_mut().dialog_focus(i);
+                                                            }
+                                                            if !stato.campo_fuoco && *field == i {
+                                                                r.request_focus();
+                                                                stato.campo_fuoco = true;
+                                                            }
+                                                            if r.changed() {
+                                                                ws.active_mut()
+                                                                    .dialog_set_field(i, testo);
+                                                            }
+                                                            if r.lost_focus()
+                                                                && ui.input(|i| {
+                                                                    i.key_pressed(egui::Key::Enter)
+                                                                })
+                                                            {
+                                                                ws.active_mut().dialog_submit();
+                                                            }
+                                                            ui.end_row();
+                                                        }
+                                                        // quale data della riga: la prima, la seconda...
+                                                        ui.label(&t_occorrenza);
+                                                        let c = egui::ComboBox::from_id_salt(
+                                                            "occorrenza",
+                                                        )
+                                                        .width(60.0)
+                                                        .selected_text((*skip + 1).to_string())
+                                                        .show_ui(ui, |ui| {
+                                                            for n in 0..5usize {
+                                                                if ui
+                                                                    .selectable_label(
+                                                                        n == *skip,
+                                                                        (n + 1).to_string(),
+                                                                    )
+                                                                    .clicked()
+                                                                {
+                                                                    ws.active_mut()
+                                                                        .dialog_time_set_skip(n);
+                                                                    stato.campo_fuoco = false;
+                                                                }
+                                                            }
+                                                        });
+                                                        stato.opzioni.push((
+                                                            c.response.rect,
+                                                            "occorrenza".to_string(),
+                                                        ));
+                                                        ui.end_row();
+                                                    },
+                                                );
+                                                ui.label(RichText::new(&t_entro).weak());
+                                                ui.label(
+                                                    RichText::new(&t_aiuto_regola).weak().small(),
+                                                );
+                                                // insegnare con un esempio: si incolla un pezzo di riga e il programma ricava la regola
+                                                ui.add_space(6.0);
+                                                crate::strumenti::grassetto(
+                                                    ui,
+                                                    &t_esempio_titolo,
+                                                    testo_titolo,
+                                                );
+                                                ui.label(
+                                                    RichText::new(&t_esempio_aiuto).weak().small(),
+                                                );
+                                                ui.horizontal(|ui| {
+                                                    let r = ui.add(
+                                                        TextEdit::singleline(&mut stato.esempio)
                                                             .hint_text(
-                                                                RichText::new(suggerimento).weak(),
+                                                                RichText::new(
+                                                                    "funding @ 2022-01-01 08:00",
+                                                                )
+                                                                .weak(),
                                                             )
-                                                            .desired_width(300.0),
-                                                        );
-                                                        stato.campi.push(r.rect);
-                                                        if r.has_focus() && *field != i {
-                                                            ws.active_mut().dialog_focus(i);
-                                                        }
-                                                        if !stato.campo_fuoco && *field == i {
-                                                            r.request_focus();
-                                                            stato.campo_fuoco = true;
-                                                        }
-                                                        if r.changed() {
-                                                            let testo = stato.filtro[k].clone();
-                                                            ws.active_mut()
-                                                                .dialog_set_field(i, &testo);
-                                                        }
-                                                        if r.lost_focus()
+                                                            .desired_width(
+                                                                (ui.available_width() - 130.0)
+                                                                    .max(120.0),
+                                                            ),
+                                                    );
+                                                    stato
+                                                        .opzioni
+                                                        .push((r.rect, "esempio".to_string()));
+                                                    if r.changed() {
+                                                        let testo = stato.esempio.clone();
+                                                        ws.active_mut()
+                                                            .dialog_time_set_example(&testo);
+                                                    }
+                                                    let b = ui.button(&t_trova);
+                                                    stato
+                                                        .opzioni
+                                                        .push((b.rect, "trova".to_string()));
+                                                    if b.clicked()
+                                                        || (r.lost_focus()
                                                             && ui.input(|i| {
                                                                 i.key_pressed(egui::Key::Enter)
-                                                            })
-                                                        {
-                                                            ws.active_mut().dialog_submit();
-                                                        }
-                                                        // il calendario (solo con una maschera che ha la data)
-                                                        if *has_date {
-                                                            let c = ui
+                                                            }))
+                                                    {
+                                                        ws.active_mut().dialog_time_find_rule();
+                                                    }
+                                                });
+                                                if let Some(problema) = example_problem {
+                                                    ui.colored_label(avviso, problema.as_str());
+                                                }
+                                                for (i, (etichetta, dettaglio, scelta)) in
+                                                    example_candidates.iter().enumerate()
+                                                {
+                                                    let r = ui.horizontal(|ui| {
+                                                        let r =
+                                                            ui.radio(*scelta, etichetta.as_str());
+                                                        ui.label(
+                                                            RichText::new(dettaglio).weak().small(),
+                                                        );
+                                                        r
+                                                    });
+                                                    stato.opzioni.push((
+                                                        r.inner.rect,
+                                                        format!("regola {i}"),
+                                                    ));
+                                                    if r.inner.clicked() {
+                                                        ws.active_mut().dialog_time_use_example(i);
+                                                        stato.campo_fuoco = false;
+                                                    }
+                                                }
+                                            });
+                                        }
+                                        ui.add_space(4.0);
+                                        ui.label(RichText::new(&t_prime).weak());
+                                        egui::Grid::new("formato_anteprima").num_columns(3).show(
+                                            ui,
+                                            |ui| {
+                                                for (testo, letto) in preview {
+                                                    ui.label(RichText::new(testo).monospace());
+                                                    ui.label("=>");
+                                                    crate::strumenti::grassetto(
+                                                        ui,
+                                                        letto,
+                                                        testo_titolo,
+                                                    );
+                                                    ui.end_row();
+                                                }
+                                            },
+                                        );
+                                        ui.separator();
+                                        // 2. il filtro per data
+                                        crate::strumenti::grassetto(ui, &t_filtro, testo_titolo);
+                                        if !*has_mask {
+                                            ui.colored_label(avviso, t_serve.as_str());
+                                        } else {
+                                            let mut acceso = *check;
+                                            let mut barra = *timeline;
+                                            ui.horizontal(|ui| {
+                                                let r = ui.checkbox(&mut acceso, t_attivo.as_str());
+                                                stato.opzioni.push((r.rect, "filtro".to_string()));
+                                                if r.changed() {
+                                                    ws.active_mut().dialog_time_set_check(acceso);
+                                                }
+                                                ui.add_space(16.0);
+                                                let r =
+                                                    ui.checkbox(&mut barra, t_timeline.as_str());
+                                                stato
+                                                    .opzioni
+                                                    .push((r.rect, "timeline".to_string()));
+                                                if r.changed() {
+                                                    ws.active_mut().dialog_time_set_timeline(barra);
+                                                }
+                                            });
+                                            egui::Grid::new("filtro_date").num_columns(2).show(
+                                                ui,
+                                                |ui| {
+                                                    for i in 2..4u8 {
+                                                        let (etichetta, suggerimento) = if i == 2 {
+                                                            (t_dal.as_str(), from_hint.as_str())
+                                                        } else {
+                                                            (t_al.as_str(), to_hint.as_str())
+                                                        };
+                                                        ui.label(etichetta);
+                                                        ui.horizontal(|ui| {
+                                                            let k = usize::from(i) - 2;
+                                                            let r = ui.add(
+                                                                TextEdit::singleline(
+                                                                    &mut stato.filtro[k],
+                                                                )
+                                                                .hint_text(
+                                                                    RichText::new(suggerimento)
+                                                                        .weak(),
+                                                                )
+                                                                .desired_width(300.0),
+                                                            );
+                                                            stato.campi.push(r.rect);
+                                                            if r.has_focus() && *field != i {
+                                                                ws.active_mut().dialog_focus(i);
+                                                            }
+                                                            if !stato.campo_fuoco && *field == i {
+                                                                r.request_focus();
+                                                                stato.campo_fuoco = true;
+                                                            }
+                                                            if r.changed() {
+                                                                let testo = stato.filtro[k].clone();
+                                                                ws.active_mut()
+                                                                    .dialog_set_field(i, &testo);
+                                                            }
+                                                            if r.lost_focus()
+                                                                && ui.input(|i| {
+                                                                    i.key_pressed(egui::Key::Enter)
+                                                                })
+                                                            {
+                                                                ws.active_mut().dialog_submit();
+                                                            }
+                                                            // il calendario (solo con una maschera che ha la data)
+                                                            if *has_date {
+                                                                let c = ui
                                                                 .add(
                                                                     egui::Button::new(
                                                                         RichText::new(
@@ -991,18 +1035,19 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                                                     )),
                                                                 )
                                                                 .on_hover_text(t_data.as_str());
-                                                            stato.opzioni.push((
-                                                                c.rect,
-                                                                format!("calendario {i}"),
-                                                            ));
-                                                            if stato.calendario.is_some_and(
-                                                                |(aperto, _, _)| aperto == i,
-                                                            ) {
-                                                                stato.cal_ancora = Some(c.rect);
-                                                            }
-                                                            if c.clicked() {
-                                                                stato.calendario =
-                                                                    match stato.calendario {
+                                                                stato.opzioni.push((
+                                                                    c.rect,
+                                                                    format!("calendario {i}"),
+                                                                ));
+                                                                if stato.calendario.is_some_and(
+                                                                    |(aperto, _, _)| aperto == i,
+                                                                ) {
+                                                                    stato.cal_ancora = Some(c.rect);
+                                                                }
+                                                                if c.clicked() {
+                                                                    stato.calendario = match stato
+                                                                        .calendario
+                                                                    {
                                                                         Some((aperto, _, _))
                                                                             if aperto == i =>
                                                                         {
@@ -1021,55 +1066,64 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                                                                 )
                                                                             }),
                                                                     };
+                                                                }
                                                             }
-                                                        }
-                                                        // la X svuota il campo: vuoto = senza limite
-                                                        let x = ui
-                                                            .add(egui::Button::new("").min_size(
-                                                                egui::Vec2::new(28.0, 24.0),
-                                                            ))
-                                                            .on_hover_text(t_svuota.as_str());
-                                                        let colore =
-                                                            ui.style().interact(&x).fg_stroke.color;
-                                                        crate::strumenti::croce(
-                                                            ui.painter(),
-                                                            x.rect.center(),
-                                                            colore,
-                                                            4.5,
-                                                        );
-                                                        stato
-                                                            .opzioni
-                                                            .push((x.rect, format!("svuota {i}")));
-                                                        if x.clicked() {
-                                                            ws.active_mut()
-                                                                .dialog_time_clear_field(i);
-                                                        }
-                                                    });
-                                                    ui.end_row();
-                                                }
-                                            },
-                                        );
-                                        // il calendario aperto: un popup sotto il campo (mese e anno in tendina, i giorni, l'ora); ogni scelta scrive subito
-                                        // nel campo, il popup resta finche' non si preme "Fatto" o si clicca fuori
-                                        if let (Some((campo, anno, mese)), Some(ancora)) =
-                                            (stato.calendario, stato.cal_ancora)
-                                        {
-                                            if let Some(info) = ws.active().time_calendar(campo) {
-                                                let mut nuovo_mese: Option<(i32, u32)> = None;
-                                                let mut chiudi = false;
-                                                let area = egui::Area::new(egui::Id::new(
-                                                    "calendario_popup",
-                                                ))
-                                                .order(egui::Order::Foreground)
-                                                .fixed_pos(egui::Pos2::new(
-                                                    ancora.max.x + 40.0,
-                                                    ancora.min.y - 6.0,
-                                                ))
-                                                .show(ctx, |ui| {
-                                                    egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                                        ui.set_width(236.0);
-                                                        // l'intestazione: mese e anno in tendina, le frecce
-                                                        ui.horizontal(|ui| {
+                                                            // la X svuota il campo: vuoto = senza limite
+                                                            let x = ui
+                                                                .add(
+                                                                    egui::Button::new("").min_size(
+                                                                        egui::Vec2::new(28.0, 24.0),
+                                                                    ),
+                                                                )
+                                                                .on_hover_text(t_svuota.as_str());
+                                                            let colore = ui
+                                                                .style()
+                                                                .interact(&x)
+                                                                .fg_stroke
+                                                                .color;
+                                                            crate::strumenti::croce(
+                                                                ui.painter(),
+                                                                x.rect.center(),
+                                                                colore,
+                                                                4.5,
+                                                            );
+                                                            stato.opzioni.push((
+                                                                x.rect,
+                                                                format!("svuota {i}"),
+                                                            ));
+                                                            if x.clicked() {
+                                                                ws.active_mut()
+                                                                    .dialog_time_clear_field(i);
+                                                            }
+                                                        });
+                                                        ui.end_row();
+                                                    }
+                                                },
+                                            );
+                                            // il calendario aperto: un popup sotto il campo (mese e anno in tendina, i giorni, l'ora); ogni scelta scrive subito
+                                            // nel campo, il popup resta finche' non si preme "Fatto" o si clicca fuori
+                                            if let (Some((campo, anno, mese)), Some(ancora)) =
+                                                (stato.calendario, stato.cal_ancora)
+                                            {
+                                                if let Some(info) = ws.active().time_calendar(campo)
+                                                {
+                                                    let mut nuovo_mese: Option<(i32, u32)> = None;
+                                                    let mut chiudi = false;
+                                                    let area = egui::Area::new(egui::Id::new(
+                                                        "calendario_popup",
+                                                    ))
+                                                    .order(egui::Order::Foreground)
+                                                    .fixed_pos(egui::Pos2::new(
+                                                        ancora.max.x + 40.0,
+                                                        ancora.min.y - 6.0,
+                                                    ))
+                                                    .show(ctx, |ui| {
+                                                        egui::Frame::popup(ui.style()).show(
+                                                            ui,
+                                                            |ui| {
+                                                                ui.set_width(236.0);
+                                                                // l'intestazione: mese e anno in tendina, le frecce
+                                                                ui.horizontal(|ui| {
                                                             let (a_prima, m_prima) = if mese == 1 {
                                                                 (anno - 1, 12)
                                                             } else {
@@ -1162,29 +1216,31 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                                                 nuovo_mese = Some((a_dopo, m_dopo));
                                                             }
                                                         });
-                                                        ui.add_space(4.0);
-                                                        // i giorni: quelli che il file copre normali, gli altri attenuati
-                                                        let primo =
+                                                                ui.add_space(4.0);
+                                                                // i giorni: quelli che il file copre normali, gli altri attenuati
+                                                                let primo =
                                                             mrp_core::timemask::key_from_civil(
                                                                 anno, mese, 1,
                                                             );
-                                                        let sfasa =
-                                                            mrp_core::timemask::weekday(primo)
-                                                                as usize;
-                                                        let giorni =
+                                                                let sfasa =
+                                                                    mrp_core::timemask::weekday(
+                                                                        primo,
+                                                                    )
+                                                                        as usize;
+                                                                let giorni =
                                                             mrp_core::timemask::days_in_month(
                                                                 anno, mese,
                                                             );
-                                                        let dentro = |g: u32| match (
-                                                            info.first, info.last,
-                                                        ) {
-                                                            (Some(a), Some(b)) => {
-                                                                (anno, mese, g) >= a
-                                                                    && (anno, mese, g) <= b
-                                                            }
-                                                            _ => true,
-                                                        };
-                                                        egui::Grid::new("calendario")
+                                                                let dentro = |g: u32| match (
+                                                                    info.first, info.last,
+                                                                ) {
+                                                                    (Some(a), Some(b)) => {
+                                                                        (anno, mese, g) >= a
+                                                                            && (anno, mese, g) <= b
+                                                                    }
+                                                                    _ => true,
+                                                                };
+                                                                egui::Grid::new("calendario")
                                                             .num_columns(7)
                                                             .spacing(egui::Vec2::new(2.0, 2.0))
                                                             .show(ui, |ui| {
@@ -1258,200 +1314,229 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                                                     }
                                                                 }
                                                             });
-                                                        ui.separator();
-                                                        // l'ora: ore, minuti, secondi e (se la maschera li scrive) millisecondi
-                                                        ui.horizontal(|ui| {
-                                                            ui.label(&t_ora);
-                                                            let ms = info.time_ms;
-                                                            let mut parti = [
-                                                                (
-                                                                    ms / 3_600_000,
-                                                                    23_i64,
-                                                                    3_600_000_i64,
-                                                                    "ora",
-                                                                ),
-                                                                (
-                                                                    (ms / 60_000) % 60,
-                                                                    59,
-                                                                    60_000,
-                                                                    "minuti",
-                                                                ),
-                                                                (
-                                                                    (ms / 1000) % 60,
-                                                                    59,
-                                                                    1000,
-                                                                    "secondi",
-                                                                ),
-                                                                (ms % 1000, 999, 1, "millisecondi"),
-                                                            ];
-                                                            let mut nuovo = ms;
-                                                            let mut primo_pezzo = true;
-                                                            for (v, massimo, peso, nome) in
-                                                                &mut parti
-                                                            {
-                                                                // si mostra fino alla precisione che la maschera scrive
-                                                                if *peso < info.unit_ms {
-                                                                    continue;
-                                                                }
-                                                                // fra ore, minuti e secondi i due punti, prima dei millisecondi il punto
-                                                                if !primo_pezzo {
-                                                                    ui.label(if *peso == 1 {
-                                                                        "."
-                                                                    } else {
-                                                                        ":"
-                                                                    });
-                                                                }
-                                                                primo_pezzo = false;
-                                                                let mut x = *v;
-                                                                let r = ui.add(
-                                                                    egui::DragValue::new(&mut x)
-                                                                        .range(0..=*massimo)
-                                                                        .speed(0.2)
-                                                                        .custom_formatter(
-                                                                            |n, _| {
-                                                                                if *massimo == 999 {
-                                                                                    format!(
+                                                                ui.separator();
+                                                                // l'ora: ore, minuti, secondi e (se la maschera li scrive) millisecondi
+                                                                ui.horizontal(|ui| {
+                                                                    ui.label(&t_ora);
+                                                                    let ms = info.time_ms;
+                                                                    let mut parti = [
+                                                                        (
+                                                                            ms / 3_600_000,
+                                                                            23_i64,
+                                                                            3_600_000_i64,
+                                                                            "ora",
+                                                                        ),
+                                                                        (
+                                                                            (ms / 60_000) % 60,
+                                                                            59,
+                                                                            60_000,
+                                                                            "minuti",
+                                                                        ),
+                                                                        (
+                                                                            (ms / 1000) % 60,
+                                                                            59,
+                                                                            1000,
+                                                                            "secondi",
+                                                                        ),
+                                                                        (
+                                                                            ms % 1000,
+                                                                            999,
+                                                                            1,
+                                                                            "millisecondi",
+                                                                        ),
+                                                                    ];
+                                                                    let mut nuovo = ms;
+                                                                    let mut primo_pezzo = true;
+                                                                    for (v, massimo, peso, nome) in
+                                                                        &mut parti
+                                                                    {
+                                                                        // si mostra fino alla precisione che la maschera scrive
+                                                                        if *peso < info.unit_ms {
+                                                                            continue;
+                                                                        }
+                                                                        // fra ore, minuti e secondi i due punti, prima dei millisecondi il punto
+                                                                        if !primo_pezzo {
+                                                                            ui.label(
+                                                                                if *peso == 1 {
+                                                                                    "."
+                                                                                } else {
+                                                                                    ":"
+                                                                                },
+                                                                            );
+                                                                        }
+                                                                        primo_pezzo = false;
+                                                                        let mut x = *v;
+                                                                        let r = ui.add(
+                                                                            egui::DragValue::new(
+                                                                                &mut x,
+                                                                            )
+                                                                            .range(0..=*massimo)
+                                                                            .speed(0.2)
+                                                                            .custom_formatter(
+                                                                                |n, _| {
+                                                                                    if *massimo
+                                                                                        == 999
+                                                                                    {
+                                                                                        format!(
                                                                                         "{:03}",
                                                                                         n as i64
                                                                                     )
-                                                                                } else {
-                                                                                    format!(
+                                                                                    } else {
+                                                                                        format!(
                                                                                         "{:02}",
                                                                                         n as i64
                                                                                     )
-                                                                                }
-                                                                            },
-                                                                        ),
+                                                                                    }
+                                                                                },
+                                                                            ),
+                                                                        );
+                                                                        stato.opzioni.push((
+                                                                            r.rect,
+                                                                            (*nome).to_string(),
+                                                                        ));
+                                                                        if x != *v {
+                                                                            nuovo +=
+                                                                                (x - *v) * *peso;
+                                                                        }
+                                                                    }
+                                                                    if nuovo != ms {
+                                                                        ws.active_mut()
+                                                                            .dialog_time_set_time(
+                                                                                campo, nuovo,
+                                                                            );
+                                                                    }
+                                                                });
+                                                                ui.add_space(2.0);
+                                                                ui.with_layout(
+                                                                    egui::Layout::right_to_left(
+                                                                        egui::Align::Center,
+                                                                    ),
+                                                                    |ui| {
+                                                                        let r = ui.button(&t_fatto);
+                                                                        stato.opzioni.push((
+                                                                            r.rect,
+                                                                            "fatto".to_string(),
+                                                                        ));
+                                                                        if r.clicked() {
+                                                                            chiudi = true;
+                                                                        }
+                                                                    },
                                                                 );
-                                                                stato.opzioni.push((
-                                                                    r.rect,
-                                                                    (*nome).to_string(),
-                                                                ));
-                                                                if x != *v {
-                                                                    nuovo += (x - *v) * *peso;
-                                                                }
-                                                            }
-                                                            if nuovo != ms {
-                                                                ws.active_mut()
-                                                                    .dialog_time_set_time(
-                                                                        campo, nuovo,
-                                                                    );
-                                                            }
-                                                        });
-                                                        ui.add_space(2.0);
-                                                        ui.with_layout(
-                                                            egui::Layout::right_to_left(
-                                                                egui::Align::Center,
-                                                            ),
-                                                            |ui| {
-                                                                let r = ui.button(&t_fatto);
-                                                                stato.opzioni.push((
-                                                                    r.rect,
-                                                                    "fatto".to_string(),
-                                                                ));
-                                                                if r.clicked() {
-                                                                    chiudi = true;
-                                                                }
                                                             },
                                                         );
                                                     });
-                                                });
-                                                if let Some((a, m)) = nuovo_mese {
-                                                    stato.calendario = Some((campo, a, m));
-                                                }
-                                                // un clic fuori dal popup (e fuori dal bottone) lo chiude
-                                                let fuori = ctx.input(|i| {
-                                                    i.pointer.any_pressed()
-                                                        && i.pointer.interact_pos().is_some_and(
-                                                            |p| {
-                                                                !area.response.rect.contains(p)
-                                                                    && !ancora.contains(p)
-                                                            },
-                                                        )
-                                                });
-                                                // le tendine del popup sono finestre a parte: finche' una e' aperta non si chiude
-                                                if chiudi
-                                                    || (fuori && !egui::Popup::is_any_open(ctx))
-                                                {
-                                                    stato.calendario = None;
+                                                    if let Some((a, m)) = nuovo_mese {
+                                                        stato.calendario = Some((campo, a, m));
+                                                    }
+                                                    // un clic fuori dal popup (e fuori dal bottone) lo chiude
+                                                    let fuori = ctx.input(|i| {
+                                                        i.pointer.any_pressed()
+                                                            && i.pointer.interact_pos().is_some_and(
+                                                                |p| {
+                                                                    !area.response.rect.contains(p)
+                                                                        && !ancora.contains(p)
+                                                                },
+                                                            )
+                                                    });
+                                                    // le tendine del popup sono finestre a parte: finche' una e' aperta non si chiude
+                                                    if chiudi
+                                                        || (fuori && !egui::Popup::is_any_open(ctx))
+                                                    {
+                                                        stato.calendario = None;
+                                                    }
                                                 }
                                             }
-                                        }
-                                        if acceso && from.trim().is_empty() && to.trim().is_empty()
-                                        {
-                                            ui.label(RichText::new(&t_nessun_limite).weak());
+                                            if acceso
+                                                && from.trim().is_empty()
+                                                && to.trim().is_empty()
+                                            {
+                                                ui.label(RichText::new(&t_nessun_limite).weak());
+                                            }
                                         }
                                     }
-                                }
-                            });
-                            egui::Frame::group(ui.style()).show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                let t = titolo_riquadro(ui, 1);
-                                stato.opzioni.push((t, "sezione 1".to_string()));
-                                ui.label(RichText::new(&t_aiuto_livelli).weak());
-                                ui.horizontal(|ui| {
-                                    for (i, nome) in t_livelli.iter().enumerate() {
-                                        let mut scelto = levels[i];
-                                        let r = ui.checkbox(
-                                            &mut scelto,
-                                            RichText::new(nome).color(colori_livelli[i]).strong(),
-                                        );
-                                        stato.opzioni.push((r.rect, format!("livello {i}")));
+                                });
+                            egui::Frame::group(ui.style())
+                                .inner_margin(egui::Margin::symmetric(12, 8))
+                                .outer_margin(egui::Margin::symmetric(0, 4))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    let t = titolo_riquadro(ui, 1);
+                                    stato.opzioni.push((t, "sezione 1".to_string()));
+                                    ui.add_space(6.0);
+                                    ui.label(RichText::new(&t_aiuto_livelli).weak());
+                                    ui.horizontal(|ui| {
+                                        for (i, nome) in t_livelli.iter().enumerate() {
+                                            let mut scelto = levels[i];
+                                            let r = ui.checkbox(
+                                                &mut scelto,
+                                                RichText::new(nome)
+                                                    .color(colori_livelli[i])
+                                                    .strong(),
+                                            );
+                                            stato.opzioni.push((r.rect, format!("livello {i}")));
+                                            if r.changed() {
+                                                ws.active_mut().dialog_filters_set_level(i, scelto);
+                                            }
+                                        }
+                                    });
+                                });
+                            egui::Frame::group(ui.style())
+                                .inner_margin(egui::Margin::symmetric(12, 8))
+                                .outer_margin(egui::Margin::symmetric(0, 4))
+                                .show(ui, |ui| {
+                                    ui.set_width(ui.available_width());
+                                    let t = titolo_riquadro(ui, 2);
+                                    stato.opzioni.push((t, "sezione 2".to_string()));
+                                    ui.add_space(6.0);
+                                    ui.label(RichText::new(&t_aiuto_testo).weak());
+                                    let r = ui.add(
+                                        TextEdit::singleline(&mut stato.ftesto)
+                                            .desired_width(f32::INFINITY),
+                                    );
+                                    stato.campi.push(r.rect);
+                                    if stato.campo.is_none() {
+                                        stato.campo = Some(r.rect);
+                                    }
+                                    if r.changed() {
+                                        let testo = stato.ftesto.clone();
+                                        ws.active_mut().dialog_filters_set_text(&testo);
+                                    }
+                                    if r.lost_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter))
+                                    {
+                                        ws.active_mut().dialog_submit();
+                                    }
+                                    ui.horizontal(|ui| {
+                                        for (i, nome) in t_modi.iter().enumerate() {
+                                            let r =
+                                                ui.radio(usize::from(*fmode) == i, nome.as_str());
+                                            stato.opzioni.push((r.rect, format!("modo {i}")));
+                                            if r.clicked() {
+                                                ws.active_mut().dialog_filters_set_mode(i);
+                                            }
+                                        }
+                                    });
+                                    ui.horizontal(|ui| {
+                                        let mut maiusc = *fcase;
+                                        let r = ui.checkbox(&mut maiusc, t_maiusc.as_str());
+                                        stato.opzioni.push((r.rect, "maiuscole".to_string()));
                                         if r.changed() {
-                                            ws.active_mut().dialog_filters_set_level(i, scelto);
+                                            ws.active_mut().dialog_filters_set_case(maiusc);
                                         }
-                                    }
-                                });
-                            });
-                            egui::Frame::group(ui.style()).show(ui, |ui| {
-                                ui.set_width(ui.available_width());
-                                let t = titolo_riquadro(ui, 2);
-                                stato.opzioni.push((t, "sezione 2".to_string()));
-                                ui.label(RichText::new(&t_aiuto_testo).weak());
-                                let r = ui.add(
-                                    TextEdit::singleline(&mut stato.ftesto)
-                                        .desired_width(f32::INFINITY),
-                                );
-                                stato.campi.push(r.rect);
-                                if stato.campo.is_none() {
-                                    stato.campo = Some(r.rect);
-                                }
-                                if r.changed() {
-                                    let testo = stato.ftesto.clone();
-                                    ws.active_mut().dialog_filters_set_text(&testo);
-                                }
-                                if r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                    ws.active_mut().dialog_submit();
-                                }
-                                ui.horizontal(|ui| {
-                                    for (i, nome) in t_modi.iter().enumerate() {
-                                        let r = ui.radio(usize::from(*fmode) == i, nome.as_str());
-                                        stato.opzioni.push((r.rect, format!("modo {i}")));
-                                        if r.clicked() {
-                                            ws.active_mut().dialog_filters_set_mode(i);
+                                        let mut nascondi = *finvert;
+                                        let r = ui.checkbox(&mut nascondi, t_nascondi.as_str());
+                                        stato.opzioni.push((r.rect, "nascondi".to_string()));
+                                        if r.changed() {
+                                            ws.active_mut().dialog_filters_set_invert(nascondi);
                                         }
-                                    }
+                                    });
                                 });
-                                ui.horizontal(|ui| {
-                                    let mut maiusc = *fcase;
-                                    let r = ui.checkbox(&mut maiusc, t_maiusc.as_str());
-                                    stato.opzioni.push((r.rect, "maiuscole".to_string()));
-                                    if r.changed() {
-                                        ws.active_mut().dialog_filters_set_case(maiusc);
-                                    }
-                                    let mut nascondi = *finvert;
-                                    let r = ui.checkbox(&mut nascondi, t_nascondi.as_str());
-                                    stato.opzioni.push((r.rect, "nascondi".to_string()));
-                                    if r.changed() {
-                                        ws.active_mut().dialog_filters_set_invert(nascondi);
-                                    }
-                                });
-                            });
                         });
                     if !error.is_empty() {
                         ui.colored_label(avviso, error.as_str());
                     }
                     ui.separator();
+                    ui.add_space(2.0);
                     ui.label(RichText::new(format!("{t_riassunto} {summary}")).weak());
                     ui.add_space(4.0);
                     let testi: Vec<&str> = vec![t_ok.as_str(), auto.as_str(), t_cancel.as_str()];
@@ -1535,7 +1620,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     match detected {
                         Some((tempo, pat)) => {
                             ui.horizontal(|ui| {
-                                ui.label(RichText::new(&t_riconosciuto).strong());
+                                crate::strumenti::grassetto(
+                                    ui,
+                                    &t_riconosciuto,
+                                    crate::stile::corrente(ctx).popup_fg,
+                                );
                                 ui.label(RichText::new(tempo).monospace());
                                 ui.label(RichText::new(format!("({pat})")).weak());
                             });
@@ -1558,7 +1647,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                         .width(ui.available_width() - 8.0)
                         .selected_text(RichText::new(scelto).monospace())
                         .show_ui(ui, |ui| {
-                            let r = ui.selectable_label(pers, RichText::new(&t_personale).strong());
+                            let r = ui.selectable_label(
+                                pers,
+                                RichText::new(&t_personale)
+                                    .color(crate::stile::corrente(ctx).popup_fg),
+                            );
                             stato.voci.push(r.rect);
                             if r.clicked() {
                                 nuovo = Some(None);
@@ -1646,7 +1739,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                             for (testo, letto) in preview {
                                 ui.label(RichText::new(testo).monospace());
                                 ui.label("=>");
-                                ui.label(RichText::new(letto).strong());
+                                crate::strumenti::grassetto(
+                                    ui,
+                                    letto,
+                                    crate::stile::corrente(ctx).popup_fg,
+                                );
                                 ui.end_row();
                             }
                         });

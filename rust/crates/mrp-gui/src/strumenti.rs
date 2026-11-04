@@ -95,6 +95,55 @@ pub fn tooltip_percorso(percorso: Option<&str>, cat: &Catalog) -> String {
     }
 }
 
+/// Un testo in grassetto: nei font che abbiamo non c'e' un peso bold, quindi si disegna due volte con mezzo punto di scarto. Vale
+/// per qualunque font e tema. Ritorna il rettangolo occupato.
+pub fn grassetto(
+    ui: &mut eframe::egui::Ui,
+    testo: &str,
+    colore: eframe::egui::Color32,
+) -> eframe::egui::Rect {
+    use eframe::egui::{FontSelection, Sense, Vec2, WidgetText};
+    let galleria = WidgetText::from(testo).color(colore).into_galley(
+        ui,
+        Some(eframe::egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        FontSelection::Default,
+    );
+    let (rect, _) = ui.allocate_exact_size(galleria.size() + Vec2::new(0.6, 0.0), Sense::hover());
+    for dx in [0.0_f32, 0.6] {
+        ui.painter()
+            .galley(rect.min + Vec2::new(dx, 0.0), galleria.clone(), colore);
+    }
+    rect
+}
+
+/// Il titolo di un riquadro: testo in grassetto su una banda di `fondo` larga quanto il riquadro. Ritorna il rettangolo del testo (la larghezza dice se e' cambiato).
+pub fn titolo_banda(
+    ui: &mut eframe::egui::Ui,
+    testo: &str,
+    fondo: eframe::egui::Color32,
+    colore: eframe::egui::Color32,
+) -> eframe::egui::Rect {
+    use eframe::egui::{FontSelection, Sense, Vec2, WidgetText};
+    let galleria = WidgetText::from(testo).color(colore).into_galley(
+        ui,
+        Some(eframe::egui::TextWrapMode::Extend),
+        f32::INFINITY,
+        FontSelection::Default,
+    );
+    let (rect, _) = ui.allocate_exact_size(
+        Vec2::new(ui.available_width(), galleria.size().y + 6.0),
+        Sense::hover(),
+    );
+    ui.painter().rect_filled(rect, 3.0, fondo);
+    let punto = rect.min + Vec2::new(6.0, 3.0);
+    for dx in [0.0_f32, 0.6] {
+        ui.painter()
+            .galley(punto + Vec2::new(dx, 0.0), galleria.clone(), colore);
+    }
+    eframe::egui::Rect::from_min_size(punto, galleria.size())
+}
+
 /// Disegna una croce (X) centrata in `c`, di colore `colore`, con i bracci lunghi `mezza` punti dal centro: nel font non c'e' il glifo.
 pub fn croce(
     painter: &eframe::egui::Painter,

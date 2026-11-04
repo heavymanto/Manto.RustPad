@@ -46,16 +46,18 @@ fn finestra() -> (Finestra, Context, PathBuf, Vec<u64>) {
 
 fn giro(f: &mut Finestra, ctx: &Context, eventi: Vec<Event>) -> FullOutput {
     let raw = RawInput {
-        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 800.0))),
+        screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1100.0, 1000.0))),
         events: eventi,
         ..Default::default()
     };
     ctx.run(raw, |ctx| f.giro(ctx))
 }
 
+/// Quattro giri: l'area che scorre dei Filtri prende l'altezza del contenuto con un giro di ritardo, e la finestra si assesta dopo.
 fn disegna(f: &mut Finestra, ctx: &Context) {
-    giro(f, ctx, vec![]);
-    giro(f, ctx, vec![]);
+    for _ in 0..4 {
+        giro(f, ctx, vec![]);
+    }
 }
 
 fn clic(f: &mut Finestra, ctx: &Context, pos: Pos2) {
