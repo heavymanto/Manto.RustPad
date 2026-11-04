@@ -234,6 +234,43 @@ pub struct FilterStats {
     pub truncated: bool,
 }
 
+/// Le condizioni di una vista filtrata, tutte da soddisfare (e).
+#[derive(Debug, Clone)]
+pub struct LineFilter {
+    /// Il testo cercato; `None`: nessuna condizione sul testo.
+    pub pattern: Option<Pattern>,
+    /// Con un testo: le righe che NON corrispondono. Senza testo non fa niente.
+    pub invert: bool,
+    /// I livelli ammessi, nell'ordine ERROR, WARN, INFO, DEBUG; tutti falsi: nessuna condizione sul livello.
+    pub levels: [bool; 4],
+}
+
+impl LineFilter {
+    /// La riga (senza l'a-capo, il `\r` finale compreso fra i suoi byte) soddisfa le condizioni.
+    fn accetta(&self, riga: &[u8]) -> bool {
+        if let Some(p) = &self.pattern {
+            if p.in_riga(riga).next().is_some() == self.invert {
+                return false;
+            }
+        }
+        if self.levels.iter().any(|&x| x) {
+            let senza_cr = riga.strip_suffix(b"\r").unwrap_or(riga);
+            let Ok(testo) = std::str::from_utf8(senza_cr) else {
+                return false;
+            };
+            let indice = match crate::loghl::first_level(testo) {
+                Some(crate::loghl::Kind::Error) => 0,
+                Some(crate::loghl::Kind::Warn) => 1,
+                Some(crate::loghl::Kind::Info) => 2,
+                Some(crate::loghl::Kind::Debug) => 3,
+                _ => return false,
+            };
+            return self.levels[indice];
+        }
+        true
+    }
+}
+
 impl Snapshot {
     /// Il primo inizio di un'occorrenza di `p` in `[from, fine)` e la sua lunghezza (`None` se non c'e'). Per riga: vedi
     /// il modulo.
@@ -510,6 +547,94 @@ impl Snapshot {
                 break;
             }
             progress.fetch_add(fine - pos, Ordering::Relaxed);
+            pos = fine;
+        }
+        Ok(FilterStats {
+            lines: scritte,
+            truncated: troncato,
+        })
+    }
+
+    /// La vista filtrata con piu' condizioni (`LineFilter`: testo, livelli) sulle sole righe che cominciano in `[lo, hi)` (`hi` oltre
+    /// la fine vale la fine). Se `lo` cade in mezzo a una riga, quella non si considera: si parte dalla successiva. Per il resto come
+    /// `filter_lines`: righe intere scritte su `out`, i loro inizi in `offsets`, `max_lines` e `truncated`, annullabile; `progress`
+    /// vale i byte dell'intervallo gia' esaminati (a fine lavoro, anche se il limite ferma il filtro, tutto l'intervallo).
+    #[allow(clippy::too_many_arguments)]
+    pub fn filter_lines_where<W: std::io::Write>(
+        &self,
+        f: &LineFilter,
+        lo: u64,
+        hi: u64,
+        max_lines: u64,
+        out: &mut W,
+        offsets: &mut Vec<u64>,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<FilterStats, SearchError> {
+        let len = self.len();
+        let fine_intervallo = hi.min(len);
+        if cancel.load(Ordering::Relaxed) {
+            return Err(SearchError::Cancelled);
+        }
+        let mut scritte = 0u64;
+        let mut troncato = false;
+        if lo >= fine_intervallo {
+            return Ok(FilterStats {
+                lines: 0,
+                truncated: false,
+            });
+        }
+        // la prima riga intera: `lo` se comincia una riga, altrimenti la riga dopo
+        let mut pos = if lo == 0 || self.read_range(lo - 1, 1).first() == Some(&b'\n') {
+            lo
+        } else {
+            (fine_riga(self, lo) + 1).min(len)
+        };
+        progress.fetch_add(pos.min(fine_intervallo) - lo, Ordering::Relaxed);
+        let blocco_max = self.chunk_size() as u64;
+        while pos < fine_intervallo {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(SearchError::Cancelled);
+            }
+            // un blocco di righe intere: fino a `blocco_max` byte e fino alla fine della riga
+            let tentativo = pos.saturating_add(blocco_max).min(fine_intervallo);
+            let fine = if tentativo >= len {
+                len
+            } else {
+                (fine_riga(self, tentativo) + 1).min(len)
+            };
+            let dati = self.read_range(pos, fine - pos);
+            let mut riga_da = 0usize;
+            while riga_da < dati.len() {
+                if pos + riga_da as u64 >= fine_intervallo {
+                    break;
+                }
+                let riga_fine = memchr(b'\n', &dati[riga_da..]).map_or(dati.len(), |i| riga_da + i);
+                if f.accetta(&dati[riga_da..riga_fine]) {
+                    if scritte == max_lines {
+                        troncato = true;
+                        break;
+                    }
+                    if riga_fine < dati.len() {
+                        out.write_all(&dati[riga_da..riga_fine + 1])
+                            .map_err(SearchError::Io)?;
+                    } else {
+                        out.write_all(&dati[riga_da..riga_fine])
+                            .map_err(SearchError::Io)?;
+                        if fine == len {
+                            out.write_all(b"\n").map_err(SearchError::Io)?;
+                        }
+                    }
+                    offsets.push(pos + riga_da as u64);
+                    scritte += 1;
+                }
+                riga_da = riga_fine + 1;
+            }
+            if troncato {
+                progress.fetch_add(fine_intervallo - pos, Ordering::Relaxed);
+                break;
+            }
+            progress.fetch_add(fine.min(fine_intervallo) - pos, Ordering::Relaxed);
             pos = fine;
         }
         Ok(FilterStats {

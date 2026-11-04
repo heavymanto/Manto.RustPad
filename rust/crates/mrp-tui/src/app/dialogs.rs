@@ -205,6 +205,14 @@ pub enum DialogView {
         to_hint: String,
         field: u8,
         error: String,
+        /// Le sezioni Livelli e Testo dei Filtri: i livelli scelti (ERROR, WARN, INFO, DEBUG), il testo del filtro per righe, il suo modo
+        /// (0 testo, 1 glob, 2 regex), le due caselle e il riassunto delle condizioni che OK applica.
+        levels: [bool; 4],
+        ftext: String,
+        fmode: u8,
+        fcase: bool,
+        finvert: bool,
+        summary: String,
     },
     /// Il salvataggio in corso: il nome del file e la percentuale.
     Saving {

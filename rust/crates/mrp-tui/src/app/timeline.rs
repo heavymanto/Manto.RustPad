@@ -6,7 +6,7 @@
 //! Ogni file e' un mondo a se': niente fusione di piu' file.
 
 use super::App;
-use mrp_core::pattern::Mode;
+use mrp_core::pattern::LineFilter;
 use mrp_core::timeline::{self, BuildError, LevelCounts, Step, Timeline};
 use mrp_core::timemask;
 use mrp_core::timesearch;
@@ -14,9 +14,6 @@ use mrp_core::Document;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 use std::sync::Arc;
-
-/// Il bordo di parola delle espressioni regolari (per il filtro per livelli: `\bERROR\b` non e' `ERROR_CODE`).
-const BORDO_PAROLA: &str = r"\b";
 
 /// Quante tacche al massimo si cercano (oltre, la barra chiede un passo piu' lungo).
 const TACCHE_MAX: usize = 20_000;
@@ -440,31 +437,28 @@ impl App {
     /// livelli (`ERROR`, `ERR`, `FATAL`... `WARN`, `WRN`... `INFO`, `INF`... `DEBUG`, `DBG`...), maiuscole esatte, parola intera.
     /// Senza nessun livello scelto lo dice e non fa niente.
     pub fn timeline_apply_level_filter(&mut self) {
-        const PAROLE: [&str; 4] = [
-            "ERROR|ERR|FATAL|CRITICAL|SEVERE|PANIC",
-            "WARN|WARNING|WRN",
-            "INFO|NOTICE|INF",
-            "DEBUG|TRACE|DBG|TRC",
-        ];
-        let scelte: Vec<&str> = (0..4)
-            .filter(|&i| self.timeline.filter_levels[i])
-            .map(|i| PAROLE[i])
-            .collect();
-        if scelte.is_empty() {
+        let livelli = self.timeline.filter_levels;
+        if !livelli.iter().any(|&x| x) {
             self.flash = Some(self.cat.t("timeline.pick_level").to_string());
             return;
         }
-        let regola = format!(r"{b}({}){b}", scelte.join("|"), b = BORDO_PAROLA);
-        // la scheda si chiama coi livelli scelti ("levels: ERROR, WARN"), non con l'espressione regolare
+        if !self.enc.is_utf8() {
+            self.flash = Some(self.cat.t("flash.regex_utf8").to_string());
+            return;
+        }
+        // la scheda si chiama coi livelli scelti ("levels: ERROR, WARN")
         let nomi: Vec<&str> = (0..4)
-            .filter(|&i| self.timeline.filter_levels[i])
+            .filter(|&i| livelli[i])
             .map(|i| TIMELINE_LEVELS[i])
             .collect();
-        self.filter_name = Some(self.cat.tf("timeline.filter_name", &[&nomi.join(", ")]));
-        self.search_mode = Mode::Regex;
-        self.search_case = true;
-        self.find_invert = false;
-        self.filter_run(&regola);
+        let nome = self.cat.tf("timeline.filter_name", &[&nomi.join(", ")]);
+        let filtro = LineFilter {
+            pattern: None,
+            invert: false,
+            levels: livelli,
+        };
+        // dentro la finestra di tempo, se c'e'
+        self.filter_start(filtro, Some((self.lo(), self.hi())), &nome);
     }
 
     /// Lo stato della timeline, per scrivere cosa sta succedendo.

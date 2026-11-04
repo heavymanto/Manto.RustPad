@@ -4,7 +4,9 @@
 //! vuoto vuol dire "senza limite". OK applica formato e filtro insieme; se il filtro non si puo' applicare niente cambia.
 
 use super::dialogs::DialogView;
+use super::timeline::TIMELINE_LEVELS;
 use super::{App, DialogKind};
+use mrp_core::pattern::{LineFilter, Mode, Pattern};
 use mrp_core::timemask::{self, TimeMask};
 use mrp_core::timesearch;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -183,6 +185,16 @@ impl App {
             to_hint: suggerimento("time.filter.to_hint", self.time_bounds.map(|b| b.1)),
             field: self.time_field,
             error: self.time_error.clone(),
+            levels: self.timeline_filter_levels(),
+            ftext: self.fl_text.clone(),
+            fmode: match self.fl_mode {
+                Mode::Text => 0,
+                Mode::Glob => 1,
+                Mode::Regex => 2,
+            },
+            fcase: self.fl_case,
+            finvert: self.fl_invert,
+            summary: self.filters_summary(),
         }
     }
 
@@ -355,7 +367,51 @@ impl App {
             }
         }
         let (da, a) = (self.range_text[0].clone(), self.range_text[1].clone());
-        if self.time_check && !(da.trim().is_empty() && a.trim().is_empty()) {
+        let con_date = self.time_check && !(da.trim().is_empty() && a.trim().is_empty());
+        let livelli = self.timeline_filter_levels();
+        let con_livelli = livelli.iter().any(|&x| x);
+        let con_testo = !self.fl_text.is_empty();
+        // livelli e/o testo: una vista filtrata sola con tutte le condizioni (anche il tempo, come intervallo); la finestra di tempo di
+        // questa scheda non cambia. Senza: il filtro per data restringe la vista di adesso
+        let mut vista = None;
+        if con_livelli || con_testo {
+            let pattern = if con_testo {
+                match Pattern::new(&self.fl_text, self.fl_mode, self.fl_case) {
+                    Ok(p) => Some(p),
+                    Err(e) => {
+                        (self.time_mask, self.time_mask_tried, self.window) = prima;
+                        self.time_error = self.cat.tf("replace.bad", &[&e.to_string()]);
+                        return;
+                    }
+                }
+            } else {
+                None
+            };
+            if !self.enc.is_utf8() {
+                (self.time_mask, self.time_mask_tried, self.window) = prima;
+                self.time_error = self.cat.t("flash.regex_utf8").to_string();
+                return;
+            }
+            let intervallo = if con_date {
+                match self.intervallo_tempo(&da, &a) {
+                    Ok(r) => Some(r),
+                    Err(e) => {
+                        (self.time_mask, self.time_mask_tried, self.window) = prima;
+                        self.time_error = e;
+                        return;
+                    }
+                }
+            } else {
+                None
+            };
+            let filtro = LineFilter {
+                pattern,
+                invert: self.fl_invert,
+                levels: livelli,
+            };
+            let nome = self.nome_vista_filtri(&da, &a, con_date);
+            vista = Some((filtro, intervallo, nome));
+        } else if con_date {
             if let Err(e) = self.apply_time_range(&da, &a) {
                 (self.time_mask, self.time_mask_tried, self.window) = prima;
                 self.time_error = e;
@@ -388,6 +444,114 @@ impl App {
             self.save_settings();
         }
         self.dialog = None;
+        if let Some((filtro, intervallo, nome)) = vista {
+            if !self.fl_text.is_empty() {
+                self.last_find = Some(self.fl_text.clone());
+            }
+            self.filter_start(filtro, intervallo, &nome);
+        }
+    }
+
+    /// Il nome della scheda filtrata dalla finestra Filtri: le condizioni scelte, una dopo l'altra (`levels: ERROR, WARN + "timeout"`).
+    fn nome_vista_filtri(&self, da: &str, a: &str, con_date: bool) -> String {
+        let mut parti = Vec::new();
+        let nomi: Vec<&str> = (0..4)
+            .filter(|&i| self.timeline_filter_levels()[i])
+            .map(|i| TIMELINE_LEVELS[i])
+            .collect();
+        if !nomi.is_empty() {
+            parti.push(self.cat.tf("timeline.filter_name", &[&nomi.join(", ")]));
+        }
+        if !self.fl_text.is_empty() {
+            let chiave = if self.fl_invert {
+                "filters.part.not_text"
+            } else {
+                "filters.part.text"
+            };
+            parti.push(self.cat.tf(chiave, &[&self.fl_text]));
+        }
+        if con_date {
+            parti.push(self.cat.tf("filters.part.time", &[&punti(da), &punti(a)]));
+        }
+        parti.join(" + ")
+    }
+
+    /// Il riassunto delle condizioni della finestra Filtri, in una riga ("Time: ... \u{b7} Levels: ... \u{b7} Text: ..."), o "nessun filtro".
+    pub(super) fn filters_summary(&self) -> String {
+        let cat = &self.cat;
+        let mut parti = Vec::new();
+        if self.time_check
+            && !(self.range_text[0].trim().is_empty() && self.range_text[1].trim().is_empty())
+        {
+            parti.push(cat.tf(
+                "filters.sum.time",
+                &[&punti(&self.range_text[0]), &punti(&self.range_text[1])],
+            ));
+        }
+        let nomi: Vec<&str> = (0..4)
+            .filter(|&i| self.timeline_filter_levels()[i])
+            .map(|i| TIMELINE_LEVELS[i])
+            .collect();
+        if !nomi.is_empty() {
+            parti.push(cat.tf("filters.sum.levels", &[&nomi.join(", ")]));
+        }
+        if !self.fl_text.is_empty() {
+            let chiave = if self.fl_invert {
+                "filters.sum.not_text"
+            } else {
+                "filters.sum.text"
+            };
+            parti.push(cat.tf(chiave, &[&self.fl_text]));
+        }
+        if parti.is_empty() {
+            cat.t("filters.sum.none").to_string()
+        } else {
+            parti.join(" \u{b7} ")
+        }
+    }
+
+    /// Il testo del filtro per righe della finestra Filtri.
+    pub fn filters_text(&self) -> &str {
+        &self.fl_text
+    }
+
+    /// Scrive il testo del filtro per righe della finestra Filtri.
+    pub fn dialog_filters_set_text(&mut self, testo: &str) {
+        if self.dialog == Some(DialogKind::Time) {
+            self.fl_text = testo.to_string();
+        }
+    }
+
+    /// Sceglie il modo del testo: 0 testo semplice, 1 glob, 2 espressione regolare.
+    pub fn dialog_filters_set_mode(&mut self, modo: usize) {
+        if self.dialog == Some(DialogKind::Time) {
+            self.fl_mode = match modo {
+                1 => Mode::Glob,
+                2 => Mode::Regex,
+                _ => Mode::Text,
+            };
+        }
+    }
+
+    /// La casella "maiuscole/minuscole" del filtro per righe.
+    pub fn dialog_filters_set_case(&mut self, scelto: bool) {
+        if self.dialog == Some(DialogKind::Time) {
+            self.fl_case = scelto;
+        }
+    }
+
+    /// La casella "nascondi le righe che corrispondono" del filtro per righe.
+    pub fn dialog_filters_set_invert(&mut self, scelto: bool) {
+        if self.dialog == Some(DialogKind::Time) {
+            self.fl_invert = scelto;
+        }
+    }
+
+    /// Accende o spegne il livello `i` (0 ERROR .. 3 DEBUG) nella finestra Filtri (e' lo stesso dei bottoni della timeline).
+    pub fn dialog_filters_set_level(&mut self, i: usize, scelto: bool) {
+        if self.dialog == Some(DialogKind::Time) {
+            self.set_timeline_filter_level(i, scelto);
+        }
     }
 
     /// I tasti della finestra "Tempo": le scritte arrivano dai campi nativi (`dialog_set_field`); qui solo Invio (applica), Esc
@@ -424,5 +588,14 @@ impl App {
     /// Il filtro per data e' acceso (c'e' una finestra di tempo).
     pub fn time_filter_on(&self) -> bool {
         self.window.is_some()
+    }
+}
+
+/// Un estremo del filtro per data, per scriverlo in una frase: vuoto = "..." (nessun limite).
+fn punti(t: &str) -> String {
+    if t.trim().is_empty() {
+        "\u{2026}".to_string()
+    } else {
+        t.trim().to_string()
     }
 }

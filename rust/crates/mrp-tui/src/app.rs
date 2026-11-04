@@ -22,7 +22,7 @@ use mrp_core::encoding::Encoding;
 use mrp_core::lang::{Catalog, Lang};
 use mrp_core::lineending::LineEnding;
 use mrp_core::newline::Newline;
-use mrp_core::pattern::{Edit, Mode, Pattern, Replacement};
+use mrp_core::pattern::{Edit, LineFilter, Mode, Pattern, Replacement};
 use mrp_core::scan::{self, Next};
 use mrp_core::session::TabRecord;
 use mrp_core::timemask::TimeMask;
@@ -257,8 +257,8 @@ static FILTER_COUNTER: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomi
 #[allow(clippy::too_many_arguments)]
 fn spawn_filter_job(
     snap: Snapshot,
-    pattern: Pattern,
-    invert: bool,
+    filtro: LineFilter,
+    (lo, hi): (u64, u64),
     max_lines: u64,
     testo: &str,
     origin: PathBuf,
@@ -268,7 +268,7 @@ fn spawn_filter_job(
     let (tx, rx) = mpsc::channel();
     let cancel_thread = Arc::clone(cancel);
     let progress_thread = Arc::clone(progress);
-    let len = snap.len();
+    let len = hi.min(snap.len()).saturating_sub(lo);
     let n = FILTER_COUNTER.fetch_add(1, Ordering::SeqCst);
     let path = std::env::temp_dir().join(format!("mrp-filter-{}-{}.log", std::process::id(), n));
     let pattern_testo = testo.to_string();
@@ -280,9 +280,10 @@ fn spawn_filter_job(
             };
             let mut out = std::io::BufWriter::new(file);
             let mut offsets = Vec::new();
-            let r = snap.filter_lines(
-                &pattern,
-                invert,
+            let r = snap.filter_lines_where(
+                &filtro,
+                lo,
+                hi,
                 max_lines,
                 &mut out,
                 &mut offsets,
@@ -828,6 +829,11 @@ pub struct App {
     jump_apply: Option<[usize; 3]>,
     /// Il filtro mostra le righe che NON corrispondono (Alt+I nel dialogo del filtro).
     find_invert: bool,
+    /// Il filtro per righe della finestra Filtri: il testo, il modo, le maiuscole e "nascondi le righe che corrispondono".
+    fl_text: String,
+    fl_mode: Mode,
+    fl_case: bool,
+    fl_invert: bool,
     /// Un filtro finito, in attesa che il `Workspace` apra la vista (`take_filter_done`).
     filter_done: Option<FilterDone>,
     /// Questa scheda e' la vista filtrata di un altro file.
@@ -1065,6 +1071,10 @@ impl App {
             jump_field: 0,
             jump_apply: None,
             find_invert: false,
+            fl_text: String::new(),
+            fl_mode: Mode::Text,
+            fl_case: false,
+            fl_invert: false,
             filter_done: None,
             filter_view: None,
             goto_original: None,
@@ -4996,17 +5006,37 @@ impl App {
                 return;
             }
         };
+        let filtro = LineFilter {
+            pattern: Some(pattern),
+            invert: self.find_invert,
+            levels: [false; 4],
+        };
+        self.filter_start(filtro, None, testo);
+    }
+
+    /// Fa partire il filtro con le condizioni di `filtro` (testo, livelli) nell'intervallo di byte `intervallo` (`None`: tutto il file).
+    /// La scheda si chiama `nome_predefinito`, salvo che `filter_name` ne abbia gia' scelto uno.
+    pub(crate) fn filter_start(
+        &mut self,
+        filtro: LineFilter,
+        intervallo: Option<(u64, u64)>,
+        nome_predefinito: &str,
+    ) {
         let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) else {
             return;
         };
+        let intervallo = intervallo.unwrap_or((0, snap.len()));
         let cancel = Arc::new(AtomicBool::new(false));
         let progress = Arc::new(AtomicU64::new(0));
         // il nome della vista: di solito il testo cercato, per il filtro per livelli i livelli scelti
-        let nome = self.filter_name.take().unwrap_or_else(|| testo.to_string());
+        let nome = self
+            .filter_name
+            .take()
+            .unwrap_or_else(|| nome_predefinito.to_string());
         self.search_job = Some(spawn_filter_job(
             snap,
-            pattern,
-            self.find_invert,
+            filtro,
+            intervallo,
             self.filter_limit,
             &nome,
             self.path.clone(),

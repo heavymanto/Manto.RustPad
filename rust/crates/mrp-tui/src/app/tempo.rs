@@ -336,6 +336,33 @@ impl App {
     /// data valgono nel giorno della prima riga. `Err` col motivo (e niente cambia) se non c'e' una maschera, se un orario non si
     /// capisce, se l'inizio non precede la fine o se nell'intervallo non c'e' nessuna riga. Il cursore va all'inizio della finestra.
     pub fn apply_time_range(&mut self, da: &str, a: &str) -> Result<(), String> {
+        let (lo, hi) = self.intervallo_tempo(da, a)?;
+        self.window = Some((lo, hi));
+        // le date si ricordano (per riaccendere il filtro dopo averlo spento senza riscriverle)
+        self.range_text = [da.trim().to_string(), a.trim().to_string()];
+        self.top = lo;
+        self.cursor = lo;
+        self.hscroll = 0;
+        self.anchor = None;
+        self.block = None;
+        self.found = None;
+        self.remember_col();
+        self.scroll_adjust();
+        let da_testo = da.trim();
+        let a_testo = a.trim();
+        self.flash = Some(self.cat.tf(
+            "time.range_set",
+            &[
+                if da_testo.is_empty() { "…" } else { da_testo },
+                if a_testo.is_empty() { "…" } else { a_testo },
+            ],
+        ));
+        Ok(())
+    }
+
+    /// I byte `[lo, hi)` delle righe fra due orari (le regole di `apply_time_range`), senza cambiare la vista: serve a chi usa l'intervallo
+    /// come una condizione fra altre (la vista filtrata).
+    pub fn intervallo_tempo(&mut self, da: &str, a: &str) -> Result<(u64, u64), String> {
         self.assicura_maschera();
         let Some(mask) = self.time_mask.clone() else {
             return Err(self.cat.t("time.err.no_mask").to_string());
@@ -405,27 +432,7 @@ impl App {
         if lo >= hi {
             return Err(nessuna_riga());
         }
-        self.window = Some((lo, hi));
-        // le date si ricordano (per riaccendere il filtro dopo averlo spento senza riscriverle)
-        self.range_text = [da.trim().to_string(), a.trim().to_string()];
-        self.top = lo;
-        self.cursor = lo;
-        self.hscroll = 0;
-        self.anchor = None;
-        self.block = None;
-        self.found = None;
-        self.remember_col();
-        self.scroll_adjust();
-        let da_testo = da.trim();
-        let a_testo = a.trim();
-        self.flash = Some(self.cat.tf(
-            "time.range_set",
-            &[
-                if da_testo.is_empty() { "…" } else { da_testo },
-                if a_testo.is_empty() { "…" } else { a_testo },
-            ],
-        ));
-        Ok(())
+        Ok((lo, hi))
     }
 
     /// Alt+T: apre il dialogo dell'intervallo di tempo. I campi partono dalla finestra attuale, se c'e', altrimenti da

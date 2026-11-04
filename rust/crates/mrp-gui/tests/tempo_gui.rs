@@ -164,7 +164,7 @@ fn the_status_bar_time_and_the_format_label_open_the_time_window() {
     let (r, _) = f.pezzi_stato()[pezzo];
     clic(&mut f, &ctx, r.center());
     assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));
-    assert_eq!(f.dialogo_titolo(), Some("TIME"));
+    assert_eq!(f.dialogo_titolo(), Some("FILTERS"));
     f.app().dialog_cancel();
     disegna(&mut f, &ctx);
     // e anche il formato: la barra lo SCRIVE (non e' solo un menu), un clic apre la finestra
@@ -222,7 +222,7 @@ fn the_time_window_applies_format_and_filter_with_ok() {
     let (mut f, ctx, p, offset) = finestra();
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
-    assert_eq!(f.dialogo_titolo(), Some("TIME"));
+    assert_eq!(f.dialogo_titolo(), Some("FILTERS"));
     assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
     // due campi (Dal e Al), la casella spenta, niente filtro ancora
     assert_eq!(f.dialogo_campi().len(), 2);
