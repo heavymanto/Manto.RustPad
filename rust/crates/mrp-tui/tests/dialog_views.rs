@@ -70,8 +70,8 @@ fn help_is_a_table_of_keys_and_descriptions() {
         "replace (text, glob, regex; this or all tabs)".to_string()
     )));
     assert!(rows.contains(&(
-        "Alt+F".to_string(),
-        "follow the end of the file (like tail -f)".to_string()
+        "Alt+F / Alt+B".to_string(),
+        "follow the end (tail -f) / timeline".to_string()
     )));
     assert!(rows.contains(&(
         "Alt+W / Alt+L / Alt+N".to_string(),

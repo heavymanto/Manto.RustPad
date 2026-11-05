@@ -1,5 +1,6 @@
 //! Il disegno del TUI: legge l'`App` e scrive su un `Frame` (layout in `docs/TEAM/DESIGN_TUI.md`, sezione 2).
 
+use crate::app::timeline_pannello::{Pannello, RigaPannello, BARRA_W, ETICHETTA_W};
 use crate::app::{App, DialogKind};
 use crate::theme::{Theme, ThemeId};
 use mrp_core::block::{block_spans, ColumnBlock};
@@ -40,6 +41,7 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
     draw_text(f, app, &t, w, h);
     if app.chrome() {
+        draw_timeline(f, app, &t, h);
         draw_status(f, app, &t, w, h);
         draw_footer(f, app, &t, w, h);
     }
@@ -100,7 +102,9 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         h as usize
     };
     let gutter_w = app.gutter_w();
-    let cells = (w as usize).saturating_sub(gutter_w);
+    // la timeline prende una colonna di schermo (a sinistra o a destra): il testo sta nel resto, da `x0`
+    let (x0, larghezza) = (app.text_x0(), w - app.timeline_panel_w());
+    let cells = (larghezza as usize).saturating_sub(gutter_w);
     let opts = ViewOptions {
         show_eof_row: app.is_edit(),
         ..app.view_opts()
@@ -156,7 +160,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         }
         if xy.is_none() && row.start == cursor_row && col >= hscroll && col - hscroll < cells {
             xy = Some((
-                gutter_w as u16 + (col - hscroll) as u16,
+                x0 + gutter_w as u16 + (col - hscroll) as u16,
                 sopra + righe.len() as u16,
             ));
         }
@@ -224,10 +228,13 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             Span::styled(gutter.clone(), t.gutter),
             Span::styled(text, base),
         ]);
-        f.render_widget(Paragraph::new(line).style(t.screen), Rect::new(0, y, w, 1));
+        f.render_widget(
+            Paragraph::new(line).style(t.screen),
+            Rect::new(x0, y, larghezza, 1),
+        );
         for (da, fino, stile) in celle_log {
             for colonna in da..fino.min(cells) {
-                let x = gutter_w as u16 + colonna as u16;
+                let x = x0 + gutter_w as u16 + colonna as u16;
                 f.buffer_mut()[(x, y)].set_style(stile);
             }
         }
@@ -237,7 +244,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         if let (Some(doc), Some(row), Some(found)) = (app.document(), rows.get(i), app.found()) {
             if let Some((da, fino)) = found_cells(doc, row, found, hscroll, cells, &opts) {
                 for colonna in da..fino {
-                    let x = gutter_w as u16 + (colonna - hscroll) as u16;
+                    let x = x0 + gutter_w as u16 + (colonna - hscroll) as u16;
                     f.buffer_mut()[(x, y)].set_style(t.found);
                 }
             }
@@ -248,7 +255,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         if let (Some(doc), Some(row), Some(sel)) = (app.document(), rows.get(i), app.selection()) {
             if let Some((da, fino)) = found_cells(doc, row, sel, hscroll, cells, &opts) {
                 for colonna in da..fino {
-                    let x = gutter_w as u16 + (colonna - hscroll) as u16;
+                    let x = x0 + gutter_w as u16 + (colonna - hscroll) as u16;
                     f.buffer_mut()[(x, y)].set_style(t.selection);
                 }
             }
@@ -272,7 +279,7 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
                         let (da, fino) = (ca.max(hscroll), cb.min(hscroll + cells));
                         if da < fino {
                             for colonna in da..fino {
-                                let x = gutter_w as u16 + (colonna - hscroll) as u16;
+                                let x = x0 + gutter_w as u16 + (colonna - hscroll) as u16;
                                 f.buffer_mut()[(x, y)].set_style(t.selection);
                             }
                         }
@@ -289,6 +296,104 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         }
     }
     app.set_cursor_xy(xy);
+}
+
+/// Il testo ridotto a `larghezza` colonne esatte: tagliato se e' piu' lungo, completato con spazi se e' piu' corto.
+fn in_colonne(testo: &str, larghezza: usize) -> String {
+    let mut fuori = String::new();
+    let mut usate = 0;
+    for c in testo.chars() {
+        let w = Span::raw(c.to_string()).width();
+        if usate + w > larghezza {
+            break;
+        }
+        fuori.push(c);
+        usate += w;
+    }
+    fuori.push_str(&" ".repeat(larghezza - usate));
+    fuori
+}
+
+/// La colonna della timeline (se c'e'), accanto al testo: l'intestazione, e sotto una riga per periodo (la data e la barra divisa
+/// fra i livelli) o il messaggio che dice perche' non ci sono. Il filetto sta dal lato del testo ed e' in risalto dove passa il
+/// tratto di file che si legge. Le forme della barra distinguono i livelli anche senza i colori (`█` errori, `▓` avvisi, `▒`
+/// notizie, `░` dettagli, `▒` fioco quelli non ancora contati).
+fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
+    let larghezza = app.timeline_panel_w();
+    if larghezza == 0 {
+        return;
+    }
+    let Some(corpo) = app.timeline_panel() else {
+        return;
+    };
+    let x = app.timeline_panel_x();
+    let sopra = app.top_offset();
+    let alte = usize::from(h).saturating_sub(3);
+    let dentro = usize::from(larghezza) - 1;
+    let titolo = app.timeline_panel_title();
+    // dei colori dei livelli si tiene il primo piano: lo sfondo e' quello dello schermo
+    let primo_piano = |s: Style| s.fg.map_or_else(Style::default, |c| Style::default().fg(c));
+    let barre: [(&str, Style); 5] = [
+        ("█", primo_piano(t.log.error)),
+        ("▓", primo_piano(t.log.warn)),
+        ("▒", primo_piano(t.log.info)),
+        ("░", primo_piano(t.log.debug)),
+        ("▒", t.gutter),
+    ];
+    let riga_periodo = |r: &RigaPannello| -> Vec<Span<'static>> {
+        let stile_data = if r.in_vista { t.title } else { t.gutter };
+        let mut spans = vec![
+            Span::styled(in_colonne(&r.etichetta, ETICHETTA_W), stile_data),
+            Span::raw(" "),
+        ];
+        let mut usate = 0;
+        for (k, &n) in r.celle.iter().enumerate() {
+            if n > 0 {
+                spans.push(Span::styled(barre[k].0.repeat(n), barre[k].1));
+                usate += n;
+            }
+        }
+        spans.push(Span::raw(" ".repeat(BARRA_W - usate)));
+        spans
+    };
+    for i in 0..alte {
+        let (spans, in_vista): (Vec<Span<'static>>, bool) = if i == 0 {
+            (
+                vec![Span::styled(in_colonne(&titolo, dentro), t.status)],
+                false,
+            )
+        } else {
+            match &corpo {
+                Pannello::Testo(righe) => {
+                    let s = righe.get(i - 1).map_or("", String::as_str);
+                    (
+                        vec![Span::styled(in_colonne(&format!(" {s}"), dentro), t.hint)],
+                        false,
+                    )
+                }
+                Pannello::Righe(righe) => match righe.get(i - 1) {
+                    Some(r) => (riga_periodo(r), r.in_vista),
+                    None => (vec![Span::raw(" ".repeat(dentro))], false),
+                },
+            }
+        };
+        let filetto = if in_vista {
+            Span::styled("┃", t.title)
+        } else {
+            Span::styled("│", t.gutter)
+        };
+        let mut celle = spans;
+        // il filetto sta dal lato del testo
+        if x > 0 {
+            celle.insert(0, filetto);
+        } else {
+            celle.push(filetto);
+        }
+        f.render_widget(
+            Paragraph::new(Line::from(celle)).style(t.screen),
+            Rect::new(x, sopra + i as u16, larghezza, 1),
+        );
+    }
 }
 
 /// Riga h-2: il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, se un

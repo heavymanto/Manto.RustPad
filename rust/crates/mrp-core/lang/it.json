@@ -204,7 +204,7 @@
   "help.l19": "Alt+W / Alt+L / Alt+N        spazi e tab / colori dei log / numeri di riga",
   "mode.follow": "SEGUI",
   "gui.follow": "Segui la fine del file",
-  "help.l20": "Alt+F                      segui la fine del file (come tail -f)",
+  "help.l20": "Alt+F / Alt+B              segui la fine (tail -f) / timeline",
   "prompt.filter.title": "FILTRA RIGHE",
   "prompt.filter.hint": "mostra solo le righe che corrispondono",
   "gui.filter": "Filtra le righe…",

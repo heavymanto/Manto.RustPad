@@ -205,7 +205,7 @@
   "help.l19": "Alt+W / Alt+L / Alt+N        Leerzeichen und Tabs / Log-Farben / Zeilennummern",
   "mode.follow": "FOLGEN",
   "gui.follow": "Dateiende verfolgen",
-  "help.l20": "Alt+F                      Dateiende verfolgen (wie tail -f)",
+  "help.l20": "Alt+F / Alt+B              Dateiende verfolgen (tail -f) / Zeitleiste",
   "prompt.filter.title": "ZEILEN FILTERN",
   "prompt.filter.hint": "nur die passenden Zeilen zeigen",
   "gui.filter": "Zeilen filtern…",

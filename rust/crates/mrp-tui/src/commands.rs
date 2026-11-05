@@ -275,7 +275,13 @@ pub const COMMANDS: &[Command] = &[
         "time_mask",
     ),
     comando(Cmd::TimeFilter, "gui.time_filter", None, "", "time_filter"),
-    comando(Cmd::Timeline, "gui.timeline", None, "", "timeline"),
+    comando(
+        Cmd::Timeline,
+        "gui.timeline",
+        tasto(KeyCode::Char('b'), ALT),
+        "Alt+B",
+        "timeline",
+    ),
     comando(
         Cmd::NextTab,
         "gui.next_tab",

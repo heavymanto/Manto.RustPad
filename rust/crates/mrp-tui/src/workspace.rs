@@ -1302,6 +1302,11 @@ impl Workspace {
         for a in &mut self.tabs {
             a.tick();
         }
+        // la timeline del terminale: la finestra grafica fa girare la sua a ogni disegno, e solo per la scheda attiva
+        let attiva = &mut self.tabs[self.active];
+        if attiva.chrome() {
+            attiva.timeline_tick();
+        }
         self.settle();
         self.tick_session();
     }

@@ -205,7 +205,7 @@
   "help.l19": "Alt+W / Alt+L / Alt+N        空白とタブ / ログの色 / 行番号",
   "mode.follow": "追従",
   "gui.follow": "ファイルの末尾を追う",
-  "help.l20": "Alt+F                      ファイルの末尾を追う(tail -f)",
+  "help.l20": "Alt+F / Alt+B              末尾を追う(tail -f) / タイムライン",
   "prompt.filter.title": "行を絞り込む",
   "prompt.filter.hint": "一致する行だけを表示",
   "gui.filter": "行を絞り込む…",

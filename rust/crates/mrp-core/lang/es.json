@@ -205,7 +205,7 @@
   "help.l19": "Alt+W / Alt+L / Alt+N        espacios y tabs / colores de log / números de línea",
   "mode.follow": "SEGUIR",
   "gui.follow": "Seguir el final del archivo",
-  "help.l20": "Alt+F                      seguir el final del archivo (como tail -f)",
+  "help.l20": "Alt+F / Alt+B              seguir el final (tail -f) / línea de tiempo",
   "prompt.filter.title": "FILTRAR LÍNEAS",
   "prompt.filter.hint": "mostrar solo las líneas que coinciden",
   "gui.filter": "Filtrar líneas…",

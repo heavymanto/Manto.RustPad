@@ -205,7 +205,7 @@
   "help.l19": "Alt+W / Alt+L / Alt+N        空格和制表符 / 日志着色 / 行号",
   "mode.follow": "跟随",
   "gui.follow": "跟随文件末尾",
-  "help.l20": "Alt+F                      跟随文件末尾(类似 tail -f)",
+  "help.l20": "Alt+F / Alt+B              跟随末尾(tail -f) / 时间线",
   "prompt.filter.title": "筛选行",
   "prompt.filter.hint": "只显示匹配的行",
   "gui.filter": "筛选行…",

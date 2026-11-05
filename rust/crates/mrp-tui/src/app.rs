@@ -6,6 +6,7 @@ pub mod dialogs;
 mod tempo;
 mod tempo_esempio;
 mod tempo_finestra;
+pub(crate) mod timeline_pannello;
 pub use tempo::{SourceKind, TimeSource, TimeSuggestion};
 pub use tempo_esempio::{ExampleCandidate, ExampleOutcome, ExampleProblem};
 pub use tempo_finestra::{CalendarInfo, Day, FilterConditions, Month};
@@ -796,6 +797,8 @@ pub struct App {
     timeline_pref: timeline::TimelinePref,
     /// La scheda e' appena aperta: la timeline puo' partire da sola, una volta (`timeline_autostart_check`).
     autostart_pending: bool,
+    /// Un trascinamento col mouse cominciato sul pannello della timeline (resta del pannello finche' si lascia il tasto).
+    panel_drag: bool,
     time_field: u8,
     time_error: String,
     time_bounds: Option<(i64, i64)>,
@@ -1068,13 +1071,11 @@ impl App {
             preview_memo: std::cell::RefCell::new(None),
             time_check: false,
             time_timeline: false,
-            // il TUI non disegna la timeline: parte spenta (la preferenza resta com'e', per non cancellarla dalle impostazioni)
-            timeline: timeline::TimelineState::from_pref(timeline::TimelinePref {
-                on: cfg.timeline.on && !cfg.chrome,
-                ..cfg.timeline
-            }),
+            // com'era quando si e' chiusa (anche nel terminale: ha il suo pannello); la partenza da sola, invece, e' della finestra
+            timeline: timeline::TimelineState::from_pref(cfg.timeline),
             timeline_pref: cfg.timeline,
             autostart_pending: true,
+            panel_drag: false,
             time_field: 2,
             time_error: String::new(),
             time_bounds: None,
@@ -1308,6 +1309,8 @@ impl App {
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // Alt+F: segui la coda del file (come `tail -f`)
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
+            // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
+            KeyCode::Char('b') | KeyCode::Char('B') if alt && !ctrl => self.toggle_timeline(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
             // Invio su una riga della vista filtrata: va alla stessa riga del file originale
             KeyCode::Enter if !ctrl && !alt && !self.edit && self.filter_view.is_some() => {
@@ -1335,6 +1338,10 @@ impl App {
 
     fn handle_mouse_at_inner(&mut self, m: MouseEvent, adesso: Instant) {
         self.seal_history();
+        // il pannello della timeline ha i suoi clic: il testo non li vede
+        if self.timeline_panel_mouse(m) {
+            return;
+        }
         match m.kind {
             MouseEventKind::ScrollDown => self.wheel(true),
             MouseEventKind::ScrollUp => self.wheel(false),
@@ -1384,7 +1391,7 @@ impl App {
             }
             indice = self.row_starts.len() - 1;
         }
-        let colonna = self.hscroll + usize::from(col).saturating_sub(self.gutter_w());
+        let colonna = self.hscroll + self.text_col(col);
         Some((self.row_starts[indice], (colonna as u64).min(MAX_VCOL)))
     }
 
@@ -1477,7 +1484,7 @@ impl App {
             }
             indice = self.row_starts.len() - 1;
         }
-        let colonna = self.hscroll + usize::from(col).saturating_sub(self.gutter_w());
+        let colonna = self.hscroll + self.text_col(col);
         let opts = ViewOptions {
             show_eof_row: self.edit,
             ..self.view_opts()
@@ -3341,13 +3348,16 @@ impl App {
         }
     }
 
-    /// Chiama `tick` finche' non c'e' piu' un lavoro in corso (salvataggio, ricerca o
-    /// indicizzazione) o scade `timeout`. Vero se non c'e' piu' niente in corso.
+    /// Chiama `tick` finche' non c'e' piu' un lavoro in corso (salvataggio, ricerca, indicizzazione o, nel terminale, le tacche e i
+    /// livelli della timeline) o scade `timeout`. Vero se non c'e' piu' niente in corso.
     pub fn wait_idle(&mut self, timeout: Duration) -> bool {
         let inizio = Instant::now();
         loop {
             self.tick();
-            if self.save_job.is_none()
+            // la timeline del terminale e' un lavoro come gli altri (la finestra grafica fa girare la sua a ogni disegno)
+            let timeline_in_corso = self.chrome && self.timeline_tick();
+            if !timeline_in_corso
+                && self.save_job.is_none()
                 && self.index_job.is_none()
                 && self.search_job.is_none()
                 && self.replace_job.is_none()
@@ -4303,9 +4313,15 @@ impl App {
         u16::from(self.chrome)
     }
 
-    /// Le celle di testo per riga (la larghezza meno il gutter).
+    /// Le celle di testo per riga (la larghezza meno il pannello della timeline e il gutter).
     fn cells(&self) -> usize {
-        (self.w as usize).saturating_sub(self.gutter_w())
+        usize::from(self.w - self.timeline_panel_w()).saturating_sub(self.gutter_w())
+    }
+
+    /// La colonna di testo (0 e' la prima cella dopo il gutter, senza contare lo scorrimento) della colonna `col` dello schermo;
+    /// il pannello e il gutter danno 0.
+    fn text_col(&self, col: u16) -> usize {
+        usize::from(col).saturating_sub(usize::from(self.text_x0()) + self.gutter_w())
     }
 
     /// Il limite del cursore: in lettura non oltre l'inizio dell'ultimo a-capo di un file che ci

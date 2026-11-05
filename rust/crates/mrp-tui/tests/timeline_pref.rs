@@ -139,14 +139,15 @@ fn what_the_user_chooses_is_written_and_a_new_app_opens_the_same() {
 }
 
 #[test]
-fn the_terminal_does_not_draw_the_timeline_but_does_not_lose_the_choice() {
+fn the_terminal_opens_with_the_choice_of_the_window_and_does_not_lose_it() {
     let log = log_con_buchi();
     let imp = unico("settings.txt");
     let pref = TimelinePref {
         on: true,
         ..TimelinePref::default()
     };
-    // chrome = true e' il terminale: la barra non c'e', la scelta della finestra resta nel file anche se il terminale scrive
+    // chrome = true e' il terminale: ha il suo pannello (`timeline_pannello.rs`), quindi la scelta della finestra vale anche li' e
+    // resta nel file anche se il terminale scrive
     let cfg = AppConfig {
         chrome: true,
         settings_path: Some(imp.clone()),
@@ -154,7 +155,7 @@ fn the_terminal_does_not_draw_the_timeline_but_does_not_lose_the_choice() {
         ..AppConfig::default()
     };
     let mut a = App::open(&log, cfg).unwrap();
-    assert!(!a.timeline_on());
+    assert!(a.timeline_on());
     a.set_nav_bar(true, true);
     assert!(Settings::load(&imp).unwrap().timeline.on);
     let _ = std::fs::remove_file(log);
