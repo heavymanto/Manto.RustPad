@@ -405,10 +405,15 @@ impl App {
         let within = self.mask_text[1].trim().parse::<usize>().unwrap_or(0);
         let pattern = self.mask_text[0].trim().to_string();
         let skip = self.mask_skip;
-        let cambia = self
-            .time_mask
-            .as_ref()
-            .is_none_or(|m| m.pattern() != pattern || m.within() != within || m.skip() != skip);
+        // un file senza orario riconosciuto non ha formato: se non se ne scrive uno, non c'e' niente da cambiare (i filtri per testo e
+        // per livello funzionano lo stesso)
+        let cambia = if pattern.is_empty() && self.time_mask.is_none() {
+            false
+        } else {
+            self.time_mask
+                .as_ref()
+                .is_none_or(|m| m.pattern() != pattern || m.within() != within || m.skip() != skip)
+        };
         // com'era, per rimettere tutto se il filtro non si applica
         let prima = (self.time_mask.clone(), self.time_mask_tried, self.window);
         if cambia {
@@ -493,7 +498,7 @@ impl App {
             .iter()
             .any(|s| s.pattern == pattern && s.within == within && s.skip == skip);
         let noto = skip == 0 && timemask::PRESETS.iter().any(|p| p.pattern == pattern);
-        let regola = !offerto && !noto;
+        let regola = !pattern.is_empty() && !offerto && !noto;
         if regola {
             self.aggiungi_regola(&pattern, within, skip);
         }

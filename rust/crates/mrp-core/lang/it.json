@@ -409,5 +409,8 @@
   "gui.cancel": "Annulla",
   "gui.find_go": "Cerca",
   "gui.replace_preview": "Anteprima",
-  "gui.replace_apply": "Sostituisci tutto"
+  "gui.replace_apply": "Sostituisci tutto",
+  "ctx.filter_sel": "Filtra le righe con \"{}\"",
+  "ctx.exclude_sel": "Escludi le righe con \"{}\"",
+  "ctx.find_sel": "Cerca \"{}\""
 }

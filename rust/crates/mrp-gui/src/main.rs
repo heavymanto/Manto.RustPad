@@ -198,6 +198,22 @@ fn run() -> i32 {
                 Ok("tempo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
                 // la timeline (barra mappa del file nel tempo)
                 Ok("timeline") => finestra.azione(mrp_tui::commands::Cmd::Timeline),
+                // il menu del tasto destro con una selezione: MRPG_SELEZIONE=riga,colonna,quanti (di fabbrica 1,21,5)
+                Ok("contestuale") => {
+                    let v: Vec<usize> = std::env::var("MRPG_SELEZIONE")
+                        .unwrap_or_else(|_| "1,21,5".to_string())
+                        .split(',')
+                        .filter_map(|s| s.trim().parse().ok())
+                        .collect();
+                    if let [riga, colonna, quanti] = v[..] {
+                        finestra.contestuale_di_prova(
+                            riga,
+                            colonna,
+                            quanti,
+                            eframe::egui::Pos2::new(380.0, 240.0),
+                        );
+                    }
+                }
                 // il calendario del campo Dal nella finestra "Tempo"
                 Ok("calendario") => {
                     finestra.azione(mrp_tui::commands::Cmd::TimeRange);

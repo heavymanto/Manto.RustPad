@@ -410,5 +410,8 @@
   "gui.cancel": "Cancelar",
   "gui.find_go": "Buscar",
   "gui.replace_preview": "Pré-visualizar",
-  "gui.replace_apply": "Substituir tudo"
+  "gui.replace_apply": "Substituir tudo",
+  "ctx.filter_sel": "Filtrar linhas com \"{}\"",
+  "ctx.exclude_sel": "Ocultar linhas com \"{}\"",
+  "ctx.find_sel": "Procurar \"{}\""
 }

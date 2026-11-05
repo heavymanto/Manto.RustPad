@@ -409,5 +409,8 @@
   "gui.cancel": "Cancel",
   "gui.find_go": "Find",
   "gui.replace_preview": "Preview",
-  "gui.replace_apply": "Replace all"
+  "gui.replace_apply": "Replace all",
+  "ctx.filter_sel": "Filter lines with \"{}\"",
+  "ctx.exclude_sel": "Hide lines with \"{}\"",
+  "ctx.find_sel": "Find \"{}\""
 }

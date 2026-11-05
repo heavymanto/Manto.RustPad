@@ -206,17 +206,61 @@ pub const CONTESTUALE: &[Option<Cmd>] = &[
     Some(Cmd::Find),
 ];
 
-/// Disegna il menu contestuale con l'angolo in `pos` e restituisce i rettangoli delle voci (nell'ordine, senza i
-/// separatori), il rettangolo di tutto il menu e il comando scelto in questo giro, se c'e'. Le voci spente restano
-/// visibili ma non rispondono.
-pub fn disegna_contestuale(
-    ctx: &egui::Context,
-    ws: &Workspace,
-    pos: egui::Pos2,
-) -> (Vec<(egui::Rect, Cmd)>, egui::Rect, Option<Cmd>) {
+/// Le azioni del menu del tasto destro che partono dal testo selezionato (in cima al menu, solo con una selezione utile).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AzioneTesto {
+    /// Apre la vista con le sole righe che hanno quel testo.
+    Filtra,
+    /// Apre la vista senza le righe che hanno quel testo.
+    Escludi,
+    /// Va alla prossima occorrenza.
+    Cerca,
+}
+
+/// Le tre azioni nell'ordine in cui compaiono, con la chiave del catalogo del loro nome (`{}` e' il testo selezionato).
+pub const AZIONI_TESTO: [(AzioneTesto, &str); 3] = [
+    (AzioneTesto::Filtra, "ctx.filter_sel"),
+    (AzioneTesto::Escludi, "ctx.exclude_sel"),
+    (AzioneTesto::Cerca, "ctx.find_sel"),
+];
+
+/// Il testo selezionato come sta in una voce di menu: accorciato (con i puntini) se supera `TESTO_VOCE_MAX` caratteri.
+fn testo_in_voce(testo: &str) -> String {
+    if testo.chars().count() > TESTO_VOCE_MAX {
+        let mut corto: String = testo.chars().take(TESTO_VOCE_MAX).collect();
+        corto.push('\u{2026}');
+        corto
+    } else {
+        testo.to_string()
+    }
+}
+
+/// Quanti caratteri del testo selezionato stanno nel nome di una voce.
+const TESTO_VOCE_MAX: usize = 24;
+
+/// Cosa ha disegnato il menu contestuale in questo giro.
+pub struct Contestuale {
+    /// Le voci dei comandi (nell'ordine, senza i separatori) col loro rettangolo.
+    pub voci: Vec<(egui::Rect, Cmd)>,
+    /// Le azioni sul testo selezionato (vuote senza una selezione utile) col loro rettangolo.
+    pub testo: Vec<(egui::Rect, AzioneTesto)>,
+    /// Il rettangolo di tutto il menu.
+    pub rect: egui::Rect,
+    /// Il comando scelto in questo giro, se c'e'.
+    pub scelta: Option<Cmd>,
+    /// L'azione sul testo scelta in questo giro, se c'e'.
+    pub scelta_testo: Option<AzioneTesto>,
+}
+
+/// Disegna il menu contestuale con l'angolo in `pos`: le azioni sul testo selezionato (se c'e' una selezione che serve da filtro),
+/// poi i comandi. Le voci spente restano visibili ma non rispondono.
+pub fn disegna_contestuale(ctx: &egui::Context, ws: &Workspace, pos: egui::Pos2) -> Contestuale {
     let app = ws.active();
     let mut voci = Vec::new();
+    let mut testo_voci = Vec::new();
     let mut scelta = None;
+    let mut scelta_testo = None;
+    let selezione = app.selection_as_text();
     let r = egui::Area::new(egui::Id::new("mrp_contestuale"))
         .order(egui::Order::Foreground)
         .fixed_pos(pos)
@@ -226,6 +270,17 @@ pub fn disegna_contestuale(
                 crate::stile::popup(ui.style_mut(), &tav);
                 crate::stile::voci_piatte(ui.style_mut());
                 ui.set_min_width(190.0);
+                if let Some(sel) = &selezione {
+                    let corto = testo_in_voce(sel);
+                    for (azione, chiave) in AZIONI_TESTO {
+                        let r = ui.add(egui::Button::new(app.text_with(chiave, &[&corto])));
+                        testo_voci.push((r.rect, azione));
+                        if r.clicked() {
+                            scelta_testo = Some(azione);
+                        }
+                    }
+                    ui.separator();
+                }
                 for v in CONTESTUALE {
                     match v {
                         None => {
@@ -245,5 +300,11 @@ pub fn disegna_contestuale(
                 }
             });
         });
-    (voci, r.response.rect, scelta)
+    Contestuale {
+        voci,
+        testo: testo_voci,
+        rect: r.response.rect,
+        scelta,
+        scelta_testo,
+    }
 }

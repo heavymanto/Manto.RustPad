@@ -410,5 +410,8 @@
   "gui.cancel": "Abbrechen",
   "gui.find_go": "Suchen",
   "gui.replace_preview": "Vorschau",
-  "gui.replace_apply": "Alle ersetzen"
+  "gui.replace_apply": "Alle ersetzen",
+  "ctx.filter_sel": "Zeilen mit \"{}\" filtern",
+  "ctx.exclude_sel": "Zeilen mit \"{}\" ausblenden",
+  "ctx.find_sel": "\"{}\" suchen"
 }

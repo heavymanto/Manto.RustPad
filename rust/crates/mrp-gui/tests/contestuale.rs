@@ -215,6 +215,197 @@ fn a_click_outside_closes_the_menu() {
     let _ = std::fs::remove_file(p);
 }
 
+/// Seleziona "due" (la seconda riga del file di prova) con i tasti: Ctrl+Home, Giu', tre volte Maiusc+Destra.
+fn seleziona_due(f: &mut Finestra) {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let a = f.app();
+    a.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL));
+    a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+    for _ in 0..3 {
+        a.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+    }
+    assert_eq!(a.selection_as_text().as_deref(), Some("due"));
+}
+
+/// I testi disegnati in un giro.
+fn testi(o: &FullOutput) -> Vec<String> {
+    fn visita(s: &eframe::egui::Shape, v: &mut Vec<String>) {
+        match s {
+            eframe::egui::Shape::Text(t) => v.push(t.galley.text().to_string()),
+            eframe::egui::Shape::Vec(tutte) => tutte.iter().for_each(|x| visita(x, v)),
+            _ => {}
+        }
+    }
+    let mut v = Vec::new();
+    for c in &o.shapes {
+        visita(&c.shape, &mut v);
+    }
+    v
+}
+
+#[test]
+fn without_a_selection_the_menu_has_no_actions_on_the_text() {
+    let (mut f, ctx, p) = finestra();
+    clic(&mut f, &ctx, sul_testo(), PointerButton::Secondary);
+    assert!(!f.contestuale_voci().is_empty());
+    assert!(f.contestuale_testo().is_empty());
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn with_a_selection_the_menu_starts_with_filter_hide_and_find_that_name_the_text() {
+    use mrp_gui::menu::AzioneTesto::*;
+    let (mut f, ctx, p) = finestra();
+    seleziona_due(&mut f);
+    clic(&mut f, &ctx, sul_testo(), PointerButton::Secondary);
+    let azioni: Vec<_> = f.contestuale_testo().iter().map(|(_, a)| *a).collect();
+    assert_eq!(azioni, vec![Filtra, Escludi, Cerca]);
+    // sopra i comandi, una sotto l'altra, e i comandi di sempre ci sono tutti
+    let ultima = f.contestuale_testo()[2].0;
+    assert!(f.contestuale_voci()[0].0.min.y >= ultima.max.y - 0.5);
+    for w in f.contestuale_testo().windows(2) {
+        assert!(w[1].0.min.y >= w[0].0.max.y - 0.5);
+    }
+    use Cmd::*;
+    assert_eq!(
+        comandi(&f),
+        vec![Undo, Redo, Cut, Copy, Paste, SelectAll, Find]
+    );
+    // i nomi dicono il testo, e stanno nell'ordine delle azioni (filtra, nascondi, cerca)
+    let o = giro(&mut f, &ctx, vec![]);
+    let scritti = testi(&o);
+    let posto = |atteso: &str| {
+        scritti
+            .iter()
+            .position(|t| t == atteso)
+            .unwrap_or_else(|| panic!("{atteso}: {scritti:?}"))
+    };
+    let (filtra, nascondi, cerca) = (
+        posto("Filter lines with \"due\""),
+        posto("Hide lines with \"due\""),
+        posto("Find \"due\""),
+    );
+    assert!(filtra < nascondi && nascondi < cerca, "{scritti:?}");
+    // fra le azioni sul testo e i comandi c'e' un separatore: lo spazio e' piu' largo di quello fra due azioni
+    let fra_azioni = f.contestuale_testo()[1].0.min.y - f.contestuale_testo()[0].0.max.y;
+    let fra_gruppi = f.contestuale_voci()[0].0.min.y - ultima.max.y;
+    assert!(fra_gruppi > fra_azioni + 2.0, "{fra_gruppi} {fra_azioni}");
+    let _ = std::fs::remove_file(p);
+}
+
+/// I testi del menu contestuale quando e' selezionata, su una riga sola, una parola di `n` lettere.
+fn testi_con_una_selezione_di(n: usize) -> Vec<String> {
+    use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+    let p = file();
+    let ctx = Context::default();
+    std::fs::write(&p, format!("{}\n", "abcdefghij".repeat(4))).unwrap();
+    let cfg = || AppConfig {
+        chrome: false,
+        ..AppConfig::default()
+    };
+    let mut app = App::open(&p, cfg()).unwrap();
+    assert!(app.wait_idle(Duration::from_secs(20)));
+    for _ in 0..n {
+        app.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+    }
+    let mut g = Finestra::da_app(app, Box::new(cfg));
+    giro(&mut g, &ctx, vec![]);
+    giro(&mut g, &ctx, vec![]);
+    clic(&mut g, &ctx, sul_testo(), PointerButton::Secondary);
+    let o = giro(&mut g, &ctx, vec![]);
+    let _ = std::fs::remove_file(p);
+    testi(&o)
+}
+
+#[test]
+fn a_selection_longer_than_24_characters_is_shortened_in_the_names_with_dots() {
+    // le prime 24 lettere di "abcdefghij" ripetuto: due volte intere e "abcd"
+    let ventiquattro = "abcdefghij".repeat(2) + "abcd";
+    // 24 esatte: per intero, senza puntini
+    let scritti = testi_con_una_selezione_di(24);
+    let atteso = format!("Find \"{ventiquattro}\"");
+    assert!(scritti.contains(&atteso), "{atteso}: {scritti:?}");
+    // 25 e 30: le prime 24 e i puntini
+    for n in [25, 30] {
+        let scritti = testi_con_una_selezione_di(n);
+        let atteso = format!("Find \"{ventiquattro}\u{2026}\"");
+        assert!(scritti.contains(&atteso), "{n}: {atteso}: {scritti:?}");
+    }
+}
+
+#[test]
+fn choosing_filter_opens_the_view_with_the_selected_text_and_closes_the_menu() {
+    let (mut f, ctx, p) = finestra();
+    seleziona_due(&mut f);
+    clic(&mut f, &ctx, sul_testo(), PointerButton::Secondary);
+    let pos = f.contestuale_testo()[0].0.center();
+    clic(&mut f, &ctx, pos, PointerButton::Primary);
+    assert!(f.contestuale_voci().is_empty() && f.contestuale_testo().is_empty());
+    aspetta_la_vista(&mut f, &ctx);
+    assert_eq!(f.workspace().len(), 2);
+    assert_eq!(f.app().document_text(), b"due\n");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn choosing_hide_opens_the_view_without_the_selected_text() {
+    let (mut f, ctx, p) = finestra();
+    seleziona_due(&mut f);
+    clic(&mut f, &ctx, sul_testo(), PointerButton::Secondary);
+    let pos = f.contestuale_testo()[1].0.center();
+    clic(&mut f, &ctx, pos, PointerButton::Primary);
+    aspetta_la_vista(&mut f, &ctx);
+    assert_eq!(f.workspace().len(), 2);
+    assert_eq!(f.app().document_text(), b"uno\ntre\n");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn choosing_find_moves_to_the_next_one_and_closes_the_menu() {
+    // "due" compare due volte: la seconda e' dopo la selezione
+    let n = COUNTER.fetch_add(1, Ordering::SeqCst);
+    let p = std::env::temp_dir().join(format!("mrp_ctx_cerca_{}_{}.txt", std::process::id(), n));
+    std::fs::write(&p, b"uno\ndue\ntre\ndue\n").unwrap();
+    let cfg = || AppConfig {
+        chrome: false,
+        ..AppConfig::default()
+    };
+    let mut app = App::open(&p, cfg()).unwrap();
+    assert!(app.wait_idle(Duration::from_secs(20)));
+    let mut f = Finestra::da_app(app, Box::new(cfg));
+    let ctx = Context::default();
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
+    seleziona_due(&mut f);
+    clic(&mut f, &ctx, sul_testo(), PointerButton::Secondary);
+    let pos = f.contestuale_testo()[2].0.center();
+    clic(&mut f, &ctx, pos, PointerButton::Primary);
+    assert!(f.contestuale_voci().is_empty());
+    for _ in 0..200 {
+        giro(&mut f, &ctx, vec![]);
+        if f.app().cursor() == 12 {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // "uno\ndue\ntre\n" sono 12 byte: la seconda "due" comincia al byte 12
+    assert_eq!(f.app().cursor(), 12);
+    let _ = std::fs::remove_file(p);
+}
+
+/// Gira finche' la vista filtrata si apre (il filtro lavora in un thread).
+fn aspetta_la_vista(f: &mut Finestra, ctx: &Context) {
+    for _ in 0..400 {
+        giro(f, ctx, vec![]);
+        if f.workspace().len() == 2 {
+            giro(f, ctx, vec![]);
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    panic!("la vista filtrata non si e' aperta");
+}
+
 #[test]
 fn a_second_right_click_moves_the_menu() {
     let (mut f, ctx, p) = finestra();

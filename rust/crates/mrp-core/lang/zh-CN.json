@@ -410,5 +410,8 @@
   "gui.cancel": "取消",
   "gui.find_go": "查找",
   "gui.replace_preview": "预览",
-  "gui.replace_apply": "全部替换"
+  "gui.replace_apply": "全部替换",
+  "ctx.filter_sel": "筛选包含\"{}\"的行",
+  "ctx.exclude_sel": "隐藏包含\"{}\"的行",
+  "ctx.find_sel": "查找\"{}\""
 }

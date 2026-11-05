@@ -410,5 +410,8 @@
   "gui.cancel": "キャンセル",
   "gui.find_go": "検索",
   "gui.replace_preview": "プレビュー",
-  "gui.replace_apply": "すべて置換"
+  "gui.replace_apply": "すべて置換",
+  "ctx.filter_sel": "\"{}\" を含む行で絞り込む",
+  "ctx.exclude_sel": "\"{}\" を含む行を隠す",
+  "ctx.find_sel": "\"{}\" を検索"
 }

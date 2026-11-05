@@ -1,6 +1,7 @@
 //! L'app del TUI: una macchina a stati testabile senza terminale (il contratto sta in `docs/TEAM/DESIGN_TUI.md`).
 //! Riceve tasti, mouse e dimensioni dello schermo; non disegna (lo fa `ui.rs`); tutta la logica di testo e' nel core.
 
+mod da_selezione;
 pub mod dialogs;
 mod tempo;
 mod tempo_esempio;

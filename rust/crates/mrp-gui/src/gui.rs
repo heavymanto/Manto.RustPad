@@ -123,6 +123,8 @@ pub struct Finestra {
     contestuale: Option<Pos2>,
     /// Le voci del menu contestuale nell'ultimo disegno e il rettangolo di tutto il menu (vuote / `NOTHING`: chiuso).
     contestuale_voci: Vec<(Rect, Cmd)>,
+    /// Le azioni sul testo selezionato dello stesso menu (vuote senza una selezione utile).
+    contestuale_testo: Vec<(Rect, menu::AzioneTesto)>,
     contestuale_rect: Rect,
     /// Il colore di fondo della griglia nell'ultimo disegno (l'ultima cella): riempie anche il resto dell'area che non
     /// basta per una riga o una colonna intera.
@@ -207,6 +209,7 @@ impl Finestra {
             dialogo: StatoDialogo::default(),
             contestuale: None,
             contestuale_voci: Vec::new(),
+            contestuale_testo: Vec::new(),
             contestuale_rect: Rect::NOTHING,
             fondo: BG_PREDEFINITO,
         }
@@ -255,6 +258,39 @@ impl Finestra {
     /// vuote se e' chiuso.
     pub fn contestuale_voci(&self) -> &[(Rect, Cmd)] {
         &self.contestuale_voci
+    }
+
+    /// Le azioni sul testo selezionato (filtra, escludi, cerca) del menu contestuale nell'ultimo disegno, dall'alto in basso (per i
+    /// test); vuote se e' chiuso o se non c'e' una selezione utile.
+    pub fn contestuale_testo(&self) -> &[(Rect, menu::AzioneTesto)] {
+        &self.contestuale_testo
+    }
+
+    /// Uso da sviluppatore (per le schermate): seleziona `quanti` caratteri dalla colonna `colonna` della riga `riga` (contando dalla
+    /// prima riga del file) e apre il menu del tasto destro con l'angolo in `pos`.
+    pub fn contestuale_di_prova(&mut self, riga: usize, colonna: usize, quanti: usize, pos: Pos2) {
+        let a = self.ws.active_mut();
+        a.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL));
+        for _ in 0..riga {
+            a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
+        }
+        for _ in 0..colonna {
+            a.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::NONE));
+        }
+        for _ in 0..quanti {
+            a.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+        }
+        self.contestuale = Some(pos);
+    }
+
+    /// Esegue un'azione del menu contestuale sul testo selezionato.
+    pub fn azione_testo(&mut self, a: menu::AzioneTesto) {
+        match a {
+            menu::AzioneTesto::Filtra => self.ws.active_mut().filter_by_selection(false),
+            menu::AzioneTesto::Escludi => self.ws.active_mut().filter_by_selection(true),
+            menu::AzioneTesto::Cerca => self.ws.active_mut().find_selection(),
+        }
+        self.ultimo_input = Instant::now();
     }
 
     /// Il colore di fondo della griglia nell'ultimo disegno (per i test).
@@ -1334,17 +1370,25 @@ impl Finestra {
         }
         match self.contestuale {
             Some(pos) => {
-                let (voci, rect, scelta) = menu::disegna_contestuale(ctx, &self.ws, pos);
-                self.contestuale_voci = voci;
-                self.contestuale_rect = rect;
-                if let Some(c) = scelta {
+                let m = menu::disegna_contestuale(ctx, &self.ws, pos);
+                self.contestuale_voci = m.voci;
+                self.contestuale_testo = m.testo;
+                self.contestuale_rect = m.rect;
+                if let Some(c) = m.scelta {
                     self.contestuale = None;
                     self.contestuale_voci.clear();
+                    self.contestuale_testo.clear();
                     self.azione(c);
+                } else if let Some(a) = m.scelta_testo {
+                    self.contestuale = None;
+                    self.contestuale_voci.clear();
+                    self.contestuale_testo.clear();
+                    self.azione_testo(a);
                 }
             }
             None => {
                 self.contestuale_voci.clear();
+                self.contestuale_testo.clear();
                 self.contestuale_rect = Rect::NOTHING;
             }
         }
