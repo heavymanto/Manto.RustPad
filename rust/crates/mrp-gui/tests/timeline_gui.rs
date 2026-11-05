@@ -168,6 +168,79 @@ fn with_the_right_flag_the_bar_sits_next_to_the_scrollbar() {
     let _ = std::fs::remove_file(p);
 }
 
+/// Il centro del primo testo disegnato che contiene `cercato` (dove cliccare su una voce di menu).
+fn centro_del_testo(o: &FullOutput, cercato: &str) -> Option<Pos2> {
+    fn visita(s: &egui::Shape, cercato: &str) -> Option<Pos2> {
+        match s {
+            egui::Shape::Text(t) if t.galley.text().contains(cercato) => {
+                Some(t.pos + t.galley.rect.center().to_vec2())
+            }
+            egui::Shape::Vec(tutte) => tutte.iter().find_map(|x| visita(x, cercato)),
+            _ => None,
+        }
+    }
+    o.shapes.iter().find_map(|c| visita(&c.shape, cercato))
+}
+
+/// Un clic con il tasto `tasto` nel punto `pos`.
+fn clic_con(f: &mut Finestra, ctx: &Context, pos: Pos2, tasto: egui::PointerButton) {
+    for premuto in [true, false] {
+        giro(
+            f,
+            ctx,
+            vec![
+                Event::PointerMoved(pos),
+                Event::PointerButton {
+                    pos,
+                    button: tasto,
+                    pressed: premuto,
+                    modifiers: Modifiers::NONE,
+                },
+            ],
+        );
+    }
+}
+
+/// Apre il menu del tasto destro sulla barra e clicca la voce che contiene `voce`.
+fn scegli_dal_menu_della_barra(f: &mut Finestra, ctx: &Context, voce: &str) {
+    let corpo = f.timeline_disegnata().corpo.expect("il corpo");
+    clic_con(f, ctx, corpo.center(), egui::PointerButton::Secondary);
+    let o = giro(f, ctx, vec![]);
+    let dove = centro_del_testo(&o, voce)
+        .unwrap_or_else(|| panic!("la voce {voce:?} non c'e' nel menu: {:?}", testi(&o)));
+    clic_con(f, ctx, dove, egui::PointerButton::Primary);
+    disegna(f, ctx);
+}
+
+#[test]
+fn the_right_click_menu_of_the_bar_moves_it_to_the_right_and_back() {
+    let (mut f, ctx, p, _) = finestra();
+    f.azione(Cmd::Timeline);
+    pronta(&mut f, &ctx);
+    assert!(!f.app().timeline_right());
+    scegli_dal_menu_della_barra(&mut f, &ctx, "Timeline on the right");
+    assert!(f.app().timeline_right(), "la voce ha spostato la barra");
+    assert!(f.timeline_disegnata().rect.expect("la barra").min.x > 500.0);
+    // la stessa voce la riporta a sinistra
+    scegli_dal_menu_della_barra(&mut f, &ctx, "Timeline on the right");
+    assert!(!f.app().timeline_right());
+    assert!(f.timeline_disegnata().rect.expect("la barra").min.x < 1.0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_right_click_menu_of_the_bar_switches_the_start_by_itself_on_and_off() {
+    let (mut f, ctx, p, _) = finestra_con(cfg_di_fabbrica());
+    pronta(&mut f, &ctx);
+    assert!(f.app().timeline_autostart());
+    scegli_dal_menu_della_barra(&mut f, &ctx, "Start by itself");
+    assert!(!f.app().timeline_autostart(), "la voce l'ha spenta");
+    assert!(f.app().timeline_pref().no_autostart);
+    scegli_dal_menu_della_barra(&mut f, &ctx, "Start by itself");
+    assert!(f.app().timeline_autostart(), "e la riaccende");
+    let _ = std::fs::remove_file(p);
+}
+
 #[test]
 fn a_file_with_dates_starts_the_timeline_by_itself() {
     let (mut f, ctx, p, _) = finestra_con(cfg_di_fabbrica());

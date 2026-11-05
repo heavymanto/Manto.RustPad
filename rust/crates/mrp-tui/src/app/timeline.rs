@@ -111,6 +111,11 @@ pub struct TimelinePref {
 /// freddo, e' un lavoro che l'utente deve chiedere.
 pub const AUTOSTART_MAX: u64 = 2 << 30;
 
+/// Un file di `len` byte e' abbastanza piccolo perche' la timeline parta da sola (`AUTOSTART_MAX` compreso).
+pub fn autostart_size_ok(len: u64) -> bool {
+    len <= AUTOSTART_MAX
+}
+
 /// I livelli che la timeline sa filtrare, nell'ordine in cui si mostrano.
 pub const TIMELINE_LEVELS: [&str; 4] = ["ERROR", "WARN", "INFO", "DEBUG"];
 
@@ -316,7 +321,7 @@ impl App {
             || self.chrome
             || self.timeline_pref.no_autostart
             || self.path.as_os_str().is_empty()
-            || self.document_len() > AUTOSTART_MAX
+            || !autostart_size_ok(self.document_len())
             || self.doc.as_ref().is_none_or(Document::is_modified)
         {
             return;

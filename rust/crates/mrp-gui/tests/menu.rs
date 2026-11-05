@@ -9,6 +9,7 @@ use mrp_gui::gui::Finestra;
 use mrp_gui::menu::{acceso, voce_di, Voce, MENU};
 use mrp_tui::app::{App, AppConfig, DialogKind};
 use mrp_tui::commands::{shortcut_text, Cmd};
+use mrp_tui::workspace::Workspace;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::cell::RefCell;
 use std::path::PathBuf;
@@ -410,12 +411,12 @@ fn finestra_nuova(scelte: Vec<PathBuf>) -> (Finestra, Context, PathBuf, Chiamate
     let chiamate: Chiamate = Rc::default();
     let c = chiamate.clone();
     let mut coda = scelte.into_iter();
-    let f = Finestra::da_app(app, Box::new(AppConfig::default)).con_salvataggio(Box::new(
-        move |titolo, nome| {
-            c.borrow_mut().push((titolo.to_string(), nome.to_string()));
-            coda.next()
-        },
-    ));
+    // la sessione e' la cartella del collaudo: i documenti nuovi (Ctrl+N) vanno in `dir/untitled`, non in quella del processo
+    let ws = Workspace::new(app, AppConfig::default()).with_session(dir.clone());
+    let f = Finestra::da_workspace(ws).con_salvataggio(Box::new(move |titolo, nome| {
+        c.borrow_mut().push((titolo.to_string(), nome.to_string()));
+        coda.next()
+    }));
     (f, Context::default(), dir, chiamate)
 }
 
@@ -433,7 +434,21 @@ fn the_file_menu_has_new_and_save_as_with_their_shortcuts() {
 
 #[test]
 fn the_new_entry_opens_an_untitled_tab() {
-    let (mut f, ctx, p, _t) = finestra(b"uno\n", vec![]);
+    // una cartella di sessione solo sua: senza, i documenti senza nome di tutti i collaudi del processo finirebbero nella stessa
+    // cartella e i numeri ("Untitled 1") dipenderebbero da chi arriva prima
+    let p = file(b"uno\n");
+    let sessione = std::env::temp_dir().join(format!(
+        "mrp_menu_sessione_{}_{}",
+        std::process::id(),
+        COUNTER.fetch_add(1, Ordering::SeqCst)
+    ));
+    let ws = Workspace::new(
+        App::open(&p, AppConfig::default()).unwrap(),
+        AppConfig::default(),
+    )
+    .with_session(sessione.clone());
+    let mut f = Finestra::da_workspace(ws);
+    let ctx = Context::default();
     giro(&mut f, &ctx, vec![]);
     f.azione(voce("gui.new").azione);
     assert_eq!(f.workspace().len(), 2);
@@ -444,6 +459,7 @@ fn the_new_entry_opens_an_untitled_tab() {
     assert_eq!(f.workspace().len(), 3);
     assert_eq!(f.app().file_name(), "Untitled 2");
     let _ = std::fs::remove_file(p);
+    let _ = std::fs::remove_dir_all(sessione);
 }
 
 #[test]
