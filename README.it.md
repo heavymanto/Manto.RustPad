@@ -2,17 +2,18 @@
   <tr>
     <td valign="middle">
       <h1>Manto.RustPad</h1>
-      <h3>Un viewer di log per i file che non stanno in RAM, con la modifica a colonna</h3>
-      <p><strong><em>Apri e scorri un file da 100 GB, subito, come un viewer di log — numeri di riga, salto a una riga o a un orario, segui la fine, filtro, colori — e quando serve cambiare qualcosa lo modifichi sul posto, con la modifica a colonna (a blocchi). Un editor familiare, non modale, in Rust, la cui memoria non dipende dalla dimensione del file e che non tronca mai i dati in silenzio.</em></strong></p>
+      <h3>Un viewer di log per i file che non stanno in RAM, con la timeline dell'intero file e la modifica a colonna</h3>
+      <p><strong><em>Apri un log da 100 GB in un attimo e ne vedi tutta la vita a colpo d'occhio: la timeline del file mostra, livello per livello, dove sono gli errori e gli avvisi, e un clic ti ci porta. Scorri, salta a una riga o a un orario, segui la fine, filtra, colora — e quando serve cambiare qualcosa lo modifichi sul posto, con la modifica a colonna (a blocchi). Un editor familiare, non modale, in Rust, in una finestra o nel terminale, la cui memoria non dipende dalla dimensione del file e che non tronca mai i dati in silenzio.</em></strong></p>
       <p>
         <img src="https://img.shields.io/badge/SI%20APRE-SUBITO-e3b341?style=for-the-badge" alt="si apre subito" />
+        <img src="https://img.shields.io/badge/TIMELINE-DEL%20FILE-e3b341?style=for-the-badge" alt="timeline del file" />
         <img src="https://img.shields.io/badge/SCORRE-FILE%20DA%20100%20GB-e3b341?style=for-the-badge" alt="scorre file da 100 GB" />
         <img src="https://img.shields.io/badge/MODIFICA-A%20COLONNA-e3b341?style=for-the-badge" alt="modifica a colonna" />
         <img src="https://img.shields.io/badge/NON-TRONCA%20MAI-e3b341?style=for-the-badge" alt="non tronca mai" />
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/test-1416-brightgreen" alt="1416 test" />
+        <img src="https://img.shields.io/badge/test-1538-brightgreen" alt="1538 test" />
         <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -32,7 +33,7 @@
 
 ## L'idea
 
-**A cosa serve.** Leggere un log enorme come fa un viewer di log — aprirlo subito, trascinare la scrollbar dove vuoi, saltare a una riga o a un orario, seguire la fine, filtrare le righe che contano — e poi, nello stesso programma e sullo stesso file, **modificarlo, anche a colonna (a blocchi)**: quello che i viewer di sola lettura non sanno fare e che gli editor che caricano tutto il file non possono permettersi. Un file da 100 GB si apre in millisecondi; i numeri di riga si riempiono da un indice in background mentre già leggi.
+**A cosa serve.** Leggere un log enorme come fa un viewer di log — aprirlo subito, vedere su una timeline dove sono le sue righe (e i suoi errori), trascinare la scrollbar dove vuoi, saltare a una riga o a un orario, seguire la fine, filtrare le righe che contano — e poi, nello stesso programma e sullo stesso file, **modificarlo, anche a colonna (a blocchi)**: quello che i viewer di sola lettura non sanno fare e che gli editor che caricano tutto il file non possono permettersi. Un file da 100 GB si apre in millisecondi; i numeri di riga si riempiono da un indice in background mentre già leggi.
 
 I file di testo enormi (log, dump SQL, esportazioni CSV, XML) sono routine, e gli strumenti si dividono in due campi:
 
@@ -92,12 +93,14 @@ compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido
 | **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
 | **Aspetto** | quattro temi da terminale | Blu (stile Total Commander), Debian, Scuro o Chiaro; Automatico (il predefinito) segue l'impostazione chiaro / scuro del sistema |
 | **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
+| **Timeline** | una colonna accanto al testo (`Alt+B`); un clic o un trascinamento ci salta | una barra accanto al testo o alla scrollbar (`Alt+B`, la barra degli strumenti o il menu Log); il tasto destro sulla barra sceglie il passo, il lato e se parte da sola |
 
 Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerca, modifiche, sessioni) sta in un posto solo; `mrp-gui` disegna il testo come la stessa griglia di celle, ma la avvolge nei propri controlli nativi. Una funzione aggiunta al motore c'è in entrambi.
 
 ## Cosa fa
 
-- **Un viewer di log per file enormi.** Si apre subito (mappato in memoria, in sola lettura) e scorre con la rotella, la scrollbar, `PgSu/PgGiù` e la barra dei salti (`Alt+PgSu/PgGiù` saltano di 10 pagine, con Maiusc 100, con Ctrl 1000: configurabili con l'ingranaggio). I numeri di riga (accesi di fabbrica, `Alt+N`) vengono da un indice sparso costruito in background: la barra di stato mostra l'avanzamento e dice che puoi continuare a lavorare, e l'indice **si ferma mentre salti**, così il disco resta libero. Vai a una riga (`Ctrl+G`) o a un orario, segui la fine come `tail -f`, filtra le righe come `grep`, colora i livelli del log; la barra di stato mostra sempre riga / totale, colonna, byte, percentuale e selezione. Su un file da 100 GB su disco meccanico si apre in 36 ms ([misurato](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
+- **Un viewer di log per file enormi.** Si apre subito (mappato in memoria, in sola lettura) e scorre con la rotella, la scrollbar, `PgSu/PgGiù` e la barra dei salti (`Alt+PgSu/PgGiù` saltano di 10 pagine, con Maiusc 100, con Ctrl 1000: configurabili con l'ingranaggio). I numeri di riga (accesi di fabbrica, `Alt+N`) vengono da un indice sparso costruito in background: la barra di stato mostra l'avanzamento e dice che puoi continuare a lavorare, e l'indice **si ferma mentre salti**, così il disco resta libero. Vai a una riga (`Ctrl+G`) o a un orario, segui la fine come `tail -f`, filtra le righe come `grep` (anche dal menu del tasto destro su una selezione: *Filtra le righe con…*, *Escludi le righe con…*, *Cerca…*), colora i livelli del log; la barra di stato mostra sempre riga / totale, colonna, byte, percentuale e selezione. Su un file da 100 GB su disco meccanico si apre in 36 ms ([misurato](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
+- **La timeline del file.** Per un log con gli orari, una colonna di periodi — un minuto, dieci minuti, un'ora o un giorno, scelti per te o da te — ciascuno lungo quanto il suo volume di righe e diviso per livello (ERROR, WARN, INFO, DEBUG), così si vede a colpo d'occhio dove sono gli errori, anche uno solo fra migliaia di righe. La parte che stai leggendo è segnata; un clic o un trascinamento ti porta in quel punto; nella finestra, i pulsanti dei livelli aprono una vista con solo quelle righe, e parte da sola su un file con un orario riconosciuto fino a 2 GiB (si può spegnere). I periodi si trovano con una ricerca binaria **senza leggere il file** (gli orari devono crescere lungo il file); contare i livelli è una passata in background che puoi annullare, e finché non è finita le barre sono sbiadite. Nella finestra e nel terminale (`Alt+B`); le scelte fatte in uno valgono anche nell'altro.
 - **…e lo puoi modificare, anche a colonna.** Premi `F4` e lo stesso file diventa modificabile, senza ricaricare e senza copie. La **modalità colonna (a blocchi)** è un tipo di selezione di prima classe nel motore (`F8`), anche col mouse: `Alt`+trascinamento disegna il blocco (e accende la modalità); con la modalità accesa basta trascinare. Scrittura, `Tab`, `Backspace`, `Canc`, copia, taglia e incolla agiscono su tutte le righe del blocco insieme (fino a 200.000 righe), in un file di qualsiasi dimensione.
 - **Memoria indipendente dalla dimensione del file.** Decine di MiB, qualunque sia il file. Mai l'intero file in memoria.
 - **Non perde mai dati.** Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore chiaro invece di troncamento silenzioso, salvataggio a prova di interruzione.

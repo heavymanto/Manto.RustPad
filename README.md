@@ -2,17 +2,18 @@
   <tr>
     <td valign="middle">
       <h1>Manto.RustPad</h1>
-      <h3>A log viewer for files that don't fit in RAM, with column editing</h3>
-      <p><strong><em>Open and scroll through a file of 100 GB, instantly, like a log viewer — line numbers, jump to a line or a time, follow the end, filter, colours — and when you need to change something, edit it in place, with column (block) editing. A familiar, non-modal editor in Rust whose memory use does not depend on file size and that never silently truncates your data.</em></strong></p>
+      <h3>A log viewer for files that don't fit in RAM, with a timeline of the whole file and column editing</h3>
+      <p><strong><em>Open a log of 100 GB in a blink and see its whole life at a glance: a timeline of the file shows, level by level, where the errors and the warnings are, and a click takes you there. Scroll, jump to a line or a time, follow the end, filter, colour — and when you need to change something, edit it in place, with column (block) editing. A familiar, non-modal editor in Rust, in a window or in the terminal, whose memory use does not depend on file size and that never silently truncates your data.</em></strong></p>
       <p>
         <img src="https://img.shields.io/badge/OPENS-INSTANTLY-e3b341?style=for-the-badge" alt="opens instantly" />
+        <img src="https://img.shields.io/badge/TIMELINE-OF%20THE%20FILE-e3b341?style=for-the-badge" alt="timeline of the file" />
         <img src="https://img.shields.io/badge/SCROLLS-100%20GB%20FILES-e3b341?style=for-the-badge" alt="scrolls files of 100 GB" />
         <img src="https://img.shields.io/badge/COLUMN--MODE-EDITING-e3b341?style=for-the-badge" alt="column mode editing" />
         <img src="https://img.shields.io/badge/NEVER-TRUNCATES-e3b341?style=for-the-badge" alt="never truncates" />
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/tests-1453-brightgreen" alt="1453 tests" />
+        <img src="https://img.shields.io/badge/tests-1538-brightgreen" alt="1538 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -32,7 +33,7 @@
 
 ## The idea
 
-**What it is for.** Reading a huge log the way a log viewer does — open it at once, drag the scrollbar anywhere, jump to a line or to a time, follow the end, filter the lines that matter — and then, in the same program and on the same file, **editing it, column (block) editing included**: the thing the read-only log viewers cannot do and the editors that load the whole file cannot afford. A file of 100 GB opens in milliseconds; its line numbers fill in from a background index while you already read.
+**What it is for.** Reading a huge log the way a log viewer does — open it at once, see on a timeline where its lines (and its errors) are, drag the scrollbar anywhere, jump to a line or to a time, follow the end, filter the lines that matter — and then, in the same program and on the same file, **editing it, column (block) editing included**: the thing the read-only log viewers cannot do and the editors that load the whole file cannot afford. A file of 100 GB opens in milliseconds; its line numbers fill in from a background index while you already read.
 
 Large text files — logs, SQL dumps, CSV exports, XML — are routine, and the tools around them fall into two camps:
 
@@ -92,12 +93,14 @@ The packages (a ZIP for Windows, a tar.gz for Linux and macOS, each with its SHA
 | **Tabs** | a bar on the first row, one tab per file | a strip with a close button per tab |
 | **Look** | four terminal themes | Blue (Total Commander style), Debian, Dark or Light; Automatic (the default) follows the system light / dark setting |
 | **The mouse** | positions the cursor, selects (double click: word, triple click: row), picks a tab | the same, and middle-click closes a tab |
+| **Timeline** | a column next to the text (`Alt+B`); a click or a drag on it jumps | a bar next to the text or to the scrollbar (`Alt+B`, the toolbar or the Log menu); a right-click on it sets the step, the side and whether it starts by itself |
 
 Both share **one engine**: the editor's logic (documents, tabs, search, edits, sessions) lives in one place; `mrp-gui` draws the text as the same cell grid but wraps it in its own native controls. A feature added to the engine is in both.
 
 ## What it does
 
-- **A log viewer for huge files.** Opens instantly (memory-mapped, read-only) and scrolls with the wheel, the scrollbar, `PgUp/PgDn` and the page-jump bar (`Alt+PgUp/PgDn` jump 10 pages, with Shift 100, with Ctrl 1000: configurable with the gear). The line numbers (on by default, `Alt+N`) come from a sparse index built in the background — the status bar shows the progress and says you can keep working, and the index **pauses while you jump** so the disk stays free. Go to a line (`Ctrl+G`) or to a time, follow the end like `tail -f`, filter lines like `grep`, colour the log levels; the status bar always shows line / total, column, byte, percent and the selection. On a 100 GB file on a hard disk it opens in 36 ms ([measured](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
+- **A log viewer for huge files.** Opens instantly (memory-mapped, read-only) and scrolls with the wheel, the scrollbar, `PgUp/PgDn` and the page-jump bar (`Alt+PgUp/PgDn` jump 10 pages, with Shift 100, with Ctrl 1000: configurable with the gear). The line numbers (on by default, `Alt+N`) come from a sparse index built in the background — the status bar shows the progress and says you can keep working, and the index **pauses while you jump** so the disk stays free. Go to a line (`Ctrl+G`) or to a time, follow the end like `tail -f`, filter lines like `grep` (also from the right-click menu on a selection: *Filter lines with…*, *Hide lines with…*, *Find…*), colour the log levels; the status bar always shows line / total, column, byte, percent and the selection. On a 100 GB file on a hard disk it opens in 36 ms ([measured](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
+- **A timeline of the file.** For a log with times, a column of periods — a minute, ten minutes, an hour or a day, chosen for you or by you — each as long as its volume of lines and split by level (ERROR, WARN, INFO, DEBUG), so where the errors are shows at a glance, even a single error among thousands of lines. The part you are reading is marked; a click or a drag takes you to that point; in the window, the level buttons open a view with only those lines, and it starts by itself on a file with a recognised time up to 2 GiB (switchable). The periods are found by binary search **without reading the file** (the times must grow along it); counting the levels is one background pass that you can cancel, and until it is done the bars are dim. In the window and in the terminal (`Alt+B`); the choices made in one hold in the other.
 - **…and you can edit it, with column editing.** Press `F4` and the same file becomes editable — no reload, no copy. **Column (block) mode** is a first-class selection type in the core (`F8`), also with the mouse: `Alt`+drag draws the block (and turns the mode on); with the mode on, a plain drag is enough. Typing, `Tab`, `Backspace`, `Delete`, copy, cut and paste act on every row of the block at once (up to 200,000 rows), in a file of any size.
 - **Memory independent of file size.** Tens of MiB, whatever the file. Never the whole file in memory.
 - **Never loses data.** 64-bit offsets throughout, tests on files above 4 GiB, loud failure instead of silent truncation, crash-safe save.
