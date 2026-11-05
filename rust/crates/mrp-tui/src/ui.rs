@@ -298,6 +298,9 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     app.set_cursor_xy(xy);
 }
 
+/// Le colonne della legenda dei livelli nell'intestazione del pannello: quattro volte la forma e la lettera.
+const LEGENDA_W: usize = 8;
+
 /// Il testo ridotto a `larghezza` colonne esatte: tagliato se e' piu' lungo, completato con spazi se e' piu' corto.
 fn in_colonne(testo: &str, larghezza: usize) -> String {
     let mut fuori = String::new();
@@ -358,10 +361,16 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
     };
     for i in 0..alte {
         let (spans, in_vista): (Vec<Span<'static>>, bool) = if i == 0 {
-            (
-                vec![Span::styled(in_colonne(&titolo, dentro), t.status)],
-                false,
-            )
+            // il nome a sinistra e, a destra, la legenda dei livelli: la forma e il colore di ciascuno con la sua lettera
+            // (le stesse E W I D dei pulsanti della finestra)
+            let mut intestazione = vec![Span::styled(
+                in_colonne(&titolo, dentro - LEGENDA_W),
+                t.status,
+            )];
+            for (k, lettera) in ["E", "W", "I", "D"].into_iter().enumerate() {
+                intestazione.push(Span::styled(format!("{}{lettera}", barre[k].0), barre[k].1));
+            }
+            (intestazione, false)
         } else {
             match &corpo {
                 Pannello::Testo(righe) => {

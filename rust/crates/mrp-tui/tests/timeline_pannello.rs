@@ -166,7 +166,11 @@ fn the_panel_has_a_row_per_period_with_a_bar_split_by_level() {
     let (mut a, p) = con_pannello();
     let righe = render_lines(&mut a, 100, 24);
     // l'intestazione: il nome e basta (i livelli sono contati)
-    assert_eq!(primi(&righe[1], 24), format!(" Timeline{}", " ".repeat(15)));
+    // il nome (16 colonne) e la legenda dei livelli (forma e lettera, 8 colonne)
+    assert_eq!(
+        primi(&righe[1], 24),
+        format!(" Timeline{}█E▓W▒I░D", " ".repeat(7))
+    );
     // tre periodi uguali: 12 celle, tre per livello (ERROR, WARN, INFO, DEBUG)
     let barra = "███▓▓▓▒▒▒░░░";
     for i in 0..20usize {
@@ -468,6 +472,14 @@ fn the_colors_of_the_bar_are_the_ones_of_the_theme_for_each_level() {
         for cella in 0..3u16 {
             assert_eq!(colore(12 + 3 * k as u16 + cella), c, "livello {k}");
         }
+    }
+    // la legenda nell'intestazione (riga di schermo 1, da colonna 16): forma e lettera di ogni livello, nel suo colore
+    for (k, &c) in atteso.iter().enumerate() {
+        let x = 16 + 2 * k as u16;
+        assert_eq!(buf[(x, 1)].symbol(), ["█", "▓", "▒", "░"][k]);
+        assert_eq!(buf[(x + 1, 1)].symbol(), ["E", "W", "I", "D"][k]);
+        assert_eq!(buf[(x, 1)].fg, c, "forma del livello {k}");
+        assert_eq!(buf[(x + 1, 1)].fg, c, "lettera del livello {k}");
     }
     // i quattro colori sono diversi fra loro (se no il collaudo non distingue niente)
     for i in 0..4 {
