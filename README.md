@@ -108,7 +108,7 @@ Both share **one engine**: the editor's logic (documents, tabs, search, edits, s
   forward), `Ctrl+W` closes (it asks if there are changes), `Ctrl+PgUp/PgDn`, `Ctrl+Tab` / `Ctrl+Shift+Tab` and `Alt+←/→` switch, `Alt+1..9` jump.
 - **Closing the editor loses nothing.** Quit with `F10`, `Ctrl+Q` or the window's close button *without being asked*: next time the tabs, the cursors
   and the **unsaved changes** are back. Only the changes are saved — never a copy of the file — so on a 100 GB file with a few edits the session is a few KB.
-  If the file changed on disk in the meantime, the tab opens clean, says so, and keeps your copy aside.
+  If the file changed on disk in the meantime, the tab opens clean, says so, and keeps your copy aside. Changed your mind about what came back? `Alt+R` (File > *Discard changes…*) asks, then throws the changes away and returns to the file as it is on disk.
 - **Find and Replace with glob and regex.** `Ctrl+F` / `F3` search; `Ctrl+H` replaces. Three modes — plain **text**, **glob** (`*`, `?`, `[abc]`)
   and **regex** (with `$1` and `${name}` in the replacement) — plus match case and a scope: this tab or **all open tabs**.
   `Enter` first shows a **preview** (*"9 matches in 2 tab(s)"*, nothing touched), a second `Enter` applies it, and one `Ctrl+Z` undoes the whole thing.

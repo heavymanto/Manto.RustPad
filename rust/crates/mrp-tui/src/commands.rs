@@ -56,6 +56,8 @@ pub enum Cmd {
     TimeFilter,
     /// La timeline: la barra mappa del file nel tempo accanto alla scrollbar (si accende e si spegne).
     Timeline,
+    /// Scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma).
+    Revert,
 }
 
 /// La scheda di un comando.
@@ -283,6 +285,13 @@ pub const COMMANDS: &[Command] = &[
         "timeline",
     ),
     comando(
+        Cmd::Revert,
+        "gui.revert",
+        tasto(KeyCode::Char('r'), ALT),
+        "Alt+R",
+        "revert",
+    ),
+    comando(
         Cmd::NextTab,
         "gui.next_tab",
         tasto(KeyCode::PageDown, CTRL),
@@ -411,6 +420,7 @@ pub fn enabled(ws: &Workspace, cmd: Cmd) -> bool {
     let a = ws.active();
     match cmd {
         Cmd::Save => a.is_modified(),
+        Cmd::Revert => a.is_modified() && !a.is_untitled(),
         Cmd::Undo => a.is_edit() && a.can_undo(),
         Cmd::Redo => a.is_edit() && a.can_redo(),
         Cmd::Copy => a.has_selection(),

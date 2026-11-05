@@ -266,6 +266,7 @@ impl App {
                     | DialogKind::TimeMask
                     | DialogKind::Time
                     | DialogKind::IndexOff
+                    | DialogKind::Revert
             )
         )
     }
@@ -407,6 +408,11 @@ impl App {
                 detected: self.time_detected(),
             },
             DialogKind::Time => self.time_view(),
+            // la stessa domanda con due pulsanti del file che esiste: solo il testo cambia
+            DialogKind::Revert => DialogView::Overwrite {
+                title: t("revert.title"),
+                text: cat.tf("revert.text", &[self.file_name()]),
+            },
             DialogKind::Overwrite => DialogView::Overwrite {
                 title: t("overwrite.title"),
                 text: cat.tf("overwrite.text", &[&self.save_as_pending_name()]),

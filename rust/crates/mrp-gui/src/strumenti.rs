@@ -19,6 +19,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "quit" => "⏻",
         "edit" => "✏",
         "undo" => "↩",
+        "revert" => "🗑",
         "redo" => "↪",
         "cut" => "✂",
         "copy" => "📑",

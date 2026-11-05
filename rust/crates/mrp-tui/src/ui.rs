@@ -957,6 +957,15 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             ],
             cursore: None,
         },
+        // Scartare le modifiche non salvate: la domanda col nome del file e i tasti.
+        DialogKind::Revert => ContenutoDialogo {
+            titolo: cat.t("revert.title").to_string(),
+            righe: vec![
+                (cat.tf("revert.text", &[app.file_name()]), t.dialog),
+                (cat.t("revert.keys").to_string(), t.hint),
+            ],
+            cursore: None,
+        },
         // Conferma all'uscita con modifiche non salvate: il testo e le tre scelte.
         DialogKind::Confirm => ContenutoDialogo {
             titolo: cat.t("confirm.title").to_string(),

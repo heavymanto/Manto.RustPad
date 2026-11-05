@@ -438,6 +438,8 @@ pub enum DialogKind {
     Time,
     /// Spegnere l'indice righe: spiega cosa non c'e' piu' e chiede conferma (Invio = OK, Esc = Annulla).
     IndexOff,
+    /// Scartare le modifiche non salvate e tornare al file com'e' sul disco: chiede conferma (Invio / S = si', Esc / N = no).
+    Revert,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -950,6 +952,8 @@ pub struct App {
     index: bool,
     /// L'utente ha confermato di spegnere l'indice (lo prende `take_index_off_confirmed`, che lo spegne in tutte le schede).
     index_off_confirmed: bool,
+    /// L'utente ha confermato di scartare le modifiche (lo prende `take_revert_confirmed`: la scheda la rifa' il `Workspace`).
+    revert_confirmed: bool,
     /// La codifica con cui i byte del documento si leggono e si scrivono come caratteri.
     enc: Encoding,
     /// Lo stile di fine riga del file (da un campione dell'inizio, all'apertura): lo scrive Invio e lo mostra la riga di stato.
@@ -1160,6 +1164,7 @@ impl App {
             lang_picked,
             index: cfg.index,
             index_off_confirmed: false,
+            revert_confirmed: false,
             enc,
             eol,
             bom,
@@ -1311,6 +1316,8 @@ impl App {
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
             KeyCode::Char('b') | KeyCode::Char('B') if alt && !ctrl => self.toggle_timeline(),
+            // Alt+R: scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma)
+            KeyCode::Char('r') | KeyCode::Char('R') if alt && !ctrl => self.request_revert(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
             // Invio su una riga della vista filtrata: va alla stessa riga del file originale
             KeyCode::Enter if !ctrl && !alt && !self.edit && self.filter_view.is_some() => {
@@ -1759,6 +1766,19 @@ impl App {
                     self.dialog = None;
                 }
                 KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
+            // Scartare le modifiche: Invio (o S / Y) conferma (la scheda la rifa' il `Workspace`), Esc (o N) rinuncia.
+            DialogKind::Revert => match key.code {
+                KeyCode::Enter
+                | KeyCode::Char('s')
+                | KeyCode::Char('S')
+                | KeyCode::Char('y')
+                | KeyCode::Char('Y') => {
+                    self.revert_confirmed = true;
+                    self.dialog = None;
+                }
+                KeyCode::Esc | KeyCode::Char('n') | KeyCode::Char('N') => self.dialog = None,
                 _ => {}
             },
             // L'intervallo di tempo e il formato dell'orario: due campi di testo (vedi `tempo`)
@@ -3268,6 +3288,33 @@ impl App {
         if self.index {
             self.dialog = Some(DialogKind::IndexOff);
         }
+    }
+
+    /// Chiede di scartare le modifiche non salvate (Alt+R): apre la conferma. Non fa niente, e lo dice, se non c'e' niente da
+    /// scartare: un documento senza modifiche, senza nome (non ha un file a cui tornare) o la vista di un filtro.
+    pub fn request_revert(&mut self) {
+        if self.is_modified() && !self.is_untitled() && self.filter_view.is_none() {
+            self.dialog = Some(DialogKind::Revert);
+        } else {
+            self.flash = Some(self.cat.t("flash.nothing_to_revert").to_string());
+        }
+    }
+
+    /// L'utente ha confermato di scartare le modifiche (una volta sola: poi torna falso).
+    pub fn take_revert_confirmed(&mut self) -> bool {
+        std::mem::take(&mut self.revert_confirmed)
+    }
+
+    /// Mette il cursore vicino a `pos` in un documento appena riaperto: dentro il file e all'inizio della sua riga (la posizione
+    /// viene da un testo modificato, nel file di adesso potrebbe stare a meta' di un carattere).
+    pub fn set_position(&mut self, pos: u64) {
+        let pos = pos.min(self.max_cursor());
+        self.cursor = match self.doc.as_ref() {
+            Some(doc) => scan::row_start(doc, pos, MAX_SCAN).0,
+            None => pos,
+        };
+        self.remember_col();
+        self.scroll_adjust();
     }
 
     /// L'utente ha confermato lo spegnimento dell'indice nel dialogo (una volta sola: poi torna falso).

@@ -602,6 +602,38 @@ impl Workspace {
         self.select((self.active + self.tabs.len() - 1) % self.tabs.len());
     }
 
+    /// Scarta le modifiche della scheda attiva: la scheda si rifa' dal file com'e' sul disco, nello stesso posto e con la
+    /// stessa codifica, in sola lettura, col cursore dov'era (per quanto il file lo permette). La storia delle modifiche si perde.
+    /// Se il file non si riapre la scheda resta com'e' e lo dice.
+    fn revert_active(&mut self) {
+        let vecchia = &self.tabs[self.active];
+        let (percorso, cursore) = (vecchia.path().to_path_buf(), vecchia.cursor());
+        let cfg = AppConfig {
+            theme: vecchia.theme_id(),
+            theme_chosen: vecchia.theme_chosen(),
+            lang_code: Some(vecchia.lang_code().to_string()),
+            encoding: Some(vecchia.encoding()),
+            ..self.cfg.clone()
+        };
+        match App::open(&percorso, cfg) {
+            Ok(mut nuova) => {
+                nuova.set_position(cursore);
+                let testo = nuova.text("flash.reverted").to_string();
+                nuova.set_flash(testo);
+                self.tabs[self.active] = nuova;
+                self.apply_size();
+            }
+            Err(e) => {
+                let a = &mut self.tabs[self.active];
+                let testo = a.text_with(
+                    "cli.err.open",
+                    &[&percorso.display().to_string(), &e.to_string()],
+                );
+                a.set_flash(testo);
+            }
+        }
+    }
+
     /// Apre `path` in una scheda nuova e la porta avanti; se un'altra scheda ha gia' quel file porta avanti quella.
     /// La scheda nuova prende il tema e la lingua di quella attiva. Errore se il file non si apre (le schede restano).
     pub fn open(&mut self, path: &Path) -> io::Result<()> {
@@ -890,6 +922,10 @@ impl Workspace {
         if self.tabs[self.active].take_index_off_confirmed() {
             self.set_index(false);
             self.index_off_done = true;
+        }
+        // la conferma di scartare le modifiche: la scheda attiva si rifa' dal file
+        if self.tabs[self.active].take_revert_confirmed() {
+            self.revert_active();
         }
         // il formato standard dell'orario scelto a mano vale per tutte le schede (e per quelle che si apriranno)
         let standard = self.tabs[self.active].time_default();

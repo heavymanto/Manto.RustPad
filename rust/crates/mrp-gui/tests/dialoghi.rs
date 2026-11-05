@@ -6,8 +6,10 @@
 use eframe::egui::{Context, Event, FullOutput, Key, Modifiers, Pos2, RawInput, Rect, Vec2};
 use mrp_gui::gui::Finestra;
 use mrp_tui::app::{App, AppConfig, DialogKind};
+use mrp_tui::commands::Cmd;
 use mrp_tui::dialogs::DialogView;
 use mrp_tui::theme::ThemeId;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
@@ -393,5 +395,43 @@ fn the_dialog_texts_follow_the_language() {
     disegna(&mut f, &ctx);
     assert_eq!(f.dialogo_titolo(), Some("VAI A"));
     assert_eq!(etichette(&f), vec!["OK", "Annulla"]);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn discarding_the_changes_asks_with_two_buttons_and_goes_back_to_the_file() {
+    let (mut f, ctx, p) = finestra(b"uno\ndue\n", false);
+    // senza modifiche non c'e' niente da scartare: nessuna domanda
+    f.azione(Cmd::Revert);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.app().dialog_kind(), None);
+    // una modifica (8 byte nel file, 9 col carattere in piu')
+    f.app()
+        .handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+    f.app()
+        .handle_key(KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE));
+    assert!(f.app().is_modified());
+    assert_eq!(f.app().document_len(), 9);
+    // la voce del menu (il comando Alt+R) apre la domanda con OK e Annulla
+    f.azione(Cmd::Revert);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Revert));
+    assert_eq!(etichette(&f), vec!["OK", "Cancel"]);
+    // Annulla: le modifiche restano
+    let annulla = bottone(&f, "Cancel");
+    clic(&mut f, &ctx, annulla);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert!(f.app().is_modified());
+    // OK: il file com'e' sul disco, in lettura, e la scheda e' sempre una
+    f.azione(Cmd::Revert);
+    disegna(&mut f, &ctx);
+    let ok = bottone(&f, "OK");
+    clic(&mut f, &ctx, ok);
+    assert_eq!(f.app().dialog_kind(), None);
+    assert!(!f.app().is_modified());
+    assert!(!f.app().is_edit());
+    assert_eq!(f.app().document_len(), 8);
+    assert_eq!(f.workspace().len(), 1);
+    assert_eq!(std::fs::read(&p).unwrap(), b"uno\ndue\n");
     let _ = std::fs::remove_file(p);
 }

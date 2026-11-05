@@ -46,6 +46,7 @@ const FILE: &[Option<Cmd>] = &[
     Some(Cmd::Open),
     Some(Cmd::Save),
     Some(Cmd::SaveAs),
+    Some(Cmd::Revert),
     Some(Cmd::CloseTab),
     None,
     Some(Cmd::Quit),
