@@ -11,7 +11,7 @@
 
 use mrp_core::timeline::Step;
 use mrp_tui::app::timeline::{TimelinePref, TimelineStatus};
-use mrp_tui::app::{App, AppConfig};
+use mrp_tui::app::{App, AppConfig, DialogKind};
 use mrp_tui::theme::{Theme, ThemeId};
 use mrp_tui::ui::{draw, render_lines};
 use mrp_tui::workspace::Workspace;
@@ -398,10 +398,13 @@ fn the_header_and_a_dialog_take_clicks_without_moving_the_cursor() {
     let fine = a.cursor();
     assert!(fine > 0);
     let _ = render_lines(&mut a, 100, 23);
-    // l'intestazione (riga 0): niente
+    // l'intestazione (riga 0): apre il menu del passo, e il cursore del testo non si muove
     giu(&mut a, 5, 0);
     su(&mut a, 5, 0);
     assert_eq!(a.cursor(), fine);
+    assert_eq!(a.dialog_kind(), Some(DialogKind::TimelineStep));
+    a.handle_key(tasto(KeyCode::Esc, KeyModifiers::NONE));
+    assert_eq!(a.dialog_kind(), None);
     // con un dialogo aperto un clic sul pannello non fa niente
     a.handle_key(tasto(KeyCode::Char('g'), KeyModifiers::CONTROL));
     giu(&mut a, 5, 1 + 3);

@@ -221,6 +221,10 @@ impl App {
             self.timeline.data = None;
             self.timeline.error = None;
             self.timeline.unavailable = false;
+            // le tacche buttate non sono piu' "quelle del file": riaccesa, la barra le ricalcola (senza questo restava vuota)
+            self.timeline.built_len = 0;
+            self.timeline.built_window = None;
+            self.timeline.built_step = None;
         }
     }
 

@@ -252,6 +252,8 @@ impl App {
                     | DialogKind::Theme
                     | DialogKind::Lang
                     | DialogKind::Encoding
+                    | DialogKind::TimelineStep
+                    | DialogKind::TimelineLevels
                     | DialogKind::Goto
                     | DialogKind::Open
                     | DialogKind::SaveAs
@@ -325,6 +327,18 @@ impl App {
                     .collect(),
                 selected: self.menu_index,
                 note: None,
+            },
+            DialogKind::TimelineStep => DialogView::Menu {
+                title: t("menu.timeline_step.title"),
+                items: self.timeline_step_menu_items(),
+                selected: self.menu_index,
+                note: Some(t("menu.hint")),
+            },
+            DialogKind::TimelineLevels => DialogView::Menu {
+                title: t("menu.timeline_levels.title"),
+                items: self.timeline_levels_menu_items(),
+                selected: self.menu_index,
+                note: Some(t("menu.hint")),
             },
             DialogKind::Jumps => DialogView::Jumps {
                 title: t("jump.title"),

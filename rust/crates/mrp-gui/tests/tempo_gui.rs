@@ -235,7 +235,7 @@ fn the_time_window_applies_format_and_filter_with_ok() {
     f.azione(Cmd::TimeRange);
     disegna(&mut f, &ctx);
     assert_eq!(f.dialogo_titolo(), Some("FILTERS"));
-    assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
+    assert_eq!(pulsanti(&f), vec!["OK", "Cancel"]);
     // due campi (Dal e Al), la casella spenta, niente filtro ancora
     assert_eq!(f.dialogo_campi().len(), 3);
     assert!(!f.app().time_check());
@@ -435,7 +435,7 @@ fn recognise_it_again_puts_the_detected_format_back() {
         .active_mut()
         .dialog_set_field(0, "dd/MM/yyyy HH:mm:ss");
     disegna(&mut f, &ctx);
-    let auto = pulsante(&f, "Recognise it again");
+    let auto = opzione(&f, "riconosci");
     clic(&mut f, &ctx, auto);
     assert_eq!(f.app().time_field_text(0), "yyyy-MM-dd HH:mm:ss");
     assert_eq!(f.app().dialog_kind(), Some(DialogKind::Time));

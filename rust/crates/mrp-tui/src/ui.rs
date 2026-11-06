@@ -555,6 +555,11 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         in_piu.push(("Ctrl+R", "footer.revert"));
     }
     in_piu.push(("Alt+B", "footer.timeline"));
+    // con la timeline accesa, i due menu che la riguardano: il passo dei periodi e i livelli da mostrare
+    if app.timeline_on() {
+        in_piu.push(("Alt+P", "footer.timeline_step"));
+        in_piu.push(("Alt+E", "footer.timeline_levels"));
+    }
     for voce in in_piu {
         voci.push(voce);
         if largo(&voci, sep_base) > w as usize {
@@ -769,6 +774,36 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             }
             ContenutoDialogo {
                 titolo: cat.t("menu.lang.title").to_string(),
+                righe,
+                cursore: None,
+            }
+        }
+        // I menu della timeline: le voci con la scelta evidenziata e, sotto, il suggerimento dei menu.
+        DialogKind::TimelineStep | DialogKind::TimelineLevels => {
+            let selezione = app.menu_index().unwrap_or(0);
+            let (titolo, voci) = if kind == DialogKind::TimelineStep {
+                ("menu.timeline_step.title", app.timeline_step_menu_items())
+            } else {
+                (
+                    "menu.timeline_levels.title",
+                    app.timeline_levels_menu_items(),
+                )
+            };
+            let mut righe: Vec<(String, Style)> = voci
+                .iter()
+                .enumerate()
+                .map(|(i, v)| {
+                    let testo = if v.detail.is_empty() {
+                        v.label.clone()
+                    } else {
+                        format!("{}  {}", v.label, v.detail)
+                    };
+                    (testo, if i == selezione { t.selected } else { t.dialog })
+                })
+                .collect();
+            righe.push((cat.t("menu.hint").to_string(), t.hint));
+            ContenutoDialogo {
+                titolo: cat.t(titolo).to_string(),
                 righe,
                 cursore: None,
             }

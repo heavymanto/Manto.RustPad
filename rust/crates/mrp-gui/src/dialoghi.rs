@@ -645,12 +645,30 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                     stato.opzioni.push((t, "sezione 0".to_string()));
                                     ui.add_space(6.0);
                                     {
-                                        // 1. quale tempo usare: l'elenco di quelli che il file offre, e "Altro" con la regola scritta a mano
-                                        crate::strumenti::grassetto(
-                                            ui,
-                                            &t_titolo_fonti,
-                                            testo_titolo,
-                                        );
+                                        // 1. quale tempo usare: l'elenco di quelli che il file offre, e "Altro" con la regola scritta a mano;
+                                        // sulla stessa riga del titolo, a destra, il piccolo pulsante che fa riconoscere di nuovo il tempo
+                                        let mut riconosci = false;
+                                        ui.horizontal(|ui| {
+                                            crate::strumenti::grassetto(
+                                                ui,
+                                                &t_titolo_fonti,
+                                                testo_titolo,
+                                            );
+                                            ui.with_layout(
+                                                egui::Layout::right_to_left(egui::Align::Center),
+                                                |ui| {
+                                                    let r = ui.small_button(auto.as_str());
+                                                    stato
+                                                        .opzioni
+                                                        .push((r.rect, "riconosci".to_string()));
+                                                    riconosci = r.clicked();
+                                                },
+                                            );
+                                        });
+                                        if riconosci {
+                                            ws.active_mut().dialog_time_auto();
+                                            stato.campo_fuoco = false;
+                                        }
                                         if sources.is_empty() {
                                             ui.colored_label(avviso, t_nessuno.as_str());
                                         }
@@ -1539,13 +1557,9 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     ui.add_space(2.0);
                     ui.label(RichText::new(format!("{t_riassunto} {summary}")).weak());
                     ui.add_space(4.0);
-                    let testi: Vec<&str> = vec![t_ok.as_str(), auto.as_str(), t_cancel.as_str()];
+                    let testi: Vec<&str> = vec![t_ok.as_str(), t_cancel.as_str()];
                     match pulsanti_centrati(ui, &mut stato.pulsanti, &testi) {
                         Some(0) => ws.active_mut().dialog_submit(),
-                        Some(1) => {
-                            ws.active_mut().dialog_time_auto();
-                            stato.campo_fuoco = false;
-                        }
                         Some(_) => ws.active_mut().dialog_cancel(),
                         None => {}
                     }
@@ -1616,10 +1630,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiudi,
                 &mut stato.chiusura_richiesta,
                 |ui| {
-                    // cosa si e' riconosciuto
-                    match detected {
-                        Some((tempo, pat)) => {
-                            ui.horizontal(|ui| {
+                    // cosa si e' riconosciuto e, a destra sulla stessa riga, il piccolo pulsante che lo fa riconoscere di nuovo
+                    let mut riconosci = false;
+                    ui.horizontal(|ui| {
+                        match detected {
+                            Some((tempo, pat)) => {
                                 crate::strumenti::grassetto(
                                     ui,
                                     &t_riconosciuto,
@@ -1627,11 +1642,21 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                                 );
                                 ui.label(RichText::new(tempo).monospace());
                                 ui.label(RichText::new(format!("({pat})")).weak());
-                            });
+                            }
+                            None => {
+                                ui.colored_label(avviso, t_nessuno.as_str());
+                            }
                         }
-                        None => {
-                            ui.colored_label(avviso, t_nessuno.as_str());
-                        }
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let r = ui.small_button(auto.as_str());
+                            stato.opzioni.push((r.rect, "riconosci".to_string()));
+                            riconosci = r.clicked();
+                        });
+                    });
+                    if riconosci {
+                        ws.active_mut().dialog_time_auto();
+                        // i campi si rileggono dall'App al prossimo giro
+                        stato.campo_fuoco = false;
                     }
                     ui.add_space(4.0);
                     ui.label(RichText::new(&t_scegli).weak());
@@ -1753,14 +1778,9 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     match pulsanti_centrati(
                         ui,
                         &mut stato.pulsanti,
-                        &[t_ok.as_str(), auto.as_str(), t_cancel.as_str()],
+                        &[t_ok.as_str(), t_cancel.as_str()],
                     ) {
                         Some(0) => ws.active_mut().dialog_submit(),
-                        Some(1) => {
-                            ws.active_mut().dialog_time_auto();
-                            // i campi si rileggono dall'App al prossimo giro
-                            stato.campo_fuoco = false;
-                        }
                         Some(_) => ws.active_mut().dialog_cancel(),
                         None => {}
                     }

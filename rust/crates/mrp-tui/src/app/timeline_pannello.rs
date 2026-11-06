@@ -4,8 +4,9 @@
 //! Qui c'e' solo cosa mostrare e dove si clicca (`ui.rs` lo disegna): il calcolo dei periodi e' il motore della timeline
 //! (`timeline.rs`), lo stesso della finestra.
 
+use super::dialogs::MenuItem;
 use super::timeline::TimelineStatus;
-use super::App;
+use super::{App, DialogKind};
 use mrp_core::timeline::Step;
 use ratatui::crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::text::Span;
@@ -17,6 +18,11 @@ pub(crate) const PANNELLO_W: u16 = 25;
 pub(crate) const ETICHETTA_W: usize = 11;
 /// Le celle della barra di un periodo (la piu' pesante le riempie tutte).
 pub(crate) const BARRA_W: usize = 12;
+/// I passi fissi che il menu offre, dal piu' corto (la voce 0 del menu e' l'automatico).
+const PASSI: [Step; 4] = [Step::Minute, Step::TenMinutes, Step::Hour, Step::Day];
+/// Le voci del menu del passo (l'automatico e i quattro passi) e di quello dei livelli (nessuno, E, E+W, E+W+I).
+pub(super) const TIMELINE_STEP_CHOICES: usize = 5;
+pub(super) const TIMELINE_LEVELS_CHOICES: usize = 4;
 /// Le colonne che restano al testo almeno: su un terminale piu' stretto il pannello non c'e'.
 const TESTO_MIN: u16 = 40;
 
@@ -224,22 +230,42 @@ impl App {
         .to_string()
     }
 
-    /// Alt+P: il passo dei periodi della timeline al successivo, nell'ordine automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno e da
-    /// capo. Dice quale e' diventato. Non fa niente se la timeline e' spenta.
-    pub fn timeline_step_cycle(&mut self) {
-        if !self.timeline_on() {
-            return;
+    /// Alt+P e Alt+E (e il clic sull'intestazione): apre il menu del passo o dei livelli, se la timeline e' accesa.
+    pub(super) fn open_timeline_menu(&mut self, quale: DialogKind) {
+        if self.timeline_on() {
+            self.open_dialog(quale);
         }
-        const GIRO: [Step; 4] = [Step::Minute, Step::TenMinutes, Step::Hour, Step::Day];
-        let successivo = if self.timeline_auto() {
-            Some(GIRO[0])
+    }
+
+    /// La voce del menu del passo che corrisponde alla scelta di adesso: 0 e' l'automatico, poi 1 minuto ... 1 giorno.
+    pub(super) fn timeline_step_menu_index(&self) -> usize {
+        if self.timeline_auto() {
+            0
         } else {
-            GIRO.iter()
+            PASSI
+                .iter()
                 .position(|&s| s == self.timeline.step)
-                .and_then(|i| GIRO.get(i + 1).copied())
-        };
-        let nome = match successivo {
-            Some(passo) => {
+                .map_or(0, |i| i + 1)
+        }
+    }
+
+    /// Le voci del menu del passo: automatico (con cosa vuol dire) e i quattro passi.
+    pub(crate) fn timeline_step_menu_items(&self) -> Vec<MenuItem> {
+        let mut voci = vec![MenuItem {
+            label: self.text("timeline.step.auto").to_string(),
+            detail: self.text("timeline.step.auto_hint").to_string(),
+        }];
+        voci.extend(PASSI.iter().map(|&s| MenuItem {
+            label: self.timeline_step_name(s),
+            detail: String::new(),
+        }));
+        voci
+    }
+
+    /// Sceglie la voce `i` del menu del passo (la 0 e' l'automatico) e dice quale.
+    pub(super) fn timeline_step_choose(&mut self, i: usize) {
+        let nome = match i.checked_sub(1).and_then(|k| PASSI.get(k)) {
+            Some(&passo) => {
                 self.set_timeline_step(passo);
                 self.timeline_step_name(passo)
             }
@@ -251,27 +277,37 @@ impl App {
         self.flash = Some(nome);
     }
 
-    /// Alt+E: il filtro per livelli della timeline al successivo, nell'ordine nessuno, solo ERROR, ERROR e WARN, fino a INFO e da
-    /// capo (DEBUG si prende con la finestra). Apre la vista con le sole righe scelte, o torna al file se non ne resta nessuno. Non
-    /// fa niente se la timeline e' spenta.
-    pub fn timeline_levels_cycle(&mut self) {
-        if !self.timeline_on() {
-            return;
-        }
-        let con = |n: usize| -> [bool; 4] { std::array::from_fn(|i| i < n) };
+    /// I livelli del menu: i primi `n` di ERROR, WARN, INFO, DEBUG.
+    fn livelli_primi(n: usize) -> [bool; 4] {
+        std::array::from_fn(|i| i < n)
+    }
+
+    /// La voce del menu dei livelli che corrisponde alla scelta di adesso (0: nessun filtro); se i livelli sono stati scelti in un
+    /// altro modo (per esempio il solo DEBUG, con la finestra) nessuna corrisponde e parte da 0.
+    pub(super) fn timeline_levels_menu_index(&self) -> usize {
         let attuale = self.timeline_filter_levels();
-        let n = (0..=3).find(|&n| attuale == con(n));
-        // fuori dal giro (scelti altrove, per esempio DEBUG da solo) si riparte da solo ERROR
-        let prossimo = match n {
-            Some(3) => 0,
-            Some(n) => n + 1,
-            None => 1,
-        };
-        let nuovi = con(prossimo);
-        for (i, &scelto) in nuovi.iter().enumerate() {
-            self.set_timeline_filter_level(i, scelto);
+        (0..TIMELINE_LEVELS_CHOICES)
+            .find(|&n| attuale == Self::livelli_primi(n))
+            .unwrap_or(0)
+    }
+
+    /// Le voci del menu dei livelli: tutte le righe, solo gli errori, errori e avvisi, errori avvisi e info.
+    pub(crate) fn timeline_levels_menu_items(&self) -> Vec<MenuItem> {
+        ["none", "e", "ew", "ewi"]
+            .iter()
+            .map(|k| MenuItem {
+                label: self.text(&format!("timeline.levels.{k}")).to_string(),
+                detail: String::new(),
+            })
+            .collect()
+    }
+
+    /// Sceglie la voce `i` del menu dei livelli: apre la vista con le sole righe di quei livelli, o torna al file se e' la 0.
+    pub(super) fn timeline_levels_choose(&mut self, i: usize) {
+        for (k, &scelto) in Self::livelli_primi(i).iter().enumerate() {
+            self.set_timeline_filter_level(k, scelto);
         }
-        if prossimo == 0 {
+        if i == 0 {
             self.filter_view_back_if_no_levels();
         } else {
             self.timeline_apply_level_filter();
@@ -380,8 +416,10 @@ impl App {
                 if !dentro {
                     return false;
                 }
-                // l'intestazione non fa niente (ma il clic e' del pannello: non porta il cursore del testo)
+                // l'intestazione dice il passo dei periodi: un clic apre il menu per cambiarlo (il clic e' del pannello: non porta
+                // il cursore del testo)
                 if m.row < prima {
+                    self.open_timeline_menu(DialogKind::TimelineStep);
                     return true;
                 }
                 self.panel_drag = true;

@@ -131,7 +131,21 @@ fn the_window_is_one_page_with_three_boxes_and_all_their_controls() {
     for e in ["modo 0", "modo 1", "modo 2", "maiuscole", "nascondi"] {
         assert!(ha_opzione(&f, e), "{e}");
     }
-    assert_eq!(pulsanti(&f), vec!["OK", "Recognise it again", "Cancel"]);
+    // "Riconosci di nuovo" non sta fra OK e Annulla: e' un piccolo pulsante nel primo riquadro (Tempo), sulla riga del titolo
+    // "quale tempo usare", cioe' sotto il titolo del riquadro e sopra quello dei Livelli
+    assert_eq!(pulsanti(&f), vec!["OK", "Cancel"]);
+    assert!(ha_opzione(&f, "riconosci"));
+    let y_di = |f: &Finestra, e: &str| {
+        f.dialogo_opzioni()
+            .iter()
+            .find(|(_, t)| t == e)
+            .unwrap()
+            .0
+            .center()
+            .y
+    };
+    assert!(y_di(&f, "sezione 0") < y_di(&f, "riconosci"));
+    assert!(y_di(&f, "riconosci") < y_di(&f, "sezione 1"));
     // i riquadri stanno uno sotto l'altro, nell'ordine Tempo, Livelli, Testo
     let y = |f: &Finestra, e: &str| {
         f.dialogo_opzioni()

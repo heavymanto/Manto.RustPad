@@ -12,6 +12,7 @@ pub use tempo_esempio::{ExampleCandidate, ExampleOutcome, ExampleProblem};
 pub use tempo_finestra::{CalendarInfo, Day, FilterConditions, Month};
 pub mod timeline;
 
+use self::timeline_pannello::{TIMELINE_LEVELS_CHOICES, TIMELINE_STEP_CHOICES};
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
 use crate::ui::HELP_KEYS;
@@ -441,6 +442,10 @@ pub enum DialogKind {
     IndexOff,
     /// Scartare le modifiche non salvate e tornare al file com'e' sul disco: chiede conferma (Invio / S = si', Esc / N = no).
     Revert,
+    /// Alt+P (o un clic sull'intestazione del pannello): il menu del passo dei periodi della timeline.
+    TimelineStep,
+    /// Alt+E: il menu dei livelli da mostrare (apre la vista con le sole righe di quei livelli).
+    TimelineLevels,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -1320,10 +1325,14 @@ impl App {
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
             KeyCode::Char('b') | KeyCode::Char('B') if alt && !ctrl => self.toggle_timeline(),
-            // Alt+P: il passo dei periodi della timeline (automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno, e da capo)
-            KeyCode::Char('p') | KeyCode::Char('P') if alt && !ctrl => self.timeline_step_cycle(),
-            // Alt+E: il filtro per livelli della timeline (nessuno, solo ERROR, + WARN, + INFO, e da capo)
-            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => self.timeline_levels_cycle(),
+            // Alt+P: il menu del passo dei periodi della timeline (automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno)
+            KeyCode::Char('p') | KeyCode::Char('P') if alt && !ctrl => {
+                self.open_timeline_menu(DialogKind::TimelineStep)
+            }
+            // Alt+E: il menu dei livelli da mostrare (tutte le righe, errori, + avvisi, + info)
+            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => {
+                self.open_timeline_menu(DialogKind::TimelineLevels)
+            }
             // Ctrl+R (o Alt+R): scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma)
             KeyCode::Char('r') | KeyCode::Char('R') if alt != ctrl => self.request_revert(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
@@ -1680,6 +1689,9 @@ impl App {
                     .position(|&e| e == self.enc)
                     .unwrap_or(0);
             }
+            // i menu della timeline partono dalla scelta di adesso
+            DialogKind::TimelineStep => self.menu_index = self.timeline_step_menu_index(),
+            DialogKind::TimelineLevels => self.menu_index = self.timeline_levels_menu_index(),
             DialogKind::Help => self.help_scroll = 0,
             DialogKind::Goto => self.goto_text.clear(),
             DialogKind::Jumps => {
@@ -1740,7 +1752,10 @@ impl App {
                 }
             }
             // Menu (tema e lingua): le frecce scelgono (ferme agli estremi), Enter applica, Esc annulla.
-            DialogKind::Theme | DialogKind::Lang => match key.code {
+            DialogKind::Theme
+            | DialogKind::Lang
+            | DialogKind::TimelineStep
+            | DialogKind::TimelineLevels => match key.code {
                 KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
                 KeyCode::Down => {
                     if self.menu_index + 1 < self.menu_len() {
@@ -2000,6 +2015,8 @@ impl App {
             Some(DialogKind::Theme) => self.theme_choices().len(),
             Some(DialogKind::Lang) => self.langs.len(),
             Some(DialogKind::Encoding) | Some(DialogKind::SaveEncoding) => Encoding::all().len(),
+            Some(DialogKind::TimelineStep) => TIMELINE_STEP_CHOICES,
+            Some(DialogKind::TimelineLevels) => TIMELINE_LEVELS_CHOICES,
             _ => 0,
         }
     }
@@ -2036,6 +2053,15 @@ impl App {
                 self.dialog = None;
                 // La scelta non si salva nelle impostazioni: la codifica e' del file, non dell'utente.
                 self.set_encoding(e);
+            }
+            // i menu della timeline: la scelta vale subito (e per i livelli apre la vista)
+            Some(DialogKind::TimelineStep) => {
+                self.dialog = None;
+                self.timeline_step_choose(self.menu_index);
+            }
+            Some(DialogKind::TimelineLevels) => {
+                self.dialog = None;
+                self.timeline_levels_choose(self.menu_index);
             }
             _ => {}
         }
@@ -3528,7 +3554,9 @@ impl App {
             Some(DialogKind::Theme)
             | Some(DialogKind::Lang)
             | Some(DialogKind::Encoding)
-            | Some(DialogKind::SaveEncoding) => Some(self.menu_index),
+            | Some(DialogKind::SaveEncoding)
+            | Some(DialogKind::TimelineStep)
+            | Some(DialogKind::TimelineLevels) => Some(self.menu_index),
             _ => None,
         }
     }
