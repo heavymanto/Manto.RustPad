@@ -165,11 +165,11 @@ fn colonna(riga: &str, x: usize) -> char {
 fn the_panel_has_a_row_per_period_with_a_bar_split_by_level() {
     let (mut a, p) = con_pannello();
     let righe = render_lines(&mut a, 100, 23);
-    // l'intestazione: il nome e basta (i livelli sono contati)
-    // il nome (16 colonne) e la legenda dei livelli (forma e lettera, 8 colonne)
+    // l'intestazione: il nome col passo (fisso, a giorni; i livelli sono contati) nelle 16 colonne del titolo e la legenda dei
+    // livelli (forma e lettera, 8 colonne)
     assert_eq!(
         primi(&righe[0], 24),
-        format!(" Timeline{}█E▓W▒I░D", " ".repeat(7))
+        format!(" Timeline 1 day{}█E▓W▒I░D", " ")
     );
     // tre periodi uguali: 12 celle, tre per livello (ERROR, WARN, INFO, DEBUG)
     let barra = "███▓▓▓▒▒▒░░░";
@@ -515,7 +515,7 @@ fn the_state_of_the_timeline_is_shared_through_the_preference() {
         .chars()
         .skip(75)
         .collect::<String>()
-        .starts_with("│ Timeline"));
+        .starts_with("│ ~1 hour"));
     let _ = std::fs::remove_file(p);
 }
 

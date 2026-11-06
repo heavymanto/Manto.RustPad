@@ -225,6 +225,7 @@
   "help.l22": "Alt+G                      filtra le righe come grep (Invio su un risultato ci va)",
   "help.l23": "Alt+T / Alt+O              intervallo di tempo / formato dell'orario",
   "help.l24": "Alt+B                      timeline: il file nel tempo, accanto al testo",
+  "help.l27": "Alt+P / Alt+E              timeline: passo dei periodi / filtro dei livelli",
   "help.l25": "Alt+X                      indice righe acceso / spento",
   "help.l26": "Ctrl+R                     scarta le modifiche non salvate (torna al file)",
   "help.scroll": "Su/Giu scorri",

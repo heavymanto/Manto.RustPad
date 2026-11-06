@@ -226,6 +226,7 @@
   "help.l22": "Alt+G                      Zeilen filtern wie grep (Eingabe springt zum Treffer)",
   "help.l23": "Alt+T / Alt+O              Zeitraum / Zeitformat der Zeilen",
   "help.l24": "Alt+B                      Zeitleiste: die Datei über die Zeit, neben dem Text",
+  "help.l27": "Alt+P / Alt+E              Zeitleiste: Zeitschritt / Filter nach Log-Level",
   "help.l25": "Alt+X                      Zeilenindex an / aus",
   "help.l26": "Ctrl+R                     ungespeicherte Änderungen verwerfen (zurück zur Datei)",
   "help.scroll": "Auf/Ab blättern",

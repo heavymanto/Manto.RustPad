@@ -6,6 +6,7 @@
 
 use super::timeline::TimelineStatus;
 use super::App;
+use mrp_core::timeline::Step;
 use ratatui::crossterm::event::{MouseButton, MouseEvent, MouseEventKind};
 use ratatui::text::Span;
 use std::cmp::Reverse;
@@ -134,6 +135,24 @@ fn intestazione(nome: &str, avanzamento: Option<f32>) -> String {
     }
 }
 
+/// Le colonne della legenda dei livelli (`█E▓W▒I░D`) a destra dell'intestazione.
+pub(crate) const LEGENDA_W: usize = 8;
+/// Le colonne che restano al titolo nell'intestazione: il pannello meno il filetto e meno la legenda.
+const TITOLO_W: usize = PANNELLO_W as usize - 1 - LEGENDA_W;
+
+/// L'intestazione col passo dei periodi: `nome passo` e, se si stanno contando i livelli, la percentuale. Se non entra nelle colonne
+/// del titolo (`TITOLO_W`) cede prima il nome, poi la percentuale: il passo c'e' sempre.
+fn titolo_con_passo(nome: &str, passo: &str, avanzamento: Option<f32>) -> String {
+    [
+        intestazione(&format!("{nome} {passo}"), avanzamento),
+        intestazione(passo, avanzamento),
+        intestazione(passo, None),
+    ]
+    .into_iter()
+    .find(|t| Span::raw(t.as_str()).width() <= TITOLO_W)
+    .unwrap_or_else(|| intestazione(passo, None))
+}
+
 impl App {
     /// Le colonne che il pannello occupa adesso: `PANNELLO_W` se la timeline e' accesa, c'e' la cornice del terminale (la finestra
     /// grafica ha la sua barra) e al testo restano almeno `TESTO_MIN` colonne; altrimenti 0.
@@ -168,14 +187,95 @@ impl App {
         (self.top_offset() + 1, self.text_rows().saturating_sub(1))
     }
 
-    /// L'intestazione del pannello: il nome e, finche' i livelli non sono contati, a che punto sono.
+    /// Il nome del passo in uso, con `~` davanti se lo sceglie la barra da sola (sono i nomi del menu della finestra).
+    fn timeline_step_label(&self) -> String {
+        // fisso: quello scelto (le tacche si ricalcolano un attimo dopo); automatico: quello che hanno le tacche
+        if self.timeline_auto() {
+            format!("~{}", self.timeline_step_name(self.timeline_step()))
+        } else {
+            self.timeline_step_name(self.timeline.step)
+        }
+    }
+
+    /// L'intestazione del pannello: il nome, il passo dei periodi quando le tacche ci sono e, finche' i livelli non sono contati,
+    /// a che punto sono. Se tutto insieme non entra nelle colonne del pannello, il nome cede il posto al passo.
     pub(crate) fn timeline_panel_title(&self) -> String {
-        let avanzamento = if self.timeline_status() == TimelineStatus::Ready {
+        let pronta = self.timeline_status() == TimelineStatus::Ready;
+        let avanzamento = if pronta {
             self.timeline_levels_progress()
         } else {
             None
         };
-        intestazione(self.text("gui.timeline"), avanzamento)
+        let nome = self.text("gui.timeline");
+        if !pronta {
+            return intestazione(nome, avanzamento);
+        }
+        titolo_con_passo(nome, &self.timeline_step_label(), avanzamento)
+    }
+
+    /// Il nome di un passo scelto, per dirlo a chi preme Alt+P.
+    fn timeline_step_name(&self, passo: Step) -> String {
+        self.text(match passo {
+            Step::Minute => "timeline.step.minute",
+            Step::TenMinutes => "timeline.step.ten_minutes",
+            Step::Hour => "timeline.step.hour",
+            Step::Day => "timeline.step.day",
+        })
+        .to_string()
+    }
+
+    /// Alt+P: il passo dei periodi della timeline al successivo, nell'ordine automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno e da
+    /// capo. Dice quale e' diventato. Non fa niente se la timeline e' spenta.
+    pub fn timeline_step_cycle(&mut self) {
+        if !self.timeline_on() {
+            return;
+        }
+        const GIRO: [Step; 4] = [Step::Minute, Step::TenMinutes, Step::Hour, Step::Day];
+        let successivo = if self.timeline_auto() {
+            Some(GIRO[0])
+        } else {
+            GIRO.iter()
+                .position(|&s| s == self.timeline.step)
+                .and_then(|i| GIRO.get(i + 1).copied())
+        };
+        let nome = match successivo {
+            Some(passo) => {
+                self.set_timeline_step(passo);
+                self.timeline_step_name(passo)
+            }
+            None => {
+                self.set_timeline_auto();
+                self.text("timeline.step.auto").to_string()
+            }
+        };
+        self.flash = Some(nome);
+    }
+
+    /// Alt+E: il filtro per livelli della timeline al successivo, nell'ordine nessuno, solo ERROR, ERROR e WARN, fino a INFO e da
+    /// capo (DEBUG si prende con la finestra). Apre la vista con le sole righe scelte, o torna al file se non ne resta nessuno. Non
+    /// fa niente se la timeline e' spenta.
+    pub fn timeline_levels_cycle(&mut self) {
+        if !self.timeline_on() {
+            return;
+        }
+        let con = |n: usize| -> [bool; 4] { std::array::from_fn(|i| i < n) };
+        let attuale = self.timeline_filter_levels();
+        let n = (0..=3).find(|&n| attuale == con(n));
+        // fuori dal giro (scelti altrove, per esempio DEBUG da solo) si riparte da solo ERROR
+        let prossimo = match n {
+            Some(3) => 0,
+            Some(n) => n + 1,
+            None => 1,
+        };
+        let nuovi = con(prossimo);
+        for (i, &scelto) in nuovi.iter().enumerate() {
+            self.set_timeline_filter_level(i, scelto);
+        }
+        if prossimo == 0 {
+            self.filter_view_back_if_no_levels();
+        } else {
+            self.timeline_apply_level_filter();
+        }
     }
 
     /// Il corpo del pannello; `None` se la timeline e' spenta.
@@ -314,6 +414,40 @@ impl App {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_header_shows_the_step_and_gives_up_the_name_then_the_percentage() {
+        // il titolo ha 16 colonne (il pannello ne ha 25: il filetto e la legenda dei livelli stanno fuori)
+        assert_eq!(
+            titolo_con_passo("Timeline", "1 day", None),
+            " Timeline 1 day"
+        );
+        assert_eq!(titolo_con_passo("Timeline", "~1 hour", None), " ~1 hour");
+        // con la percentuale cede il nome, poi la percentuale stessa
+        assert_eq!(
+            titolo_con_passo("Timeline", "1 day", Some(0.5)),
+            " 1 day 50%"
+        );
+        assert_eq!(
+            titolo_con_passo("Timeline", "~10 minutes", Some(1.0)),
+            " ~10 minutes"
+        );
+        // 16 colonne entrano, 17 no
+        assert_eq!(
+            titolo_con_passo("Timeline", "1 hour", None),
+            " Timeline 1 hour"
+        );
+        assert_eq!(
+            titolo_con_passo("Timeline", "~1 hour", None)
+                .chars()
+                .count(),
+            8
+        );
+        assert_eq!(
+            titolo_con_passo("Timelin", "~1 hour", None),
+            " Timelin ~1 hour"
+        );
+    }
 
     #[test]
     fn the_bar_is_split_by_proportion_with_the_rest_to_the_largest() {

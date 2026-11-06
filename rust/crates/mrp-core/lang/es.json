@@ -226,6 +226,7 @@
   "help.l22": "Alt+G                      filtrar líneas como grep (Intro en un resultado va a él)",
   "help.l23": "Alt+T / Alt+O              intervalo de tiempo / formato de la hora",
   "help.l24": "Alt+B                      línea de tiempo: el archivo en el tiempo, junto al texto",
+  "help.l27": "Alt+P / Alt+E              línea de tiempo: paso de los periodos / filtro por nivel",
   "help.l25": "Alt+X                      índice de líneas activado / desactivado",
   "help.l26": "Ctrl+R                     descartar cambios sin guardar (volver al archivo)",
   "help.scroll": "Arriba/Abajo desplazar",

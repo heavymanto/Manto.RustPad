@@ -1320,6 +1320,10 @@ impl App {
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
             KeyCode::Char('b') | KeyCode::Char('B') if alt && !ctrl => self.toggle_timeline(),
+            // Alt+P: il passo dei periodi della timeline (automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno, e da capo)
+            KeyCode::Char('p') | KeyCode::Char('P') if alt && !ctrl => self.timeline_step_cycle(),
+            // Alt+E: il filtro per livelli della timeline (nessuno, solo ERROR, + WARN, + INFO, e da capo)
+            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => self.timeline_levels_cycle(),
             // Ctrl+R (o Alt+R): scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma)
             KeyCode::Char('r') | KeyCode::Char('R') if alt != ctrl => self.request_revert(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),

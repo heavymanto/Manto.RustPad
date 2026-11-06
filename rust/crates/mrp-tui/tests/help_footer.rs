@@ -210,7 +210,7 @@ fn the_descriptions_in_the_help_start_all_at_the_same_column() {
         let byte = riga.find(&descrizione).unwrap();
         colonne.push((riga[..byte].chars().count(), tasti));
     }
-    assert_eq!(colonne.len(), 25);
+    assert_eq!(colonne.len(), 26);
     let prima = colonne[0].0;
     for (c, tasti) in &colonne {
         assert_eq!(

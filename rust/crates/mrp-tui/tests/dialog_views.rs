@@ -60,7 +60,7 @@ fn help_is_a_table_of_keys_and_descriptions() {
         panic!("non e' l'aiuto");
     };
     assert_eq!(title, "KEYS");
-    assert_eq!(rows.len(), 25, "una riga per ogni riga dell'aiuto");
+    assert_eq!(rows.len(), 26, "una riga per ogni riga dell'aiuto");
     assert_eq!(
         rows[0],
         ("Arrows PgUp PgDn Home End".to_string(), "move".to_string())
