@@ -2,6 +2,7 @@
 
     cargo build --release -p mrp-loggen        (from rust/)
     python -I bench/make_samples.py            (from the repository root)
+    python -I bench/make_samples.py --plain D:/temp/test_logs    (also the plain, uncompressed files, to open them at once)
 
 The files are 1 MiB of log each (about 150-250 KB gzipped), with a slow rate so that each one spans days, not minutes:
 open one in mrp-tui or mrp-gui (after `gunzip`) and the timeline has something to show. The generator is deterministic, so
@@ -23,6 +24,10 @@ PREDEFINITO = 0.05
 if not os.path.exists(EXE):
     sys.exit('build first: cargo build --release -p mrp-loggen (from rust/); not found: ' + EXE)
 os.makedirs(DEST, exist_ok=True)
+SEMPLICI = None
+if '--plain' in sys.argv:
+    SEMPLICI = sys.argv[sys.argv.index('--plain') + 1]
+    os.makedirs(SEMPLICI, exist_ok=True)
 elenco = subprocess.run([EXE, '--list'], capture_output=True, text=True, check=True).stdout.splitlines()
 for riga in elenco:
     nome = riga.split()[0]
@@ -35,4 +40,7 @@ for riga in elenco:
         # mtime = 0 e nessun nome: lo stesso log da' lo stesso file
         with gzip.GzipFile(filename='', mode='wb', fileobj=f, compresslevel=9, mtime=0) as z:
             z.write(dati)
+    if SEMPLICI:
+        with open(os.path.join(SEMPLICI, nome + '.log'), 'wb') as f:
+            f.write(dati)
     print('%-10s %8d bytes -> %7d gz' % (nome, len(dati), os.path.getsize(percorso)))
