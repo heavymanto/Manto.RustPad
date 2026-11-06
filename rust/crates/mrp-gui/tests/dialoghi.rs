@@ -143,6 +143,7 @@ fn help_has_one_button_and_it_closes_the_window() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
     premi(&mut f, &ctx, Key::F1);
     disegna(&mut f, &ctx);
+    disegna(&mut f, &ctx);
     assert_eq!(etichette(&f), vec!["OK"]);
     let pos = bottone(&f, "OK");
     clic(&mut f, &ctx, pos);

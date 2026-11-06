@@ -109,13 +109,29 @@ fn help_opens_lists_the_keys_and_closes() {
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
     let en = Lang::english();
-    for key in ["help.title", "help.l1", "help.l5", "help.l10", "help.close"] {
+    // l'aiuto e' piu' lungo dello schermo: in cima ci sono il titolo, le prime righe e come si chiude; l'ultima (Esc) si vede
+    // scorrendo fino in fondo
+    for key in ["help.title", "help.l1", "help.l5", "help.close"] {
         let atteso = en.get(key).unwrap();
         assert!(
             shows(&mut a, 80, 24, atteso.trim_end()),
             "manca {key}: {atteso:?}"
         );
     }
+    let ultima = en.get("help.l10").unwrap();
+    assert!(!shows(&mut a, 80, 24, ultima.trim_end()));
+    a.handle_key(k(KeyCode::End));
+    assert!(
+        shows(&mut a, 80, 24, ultima.trim_end()),
+        "in fondo manca l'ultima riga"
+    );
+    assert!(shows(
+        &mut a,
+        80,
+        24,
+        en.get("help.close").unwrap().trim_end()
+    ));
+    a.handle_key(k(KeyCode::Home));
     assert_eq!(
         a.cursor_xy(),
         None,

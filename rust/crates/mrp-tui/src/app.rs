@@ -14,6 +14,7 @@ pub mod timeline;
 
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
+use crate::ui::HELP_KEYS;
 use mrp_core::block::{
     block_spans, block_text, delete_block, insert_block, nth_row, paste_block, BlockError,
     ColumnBlock, RowSpan,
@@ -954,6 +955,8 @@ pub struct App {
     index_off_confirmed: bool,
     /// L'utente ha confermato di scartare le modifiche (lo prende `take_revert_confirmed`: la scheda la rifa' il `Workspace`).
     revert_confirmed: bool,
+    /// La prima riga dell'aiuto che si vede (l'aiuto scorre se non sta nello schermo).
+    help_scroll: usize,
     /// La codifica con cui i byte del documento si leggono e si scrivono come caratteri.
     enc: Encoding,
     /// Lo stile di fine riga del file (da un campione dell'inizio, all'apertura): lo scrive Invio e lo mostra la riga di stato.
@@ -1165,6 +1168,7 @@ impl App {
             index: cfg.index,
             index_off_confirmed: false,
             revert_confirmed: false,
+            help_scroll: 0,
             enc,
             eol,
             bom,
@@ -1316,8 +1320,8 @@ impl App {
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
             KeyCode::Char('b') | KeyCode::Char('B') if alt && !ctrl => self.toggle_timeline(),
-            // Alt+R: scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma)
-            KeyCode::Char('r') | KeyCode::Char('R') if alt && !ctrl => self.request_revert(),
+            // Ctrl+R (o Alt+R): scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma)
+            KeyCode::Char('r') | KeyCode::Char('R') if alt != ctrl => self.request_revert(),
             KeyCode::Char(c) if !ctrl && !alt => self.insert_char(c),
             // Invio su una riga della vista filtrata: va alla stessa riga del file originale
             KeyCode::Enter if !ctrl && !alt && !self.edit && self.filter_view.is_some() => {
@@ -1672,6 +1676,7 @@ impl App {
                     .position(|&e| e == self.enc)
                     .unwrap_or(0);
             }
+            DialogKind::Help => self.help_scroll = 0,
             DialogKind::Goto => self.goto_text.clear(),
             DialogKind::Jumps => {
                 self.jump_text = self.jump_pages.map(|n| n.to_string());
@@ -1711,10 +1716,25 @@ impl App {
         let alt = key.modifiers.contains(KeyModifiers::ALT);
         match kind {
             // Aiuto: Esc, F1 e Enter chiudono.
-            DialogKind::Help => match key.code {
-                KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) => self.dialog = None,
-                _ => {}
-            },
+            // L'aiuto: Esc, Invio o F1 lo chiudono; le frecce, PgSu/PgGiu, Home e Fine lo fanno scorrere (se non sta nello schermo).
+            DialogKind::Help => {
+                let (massimo, pagina) = (
+                    self.help_scroll_max(),
+                    self.help_visible().saturating_sub(1).max(1),
+                );
+                match key.code {
+                    KeyCode::Esc | KeyCode::Enter | KeyCode::F(1) => self.dialog = None,
+                    KeyCode::Up => self.help_scroll = self.help_scroll.saturating_sub(1),
+                    KeyCode::Down => self.help_scroll = (self.help_scroll + 1).min(massimo),
+                    KeyCode::PageUp => self.help_scroll = self.help_scroll.saturating_sub(pagina),
+                    KeyCode::PageDown => {
+                        self.help_scroll = (self.help_scroll + pagina).min(massimo)
+                    }
+                    KeyCode::Home => self.help_scroll = 0,
+                    KeyCode::End => self.help_scroll = massimo,
+                    _ => {}
+                }
+            }
             // Menu (tema e lingua): le frecce scelgono (ferme agli estremi), Enter applica, Esc annulla.
             DialogKind::Theme | DialogKind::Lang => match key.code {
                 KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
@@ -3290,7 +3310,24 @@ impl App {
         }
     }
 
-    /// Chiede di scartare le modifiche non salvate (Alt+R): apre la conferma. Non fa niente, e lo dice, se non c'e' niente da
+    /// Quante righe dell'aiuto stanno nello schermo: tutte, o quante restano tolti il bordo e la riga che dice come si chiude.
+    pub(crate) fn help_visible(&self) -> usize {
+        HELP_KEYS
+            .len()
+            .min((self.h as usize).saturating_sub(3).max(1))
+    }
+
+    /// Di quante righe puo' scorrere l'aiuto (0 se sta tutto nello schermo).
+    fn help_scroll_max(&self) -> usize {
+        HELP_KEYS.len() - self.help_visible()
+    }
+
+    /// La prima riga dell'aiuto che si vede.
+    pub(crate) fn help_scroll(&self) -> usize {
+        self.help_scroll.min(self.help_scroll_max())
+    }
+
+    /// Chiede di scartare le modifiche non salvate (Ctrl+R): apre la conferma. Non fa niente, e lo dice, se non c'e' niente da
     /// scartare: un documento senza modifiche, senza nome (non ha un file a cui tornare) o la vista di un filtro.
     pub fn request_revert(&mut self) {
         if self.is_modified() && !self.is_untitled() && self.filter_view.is_none() {

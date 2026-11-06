@@ -287,8 +287,8 @@ pub const COMMANDS: &[Command] = &[
     comando(
         Cmd::Revert,
         "gui.revert",
-        tasto(KeyCode::Char('r'), ALT),
-        "Alt+R",
+        tasto(KeyCode::Char('r'), CTRL),
+        "Ctrl+R",
         "revert",
     ),
     comando(

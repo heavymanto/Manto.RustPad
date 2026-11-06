@@ -282,8 +282,10 @@ fn a_drag_on_the_body_of_a_window_moves_it_too_help_and_settings() {
     // l'aiuto: un clic-trascinamento su una riga della tabella (prima scorreva la lista, o selezionava il testo)
     let (mut f, ctx, p) = finestra();
     giro(&mut f, &ctx, vec![tasto(Key::F1, Modifiers::NONE)]);
-    giro(&mut f, &ctx, vec![]);
-    giro(&mut f, &ctx, vec![]);
+    // l'aiuto e' lungo (25 righe) e la finestra si assesta in qualche giro: si aspetta che stia ferma
+    for _ in 0..6 {
+        giro(&mut f, &ctx, vec![]);
+    }
     let prima = f.dialogo_rect().unwrap();
     let da = Pos2::new(prima.min.x + 40.0, prima.center().y);
     trascina(&mut f, &ctx, da, da + Vec2::new(70.0, 50.0));

@@ -108,7 +108,7 @@ Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerc
   `Ctrl+W` chiude (chiede se ci sono modifiche), `Ctrl+PgSu/PgGiù`, `Ctrl+Tab` / `Ctrl+Maiusc+Tab` e `Alt+←/→` cambiano scheda, `Alt+1..9` vanno a quella col numero.
 - **Chiudere l'editor non fa perdere niente.** Esci con `F10`, `Ctrl+Q` o il pulsante di chiusura della finestra *senza che ti venga chiesto nulla*: alla volta dopo tornano
   le schede, i cursori e le **modifiche non salvate**. Si salvano solo le modifiche, mai una copia del file: su un file da 100 GB con poche modifiche la sessione pesa pochi KB.
-  Se nel frattempo il file è cambiato sul disco, la scheda si apre pulita, lo dice, e la tua copia resta da parte. Ci hai ripensato su quello che è tornato? `Alt+R` (File > *Scarta le modifiche…*) chiede conferma, poi butta le modifiche e torna al file com'è sul disco.
+  Se nel frattempo il file è cambiato sul disco, la scheda si apre pulita, lo dice, e la tua copia resta da parte. Ci hai ripensato su quello che è tornato? `Ctrl+R` (File > *Scarta le modifiche…*) chiede conferma, poi butta le modifiche e torna al file com'è sul disco.
 - **Cerca e Sostituisci con glob e regex.** `Ctrl+F` / `F3` cercano; `Ctrl+H` sostituisce. Tre modi — **testo** semplice, **glob** (`*`, `?`, `[abc]`)
   e **regex** (con `$1` e `${nome}` nella sostituzione) — più maiuscole/minuscole e un ambito: questa scheda o **tutte le schede aperte**.
   Il primo `Invio` mostra l'**anteprima** (*"9 occorrenze in 2 scheda/e"*, senza toccare niente), il secondo applica, e un solo `Ctrl+Z` annulla tutto.

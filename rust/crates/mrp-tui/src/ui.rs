@@ -16,11 +16,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l22` (senza la 21) (l'ultima e' sempre Esc, `help.l10`).
-pub(crate) const HELP_KEYS: [&str; 21] = [
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l26` (senza la 21) (l'ultima e' sempre Esc, `help.l10`). L'aiuto
+/// scorre quando lo schermo e' piu' basso (`App::help_scroll`).
+pub(crate) const HELP_KEYS: [&str; 25] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l18", "help.l19", "help.l20", "help.l22", "help.l10",
+    "help.l18", "help.l19", "help.l20", "help.l22", "help.l23", "help.l24", "help.l25", "help.l26",
+    "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -493,7 +495,7 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     } else {
         "footer.f4.edit"
     };
-    let voci = [
+    let mut voci = vec![
         ("F1", "footer.f1"),
         ("F2", "footer.f2"),
         ("F3", "footer.f3"),
@@ -508,14 +510,29 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // Larghezza della riga con un certo separatore: lo spazio iniziale, le voci ("Fn" + spazio + etichetta) e i
     // separatori in mezzo. Le larghezze sono quelle del terminale (un carattere largo, per esempio CJK,
     // vale due celle), non il numero di caratteri.
-    let largo = |sep: usize| -> usize {
+    let largo = |voci: &[(&str, &str)], sep: usize| -> usize {
         1 + voci
             .iter()
             .map(|(tasto, chiave)| Span::raw(*tasto).width() + 1 + Span::raw(cat.t(chiave)).width())
             .sum::<usize>()
             + sep * (voci.len() - 1)
     };
-    let sep = if largo(2) > w as usize && largo(1) <= w as usize {
+    // Dopo F10, se lo schermo e' largo abbastanza (a 80 colonne non c'e' posto): scartare le modifiche (solo quando ce ne sono) e
+    // la timeline. Ognuna entra solo se ci sta con lo stesso separatore che hanno le voci di base (le voci in piu' non fanno
+    // stringere gli spazi alle altre: con spazio di sobra restano due spazi).
+    let sep_base = if largo(&voci, 2) <= w as usize { 2 } else { 1 };
+    let mut in_piu = Vec::new();
+    if app.is_modified() && !app.is_untitled() {
+        in_piu.push(("Ctrl+R", "footer.revert"));
+    }
+    in_piu.push(("Alt+B", "footer.timeline"));
+    for voce in in_piu {
+        voci.push(voce);
+        if largo(&voci, sep_base) > w as usize {
+            voci.pop();
+        }
+    }
+    let sep = if largo(&voci, 2) > w as usize && largo(&voci, 1) <= w as usize {
         " "
     } else {
         "  "
@@ -649,11 +666,18 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             }
         }
         DialogKind::Help => {
-            let mut righe: Vec<(String, Style)> = HELP_KEYS
+            // le righe che stanno nello schermo, a partire da quella scelta scorrendo; sotto, sempre, come si chiude
+            let (prima, quante) = (app.help_scroll(), app.help_visible());
+            let mut righe: Vec<(String, Style)> = HELP_KEYS[prima..prima + quante]
                 .iter()
                 .map(|k| (cat.t(k).to_string(), t.dialog))
                 .collect();
-            righe.push((cat.t("help.close").to_string(), t.hint));
+            let mut chiudi = cat.t("help.close").to_string();
+            if quante < HELP_KEYS.len() {
+                chiudi.push_str("   ");
+                chiudi.push_str(cat.t("help.scroll"));
+            }
+            righe.push((chiudi, t.hint));
             ContenutoDialogo {
                 titolo: cat.t("help.title").to_string(),
                 righe,

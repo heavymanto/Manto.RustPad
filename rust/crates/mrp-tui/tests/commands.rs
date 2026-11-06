@@ -136,7 +136,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::TimeFilter, None, ""),
         (Cmd::Timeline, Some(k(KeyCode::Char('b'), ALT)), "Alt+B"),
         (Cmd::LineIndex, Some(k(KeyCode::Char('x'), ALT)), "Alt+X"),
-        (Cmd::Revert, Some(k(KeyCode::Char('r'), ALT)), "Alt+R"),
+        (Cmd::Revert, Some(k(KeyCode::Char('r'), CTRL)), "Ctrl+R"),
     ];
     assert_eq!(attesi.len(), COMMANDS.len(), "un comando in piu' o in meno");
     for (cmd, tasto, scritta) in attesi {

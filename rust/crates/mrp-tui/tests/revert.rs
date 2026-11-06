@@ -36,6 +36,10 @@ fn alt_r() -> KeyEvent {
     KeyEvent::new(KeyCode::Char('r'), KeyModifiers::ALT)
 }
 
+fn ctrl_r() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL)
+}
+
 /// Un `Workspace` con due schede (a.txt e b.txt, la prima avanti), la sessione in `sess`, 60 x 12.
 fn due_schede(dir: &Path, sess: &Path) -> Workspace {
     std::fs::write(dir.join("a.txt"), b"uno\ndue\ntre\n").unwrap();
@@ -68,7 +72,7 @@ fn schermo(w: &mut Workspace) -> Vec<String> {
 fn with_nothing_to_discard_it_says_so_and_asks_nothing() {
     let (dir, sess) = cartelle();
     let mut w = due_schede(&dir, &sess);
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     assert_eq!(w.active().dialog_kind(), None);
     assert_eq!(w.active().flash(), Some("no unsaved changes to discard"));
     // il registro lo sa: spento senza modifiche, acceso con
@@ -83,7 +87,7 @@ fn it_asks_first_and_escape_keeps_the_changes() {
     let (dir, sess) = cartelle();
     let mut w = due_schede(&dir, &sess);
     modifica(&mut w);
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     assert_eq!(w.active().dialog_kind(), Some(DialogKind::Revert));
     // la domanda dice quale file, e i tasti
     let righe = schermo(&mut w).join("\n");
@@ -100,7 +104,7 @@ fn it_asks_first_and_escape_keeps_the_changes() {
     w.handle_key(k(KeyCode::Esc));
     assert_eq!(w.active().dialog_kind(), None);
     assert!(w.active().is_modified());
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Char('n')));
     assert_eq!(w.active().dialog_kind(), None);
     assert!(w.active().is_modified());
@@ -114,7 +118,7 @@ fn confirming_brings_back_the_file_as_it_is_on_disk() {
     let mut w = due_schede(&dir, &sess);
     modifica(&mut w);
     assert_eq!(w.active().cursor(), 6);
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
     assert_eq!(w.active().dialog_kind(), None);
     // la stessa scheda, nello stesso posto, pulita e in lettura; il testo e' quello del file; il cursore all'inizio della riga di prima
@@ -144,7 +148,7 @@ fn undo_has_nothing_left_after_discarding() {
     let (dir, sess) = cartelle();
     let mut w = due_schede(&dir, &sess);
     modifica(&mut w);
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
     w.handle_key(k(KeyCode::F(4)));
     w.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
@@ -161,7 +165,7 @@ fn it_keeps_the_other_tabs_and_the_encoding() {
     w.handle_key(k(KeyCode::F(4)));
     w.handle_key(k(KeyCode::Char('Q')));
     assert!(w.active().is_modified());
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Char('y')));
     assert_eq!(w.active_index(), 1);
     assert!(!w.active().is_modified());
@@ -179,7 +183,7 @@ fn an_untitled_document_has_no_file_to_go_back_to() {
     w.handle_key(k(KeyCode::Char('x')));
     assert!(w.active().is_modified());
     assert!(w.active().is_untitled());
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     assert_eq!(w.active().dialog_kind(), None);
     assert_eq!(w.active().flash(), Some("no unsaved changes to discard"));
     assert!(w.active().is_modified(), "il testo scritto resta");
@@ -206,7 +210,7 @@ fn changes_brought_back_by_the_session_can_be_discarded() {
     };
     let mut w = riaperta(&sess);
     assert!(w.active().is_modified(), "le modifiche sono tornate");
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
     assert!(!w.active().is_modified());
     // chiusa di nuovo e riaperta: pulita
@@ -251,7 +255,7 @@ fn the_file_comes_back_in_the_same_encoding() {
         .any(|r| r.replace(' ', "").contains("日本語")));
     w.handle_key(k(KeyCode::F(4)));
     w.handle_key(k(KeyCode::Char('Q')));
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
     assert!(!w.active().is_modified());
     assert_eq!(w.active().encoding(), sj);
@@ -281,7 +285,7 @@ fn the_new_tab_takes_the_size_of_the_screen() {
     assert!(w.wait_idle(Duration::from_secs(20)));
     w.handle_key(k(KeyCode::F(4)));
     w.handle_key(k(KeyCode::Char('Q')));
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
     assert!(!w.active().is_modified());
     w.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
@@ -302,9 +306,26 @@ fn a_cursor_past_the_end_of_the_original_goes_to_its_last_line() {
         w.handle_key(k(KeyCode::Char(c)));
     }
     assert_eq!(w.active().cursor(), 20);
-    w.handle_key(alt_r());
+    w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
     assert!(!w.active().is_modified());
     assert_eq!(w.active().cursor(), 8);
+    pulisci(&dir);
+}
+
+#[test]
+fn alt_r_is_a_synonym_of_ctrl_r() {
+    let (dir, sess) = cartelle();
+    let mut w = due_schede(&dir, &sess);
+    modifica(&mut w);
+    w.handle_key(alt_r());
+    assert_eq!(w.active().dialog_kind(), Some(DialogKind::Revert));
+    w.handle_key(k(KeyCode::Esc));
+    // Ctrl+Alt+R non e' nessuno dei due: non fa niente
+    w.handle_key(KeyEvent::new(
+        KeyCode::Char('r'),
+        KeyModifiers::CONTROL | KeyModifiers::ALT,
+    ));
+    assert_eq!(w.active().dialog_kind(), None);
     pulisci(&dir);
 }
