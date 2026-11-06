@@ -2013,6 +2013,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "mrp-loggen"
+version = "0.1.0"
+dependencies = [
+ "mrp-core",
+]
+
+[[package]]
 name = "mrp-tui"
 version = "0.1.0"
 dependencies = [

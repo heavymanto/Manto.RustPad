@@ -1,0 +1,23 @@
+[package]
+name = "mrp-loggen"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+repository = "https://github.com/heavymanto/Manto.RustPad"
+publish = false
+description = "Manto.RustPad: generatore di log sintetici di qualsiasi dimensione (stessi byte a parita' di seme), per provare e misurare"
+
+[lib]
+name = "mrp_loggen"
+path = "src/lib.rs"
+
+[[bin]]
+name = "mrp-loggen"
+path = "src/main.rs"
+
+# Nessuna dipendenza: il generatore e' deterministico per costruzione (un generatore di numeri casuali scritto qui, nessun orologio,
+# nessuna libreria di date), cosi' lo stesso comando dà gli stessi byte su ogni macchina e in ogni versione.
+[dependencies]
+
+[dev-dependencies]
+mrp-core = { path = "../mrp-core" }
