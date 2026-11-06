@@ -88,10 +88,9 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::ZoomReset),
 ];
 
-/// Gli strumenti per i log: filtrare le righe, seguire la coda, colorare.
+/// Gli strumenti per i log: seguire la coda, colorare, i filtri (la finestra Filtri comprende anche il filtro per testo: non c'e'
+/// una voce a parte), la timeline.
 const LOG: &[Option<Cmd>] = &[
-    Some(Cmd::Filter),
-    None,
     Some(Cmd::Follow),
     Some(Cmd::LogColors),
     None,

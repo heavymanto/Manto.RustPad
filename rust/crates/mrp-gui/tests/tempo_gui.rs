@@ -136,6 +136,8 @@ fn the_log_menu_has_one_entry_for_the_time_window_and_the_filter_switch_is_the_f
     // il formato e il filtro sono la stessa finestra: una voce sola (il formato resta su Alt+O e sul clic di FORMAT); l'interruttore
     // del filtro per data e' il pulsante a imbuto della barra (nel menu era una seconda voce che portava alla stessa finestra)
     assert!(!log.contains(&Cmd::TimeMask));
+    // il filtro per testo e per livello sta nella stessa finestra Filtri: niente voce "Filtra le righe" a parte
+    assert!(!log.contains(&Cmd::Filter));
     assert!(!log.contains(&Cmd::TimeFilter));
     // il filtro per data e' un interruttore: sempre disponibile, acceso quando c'e' una finestra di tempo
     let (mut f, ctx, p, _) = finestra();
