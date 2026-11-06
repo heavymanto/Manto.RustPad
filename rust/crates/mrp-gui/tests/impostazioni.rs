@@ -28,6 +28,8 @@ fn finestra() -> (Finestra, Context, PathBuf, PathBuf) {
         move || AppConfig {
             chrome: false,
             settings_path: Some(s.clone()),
+            // l'accensione dell'interruttore si prova partendo dallo spento
+            log_colors: false,
             ..AppConfig::default()
         }
     };
@@ -207,9 +209,11 @@ fn the_switches_do_what_the_keys_do_and_are_saved() {
     assert!(f.workspace().log_colors());
     assert!(f.workspace().nav_bar());
     let scritto = std::fs::read_to_string(&settings).unwrap();
-    for voce in ["line_numbers=0", "special=1", "log_colors=1", "nav_bar=1"] {
+    for voce in ["line_numbers=0", "special=1", "nav_bar=1"] {
         assert!(scritto.contains(voce), "{voce} in {scritto}");
     }
+    // i colori dei log sono accesi di fabbrica: acceso non si scrive (si scrive solo `log_colors=0`)
+    assert!(!scritto.contains("log_colors"), "{scritto}");
     // e si spengono di nuovo
     apri(&mut f, &ctx);
     let pos = controllo(&f, "Show special characters");

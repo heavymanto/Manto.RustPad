@@ -354,7 +354,7 @@ pub struct AppConfig {
     pub nav_bar: bool,
     /// Vero: spazi, tabulazioni e fine riga si vedono (vedi `Settings::special_chars`).
     pub special_chars: bool,
-    /// Vero: la colorazione dei log e' accesa all'avvio (vedi `Settings::log_colors`).
+    /// Vero (predefinito): la colorazione dei log e' accesa all'avvio (vedi `Settings::log_colors`).
     pub log_colors: bool,
     /// Vero (predefinito): i numeri di riga si vedono a sinistra del testo (vedi `Settings::line_numbers`).
     pub line_numbers: bool,
@@ -387,7 +387,7 @@ impl Default for AppConfig {
             jump_pages: JUMP_PAGES,
             nav_bar: false,
             special_chars: false,
-            log_colors: false,
+            log_colors: true,
             line_numbers: true,
             font_size: None,
             time_format: None,

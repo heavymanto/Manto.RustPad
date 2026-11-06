@@ -15,6 +15,8 @@ static COUNTER: AtomicUsize = AtomicUsize::new(0);
 fn cfg() -> AppConfig {
     AppConfig {
         chrome: false,
+        // il test dell'interruttore parte dallo spento
+        log_colors: false,
         ..AppConfig::default()
     }
 }

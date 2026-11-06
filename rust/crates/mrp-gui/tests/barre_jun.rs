@@ -120,6 +120,7 @@ fn file(dati: &[u8]) -> PathBuf {
 fn cfg(chrome: bool) -> AppConfig {
     AppConfig {
         chrome,
+        log_colors: false,
         ..AppConfig::default()
     }
 }

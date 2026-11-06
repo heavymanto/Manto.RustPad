@@ -145,17 +145,14 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         let y = sopra + i as u16;
         // Ogni riga arriva fino in fondo allo schermo.
         let mut text = text.clone();
-        // La colorazione dei log (Alt+L): il colore della riga (errori e avvisi) e le celle dei livelli, degli orari e degli
-        // indirizzi; si calcola sul testo visibile (con lo scorrimento orizzontale una parola tagliata non si riconosce).
-        let mut base = t.fg;
+        // La colorazione dei log (Alt+L): le celle dei livelli, degli orari e degli indirizzi (il resto della riga resta com'e')
+        // e, a inizio riga, il filetto del margine nel colore del primo livello che c'e'; si calcola sul testo visibile (con lo
+        // scorrimento orizzontale una parola tagliata non si riconosce).
+        let base = t.fg;
         let mut celle_log: Vec<(usize, usize, ratatui::style::Style)> = Vec::new();
+        let mut segnale: Option<ratatui::style::Style> = None;
         if app.log_colors() {
             use mrp_core::loghl::{self, Kind};
-            match loghl::line_level(&text) {
-                Some(Kind::Error) => base = base.patch(t.log.error),
-                Some(Kind::Warn) => base = base.patch(t.log.warn),
-                _ => {}
-            }
             for sp in loghl::highlight(&text) {
                 if sp.kind == Kind::Time {
                     // gli orari li decide la maschera, non la forma
@@ -169,6 +166,9 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
                     Kind::Time => t.log.time,
                     Kind::Ip => t.log.ip,
                 };
+                if segnale.is_none() && sp.kind != Kind::Ip {
+                    segnale = Some(stile);
+                }
                 let da = Span::raw(&text[..sp.start]).width();
                 let fino = Span::raw(&text[..sp.end]).width();
                 celle_log.push((da, fino, stile));
@@ -185,10 +185,16 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         }
         let manca = cells.saturating_sub(text.chars().count());
         text.push_str(&" ".repeat(manca));
-        let line = Line::from(vec![
-            Span::styled(gutter.clone(), t.gutter),
-            Span::styled(text, base),
-        ]);
+        // il filetto del margine ha il colore del livello della riga (senza numeri di riga il margine non c'e')
+        let mut pezzi = match (segnale, gutter.strip_suffix('│')) {
+            (Some(stile), Some(numero)) => vec![
+                Span::styled(numero.to_string(), t.gutter),
+                Span::styled("│", t.gutter.patch(stile)),
+            ],
+            _ => vec![Span::styled(gutter.clone(), t.gutter)],
+        };
+        pezzi.push(Span::styled(text, base));
+        let line = Line::from(pezzi);
         f.render_widget(
             Paragraph::new(line).style(t.screen),
             Rect::new(x0, y, larghezza, 1),

@@ -17,7 +17,12 @@ fn app() -> (App, PathBuf) {
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
     let p = std::env::temp_dir().join(format!("mrp_stato_{}_{}.txt", std::process::id(), n));
     std::fs::write(&p, "uno\ndue\ntre\nquattro\n").unwrap();
-    let mut a = App::open(&p, AppConfig::default()).unwrap();
+    // gli interruttori partono spenti (la colorazione dei log, di fabbrica accesa, qui no)
+    let cfg = AppConfig {
+        log_colors: false,
+        ..AppConfig::default()
+    };
+    let mut a = App::open(&p, cfg).unwrap();
     a.resize(40, 10);
     assert!(a.wait_idle(Duration::from_secs(20)));
     (a, p)

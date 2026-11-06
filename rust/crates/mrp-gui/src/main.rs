@@ -85,7 +85,7 @@ fn run() -> i32 {
             .as_ref()
             .map_or_else(Default::default, |s| s.timeline),
         special_chars: profilo.settings.as_ref().is_some_and(|s| s.special_chars),
-        log_colors: profilo.settings.as_ref().is_some_and(|s| s.log_colors),
+        log_colors: profilo.settings.as_ref().is_none_or(|s| s.log_colors),
         line_numbers: profilo.settings.as_ref().is_none_or(|s| s.line_numbers),
         font_size: profilo.settings.as_ref().and_then(|s| s.font_size),
         time_format: profilo

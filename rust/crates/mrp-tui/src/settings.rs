@@ -20,7 +20,7 @@ pub struct Settings {
     pub nav_bar: bool,
     /// I caratteri speciali (spazi, tabulazioni, fine riga) si vedono (Alt+W).
     pub special_chars: bool,
-    /// La colorazione dei log (livelli, orari, indirizzi) e' accesa (Alt+L).
+    /// La colorazione dei log (livelli, orari, indirizzi) e' accesa (Alt+L; di fabbrica si': nel file si scrive solo `log_colors=0`).
     pub log_colors: bool,
     /// I numeri di riga a sinistra del testo si vedono (di fabbrica si': nel file si scrive solo `line_numbers=0`).
     pub line_numbers: bool,
@@ -55,7 +55,7 @@ impl Default for Settings {
             jump_pages: JUMP_PAGES,
             nav_bar: false,
             special_chars: false,
-            log_colors: false,
+            log_colors: true,
             line_numbers: true,
             font_size: None,
             index: true,
@@ -103,8 +103,8 @@ impl Settings {
         if self.special_chars {
             out.push_str("special=1\n");
         }
-        if self.log_colors {
-            out.push_str("log_colors=1\n");
+        if !self.log_colors {
+            out.push_str("log_colors=0\n");
         }
         if !self.line_numbers {
             out.push_str("line_numbers=0\n");
