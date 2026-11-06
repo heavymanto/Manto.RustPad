@@ -195,3 +195,30 @@ fn an_untitled_document_never_offers_to_discard() {
     assert!(s.contains("Alt+B Timeline"), "{s}");
     let _ = std::fs::remove_dir_all(dir);
 }
+
+#[test]
+fn the_descriptions_in_the_help_start_all_at_the_same_column() {
+    let (mut a, p) = app("uno\n", 120, 40);
+    a.handle_key(k(KeyCode::F(1)));
+    let righe = render_lines(&mut a, 120, 40);
+    let mut colonne = Vec::new();
+    for (tasti, descrizione) in a.help_rows() {
+        let riga = righe
+            .iter()
+            .find(|r| r.contains(&tasti) && r.contains(&descrizione))
+            .unwrap_or_else(|| panic!("manca {tasti:?} / {descrizione:?}:\n{}", righe.join("\n")));
+        let byte = riga.find(&descrizione).unwrap();
+        colonne.push((riga[..byte].chars().count(), tasti));
+    }
+    assert_eq!(colonne.len(), 25);
+    let prima = colonne[0].0;
+    for (c, tasti) in &colonne {
+        assert_eq!(
+            *c,
+            prima,
+            "la descrizione di {tasti:?} e' fuori colonna:\n{}",
+            righe.join("\n")
+        );
+    }
+    let _ = std::fs::remove_file(p);
+}

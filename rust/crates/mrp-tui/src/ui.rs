@@ -668,9 +668,24 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
         DialogKind::Help => {
             // le righe che stanno nello schermo, a partire da quella scelta scorrendo; sotto, sempre, come si chiude
             let (prima, quante) = (app.help_scroll(), app.help_visible());
-            let mut righe: Vec<(String, Style)> = HELP_KEYS[prima..prima + quante]
+            // i tasti e le descrizioni stanno in due colonne: la larghezza della prima e' quella del tasto piu' lungo
+            // di tutta la tabella (non solo delle righe in vista), cosi' scorrendo la colonna non si muove
+            let tabella = app.help_rows();
+            let larga_tasti = tabella
                 .iter()
-                .map(|k| (cat.t(k).to_string(), t.dialog))
+                .map(|(k, _)| k.chars().count())
+                .max()
+                .unwrap_or(0);
+            let mut righe: Vec<(String, Style)> = tabella[prima..prima + quante]
+                .iter()
+                .map(|(k, d)| {
+                    let testo = if d.is_empty() {
+                        k.clone()
+                    } else {
+                        format!("{:<larga_tasti$}  {}", k, d)
+                    };
+                    (testo, t.dialog)
+                })
                 .collect();
             let mut chiudi = cat.t("help.close").to_string();
             if quante < HELP_KEYS.len() {
