@@ -28,7 +28,7 @@ fn ws_con(cfg: AppConfig) -> (PathBuf, Workspace) {
     std::fs::write(&p, "uno\ndue\ntre\n").unwrap();
     let app = App::open(&p, cfg.clone()).unwrap();
     let mut w = Workspace::new(app, cfg);
-    w.resize(40, 10);
+    w.resize(40, 8);
     assert!(w.wait_idle(Duration::from_secs(20)));
     (d, w)
 }
@@ -45,9 +45,9 @@ fn the_command_is_alt_n_and_numbers_are_on_by_default() {
     assert_eq!(commands::from_key(alt_n()), Some(Cmd::LineNumbers));
     let (d, mut w) = ws_con(AppConfig::default());
     assert!(w.line_numbers());
-    let righe = w.render_lines(40, 10);
+    let righe = w.render_lines(40, 9);
     assert!(
-        righe[1].starts_with("1│uno") || righe[1].starts_with(" 1│uno"),
+        righe[0].starts_with("1│uno") || righe[0].starts_with(" 1│uno"),
         "{righe:?}"
     );
     let _ = std::fs::remove_dir_all(d);
@@ -58,16 +58,16 @@ fn off_the_margin_is_gone_and_the_text_starts_at_the_edge() {
     let (d, mut w) = ws_con(AppConfig::default());
     w.handle_key(alt_n());
     assert!(!w.line_numbers());
-    let righe = w.render_lines(40, 10);
-    assert!(righe[1].starts_with("uno"), "{:?}", righe[1]);
-    assert!(righe[2].starts_with("due"), "{:?}", righe[2]);
+    let righe = w.render_lines(40, 9);
+    assert!(righe[0].starts_with("uno"), "{:?}", righe[0]);
+    assert!(righe[1].starts_with("due"), "{:?}", righe[1]);
     assert!(!righe.join("\n").contains('│'), "nessun filetto: {righe:?}");
     // il cursore e' sulla prima colonna dello schermo
     assert_eq!(w.active().cursor_xy().map(|(x, _)| x), Some(0));
     // di nuovo: tornano
     w.handle_key(alt_n());
     assert!(w.line_numbers());
-    assert!(w.render_lines(40, 10)[1].contains('│'));
+    assert!(w.render_lines(40, 9)[0].contains('│'));
     let _ = std::fs::remove_dir_all(d);
 }
 
@@ -75,17 +75,17 @@ fn off_the_margin_is_gone_and_the_text_starts_at_the_edge() {
 fn the_mouse_and_the_cursor_follow_the_new_edge() {
     let (d, mut w) = ws_con(AppConfig::default());
     w.handle_key(alt_n());
-    let _ = w.render_lines(40, 10);
+    let _ = w.render_lines(40, 9);
     // un clic sulla seconda lettera della seconda riga (colonna 1, riga 2 dello schermo): byte 4 + 1
     w.handle_mouse(MouseEvent {
         kind: MouseEventKind::Down(MouseButton::Left),
         column: 1,
-        row: 2,
+        row: 1,
         modifiers: KeyModifiers::NONE,
     });
     assert_eq!(w.active().cursor(), 5);
-    let _ = w.render_lines(40, 10);
-    assert_eq!(w.active().cursor_xy(), Some((1, 2)));
+    let _ = w.render_lines(40, 9);
+    assert_eq!(w.active().cursor_xy(), Some((1, 1)));
     let _ = std::fs::remove_dir_all(d);
 }
 
@@ -120,7 +120,7 @@ fn it_applies_to_every_tab_the_new_ones_and_is_saved() {
     };
     let (d2, mut w2) = ws_con(cfg);
     assert!(!w2.line_numbers());
-    assert!(w2.render_lines(40, 10)[1].starts_with("uno"));
+    assert!(w2.render_lines(40, 9)[0].starts_with("uno"));
     let _ = std::fs::remove_dir_all(prof);
     let _ = std::fs::remove_dir_all(d);
     let _ = std::fs::remove_dir_all(d2);

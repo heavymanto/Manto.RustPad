@@ -72,7 +72,7 @@ fn app_file(dir: &TestDir, data: &[u8], e: Option<Encoding>, edit: bool) -> (App
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -86,11 +86,29 @@ fn app(dir: &TestDir, data: &[u8], e: Option<Encoding>, edit: bool) -> App {
 }
 
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 40, 10)
+    render_lines(a, 40, 9)
 }
 
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
 fn status(a: &mut App) -> String {
-    screen(a)[8].clone()
+    status_intera(a)
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
+/// La riga di stato a 80 colonne (a 40 non c'e' posto per la codifica, che sta a destra).
+fn status_larga(a: &mut App) -> String {
+    a.resize(80, 9);
+    let r = render_lines(a, 80, 9)[7].trim_end().to_string();
+    a.resize(40, 9);
+    r
+}
+
+fn status_intera(a: &mut App) -> String {
+    screen(a)[7].clone()
 }
 
 fn save(a: &mut App) {
@@ -105,12 +123,12 @@ fn text_is_shown_and_the_cursor_steps_one_character() {
     let mut a = app(&dir, &b("shift-jis", "日本語\nabc\n"), Some(sj), false);
     let s = screen(&mut a);
     // le celle larghe sono seguite da una cella vuota nel disegno
-    assert!(s[1].replace(' ', "").contains("日本語"), "{:?}", s[1]);
-    assert!(s[2].contains("abc"), "{:?}", s[2]);
+    assert!(s[0].replace(' ', "").contains("日本語"), "{:?}", s[0]);
+    assert!(s[1].contains("abc"), "{:?}", s[1]);
     assert!(
-        status(&mut a).trim_end().ends_with("shift-jis"),
+        status_larga(&mut a).contains("shift-jis"),
         "{:?}",
-        status(&mut a)
+        status_larga(&mut a)
     );
     for atteso in [2u64, 4, 6, 7] {
         a.handle_key(k(KeyCode::Right));

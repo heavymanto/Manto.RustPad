@@ -23,13 +23,13 @@ fn app(data: &[u8], enc: Option<Encoding>, edit: bool) -> (App, PathBuf, u16) {
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
     }
     // un disegno: serve ai clic (ricordano le righe disegnate); il gutter e' la colonna del cursore a 0
-    let _ = render_lines(&mut a, 40, 10);
+    let _ = render_lines(&mut a, 40, 9);
     let (gutter, _) = a.cursor_xy().expect("cursore");
     (a, p, gutter)
 }
@@ -60,7 +60,7 @@ fn clic(a: &mut App, col: u16, row: u16) {
         row,
         KeyModifiers::NONE,
     ));
-    let _ = render_lines(a, 40, 10);
+    let _ = render_lines(a, 40, 9);
 }
 
 #[test]
@@ -68,17 +68,17 @@ fn a_click_puts_the_cursor_on_the_character() {
     // "abc\ndef\n": 8 byte, gutter di 2 celle; 'a' a 0, 'f' a 6
     let (mut a, p, g) = app(b"abc\ndef\n", None, false);
     assert_eq!(g, 2);
-    clic(&mut a, g + 1, 1);
+    clic(&mut a, g + 1, 0);
     assert_eq!(a.cursor(), 1);
-    clic(&mut a, g + 2, 2);
+    clic(&mut a, g + 2, 1);
     assert_eq!(a.cursor(), 6);
-    clic(&mut a, g, 2);
+    clic(&mut a, g, 1);
     assert_eq!(a.cursor(), 4);
     // oltre la fine della riga: la fine della riga (sul suo a-capo)
-    clic(&mut a, g + 20, 1);
+    clic(&mut a, g + 20, 0);
     assert_eq!(a.cursor(), 3);
     // nel gutter: l'inizio della riga
-    clic(&mut a, 0, 2);
+    clic(&mut a, 0, 1);
     assert_eq!(a.cursor(), 4);
     let _ = std::fs::remove_file(p);
 }
@@ -86,12 +86,12 @@ fn a_click_puts_the_cursor_on_the_character() {
 #[test]
 fn a_click_outside_the_text_does_nothing() {
     let (mut a, p, g) = app(b"abc\ndef\n", None, false);
-    clic(&mut a, g + 1, 1);
+    clic(&mut a, g + 1, 0);
     assert_eq!(a.cursor(), 1);
-    // il titolo (riga 0), sotto l'ultima riga di testo e la riga di stato
-    clic(&mut a, g + 2, 0);
+    // sotto l'ultima riga di testo, la riga di stato e la riga dei tasti
+    clic(&mut a, g + 2, 5);
     assert_eq!(a.cursor(), 1);
-    clic(&mut a, g + 2, 6);
+    clic(&mut a, g + 2, 7);
     assert_eq!(a.cursor(), 1);
     clic(&mut a, g + 2, 8);
     assert_eq!(a.cursor(), 1);
@@ -102,15 +102,15 @@ fn a_click_outside_the_text_does_nothing() {
 fn wide_characters_are_clicked_by_their_cells() {
     // 日 occupa le colonne 0-1, x la 2; i byte: 日 0..3, x 3, a-capo 4
     let (mut a, p, g) = app("日x\n".as_bytes(), None, false);
-    clic(&mut a, g, 1);
+    clic(&mut a, g, 0);
     assert_eq!(a.cursor(), 0);
-    clic(&mut a, g + 1, 1);
+    clic(&mut a, g + 1, 0);
     assert_eq!(
         a.cursor(),
         0,
         "la seconda cella di un carattere largo e' il carattere"
     );
-    clic(&mut a, g + 2, 1);
+    clic(&mut a, g + 2, 0);
     assert_eq!(a.cursor(), 3);
     let _ = std::fs::remove_file(p);
 }
@@ -121,9 +121,9 @@ fn a_click_in_a_multibyte_encoding_lands_on_a_character_start() {
     // "日本x\n": 日 0..2, 本 2..4, x 4; colonne 0-1, 2-3, 4
     let dati = sj.encode_str("日本x\n").unwrap();
     let (mut a, p, g) = app(&dati, Some(sj), false);
-    clic(&mut a, g + 3, 1);
+    clic(&mut a, g + 3, 0);
     assert_eq!(a.cursor(), 2);
-    clic(&mut a, g + 4, 1);
+    clic(&mut a, g + 4, 0);
     assert_eq!(a.cursor(), 4);
     let _ = std::fs::remove_file(p);
 }
@@ -134,13 +134,13 @@ fn dragging_selects_and_shift_click_extends() {
     a.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
         g,
-        1,
+        0,
         KeyModifiers::NONE,
     ));
     a.handle_mouse(mouse(
         MouseEventKind::Drag(MouseButton::Left),
         g + 2,
-        2,
+        1,
         KeyModifiers::NONE,
     ));
     assert_eq!(a.selection(), Some((0, 6)));
@@ -148,33 +148,33 @@ fn dragging_selects_and_shift_click_extends() {
     a.handle_mouse(mouse(
         MouseEventKind::Up(MouseButton::Left),
         g + 2,
-        2,
+        1,
         KeyModifiers::NONE,
     ));
-    let _ = render_lines(&mut a, 40, 10);
-    clic(&mut a, g + 1, 1);
+    let _ = render_lines(&mut a, 40, 9);
+    clic(&mut a, g + 1, 0);
     assert_eq!(a.selection(), None);
     assert_eq!(a.cursor(), 1);
     // Maiusc+clic: dal cursore al punto
     a.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
         g + 1,
-        2,
+        1,
         KeyModifiers::SHIFT,
     ));
     assert_eq!(a.selection(), Some((1, 5)));
     // trascinare oltre l'ultima riga arriva all'ultima
-    clic(&mut a, g, 1);
+    clic(&mut a, g, 0);
     a.handle_mouse(mouse(
         MouseEventKind::Down(MouseButton::Left),
         g,
-        1,
+        0,
         KeyModifiers::NONE,
     ));
     a.handle_mouse(mouse(
         MouseEventKind::Drag(MouseButton::Left),
         g + 1,
-        9,
+        8,
         KeyModifiers::NONE,
     ));
     assert_eq!(a.selection(), Some((0, 5)));
@@ -186,13 +186,13 @@ fn a_click_ignores_dialogs_and_in_column_mode_only_moves_the_cursor() {
     let (mut a, p, g) = app(b"abc\ndef\n", None, false);
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
-    clic(&mut a, g + 2, 2);
+    clic(&mut a, g + 2, 1);
     assert_eq!(a.cursor(), 0);
     a.handle_key(k(KeyCode::Esc));
     a.handle_key(k(KeyCode::F(8)));
     assert!(a.column_mode());
     // in modalita' colonna il clic porta il cursore sulla cella (il blocco nasce trascinando: `block_mouse.rs`)
-    clic(&mut a, g + 2, 2);
+    clic(&mut a, g + 2, 1);
     assert_eq!(a.cursor(), 6);
     assert_eq!(a.column_block(), None);
     let _ = std::fs::remove_file(p);
@@ -201,7 +201,7 @@ fn a_click_ignores_dialogs_and_in_column_mode_only_moves_the_cursor() {
 #[test]
 fn typing_after_a_click_writes_there() {
     let (mut a, p, g) = app(b"abc\ndef\n", None, true);
-    clic(&mut a, g + 2, 2);
+    clic(&mut a, g + 2, 1);
     a.handle_key(k(KeyCode::Char('X')));
     assert_eq!(a.document_text(), b"abc\ndeXf\n");
     let _ = std::fs::remove_file(p);
@@ -214,12 +214,12 @@ fn a_click_after_scrolling_uses_the_rows_on_screen() {
     for _ in 0..4 {
         a.handle_mouse(mouse(MouseEventKind::ScrollDown, 0, 0, KeyModifiers::NONE));
     }
-    let _ = render_lines(&mut a, 40, 10);
+    let _ = render_lines(&mut a, 40, 9);
     let top = a.top();
     assert!(top > 0);
-    clic(&mut a, g, 1);
+    clic(&mut a, g, 0);
     assert_eq!(a.cursor(), top, "la prima riga a schermo");
-    clic(&mut a, g + 3, 3);
+    clic(&mut a, g + 3, 2);
     assert_eq!(
         a.cursor(),
         top + 2 * 8 + 3,
@@ -246,10 +246,10 @@ fn a_click_on_a_horizontally_scrolled_line_counts_the_hidden_columns() {
         .collect();
     let (mut a, p, g) = app(format!("{riga}\n").as_bytes(), None, false);
     a.handle_key(k(KeyCode::End));
-    let _ = render_lines(&mut a, 40, 10);
+    let _ = render_lines(&mut a, 40, 9);
     let h = a.hscroll();
     assert!(h > 0, "la vista e' scorsa");
-    clic(&mut a, g + 3, 1);
+    clic(&mut a, g + 3, 0);
     assert_eq!(a.cursor(), (h + 3) as u64);
     let _ = std::fs::remove_file(p);
 }
@@ -269,7 +269,7 @@ fn premi(a: &mut App, col: u16, row: u16, t: Instant, mods: KeyModifiers) {
         mouse(MouseEventKind::Up(MouseButton::Left), col, row, mods),
         t,
     );
-    let _ = render_lines(a, 40, 10);
+    let _ = render_lines(a, 40, 9);
 }
 
 fn doppio(a: &mut App, col: u16, row: u16) {
@@ -288,14 +288,14 @@ fn doppio(a: &mut App, col: u16, row: u16) {
 fn a_double_click_selects_the_word_under_the_pointer() {
     let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
     // in mezzo a "bar_1" (il trattino basso fa parte della parola)
-    doppio(&mut a, g + 5, 1);
+    doppio(&mut a, g + 5, 0);
     assert_eq!(a.selection(), Some((4, 9)));
     // la prima lettera e l'ultima cifra della stessa parola
-    doppio(&mut a, g + 4, 1);
+    doppio(&mut a, g + 4, 0);
     assert_eq!(a.selection(), Some((4, 9)));
-    doppio(&mut a, g + 8, 1);
+    doppio(&mut a, g + 8, 0);
     assert_eq!(a.selection(), Some((4, 9)));
-    doppio(&mut a, g + 1, 1);
+    doppio(&mut a, g + 1, 0);
     assert_eq!(a.selection(), Some((0, 3)));
     let _ = std::fs::remove_file(p);
 }
@@ -303,11 +303,11 @@ fn a_double_click_selects_the_word_under_the_pointer() {
 #[test]
 fn a_double_click_on_spaces_or_punctuation_selects_that_run() {
     let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
-    doppio(&mut a, g + 10, 1);
+    doppio(&mut a, g + 10, 0);
     assert_eq!(a.selection(), Some((9, 11)), "i due spazi");
-    doppio(&mut a, g + 11, 1);
+    doppio(&mut a, g + 11, 0);
     assert_eq!(a.selection(), Some((11, 12)), "il '+'");
-    doppio(&mut a, g + 3, 1);
+    doppio(&mut a, g + 3, 0);
     assert_eq!(a.selection(), Some((3, 4)), "lo spazio singolo");
     let _ = std::fs::remove_file(p);
 }
@@ -315,7 +315,7 @@ fn a_double_click_on_spaces_or_punctuation_selects_that_run() {
 #[test]
 fn a_double_click_past_the_end_of_the_row_takes_the_last_word() {
     let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
-    doppio(&mut a, g + 30, 1);
+    doppio(&mut a, g + 30, 0);
     assert_eq!(
         a.selection(),
         Some((12, 13)),
@@ -328,12 +328,12 @@ fn a_double_click_past_the_end_of_the_row_takes_the_last_word() {
 fn a_double_click_keeps_to_the_row_and_to_whole_characters() {
     // a0 ñ1-2 b3 ' '4 ü5-6 a-capo 7; "añb" sono 4 byte
     let (mut a, p, g) = app("añb ü\nxy\n".as_bytes(), None, false);
-    doppio(&mut a, g + 1, 1);
+    doppio(&mut a, g + 1, 0);
     assert_eq!(a.selection(), Some((0, 4)));
-    doppio(&mut a, g + 4, 1);
+    doppio(&mut a, g + 4, 0);
     assert_eq!(a.selection(), Some((5, 7)), "ü e' di due byte");
     // la parola non attraversa l'a-capo: "xy" comincia dopo
-    doppio(&mut a, g, 2);
+    doppio(&mut a, g, 1);
     assert_eq!(a.selection(), Some((8, 10)));
     let _ = std::fs::remove_file(p);
 }
@@ -344,9 +344,9 @@ fn a_double_click_works_in_a_multibyte_encoding() {
     // "ab 日本\n": a0 b1 ' '2 日3-4 本5-6 a-capo 7; 日本 sono due lettere di una parola
     let dati = sj.encode_str("ab 日本\n").unwrap();
     let (mut a, p, g) = app(&dati, Some(sj), false);
-    doppio(&mut a, g + 5, 1);
+    doppio(&mut a, g + 5, 0);
     assert_eq!(a.selection(), Some((3, 7)));
-    doppio(&mut a, g, 1);
+    doppio(&mut a, g, 0);
     assert_eq!(a.selection(), Some((0, 2)));
     let _ = std::fs::remove_file(p);
 }
@@ -355,12 +355,12 @@ fn a_double_click_works_in_a_multibyte_encoding() {
 fn a_triple_click_selects_the_row_and_a_fourth_starts_over() {
     let (mut a, p, g) = app(b"foo bar_1  +x\nsecond\n", None, false);
     let t = Instant::now();
-    premi(&mut a, g + 5, 1, t, KeyModifiers::NONE);
+    premi(&mut a, g + 5, 0, t, KeyModifiers::NONE);
     assert_eq!(a.selection(), None);
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(150),
         KeyModifiers::NONE,
     );
@@ -368,7 +368,7 @@ fn a_triple_click_selects_the_row_and_a_fourth_starts_over() {
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(300),
         KeyModifiers::NONE,
     );
@@ -377,7 +377,7 @@ fn a_triple_click_selects_the_row_and_a_fourth_starts_over() {
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(450),
         KeyModifiers::NONE,
     );
@@ -387,7 +387,7 @@ fn a_triple_click_selects_the_row_and_a_fourth_starts_over() {
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(600),
         KeyModifiers::NONE,
     );
@@ -399,12 +399,12 @@ fn a_triple_click_selects_the_row_and_a_fourth_starts_over() {
 fn a_slow_or_moved_second_click_is_not_a_double_click() {
     let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
     let t = Instant::now();
-    premi(&mut a, g + 5, 1, t, KeyModifiers::NONE);
+    premi(&mut a, g + 5, 0, t, KeyModifiers::NONE);
     // troppo tardi
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(900),
         KeyModifiers::NONE,
     );
@@ -413,7 +413,7 @@ fn a_slow_or_moved_second_click_is_not_a_double_click() {
     premi(
         &mut a,
         g + 6,
-        1,
+        0,
         t + Duration::from_millis(1000),
         KeyModifiers::NONE,
     );
@@ -423,7 +423,7 @@ fn a_slow_or_moved_second_click_is_not_a_double_click() {
     premi(
         &mut a,
         g + 6,
-        1,
+        0,
         t + Duration::from_millis(1100),
         KeyModifiers::NONE,
     );
@@ -435,12 +435,12 @@ fn a_slow_or_moved_second_click_is_not_a_double_click() {
 fn shift_click_and_dialogs_and_column_mode_never_select_words() {
     let (mut a, p, g) = app(b"foo bar_1  +x\n", None, false);
     let t = Instant::now();
-    premi(&mut a, g + 1, 1, t, KeyModifiers::NONE);
+    premi(&mut a, g + 1, 0, t, KeyModifiers::NONE);
     // Maiusc+clic nella stessa cella, subito dopo: estende, non e' un doppio clic
     premi(
         &mut a,
         g + 1,
-        1,
+        0,
         t + Duration::from_millis(100),
         KeyModifiers::SHIFT,
     );
@@ -450,14 +450,14 @@ fn shift_click_and_dialogs_and_column_mode_never_select_words() {
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(200),
         KeyModifiers::NONE,
     );
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(300),
         KeyModifiers::NONE,
     );
@@ -468,14 +468,14 @@ fn shift_click_and_dialogs_and_column_mode_never_select_words() {
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(5000),
         KeyModifiers::NONE,
     );
     premi(
         &mut a,
         g + 5,
-        1,
+        0,
         t + Duration::from_millis(5100),
         KeyModifiers::NONE,
     );
@@ -486,7 +486,7 @@ fn shift_click_and_dialogs_and_column_mode_never_select_words() {
 #[test]
 fn typing_over_a_double_clicked_word_replaces_it() {
     let (mut a, p, g) = app(b"foo bar_1  +x\n", None, true);
-    doppio(&mut a, g + 5, 1);
+    doppio(&mut a, g + 5, 0);
     a.handle_key(k(KeyCode::Char('Z')));
     assert_eq!(a.document_text(), b"foo Z  +x\n");
     // un solo Ctrl+Z rimette la parola
@@ -499,13 +499,13 @@ fn typing_over_a_double_clicked_word_replaces_it() {
 fn a_run_of_spaces_stops_at_the_row_edges_not_at_the_newlines() {
     // ab 0-1, spazi 2-3, a-capo 4, spazi 5-6, cd 7-8, a-capo 9
     let (mut a, p, g) = app(b"ab  \n  cd\n", None, false);
-    doppio(&mut a, g + 3, 1);
+    doppio(&mut a, g + 3, 0);
     assert_eq!(
         a.selection(),
         Some((2, 4)),
         "gli spazi in fondo, non l'a-capo"
     );
-    doppio(&mut a, g + 1, 2);
+    doppio(&mut a, g + 1, 1);
     assert_eq!(
         a.selection(),
         Some((5, 7)),

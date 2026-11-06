@@ -74,7 +74,7 @@ fn app_file(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> (A
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -88,11 +88,29 @@ fn app(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> App {
 }
 
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 40, 10)
+    render_lines(a, 40, 9)
 }
 
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
 fn status(a: &mut App) -> String {
-    screen(a)[8].clone()
+    status_intera(a)
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
+/// La riga di stato a 80 colonne (a 40 non c'e' posto per la codifica, che sta a destra).
+fn status_larga(a: &mut App) -> String {
+    a.resize(80, 9);
+    let r = render_lines(a, 80, 9)[7].trim_end().to_string();
+    a.resize(40, 9);
+    r
+}
+
+fn status_intera(a: &mut App) -> String {
+    screen(a)[7].clone()
 }
 
 fn save(a: &mut App) {
@@ -114,8 +132,8 @@ fn utf16_files_are_recognised_and_shown() {
     );
     assert_eq!(a.encoding(), LE);
     let s = screen(&mut a);
-    assert!(s[1].contains("ab"), "{:?}", s[1]);
-    assert!(s[2].contains("cd"), "{:?}", s[2]);
+    assert!(s[0].contains("ab"), "{:?}", s[0]);
+    assert!(s[1].contains("cd"), "{:?}", s[1]);
     let mut b = app(
         &dir,
         &[&[0xFE, 0xFF][..], &be("ab\ncd\n")].concat(),
@@ -123,20 +141,20 @@ fn utf16_files_are_recognised_and_shown() {
         false,
     );
     assert_eq!(b.encoding(), BE);
-    assert!(screen(&mut b)[2].contains("cd"));
+    assert!(screen(&mut b)[1].contains("cd"));
     // senza BOM: lo si indovina dagli zeri
     let testo = "prima riga di prova\nseconda riga\n";
     let mut c = app(&dir, &le(testo), None, false);
     assert_eq!(c.encoding(), LE);
-    assert!(screen(&mut c)[2].contains("seconda riga"));
+    assert!(screen(&mut c)[1].contains("seconda riga"));
     let mut d = app(&dir, &be(testo), None, false);
     assert_eq!(d.encoding(), BE);
-    assert!(screen(&mut d)[2].contains("seconda riga"));
+    assert!(screen(&mut d)[1].contains("seconda riga"));
     // il nome compare nella riga di stato
     assert!(
-        status(&mut c).trim_end().ends_with("utf-16le"),
+        status_larga(&mut c).contains("utf-16le"),
         "{:?}",
-        status(&mut c)
+        status_larga(&mut c)
     );
     // un file UTF-8 resta UTF-8
     let e = app(&dir, "ab\u{e8}\n".as_bytes(), None, false);
@@ -149,7 +167,7 @@ fn an_explicit_encoding_wins_and_the_index_is_built_for_it() {
     // meno di 8 byte: il riconoscimento non lo indovinerebbe, la richiesta esplicita si
     let mut a = app(&dir, &le("ab\ncd\n"), Some(LE), false);
     assert_eq!(a.encoding(), LE);
-    assert!(screen(&mut a)[2].contains("cd"));
+    assert!(screen(&mut a)[1].contains("cd"));
     // l'indice righe c'e' (la riga di stato conosce la riga) e conta le righe giuste: "vai a" riga 2
     assert!(
         status(&mut a).starts_with(" Ln 1  Col 1  byte 0"),
@@ -228,8 +246,8 @@ fn characters_with_the_byte_0a_do_not_split_lines() {
     a.handle_key(k(KeyCode::Up));
     assert_eq!(a.cursor(), 4);
     let s = screen(&mut a);
-    assert!(s[1].contains("A\u{010A}"), "{:?}", s[1]);
-    assert!(s[2].contains("\u{0A15}\u{0100}x"), "{:?}", s[2]);
+    assert!(s[0].contains("A\u{010A}"), "{:?}", s[0]);
+    assert!(s[1].contains("\u{0A15}\u{0100}x"), "{:?}", s[1]);
 }
 
 // ---------- scrittura e salvataggio ----------

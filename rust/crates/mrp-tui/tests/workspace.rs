@@ -94,10 +94,9 @@ fn two_tabs_draw_the_bar_on_top_and_the_active_document_below() {
     let righe = ws.render_lines(40, 8);
     assert_eq!(righe.len(), 8);
     assert_eq!(righe[0], " a.txt  b.txt");
-    // la riga 1 e' il titolo della scheda attiva, poi il suo testo con il gutter
-    assert!(righe[1].starts_with(" a.txt"), "{:?}", righe[1]);
-    assert_eq!(righe[2], "1│uno");
-    assert_eq!(righe[3], "2│due");
+    // sotto la barra c'e' subito il testo della scheda attiva, con il gutter
+    assert_eq!(righe[1], "1│uno");
+    assert_eq!(righe[2], "2│due");
     // la scheda attiva sta 1 riga piu' in basso, ma ha tutte le sue righe: il piede e' in fondo
     assert!(righe[7].starts_with(" F1 Help"), "{:?}", righe[7]);
     pulisci(d);
@@ -276,11 +275,8 @@ fn ctrl_w_closes_a_clean_tab_at_once_and_the_last_one_ends_the_session() {
     assert_eq!(nome_attivo(&ws), "b.txt");
     assert!(!ws.should_quit());
     // con una sola scheda niente barra
-    let prima = ws.render_lines(40, 8)[0].clone();
-    assert!(
-        prima.starts_with(" b.txt") && prima.ends_with("19 B  VIEW"),
-        "{prima:?}"
-    );
+    let prima = ws.render_lines(80, 8)[6].clone();
+    assert!(prima.ends_with("b.txt  19 B  VIEW"), "{prima:?}");
     ws.handle_key(ctrl('w'));
     assert_eq!(ws.len(), 1, "l'ultima scheda resta, ma si esce");
     assert!(ws.should_quit());
@@ -418,13 +414,10 @@ fn a_click_on_the_bar_selects_the_tab_and_a_click_on_the_text_counts_below_the_b
     // oltre l'ultima scheda: niente
     ws.handle_mouse(clic(30, 0));
     assert_eq!(nome_attivo(&ws), "a.txt");
-    // un clic sul testo: la riga di schermo 3 e' la seconda riga del documento ("due")
+    // un clic sul testo: la riga di schermo 2 e' la seconda riga del documento ("due")
     let _ = ws.render_lines(40, 8);
-    ws.handle_mouse(clic(3, 3));
+    ws.handle_mouse(clic(3, 2));
     assert_eq!(ws.active().cursor(), 5, "'u' di due");
-    // un clic sul titolo della scheda (riga 1) non fa niente
-    ws.handle_mouse(clic(3, 1));
-    assert_eq!(ws.active().cursor(), 5);
     pulisci(d);
 }
 
@@ -463,8 +456,8 @@ fn the_terminal_cursor_sits_one_row_lower_with_the_bar() {
     let mut t = Terminal::new(TestBackend::new(40, 8)).unwrap();
     t.draw(|f| ws.draw(f)).unwrap();
     let pos = t.get_cursor_position().unwrap();
-    // gutter di 2 celle, prima riga di testo = riga di schermo 2 (barra 0, titolo 1)
-    assert_eq!((pos.x, pos.y), (2, 2));
+    // gutter di 2 celle, prima riga di testo = riga di schermo 1 (sotto la barra)
+    assert_eq!((pos.x, pos.y), (2, 1));
     pulisci(d);
 }
 

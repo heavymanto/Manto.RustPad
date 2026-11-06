@@ -31,7 +31,7 @@ fn app(dati: &[u8]) -> (App, PathBuf, PathBuf) {
         },
     )
     .unwrap();
-    a.resize(80, 24);
+    a.resize(80, 23);
     assert!(a.wait_idle(Duration::from_secs(20)));
     (a, p, d)
 }

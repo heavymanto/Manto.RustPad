@@ -72,7 +72,7 @@ fn open(dir: &TestDir, nome: &str, data: &[u8], index: bool) -> App {
         },
     )
     .unwrap();
-    a.resize(80, 24);
+    a.resize(80, 23);
     assert!(a.wait_idle(Duration::from_secs(20)));
     a
 }
@@ -91,14 +91,24 @@ fn find(a: &mut App, testo: &str) {
 }
 
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 80, 24)
+    render_lines(a, 80, 23)
         .into_iter()
         .map(|l| l.trim_end().to_string())
         .collect()
 }
 
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
 fn status(a: &mut App) -> String {
-    screen(a)[22].clone()
+    status_intera(a)
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
+fn status_intera(a: &mut App) -> String {
+    screen(a)[21].clone()
 }
 
 #[test]
@@ -237,16 +247,16 @@ fn the_match_is_drawn_with_the_found_style() {
     let mut a = app(&dir);
     find(&mut a, "line 10");
     assert_eq!(a.found(), Some((72, 79)));
-    // disegnata: le 7 celle del testo trovato (riga 10 dello schermo, dopo il gutter di 4 colonne) hanno lo stile `found`
+    // disegnata: le 7 celle del testo trovato (riga 9 dello schermo, dopo il gutter di 4 colonne) hanno lo stile `found`
     let t = Theme::for_id(ThemeId::DEFAULT);
     let mut term = Terminal::new(TestBackend::new(80, 24)).unwrap();
     term.draw(|f| draw(f, &mut a)).unwrap();
     let buf = term.backend().buffer().clone();
     for x in 4..11u16 {
-        assert_eq!(buf[(x, 10)].bg, t.found.bg.unwrap(), "x={x}");
+        assert_eq!(buf[(x, 9)].bg, t.found.bg.unwrap(), "x={x}");
     }
-    assert_ne!(buf[(11, 10)].bg, t.found.bg.unwrap());
-    assert_ne!(buf[(4, 9)].bg, t.found.bg.unwrap());
+    assert_ne!(buf[(11, 9)].bg, t.found.bg.unwrap());
+    assert_ne!(buf[(4, 8)].bg, t.found.bg.unwrap());
 }
 
 #[test]
@@ -270,7 +280,7 @@ fn a_key_after_a_match_clears_the_highlight() {
 fn a_match_out_of_view_is_centered_like_goto() {
     let dir = TestDir::new();
     let mut a = app(&dir);
-    a.resize(80, 10); // 7 righe di testo
+    a.resize(80, 9); // 7 righe di testo
     find(&mut a, "line 20");
     // la riga 20 inizia a 152 e non era visibile: va "al centro", top = inizio della riga 20 - 7/2 = 17, cioe' 16 * 8 = 128
     assert_eq!(a.cursor(), 152);

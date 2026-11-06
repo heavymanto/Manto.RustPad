@@ -4383,18 +4383,18 @@ impl App {
 
     // ----- geometria dello schermo -----
 
-    /// Le righe di testo dello schermo (con la cornice le altre tre sono titolo, stato, barra dei tasti; senza, sono tutte).
+    /// Le righe di testo dello schermo (con la cornice le altre due sono lo stato e la barra dei tasti; senza, sono tutte).
     fn text_rows(&self) -> usize {
         if self.chrome {
-            (self.h as usize).saturating_sub(3)
+            (self.h as usize).saturating_sub(2)
         } else {
             self.h as usize
         }
     }
 
-    /// La riga dello schermo da cui comincia il testo: 1 con il titolo sopra, 0 senza cornice.
+    /// La riga dello schermo da cui comincia il testo: sempre la prima (il nome del file e il modo stanno nella riga di stato).
     pub(crate) fn top_offset(&self) -> u16 {
-        u16::from(self.chrome)
+        0
     }
 
     /// Le celle di testo per riga (la larghezza meno il pannello della timeline e il gutter).

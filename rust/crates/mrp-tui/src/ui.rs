@@ -32,14 +32,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     // Il fondo del tema su tutto lo schermo.
     f.render_widget(Block::default().style(t.screen), area);
     let (w, h) = (area.width, area.height);
-    // con la cornice il contratto chiede h >= 4 (titolo, almeno una riga di testo, stato, tasti); senza basta una riga
-    let minima = if app.chrome() { 4 } else { 1 };
+    // con la cornice il contratto chiede h >= 3 (almeno una riga di testo, stato, tasti); senza basta una riga
+    let minima = if app.chrome() { 3 } else { 1 };
     if w == 0 || h < minima {
         app.set_cursor_xy(None);
         return;
-    }
-    if app.chrome() {
-        draw_title(f, app, &t, w);
     }
     draw_text(f, app, &t, w, h);
     if app.chrome() {
@@ -53,53 +50,15 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
 }
 
-/// Riga 0: `" " + nome file + (" *" se modificato)` a sinistra, `dimensione + "  " + modo + " "` a destra.
-fn draw_title(f: &mut Frame, app: &mut App, t: &Theme, w: u16) {
-    let mut nome = format!(" {}", app.file_name());
-    if app.is_modified() {
-        nome.push_str(" *");
-    }
-    let size = fmt_size(app.document_len());
-    let mode_key = if app.is_edit() {
-        "mode.edit"
-    } else if app.follow() {
-        "mode.follow"
-    } else {
-        "mode.view"
-    };
-    let mut modo = app.catalog().t(mode_key).to_string();
-    // La modalita' colonna si dice nel titolo, dopo il modo e con un solo spazio in mezzo
-    // ("VIEW COL" / "EDIT COL"); spenta, il titolo e' quello di sempre.
-    if app.column_mode() {
-        modo.push(' ');
-        modo.push_str(app.catalog().t("mode.column"));
-    }
-    let destra = size.chars().count() + 2 + modo.chars().count() + 1;
-    let pad = (w as usize).saturating_sub(nome.chars().count() + destra);
-    let mode_style = if app.is_edit() {
-        t.mode_edit
-    } else {
-        t.mode_view
-    };
-    let line = Line::from(vec![
-        Span::styled(nome, t.title),
-        Span::raw(" ".repeat(pad)),
-        Span::styled(format!("{}  ", size), t.title),
-        Span::styled(modo, mode_style),
-        Span::raw(" "),
-    ]);
-    f.render_widget(Paragraph::new(line).style(t.screen), Rect::new(0, 0, w, 1));
-}
-
-/// Righe 1..=h-3: il testo con il gutter dei numeri di riga; imposta anche il cursore del terminale.
+/// Righe 0..=h-3: il testo con il gutter dei numeri di riga; imposta anche il cursore del terminale.
 /// La parte trovata dalla ricerca si disegna con lo stile `found` e la selezione con lo stile `selection`,
 /// che vince sul trovato (in entrambi i casi solo le celle visibili, mai il gutter). Senza documento (un
 /// salvataggio lo tiene nel suo thread) ridisegna le righe dell'ultimo disegno.
 fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
-    // la riga da cui comincia il testo (1 sotto il titolo, 0 senza cornice) e quante ne sono
+    // la riga da cui comincia il testo e quante ne sono (con la cornice le altre due sono stato e tasti)
     let sopra = app.top_offset();
     let text_rows = if app.chrome() {
-        (h as usize).saturating_sub(3)
+        (h as usize).saturating_sub(2)
     } else {
         h as usize
     };
@@ -333,7 +292,7 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
     };
     let x = app.timeline_panel_x();
     let sopra = app.top_offset();
-    let alte = usize::from(h).saturating_sub(3);
+    let alte = usize::from(h).saturating_sub(2);
     let dentro = usize::from(larghezza) - 1;
     let titolo = app.timeline_panel_title();
     // dei colori dei livelli si tiene il primo piano: lo sfondo e' quello dello schermo
@@ -407,10 +366,14 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
     }
 }
 
-/// Riga h-2: il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, se un
-/// lavoro e' in corso, `status.saving`, `status.searching` o `status.indexing` con la percentuale, seguito
-/// da uno spazio; poi, separato da due spazi se c'e' anche quello, il nome della codifica quando non e'
-/// UTF-8 (con uno spazio finale, come gli altri testi di destra).
+/// Gli spazi che restano almeno fra la sinistra e la destra della riga di stato.
+const GAP_STATO: usize = 3;
+
+/// Riga h-2: a sinistra il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, separati
+/// da due spazi e con uno spazio finale: il lavoro in corso (`status.saving`, `status.searching` o `status.indexing` con la
+/// percentuale), il nome del file (con ` *` se e' modificato), la dimensione, la codifica se non e' UTF-8, lo stile di fine
+/// riga se non e' LF e, per ultimo e col suo colore, il modo (lettura, modifica, segui; colonna). Quello che non ci sta cade
+/// (vedi `destra_stato`).
 fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // Il messaggio si copia prima: sotto serve l'app mutabile.
     let flash = app.flash().map(|msg| msg.to_string());
@@ -434,54 +397,117 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             )
         }
     };
-    // A destra il lavoro in corso: il salvataggio (quando c'e', e' quello che tiene lo schermo
-    // congelato), la ricerca o l'indicizzazione.
-    let mut right = if let Some(p) = app.save_progress() {
-        format!("{} ", app.catalog().tf("status.saving", &[&p.to_string()]))
+    // Il lavoro in corso: il salvataggio (quando c'e', e' quello che tiene lo schermo congelato), la ricerca o l'indicizzazione.
+    let lavoro = if let Some(p) = app.save_progress() {
+        Some(app.catalog().tf("status.saving", &[&p.to_string()]))
     } else if let Some(p) = app.search_progress() {
-        format!(
-            "{} ",
-            app.catalog().tf("status.searching", &[&p.to_string()])
-        )
-    } else if let Some(p) = app.index_progress() {
-        format!(
-            "{} ",
-            app.catalog().tf("status.indexing", &[&p.to_string()])
-        )
+        Some(app.catalog().tf("status.searching", &[&p.to_string()]))
     } else {
-        String::new()
+        app.index_progress()
+            .map(|p| app.catalog().tf("status.indexing", &[&p.to_string()]))
     };
-    // Il nome della codifica, solo se non e' UTF-8 e la riga non e' di un messaggio transitorio (che
-    // la occupa per conto suo): dopo l'eventuale lavoro in corso, separato da due spazi, e con uno
-    // spazio finale come gli altri testi di destra. In UTF-8 la riga di stato e' identica a oggi.
+    let mut nome = app.file_name().to_string();
+    if app.is_modified() {
+        nome.push_str(" *");
+    }
+    // Dopo il nome: la dimensione e, solo se non e' la solita e la riga non e' di un messaggio transitorio (che la occupa per
+    // conto suo), la codifica e lo stile di fine riga.
+    let mut dopo = vec![fmt_size(app.document_len())];
     if flash.is_none() && !app.encoding().is_utf8() {
-        if !right.is_empty() {
-            right.push(' ');
-        }
-        right.push_str(app.encoding().name());
-        right.push(' ');
+        dopo.push(app.encoding().name().to_string());
     }
-    // Lo stile di fine riga, solo se non e' LF (la riga di stato con LF e' identica a oggi): dopo la codifica.
     if flash.is_none() && app.line_ending() != mrp_core::lineending::LineEnding::Lf {
-        if !right.is_empty() && !right.ends_with(' ') {
-            right.push(' ');
-        }
-        if !right.is_empty() {
-            right.push(' ');
-        }
-        right.push_str(app.line_ending().label());
-        right.push(' ');
+        dopo.push(app.line_ending().label().to_string());
     }
-    let pad = (w as usize).saturating_sub(left.chars().count() + right.chars().count());
-    let line = Line::from(vec![
+    let mode_key = if app.is_edit() {
+        "mode.edit"
+    } else if app.follow() {
+        "mode.follow"
+    } else {
+        "mode.view"
+    };
+    let mut modo = app.catalog().t(mode_key).to_string();
+    // La modalita' colonna si dice dopo il modo e con un solo spazio in mezzo ("VIEW COL" / "EDIT COL").
+    if app.column_mode() {
+        modo.push(' ');
+        modo.push_str(app.catalog().t("mode.column"));
+    }
+    let mode_style = if app.is_edit() {
+        t.mode_edit
+    } else {
+        t.mode_view
+    };
+    let (destra, modo) = destra_stato(
+        w as usize,
+        left.chars().count(),
+        lavoro.into_iter().collect(),
+        nome,
+        dopo,
+        modo,
+    );
+    let pad = (w as usize).saturating_sub(
+        left.chars().count()
+            + destra.chars().count()
+            + modo.as_ref().map_or(0, |m| m.chars().count() + 1),
+    );
+    let mut pezzi = vec![
         Span::styled(left, t.status),
         Span::raw(" ".repeat(pad)),
-        Span::styled(right, t.status),
-    ]);
+        Span::styled(destra, t.status),
+    ];
+    if let Some(modo) = modo {
+        pezzi.push(Span::styled(modo, mode_style));
+        pezzi.push(Span::raw(" "));
+    }
+    let line = Line::from(pezzi);
     f.render_widget(
         Paragraph::new(line).style(t.screen),
         Rect::new(0, h - 2, w, 1),
     );
+}
+
+/// La parte destra della riga di stato di uno schermo largo `w` con una sinistra larga `sinistra` celle: il testo dei pezzi
+/// (`lavoro in corso`, `nome`, poi `dopo`: dimensione, codifica, fine riga) ciascuno con due spazi dopo, e il modo, che va per ultimo
+/// col suo colore (`None` se non c'e' posto). Fra la sinistra e la destra restano almeno `GAP_STATO` spazi; quello che non ci sta
+/// cade, nell'ordine: il nome (prima accorciato, tenendo la fine, con `…` davanti; sotto gli 8 caratteri sparisce), `dopo`, il modo,
+/// il lavoro in corso. A sinistra non si toglie niente.
+#[doc(hidden)]
+pub fn destra_stato(
+    w: usize,
+    sinistra: usize,
+    mut prima: Vec<String>,
+    nome: String,
+    mut dopo: Vec<String>,
+    modo: String,
+) -> (String, Option<String>) {
+    let larga = |pezzi: &[String]| pezzi.iter().map(|s| s.chars().count() + 2).sum::<usize>();
+    let spazio = w.saturating_sub(sinistra + GAP_STATO);
+    let con_modo = modo.chars().count() + 1;
+    let libero = spazio.saturating_sub(larga(&prima) + larga(&dopo) + con_modo + 2);
+    let nome = if nome.chars().count() <= libero {
+        Some(nome)
+    } else if libero >= 8 {
+        let coda: Vec<char> = nome.chars().rev().take(libero - 1).collect();
+        Some(format!("…{}", coda.into_iter().rev().collect::<String>()))
+    } else {
+        None
+    };
+    let mut modo = Some(modo);
+    if nome.is_none() && larga(&prima) + larga(&dopo) + con_modo > spazio {
+        dopo.clear();
+    }
+    if nome.is_none() && larga(&prima) + con_modo > spazio {
+        modo = None;
+    }
+    if nome.is_none() && modo.is_none() && larga(&prima) > spazio {
+        prima.clear();
+    }
+    let mut destra = String::new();
+    for pezzo in prima.iter().chain(nome.iter()).chain(dopo.iter()) {
+        destra.push_str(pezzo);
+        destra.push_str("  ");
+    }
+    (destra, modo)
 }
 
 /// Riga h-1: `" "` + `F1 Help  F2 Save  ...` (voci separate da due spazi, F4 cambia etichetta col modo), tagliata

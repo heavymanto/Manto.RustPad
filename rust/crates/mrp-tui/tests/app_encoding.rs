@@ -66,7 +66,7 @@ fn app(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> App {
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -76,11 +76,21 @@ fn app(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> App {
 }
 
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 40, 10)
+    render_lines(a, 40, 9)
 }
 
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
 fn status(a: &mut App) -> String {
-    screen(a)[8].clone()
+    status_intera(a)
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
+fn status_intera(a: &mut App) -> String {
+    screen(a)[7].clone()
 }
 
 // ---------- apertura e riconoscimento ----------
@@ -91,7 +101,7 @@ fn the_default_config_is_utf8_so_old_behaviour_is_unchanged() {
     let dir = TestDir::new();
     let mut a = app(&dir, b"caff\xe8\n", Some(Encoding::Utf8), false);
     assert_eq!(a.encoding(), Encoding::Utf8);
-    assert!(screen(&mut a)[1].contains("caff\u{fffd}"));
+    assert!(screen(&mut a)[0].contains("caff\u{fffd}"));
 }
 
 #[test]
@@ -100,7 +110,7 @@ fn an_explicit_code_page_reads_the_bytes_as_that_code_page() {
     let mut a = app(&dir, b"caff\xe8 \x80\n", Some(cp1252()), false);
     assert_eq!(a.encoding(), cp1252());
     let s = screen(&mut a);
-    assert!(s[1].contains("caff\u{e8} \u{20ac}"), "{:?}", s[1]);
+    assert!(s[0].contains("caff\u{e8} \u{20ac}"), "{:?}", s[0]);
 }
 
 #[test]
@@ -125,9 +135,11 @@ fn the_status_line_names_the_encoding_only_when_it_is_not_utf8() {
     let mut a = app(&dir, b"abc\n", Some(Encoding::Utf8), false);
     assert_eq!(status(&mut a), " Ln 1  Col 1  byte 0  0%");
     let mut b = app(&dir, b"abc\n", Some(cp1252()), false);
-    let s = status(&mut b);
+    // la codifica sta a destra, dopo la dimensione e prima del modo: su 40 colonne non c'e' posto, su 80 si
+    b.resize(80, 9);
+    let s = render_lines(&mut b, 80, 9)[7].clone();
     assert!(s.starts_with(" Ln 1  Col 1  byte 0  0%"), "{s:?}");
-    assert!(s.trim_end().ends_with("windows-1252"), "{s:?}");
+    assert!(s.trim_end().ends_with("4 B  windows-1252  VIEW"), "{s:?}");
 }
 
 // ---------- cursore ----------
@@ -395,9 +407,9 @@ fn f9_does_not_open_while_another_dialog_is_open() {
 fn the_help_window_lists_f9() {
     let dir = TestDir::new();
     let mut a = app(&dir, b"abc\n", Some(Encoding::Utf8), false);
-    a.resize(80, 24);
+    a.resize(80, 23);
     a.handle_key(k(KeyCode::F(1)));
-    let righe = render_lines(&mut a, 80, 24);
+    let righe = render_lines(&mut a, 80, 23);
     assert!(
         righe
             .iter()

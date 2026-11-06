@@ -60,7 +60,7 @@ fn type_text(a: &mut App, s: &str) {
 fn app(dir: &TestDir, data: &[u8], edit: bool) -> App {
     let p = dir.file("f.txt", data);
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -75,8 +75,16 @@ fn text(a: &App) -> String {
     String::from_utf8(a.document_text()).unwrap()
 }
 
+/// La riga di stato a 80 colonne: il modo (con "COL") sta a destra e a 40 colonne non ci sta.
+fn modo_a_destra(a: &mut App) -> String {
+    a.resize(80, 9);
+    let r = render_lines(a, 80, 9)[7].clone();
+    a.resize(40, 9);
+    r
+}
+
 fn status_line(a: &mut App) -> String {
-    render_lines(a, 40, 10)[8].clone()
+    render_lines(a, 40, 9)[7].clone()
 }
 
 /// Cursore alla colonna `col` della riga `row` (da 0), con Ctrl+Home, Down e Right senza maiuscole (in modo colonna i
@@ -105,7 +113,7 @@ fn f8_toggles_the_mode_and_the_title_says_so() {
     let dir = TestDir::new();
     let mut a = app(&dir, TRE, false);
     assert!(a.column_mode());
-    assert!(render_lines(&mut a, 40, 10)[0].contains("COL"));
+    assert!(modo_a_destra(&mut a).contains("COL"));
     assert!(
         status_line(&mut a).contains("column mode on"),
         "{:?}",
@@ -113,7 +121,7 @@ fn f8_toggles_the_mode_and_the_title_says_so() {
     );
     a.handle_key(k(KeyCode::F(8)));
     assert!(!a.column_mode());
-    assert!(!render_lines(&mut a, 40, 10)[0].contains("COL"));
+    assert!(!modo_a_destra(&mut a).contains("COL"));
     assert!(
         status_line(&mut a).contains("column mode off"),
         "{:?}",
@@ -448,11 +456,11 @@ fn terminal_paste_in_column_mode_behaves_like_ctrl_v() {
 // ---------- disegno ----------
 
 fn styles(a: &mut App) -> Vec<Style> {
-    let mut term = Terminal::new(TestBackend::new(40, 10)).unwrap();
+    let mut term = Terminal::new(TestBackend::new(40, 9)).unwrap();
     term.draw(|f| draw(f, a)).unwrap();
     let buf = term.backend().buffer().clone();
     let mut out = Vec::new();
-    for y in 1..=7u16 {
+    for y in 0..=6u16 {
         for x in 0..40u16 {
             out.push(buf[(x, y)].style());
         }
@@ -470,7 +478,7 @@ fn the_block_is_drawn_cell_by_cell_and_short_rows_have_fewer_cells() {
             ..AppConfig::default()
         };
         let mut a = App::open(&p, cfg).unwrap();
-        a.resize(40, 10);
+        a.resize(40, 9);
         assert!(a.wait_idle(Duration::from_secs(20)));
         a.handle_key(k(KeyCode::F(8)));
         a.handle_key(k(KeyCode::Right));
@@ -541,7 +549,7 @@ fn a_stream_selection_made_before_the_mode_does_not_survive_it() {
     let dir = TestDir::new();
     let p = dir.file("f.txt", TRE);
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     a.handle_key(shift(KeyCode::Right));
     assert!(a.selection().is_some());

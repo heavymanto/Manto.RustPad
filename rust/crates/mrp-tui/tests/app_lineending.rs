@@ -52,7 +52,7 @@ fn app_file(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> (A
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -66,11 +66,21 @@ fn app(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> App {
 }
 
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 40, 10)
+    render_lines(a, 40, 9)
 }
 
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
 fn status(a: &mut App) -> String {
-    screen(a)[8].clone()
+    status_intera(a)
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
+fn status_intera(a: &mut App) -> String {
+    screen(a)[7].clone()
 }
 
 fn utf16le(s: &str) -> Vec<u8> {
@@ -131,9 +141,9 @@ fn a_file_with_only_cr_shows_its_lines_and_moves_by_line() {
     let dir = TestDir::new();
     let mut a = app(&dir, b"uno\rdue\rtre\r", None, false);
     let s = screen(&mut a);
-    assert!(s[1].contains("uno"), "{:?}", s[1]);
-    assert!(s[2].contains("due"), "{:?}", s[2]);
-    assert!(s[3].contains("tre"), "{:?}", s[3]);
+    assert!(s[0].contains("uno"), "{:?}", s[0]);
+    assert!(s[1].contains("due"), "{:?}", s[1]);
+    assert!(s[2].contains("tre"), "{:?}", s[2]);
     a.handle_key(k(KeyCode::Down));
     assert_eq!(a.cursor(), 4);
     assert!(
@@ -159,29 +169,31 @@ fn a_file_with_only_cr_shows_its_lines_and_moves_by_line() {
 #[test]
 fn the_status_line_names_the_style_only_when_it_is_not_lf() {
     let dir = TestDir::new();
+    // lo stile sta a destra, dopo la dimensione e prima del modo: serve una riga larga
+    let larga = |a: &mut App| {
+        a.resize(80, 9);
+        render_lines(a, 80, 9)[7].trim_end().to_string()
+    };
     let mut lf = app(&dir, b"a\nb\n", None, false);
-    assert!(
-        !status(&mut lf).contains("LF") && !status(&mut lf).contains("CR"),
-        "{:?}",
-        status(&mut lf)
-    );
+    let st = larga(&mut lf);
+    assert!(!st.contains("LF") && !st.contains("CR"), "{st:?}");
     let mut crlf = app(&dir, b"a\r\nb\r\n", None, false);
-    assert!(
-        status(&mut crlf).trim_end().ends_with("CRLF"),
-        "{:?}",
-        status(&mut crlf)
-    );
+    let st = larga(&mut crlf);
+    assert!(st.ends_with("CRLF  VIEW"), "{st:?}");
     let mut cr = app(&dir, b"a\rb\r", None, false);
-    let st = status(&mut cr);
-    assert!(st.trim_end().ends_with(" CR"), "{st:?}");
+    let st = larga(&mut cr);
+    assert!(st.ends_with(" CR  VIEW"), "{st:?}");
     assert!(!st.contains("CRLF"));
     // con una codifica non UTF-8: prima il nome, poi lo stile
     let w = Encoding::by_name("windows-1252").unwrap();
     let mut b = app(&dir, b"a\r\nb\r\n", Some(w), false);
     // su 40 colonne il nome e lo stile non stanno insieme alla posizione: si prova su 80
-    b.resize(80, 10);
-    let st = render_lines(&mut b, 80, 10)[8].clone();
-    assert!(st.trim_end().ends_with("windows-1252  CRLF"), "{st:?}");
+    b.resize(80, 9);
+    let st = render_lines(&mut b, 80, 9)[7].clone();
+    assert!(
+        st.trim_end().ends_with("windows-1252  CRLF  VIEW"),
+        "{st:?}"
+    );
 }
 
 #[test]

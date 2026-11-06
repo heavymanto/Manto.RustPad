@@ -63,7 +63,7 @@ fn type_text(a: &mut App, s: &str) {
 fn app(dir: &TestDir, data: &[u8], edit: bool) -> App {
     let p = dir.file("f.txt", data);
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -77,7 +77,7 @@ fn text(a: &App) -> String {
 }
 
 fn status_line(a: &mut App) -> String {
-    render_lines(a, 40, 10)[8].clone()
+    render_lines(a, 40, 9)[7].clone()
 }
 
 /// Muove il cursore a `pos` con Right (da 0): i test partono dal byte 0.
@@ -370,7 +370,7 @@ fn a_copy_over_the_limit_is_refused() {
         }
     }
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     a.handle_key(ctrl('a'));
     assert!(a.selection().is_some());
     a.handle_key(ctrl('c'));
@@ -451,11 +451,11 @@ fn a_multibyte_selection_is_cut_whole() {
 
 /// Gli stili delle celle delle righe di testo (le righe 1..=7 di un terminale 40 x 10), per colonna e riga.
 fn styles(a: &mut App) -> Vec<Style> {
-    let mut term = Terminal::new(TestBackend::new(40, 10)).unwrap();
+    let mut term = Terminal::new(TestBackend::new(40, 9)).unwrap();
     term.draw(|f| draw(f, a)).unwrap();
     let buf = term.backend().buffer().clone();
     let mut out = Vec::new();
-    for y in 1..=7u16 {
+    for y in 0..=6u16 {
         for x in 0..40u16 {
             out.push(buf[(x, y)].style());
         }
@@ -473,7 +473,7 @@ fn the_selection_is_drawn_with_its_own_style_on_the_selected_cells_only() {
             ..AppConfig::default()
         };
         let mut a = App::open(&p, cfg).unwrap();
-        a.resize(40, 10);
+        a.resize(40, 9);
         assert!(a.wait_idle(Duration::from_secs(20)));
         let senza = styles(&mut a);
         // "bcdef" della prima riga e "gh" della seconda: 5 + 2 celle (gli a-capo non hanno celle)
@@ -487,7 +487,7 @@ fn the_selection_is_drawn_with_its_own_style_on_the_selected_cells_only() {
         let diverse = senza.iter().zip(&con).filter(|(x, y)| x != y).count();
         assert_eq!(diverse, 5 + 2, "tema {id:?}");
         // il disegno non cambia il testo
-        assert!(render_lines(&mut a, 40, 10)[1].contains("abcdef"));
+        assert!(render_lines(&mut a, 40, 9)[0].contains("abcdef"));
     }
 }
 

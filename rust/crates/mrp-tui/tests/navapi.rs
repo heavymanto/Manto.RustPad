@@ -30,9 +30,9 @@ fn ws(cfg: AppConfig, celle: bool) -> (Workspace, PathBuf) {
     if !celle {
         ws = ws.senza_nav_celle();
     }
-    ws.resize(80, 24);
+    ws.resize(80, 23);
     assert!(ws.wait_idle(Duration::from_secs(20)));
-    let _ = ws.render_lines(80, 24);
+    let _ = ws.render_lines(80, 23);
     (ws, p)
 }
 
@@ -94,10 +94,10 @@ fn without_the_cell_bar_the_jump_bar_flag_takes_no_row() {
     let (mut w, p) = ws(AppConfig::default(), false);
     w.handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL));
     assert!(w.nav_bar(), "il flag c'e': lo legge la finestra");
-    let righe = w.render_lines(80, 24);
+    let righe = w.render_lines(80, 23);
     assert!(
-        righe[0].contains("mrp_navapi_test"),
-        "nessuna riga di pulsanti a celle: la prima riga e' il titolo: {:?}",
+        righe[0].contains("riga 00000"),
+        "nessuna riga di pulsanti a celle: la prima riga e' il testo: {:?}",
         righe[0]
     );
     // l'altezza del testo non cambia: una pagina e' 20 righe (con la barra a celle sarebbe 19)
@@ -111,7 +111,7 @@ fn without_the_cell_bar_the_jump_bar_flag_takes_no_row() {
 fn with_the_cell_bar_a_page_is_nineteen_rows() {
     let (mut w, p) = ws(AppConfig::default(), true);
     w.handle_key(KeyEvent::new(KeyCode::Char('b'), KeyModifiers::CONTROL));
-    let righe = w.render_lines(80, 24);
+    let righe = w.render_lines(80, 23);
     assert!(righe[0].starts_with("[Home]"));
     w.jump(true, 1);
     assert_eq!(w.active().top(), 19 * RIGA);
@@ -135,7 +135,7 @@ fn the_cell_bar_can_be_switched_off_and_on_at_run_time() {
     assert_eq!(w.active().top(), 20 * RIGA, "senza: lo spazio e' tornato");
     w.go_start();
     w.set_nav_cells(true);
-    let righe = w.render_lines(80, 24);
+    let righe = w.render_lines(80, 23);
     assert!(righe[0].starts_with("[Home]"));
     w.jump(true, 1);
     assert_eq!(w.active().top(), 19 * RIGA);

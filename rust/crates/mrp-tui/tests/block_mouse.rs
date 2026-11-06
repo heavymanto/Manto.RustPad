@@ -23,9 +23,9 @@ fn app() -> (App, PathBuf) {
     let p = std::env::temp_dir().join(format!("mrp_blockmouse_{}_{}.txt", std::process::id(), n));
     std::fs::write(&p, TESTO).unwrap();
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
-    let _ = render_lines(&mut a, 40, 10);
+    let _ = render_lines(&mut a, 40, 9);
     assert_eq!(a.cursor_xy().unwrap().0, G, "il gutter");
     (a, p)
 }
@@ -45,7 +45,7 @@ fn ev(kind: MouseEventKind, col: u16, row: u16, mods: KeyModifiers) -> MouseEven
 
 fn giu(a: &mut App, col: u16, riga: u16, mods: KeyModifiers) {
     a.handle_mouse(ev(MouseEventKind::Down(MouseButton::Left), col, riga, mods));
-    let _ = render_lines(a, 40, 10);
+    let _ = render_lines(a, 40, 9);
 }
 
 /// Un trascinamento: i terminali e la finestra mandano i `Drag` senza Alt.
@@ -56,7 +56,7 @@ fn trascina(a: &mut App, col: u16, riga: u16) {
         riga,
         KeyModifiers::NONE,
     ));
-    let _ = render_lines(a, 40, 10);
+    let _ = render_lines(a, 40, 9);
 }
 
 fn su(a: &mut App, col: u16, riga: u16) {
@@ -66,7 +66,7 @@ fn su(a: &mut App, col: u16, riga: u16) {
         riga,
         KeyModifiers::NONE,
     ));
-    let _ = render_lines(a, 40, 10);
+    let _ = render_lines(a, 40, 9);
 }
 
 fn blocco(first_row: u64, last_row: u64, col_a: u64, col_b: u64) -> Option<ColumnBlock> {
@@ -88,10 +88,10 @@ fn alt_drag_draws_a_block_and_turns_the_column_mode_on() {
     let (mut a, p) = app();
     assert!(!a.column_mode());
     // dalla colonna 1 della riga 0 alla colonna 3 della riga 2
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
     assert!(a.column_mode());
-    trascina(&mut a, G + 3, 3);
-    su(&mut a, G + 3, 3);
+    trascina(&mut a, G + 3, 2);
+    su(&mut a, G + 3, 2);
     assert_eq!(a.column_block(), blocco(0, 14, 1, 3));
     // il cursore sta sulla riga e sulla colonna del puntatore: riga 2 (byte 14), colonna 3
     assert_eq!(a.cursor(), 17);
@@ -103,9 +103,9 @@ fn alt_drag_draws_a_block_and_turns_the_column_mode_on() {
 fn dragging_up_and_to_the_left_gives_the_same_kind_of_block() {
     let (mut a, p) = app();
     // dall'ancora (riga 2, colonna 4) a (riga 0, colonna 1)
-    giu(&mut a, G + 4, 3, KeyModifiers::ALT);
-    trascina(&mut a, G + 1, 1);
-    su(&mut a, G + 1, 1);
+    giu(&mut a, G + 4, 2, KeyModifiers::ALT);
+    trascina(&mut a, G + 1, 0);
+    su(&mut a, G + 1, 0);
     assert_eq!(a.column_block(), blocco(0, 14, 1, 4));
     // il cursore e' sulla riga del puntatore, la prima: byte 1
     assert_eq!(a.cursor(), 1);
@@ -116,25 +116,25 @@ fn dragging_up_and_to_the_left_gives_the_same_kind_of_block() {
 #[test]
 fn the_block_follows_the_pointer_row_by_row() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 2, KeyModifiers::ALT); // riga 1 (offset 7), colonna 1
-    trascina(&mut a, G + 2, 3); // una riga sotto
+    giu(&mut a, G + 1, 1, KeyModifiers::ALT); // riga 1 (offset 7), colonna 1
+    trascina(&mut a, G + 2, 2); // una riga sotto
     assert_eq!(a.column_block(), blocco(7, 14, 1, 2));
-    trascina(&mut a, G + 2, 4); // due righe sotto
+    trascina(&mut a, G + 2, 3); // due righe sotto
     assert_eq!(a.column_block(), blocco(7, 21, 1, 2));
-    trascina(&mut a, G + 2, 2); // di nuovo sull'ancora: una riga sola
+    trascina(&mut a, G + 2, 1); // di nuovo sull'ancora: una riga sola
     assert_eq!(a.column_block(), blocco(7, 7, 1, 2));
-    trascina(&mut a, G + 2, 1); // sopra l'ancora
+    trascina(&mut a, G + 2, 0); // sopra l'ancora
     assert_eq!(a.column_block(), blocco(0, 7, 1, 2));
-    su(&mut a, G + 2, 1);
+    su(&mut a, G + 2, 0);
     let _ = std::fs::remove_file(p);
 }
 
 #[test]
 fn a_plain_drag_in_the_stream_mode_is_unchanged() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 1, KeyModifiers::NONE);
-    trascina(&mut a, G + 3, 2);
-    su(&mut a, G + 3, 2);
+    giu(&mut a, G + 1, 0, KeyModifiers::NONE);
+    trascina(&mut a, G + 3, 1);
+    su(&mut a, G + 3, 1);
     assert!(!a.column_mode());
     assert_eq!(a.column_block(), None);
     // la selezione di flusso va dal byte 1 al byte 7 + 3
@@ -147,9 +147,9 @@ fn in_the_column_mode_a_plain_drag_is_enough() {
     let (mut a, p) = app();
     a.handle_key(k(KeyCode::F(8)));
     assert!(a.column_mode());
-    giu(&mut a, G + 1, 1, KeyModifiers::NONE);
-    trascina(&mut a, G + 3, 2);
-    su(&mut a, G + 3, 2);
+    giu(&mut a, G + 1, 0, KeyModifiers::NONE);
+    trascina(&mut a, G + 3, 1);
+    su(&mut a, G + 3, 1);
     assert_eq!(a.column_block(), blocco(0, 7, 1, 3));
     assert_eq!(copia(&mut a), Some(b"bc\nhi".to_vec()));
     let _ = std::fs::remove_file(p);
@@ -158,8 +158,8 @@ fn in_the_column_mode_a_plain_drag_is_enough() {
 #[test]
 fn an_alt_click_without_a_drag_only_moves_the_cursor_and_turns_the_mode_on() {
     let (mut a, p) = app();
-    giu(&mut a, G + 2, 2, KeyModifiers::ALT);
-    su(&mut a, G + 2, 2);
+    giu(&mut a, G + 2, 1, KeyModifiers::ALT);
+    su(&mut a, G + 2, 1);
     assert!(a.column_mode());
     assert_eq!(a.column_block(), None);
     assert_eq!(a.cursor(), 9, "riga 1 (offset 7), colonna 2");
@@ -169,9 +169,9 @@ fn an_alt_click_without_a_drag_only_moves_the_cursor_and_turns_the_mode_on() {
 #[test]
 fn the_pointer_past_the_end_of_a_row_extends_the_virtual_column() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
-    trascina(&mut a, G + 12, 2);
-    su(&mut a, G + 12, 2);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
+    trascina(&mut a, G + 12, 1);
+    su(&mut a, G + 12, 1);
     assert_eq!(a.column_block(), blocco(0, 7, 1, 12));
     // le righe sono corte: il blocco copre quello che c'e'
     assert_eq!(copia(&mut a), Some(b"bcdef\nhijkl".to_vec()));
@@ -181,22 +181,22 @@ fn the_pointer_past_the_end_of_a_row_extends_the_virtual_column() {
 #[test]
 fn dragging_below_the_text_stops_on_the_last_row() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
     // la riga 9 e' la barra dei tasti: oltre l'ultima riga di testo (la 4 dello schermo) si resta sull'ultima
-    trascina(&mut a, G + 2, 9);
+    trascina(&mut a, G + 2, 8);
     assert_eq!(a.column_block(), blocco(0, 21, 1, 2));
-    su(&mut a, G + 2, 9);
+    su(&mut a, G + 2, 8);
     let _ = std::fs::remove_file(p);
 }
 
 #[test]
 fn after_the_release_a_stray_drag_does_nothing() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
-    trascina(&mut a, G + 3, 2);
-    su(&mut a, G + 3, 2);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
+    trascina(&mut a, G + 3, 1);
+    su(&mut a, G + 3, 1);
     let prima = a.column_block();
-    trascina(&mut a, G + 5, 4);
+    trascina(&mut a, G + 5, 3);
     assert_eq!(a.column_block(), prima);
     let _ = std::fs::remove_file(p);
 }
@@ -204,9 +204,9 @@ fn after_the_release_a_stray_drag_does_nothing() {
 #[test]
 fn the_keys_carry_on_from_the_block_the_mouse_drew() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
-    trascina(&mut a, G + 3, 3);
-    su(&mut a, G + 3, 3);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
+    trascina(&mut a, G + 3, 2);
+    su(&mut a, G + 3, 2);
     a.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
     assert_eq!(a.column_block(), blocco(0, 14, 1, 4));
     a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::SHIFT));
@@ -217,12 +217,12 @@ fn the_keys_carry_on_from_the_block_the_mouse_drew() {
 #[test]
 fn a_new_alt_click_starts_a_new_block() {
     let (mut a, p) = app();
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
-    trascina(&mut a, G + 3, 3);
-    su(&mut a, G + 3, 3);
-    giu(&mut a, G + 2, 2, KeyModifiers::ALT);
-    trascina(&mut a, G + 4, 2);
-    su(&mut a, G + 4, 2);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
+    trascina(&mut a, G + 3, 2);
+    su(&mut a, G + 3, 2);
+    giu(&mut a, G + 2, 1, KeyModifiers::ALT);
+    trascina(&mut a, G + 4, 1);
+    su(&mut a, G + 4, 1);
     assert_eq!(a.column_block(), blocco(7, 7, 2, 4));
     assert_eq!(copia(&mut a), Some(b"ij".to_vec()));
     let _ = std::fs::remove_file(p);
@@ -232,7 +232,7 @@ fn a_new_alt_click_starts_a_new_block() {
 fn a_dialog_keeps_the_mouse_to_itself() {
     let (mut a, p) = app();
     a.handle_key(k(KeyCode::F(1)));
-    giu(&mut a, G + 1, 1, KeyModifiers::ALT);
+    giu(&mut a, G + 1, 0, KeyModifiers::ALT);
     assert!(!a.column_mode());
     let _ = std::fs::remove_file(p);
 }
@@ -241,7 +241,7 @@ fn a_dialog_keeps_the_mouse_to_itself() {
 fn an_alt_click_below_the_last_row_of_text_does_nothing() {
     let (mut a, p) = app();
     // la riga 6 dello schermo e' vuota: il testo finisce alla 4
-    giu(&mut a, G + 2, 6, KeyModifiers::ALT);
+    giu(&mut a, G + 2, 5, KeyModifiers::ALT);
     assert!(!a.column_mode());
     assert_eq!(a.column_block(), None);
     assert_eq!(a.cursor(), 0);

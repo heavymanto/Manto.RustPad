@@ -319,25 +319,25 @@ fn a_click_moves_the_cursor_and_dragging_selects() {
     // il gutter e' di 2 celle ("abc\ndef\n" ha 8 byte: 1 cifra + il separatore)
     let g = 2;
     let clic = vec![
-        premi(centro(&f, g + 2, 2), true, Modifiers::NONE),
-        premi(centro(&f, g + 2, 2), false, Modifiers::NONE),
+        premi(centro(&f, g + 2, 1), true, Modifiers::NONE),
+        premi(centro(&f, g + 2, 1), false, Modifiers::NONE),
     ];
     giro(&mut f, &ctx, clic);
     assert_eq!(f.app().cursor(), 6);
     // trascinando: dalla prima riga alla seconda
     let trascina = vec![
-        premi(centro(&f, g, 1), true, Modifiers::NONE),
-        Event::PointerMoved(centro(&f, g + 2, 2)),
-        premi(centro(&f, g + 2, 2), false, Modifiers::NONE),
+        premi(centro(&f, g, 0), true, Modifiers::NONE),
+        Event::PointerMoved(centro(&f, g + 2, 1)),
+        premi(centro(&f, g + 2, 1), false, Modifiers::NONE),
     ];
     giro(&mut f, &ctx, trascina);
     assert_eq!(f.app().selection(), Some((0, 6)));
     // Maiusc+clic estende
     let estendi = vec![
-        premi(centro(&f, g + 1, 1), true, Modifiers::NONE),
-        premi(centro(&f, g + 1, 1), false, Modifiers::NONE),
-        premi(centro(&f, g + 1, 2), true, Modifiers::SHIFT),
-        premi(centro(&f, g + 1, 2), false, Modifiers::SHIFT),
+        premi(centro(&f, g + 1, 0), true, Modifiers::NONE),
+        premi(centro(&f, g + 1, 0), false, Modifiers::NONE),
+        premi(centro(&f, g + 1, 1), true, Modifiers::SHIFT),
+        premi(centro(&f, g + 1, 1), false, Modifiers::SHIFT),
     ];
     giro(&mut f, &ctx, estendi);
     assert_eq!(f.app().selection(), Some((1, 5)));
@@ -490,8 +490,8 @@ fn ctrl_b_shows_the_jump_bar_in_the_window_and_its_buttons_work_with_the_mouse()
     giro(&mut f, &ctx, vec![]);
     assert!(f.workspace().nav_bar());
     let (_, _, _, righe) = f.geometria().expect("un giro e' stato fatto");
-    // la barra prende una riga; il testo ne ha altre 3 in meno (titolo, stato, tasti): una pagina e' una riga meno
-    let pagina = u64::from(righe) - 5;
+    // la barra prende una riga; il testo ne ha altre 2 in meno (stato, tasti): una pagina e' una riga meno
+    let pagina = u64::from(righe) - 4;
     // [+1] comincia alla colonna 33 ("[Home] [-1000] [-100] [-10] [-1] " sono 33 caratteri)
     let clic = vec![
         premi(centro(&f, 34, 0), true, Modifiers::NONE),

@@ -24,9 +24,9 @@ fn app_con(dati: &[u8], cfg: AppConfig) -> (App, PathBuf) {
     let p = std::env::temp_dir().join(format!("mrp_jump_test_{}_{}.txt", std::process::id(), n));
     std::fs::write(&p, dati).unwrap();
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
-    let _ = render_lines(&mut a, 40, 10);
+    let _ = render_lines(&mut a, 40, 9);
     (a, p)
 }
 
@@ -40,7 +40,7 @@ fn tasto(c: KeyCode, m: KeyModifiers) -> KeyEvent {
 
 fn premi(a: &mut App, c: KeyCode, m: KeyModifiers) {
     a.handle_key(tasto(c, m));
-    let _ = render_lines(a, 40, 10);
+    let _ = render_lines(a, 40, 9);
 }
 
 const ALT: KeyModifiers = KeyModifiers::ALT;

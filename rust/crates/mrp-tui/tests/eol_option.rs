@@ -52,24 +52,24 @@ fn k(c: KeyCode) -> KeyEvent {
 fn the_option_sets_the_style_the_status_line_shows() {
     let lf = file(b"uno\ndue\n");
     let p = lf.to_str().unwrap();
-    let o = run(&["--dump", "60x6", p]);
+    let o = run(&["--dump", "60x5", p]);
     assert!(
         !stato(&o).contains("LF") && !stato(&o).contains("CR"),
         "senza opzione: LF, non si scrive: {}",
         stato(&o)
     );
-    let o = run(&["--eol", "crlf", "--dump", "60x6", p]);
+    let o = run(&["--eol", "crlf", "--dump", "60x5", p]);
     assert_eq!(o.code, 0, "{}", o.stderr);
     assert!(stato(&o).contains("CRLF"), "{}", stato(&o));
-    let o = run(&["--eol", "CR", "--dump", "60x6", p]);
+    let o = run(&["--eol", "CR", "--dump", "60x5", p]);
     let s = stato(&o);
     assert!(s.contains("CR") && !s.contains("CRLF"), "{s}");
     let _ = std::fs::remove_file(lf);
     // un file CRLF: senza opzione CRLF, con --eol lf niente etichetta
     let crlf = file(b"uno\r\ndue\r\n");
     let p = crlf.to_str().unwrap();
-    assert!(stato(&run(&["--dump", "60x6", p])).contains("CRLF"));
-    assert!(!stato(&run(&["--eol", "lf", "--dump", "60x6", p])).contains("CRLF"));
+    assert!(stato(&run(&["--dump", "60x5", p])).contains("CRLF"));
+    assert!(!stato(&run(&["--eol", "lf", "--dump", "60x5", p])).contains("CRLF"));
     let _ = std::fs::remove_file(crlf);
 }
 
@@ -107,7 +107,7 @@ fn app(dati: &[u8], eol: Option<LineEnding>) -> (App, PathBuf) {
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(60, 8);
+    a.resize(60, 7);
     assert!(a.wait_idle(Duration::from_secs(20)));
     (a, p)
 }
@@ -163,7 +163,7 @@ fn a_new_untitled_document_takes_the_forced_style_too() {
             ..AppConfig::default()
         };
         let mut a = App::new_untitled(&d, 1, cfg).unwrap();
-        a.resize(60, 8);
+        a.resize(60, 7);
         a.handle_key(k(KeyCode::Enter));
         assert_eq!(a.document_text(), atteso.as_bytes(), "{eol:?}");
         drop(a);
@@ -175,14 +175,14 @@ fn a_new_untitled_document_takes_the_forced_style_too() {
 fn forcing_cr_on_a_file_with_line_feeds_keeps_its_lines_apart() {
     // l'a-capo del documento resta quello del file: le righe che ci sono non si fondono in una
     let f = file(b"uno\ndue\n");
-    let o = run(&["--eol", "cr", "--dump", "60x6", f.to_str().unwrap()]);
+    let o = run(&["--eol", "cr", "--dump", "60x5", f.to_str().unwrap()]);
     let righe: Vec<&str> = o.stdout.lines().collect();
     assert!(
-        righe[1].contains("uno") && !righe[1].contains("due"),
+        righe[0].contains("uno") && !righe[0].contains("due"),
         "{:?}",
-        righe[1]
+        righe[0]
     );
-    assert!(righe[2].contains("due"), "{:?}", righe[2]);
+    assert!(righe[1].contains("due"), "{:?}", righe[1]);
     let _ = std::fs::remove_file(f);
 }
 
@@ -191,9 +191,9 @@ fn forcing_cr_on_a_file_without_line_breaks_makes_enter_break_the_line() {
     let (mut a, p) = app(b"ab", Some(LineEnding::Cr));
     a.handle_key(k(KeyCode::F(4)));
     a.handle_key(k(KeyCode::Enter));
-    let righe = mrp_tui::ui::render_lines(&mut a, 60, 8);
+    let righe = mrp_tui::ui::render_lines(&mut a, 60, 6);
     // riga 1 vuota, riga 2 "ab": il CR e' un a-capo vero per il documento
-    assert!(righe[1].ends_with('│'), "{:?}", righe[1]);
-    assert!(righe[2].ends_with("ab"), "{:?}", righe[2]);
+    assert!(righe[0].ends_with('│'), "{:?}", righe[0]);
+    assert!(righe[1].ends_with("ab"), "{:?}", righe[1]);
     let _ = std::fs::remove_file(p);
 }

@@ -86,7 +86,7 @@ fn the_encoding_option_changes_how_the_dump_reads_the_bytes() {
     let f = f.to_str().unwrap();
     let con = |args: &[&str]| {
         let mut v: Vec<&str> = args.to_vec();
-        v.extend(["--dump", "40x6", f]);
+        v.extend(["--dump", "80x5", f]);
         run(&v)
     };
     let o = con(&["--encoding", "windows-1252"]);
@@ -109,7 +109,7 @@ fn the_encoding_option_changes_how_the_dump_reads_the_bytes() {
 fn a_utf8_file_is_not_misdetected() {
     let dir = TestDir::new();
     let f = dir.file("caff\u{e8} \u{20ac}\n".as_bytes());
-    let o = run(&["--dump", "40x6", f.to_str().unwrap()]);
+    let o = run(&["--dump", "80x5", f.to_str().unwrap()]);
     assert!(o.stdout.contains("caff\u{e8} \u{20ac}"), "{}", o.stdout);
     assert!(!o.stdout.contains("windows-1252"), "{}", o.stdout);
 }

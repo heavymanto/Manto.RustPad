@@ -99,12 +99,12 @@ fn open_fails_for_a_missing_file_and_for_a_directory() {
 #[test]
 fn the_first_screen() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
-    // titolo: nome a sinistra, a destra "dimensione  MODO"; 3 colonne di numeri (len = 240) + '|'
+    let mut a = app(&dir, &thirty(), 30, 7);
+    // niente titolo: il testo comincia alla prima riga (nome, dimensione e modo stanno a destra della riga di stato, che a 30
+    // colonne non li contiene); 3 colonne di numeri (len = 240) + '|'
     assert_eq!(
-        screen(&mut a, 30, 8),
+        screen(&mut a, 30, 7),
         vec![
-            format!(" f.txt{}240 B  VIEW", " ".repeat(12)),
             "  1│line 01".to_string(),
             "  2│line 02".to_string(),
             "  3│line 03".to_string(),
@@ -128,21 +128,20 @@ fn without_the_index_line_numbers_are_unknown() {
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(30, 8);
-    let s = screen(&mut a, 30, 8);
+    a.resize(30, 7);
+    let s = screen(&mut a, 30, 7);
     // senza l'indice righe il margine dei numeri non c'e' proprio
-    assert_eq!(s[1], "line 01");
-    assert_eq!(s[6], " Ln ?  Col 1  byte 0  0%");
+    assert_eq!(s[0], "line 01");
+    assert_eq!(s[5], " Ln ?  Col 1  byte 0  0%");
 }
 
 #[test]
 fn an_empty_file() {
     let dir = TestDir::new();
-    let mut a = app(&dir, b"", 30, 6);
+    let mut a = app(&dir, b"", 30, 5);
     assert_eq!(
-        screen(&mut a, 30, 6),
+        screen(&mut a, 30, 5),
         vec![
-            format!(" f.txt{}0 B  VIEW", " ".repeat(14)),
             String::new(),
             String::new(),
             String::new(),
@@ -157,11 +156,11 @@ fn an_empty_file() {
 #[test]
 fn down_and_up_move_the_cursor_by_rows() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
+    let mut a = app(&dir, &thirty(), 30, 7);
     a.handle_key(k(KeyCode::Down));
     a.handle_key(k(KeyCode::Down));
     assert_eq!(a.cursor(), 16);
-    assert_eq!(screen(&mut a, 30, 8)[6], " Ln 3  Col 1  byte 16  6%");
+    assert_eq!(screen(&mut a, 30, 7)[5], " Ln 3  Col 1  byte 16  6%");
     a.handle_key(k(KeyCode::Up));
     assert_eq!(a.cursor(), 8);
     a.handle_key(k(KeyCode::Up));
@@ -172,7 +171,7 @@ fn down_and_up_move_the_cursor_by_rows() {
 #[test]
 fn moving_below_the_last_visible_row_scrolls() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8); // 5 righe di testo
+    let mut a = app(&dir, &thirty(), 30, 7); // 5 righe di testo
     for _ in 0..5 {
         a.handle_key(k(KeyCode::Down));
     }
@@ -182,10 +181,10 @@ fn moving_below_the_last_visible_row_scrolls() {
         8,
         "la riga 6 e' l'ultima visibile: la prima e' la 2"
     );
-    let s = screen(&mut a, 30, 8);
-    assert_eq!(s[1], "  2│line 02");
-    assert_eq!(s[5], "  6│line 06");
-    assert_eq!(s[6], " Ln 6  Col 1  byte 40  16%");
+    let s = screen(&mut a, 30, 7);
+    assert_eq!(s[0], "  2│line 02");
+    assert_eq!(s[4], "  6│line 06");
+    assert_eq!(s[5], " Ln 6  Col 1  byte 40  16%");
     // e tornando su oltre la cima della finestra
     for _ in 0..5 {
         a.handle_key(k(KeyCode::Up));
@@ -197,12 +196,12 @@ fn moving_below_the_last_visible_row_scrolls() {
 #[test]
 fn left_and_right_cross_the_line_ends() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
+    let mut a = app(&dir, &thirty(), 30, 7);
     for _ in 0..7 {
         a.handle_key(k(KeyCode::Right));
     }
     assert_eq!(a.cursor(), 7, "a fine riga, prima dell'a-capo");
-    assert_eq!(screen(&mut a, 30, 8)[6], " Ln 1  Col 8  byte 7  2%");
+    assert_eq!(screen(&mut a, 30, 7)[5], " Ln 1  Col 8  byte 7  2%");
     a.handle_key(k(KeyCode::Right));
     assert_eq!(a.cursor(), 8, "oltre l'a-capo: inizio della riga dopo");
     a.handle_key(k(KeyCode::Left));
@@ -220,7 +219,7 @@ fn left_and_right_cross_the_line_ends() {
 #[test]
 fn the_column_is_remembered_across_short_rows() {
     let dir = TestDir::new();
-    let mut a = app(&dir, b"abcdef\nab\nabcdef\n", 30, 8);
+    let mut a = app(&dir, b"abcdef\nab\nabcdef\n", 30, 7);
     for _ in 0..5 {
         a.handle_key(k(KeyCode::Right));
     }
@@ -250,17 +249,17 @@ fn the_column_is_remembered_across_short_rows() {
 #[test]
 fn page_down_and_page_up_move_by_the_visible_rows_minus_one() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8); // 5 righe di testo, pagina = 4
+    let mut a = app(&dir, &thirty(), 30, 7); // 5 righe di testo, pagina = 4
     a.handle_key(k(KeyCode::PageDown));
     assert_eq!(
         (a.top(), a.cursor()),
         (32, 32),
         "la riga 5 in cima, il cursore sulla stessa riga dello schermo"
     );
-    let s = screen(&mut a, 30, 8);
-    assert_eq!(s[1], "  5│line 05");
-    assert_eq!(s[5], "  9│line 09");
-    assert_eq!(s[6], " Ln 5  Col 1  byte 32  13%");
+    let s = screen(&mut a, 30, 7);
+    assert_eq!(s[0], "  5│line 05");
+    assert_eq!(s[4], "  9│line 09");
+    assert_eq!(s[5], " Ln 5  Col 1  byte 32  13%");
     a.handle_key(k(KeyCode::PageUp));
     assert_eq!((a.top(), a.cursor()), (0, 0));
     a.handle_key(k(KeyCode::PageUp));
@@ -270,7 +269,7 @@ fn page_down_and_page_up_move_by_the_visible_rows_minus_one() {
 #[test]
 fn ctrl_end_and_ctrl_home() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
+    let mut a = app(&dir, &thirty(), 30, 7);
     a.handle_key(ctrl(KeyCode::End));
     assert_eq!(
         a.cursor(),
@@ -282,10 +281,10 @@ fn ctrl_end_and_ctrl_home() {
         200,
         "ultima riga in fondo allo schermo: la prima visibile e' la 26"
     );
-    let s = screen(&mut a, 30, 8);
-    assert_eq!(s[1], " 26│line 26");
-    assert_eq!(s[5], " 30│line 30");
-    assert_eq!(s[6], " Ln 30  Col 8  byte 239  99%");
+    let s = screen(&mut a, 30, 7);
+    assert_eq!(s[0], " 26│line 26");
+    assert_eq!(s[4], " 30│line 30");
+    assert_eq!(s[5], " Ln 30  Col 8  byte 239  99%");
     a.handle_key(ctrl(KeyCode::Home));
     assert_eq!((a.top(), a.cursor()), (0, 0));
 }
@@ -294,20 +293,20 @@ fn ctrl_end_and_ctrl_home() {
 fn long_rows_scroll_horizontally() {
     let dir = TestDir::new();
     let riga = "0123456789".repeat(6); // 60 caratteri
-    let mut a = app(&dir, format!("{riga}\nx\n").as_bytes(), 30, 8); // len 63 -> 2 cifre + '|'; 27 celle di testo
-    let s = screen(&mut a, 30, 8);
+    let mut a = app(&dir, format!("{riga}\nx\n").as_bytes(), 30, 7); // len 63 -> 2 cifre + '|'; 27 celle di testo
+    let s = screen(&mut a, 30, 7);
     assert_eq!(
-        s[1],
+        s[0],
         format!(" 1│{}»", &riga[..26]),
         "riga piu' lunga della finestra: ultimo segno »"
     );
     a.handle_key(k(KeyCode::End));
     assert_eq!(a.cursor(), 60);
-    let s = screen(&mut a, 30, 8);
+    let s = screen(&mut a, 30, 7);
     // colonna 60 nella finestra: hscroll = 60 - 27 + 1 = 34; si vedono le celle 34..60 (26 caratteri)
     assert_eq!(a.hscroll(), 34);
-    assert_eq!(s[1], format!(" 1│«{}", &riga[35..60]));
-    assert_eq!(s[6], " Ln 1  Col 61  byte 60  95%");
+    assert_eq!(s[0], format!(" 1│«{}", &riga[35..60]));
+    assert_eq!(s[5], " Ln 1  Col 61  byte 60  95%");
     a.handle_key(k(KeyCode::Home));
     assert_eq!(a.hscroll(), 0);
 }
@@ -315,7 +314,7 @@ fn long_rows_scroll_horizontally() {
 #[test]
 fn the_mouse_wheel_scrolls_three_rows_and_the_cursor_stays_in_view() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
+    let mut a = app(&dir, &thirty(), 30, 7);
     a.handle_mouse(wheel(true));
     assert_eq!(a.top(), 24, "tre righe");
     assert_eq!(
@@ -348,15 +347,15 @@ fn the_mouse_wheel_scrolls_three_rows_and_the_cursor_stays_in_view() {
 #[test]
 fn resizing_keeps_the_cursor_visible() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
+    let mut a = app(&dir, &thirty(), 30, 7);
     for _ in 0..4 {
         a.handle_key(k(KeyCode::Down));
     }
     assert_eq!((a.top(), a.cursor()), (0, 32));
-    a.resize(30, 6); // 3 righe di testo
-    let s = screen(&mut a, 30, 6);
-    assert_eq!(s[1], "  3│line 03");
-    assert_eq!(s[3], "  5│line 05");
+    a.resize(30, 5); // 3 righe di testo
+    let s = screen(&mut a, 30, 5);
+    assert_eq!(s[0], "  3│line 03");
+    assert_eq!(s[2], "  5│line 05");
     assert_eq!(a.top(), 16);
 }
 
@@ -365,28 +364,32 @@ fn resizing_keeps_the_cursor_visible() {
 #[test]
 fn f4_switches_between_view_and_edit() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 80, 8);
+    let mut a = app(&dir, &thirty(), 80, 7);
     a.handle_key(k(KeyCode::F(4)));
     assert!(a.is_edit());
-    let s = screen(&mut a, 80, 8);
-    assert!(s[0].ends_with("240 B  EDIT"), "{:?}", s[0]);
-    assert_eq!(s[6], " edit mode: the file is not touched until you save");
-    assert!(s[7].contains("F4 View"), "{:?}", s[7]);
+    let s = screen(&mut a, 80, 7);
+    assert!(s[5].ends_with("240 B  EDIT"), "{:?}", s[5]);
+    assert!(
+        s[5].starts_with(" edit mode: the file is not touched until you save"),
+        "{:?}",
+        s[5]
+    );
+    assert!(s[6].contains("F4 View"), "{:?}", s[6]);
     a.handle_key(k(KeyCode::Down)); // il messaggio sparisce al tasto successivo
-    let s = screen(&mut a, 80, 8);
-    assert_eq!(s[6], " Ln 2  Col 1  byte 8  3%");
+    let s = screen(&mut a, 80, 7);
+    assert!(s[5].starts_with(" Ln 2  Col 1  byte 8  3%"), "{:?}", s[5]);
     a.handle_key(k(KeyCode::F(4)));
     assert!(!a.is_edit());
-    let s = screen(&mut a, 80, 8);
-    assert!(s[0].ends_with("240 B  VIEW"));
-    assert_eq!(s[6], " view mode");
-    assert!(s[7].contains("F4 Edit"));
+    let s = screen(&mut a, 80, 7);
+    assert!(s[5].ends_with("240 B  VIEW"), "{:?}", s[5]);
+    assert!(s[5].starts_with(" view mode"), "{:?}", s[5]);
+    assert!(s[6].contains("F4 Edit"));
 }
 
 #[test]
 fn typing_in_view_mode_is_refused_with_a_hint() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 80, 8);
+    let mut a = app(&dir, &thirty(), 80, 7);
     for e in [
         ch('x'),
         k(KeyCode::Enter),
@@ -395,7 +398,8 @@ fn typing_in_view_mode_is_refused_with_a_hint() {
         k(KeyCode::Tab),
     ] {
         a.handle_key(e);
-        assert_eq!(screen(&mut a, 80, 8)[6], " read-only: press F4 to edit");
+        let st = screen(&mut a, 80, 7)[5].clone();
+        assert!(st.starts_with(" read-only: press F4 to edit"), "{st:?}");
         a.handle_key(k(KeyCode::Right)); // cancella il messaggio
     }
     assert_eq!(a.document_len(), 240);
@@ -405,11 +409,11 @@ fn typing_in_view_mode_is_refused_with_a_hint() {
 #[test]
 fn f10_and_ctrl_q_quit_when_nothing_is_modified() {
     let dir = TestDir::new();
-    let mut a = app(&dir, &thirty(), 30, 8);
+    let mut a = app(&dir, &thirty(), 30, 7);
     assert!(!a.should_quit());
     a.handle_key(k(KeyCode::F(10)));
     assert!(a.should_quit());
-    let mut b = app(&dir, &thirty(), 30, 8);
+    let mut b = app(&dir, &thirty(), 30, 7);
     b.handle_key(ctrl(KeyCode::Char('q')));
     assert!(b.should_quit());
 }
@@ -420,13 +424,13 @@ fn a_cut_row_shows_no_line_number_on_the_continuation() {
     let dir = TestDir::new();
     let mut data = vec![b'a'; 3 * 1024 * 1024];
     data.extend_from_slice(b"\nzz\n");
-    let mut a = app(&dir, &data, 40, 8);
-    let s = screen(&mut a, 40, 8);
-    assert!(s[1].starts_with(&format!("{:>7}│", 1)), "{:?}", s[1]); // len ~ 3 MiB: 7 cifre
+    let mut a = app(&dir, &data, 40, 7);
+    let s = screen(&mut a, 40, 7);
+    assert!(s[0].starts_with(&format!("{:>7}│", 1)), "{:?}", s[0]); // len ~ 3 MiB: 7 cifre
     assert!(
-        s[2].starts_with(&format!("{:>7}│", "")),
+        s[1].starts_with(&format!("{:>7}│", "")),
         "la seconda riga visuale continua la prima: {:?}",
-        s[2]
+        s[1]
     );
-    assert!(s[1].ends_with('»'));
+    assert!(s[0].ends_with('»'));
 }

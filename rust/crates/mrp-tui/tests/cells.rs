@@ -22,7 +22,7 @@ fn file(data: &[u8]) -> PathBuf {
 fn app(data: &[u8]) -> (App, PathBuf) {
     let p = file(data);
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     (a, p)
 }
@@ -48,9 +48,9 @@ fn the_grid_says_what_render_lines_says() {
 fn the_cursor_is_in_the_grid() {
     let (mut a, p) = app(b"abc\ndef\n");
     let g = render_grid(&mut a, 40, 10);
-    // il gutter e' largo gutter_w celle: il cursore e' sulla prima cella del testo della prima riga di testo (riga 1)
+    // il gutter e' largo gutter_w celle: il cursore e' sulla prima cella del testo della prima riga di testo (riga 0)
     let (x, y) = g.cursore.expect("il cursore c'e'");
-    assert_eq!(y, 1);
+    assert_eq!(y, 0);
     assert_eq!(g.cella(x, y).unwrap().simbolo, "a");
     a.handle_key(k(KeyCode::Right));
     let g = render_grid(&mut a, 40, 10);
@@ -80,17 +80,17 @@ fn the_found_text_has_another_background() {
     a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     let g = render_grid(&mut a, 40, 10);
-    // la riga 1 e' la prima di testo: trova la cella della 'u' di "uno" (dopo il gutter) e la 'd' di "due" 4 celle dopo
+    // la riga 0 e' la prima di testo: trova la cella della 'u' di "uno" (dopo il gutter) e la 'd' di "due" 4 celle dopo
     let inizio = (0..37u16)
         .find(|&x| {
             ["u", "n", "o"]
                 .iter()
                 .enumerate()
-                .all(|(i, s)| g.cella(x + i as u16, 1).unwrap().simbolo == *s)
+                .all(|(i, s)| g.cella(x + i as u16, 0).unwrap().simbolo == *s)
         })
         .expect("uno");
-    let uno = g.cella(inizio, 1).unwrap();
-    let due = g.cella(inizio + 4, 1).unwrap();
+    let uno = g.cella(inizio, 0).unwrap();
+    let due = g.cella(inizio + 4, 0).unwrap();
     assert_eq!(due.simbolo, "d");
     assert_ne!(due.bg, uno.bg, "la parte trovata ha uno sfondo diverso");
     let _ = std::fs::remove_file(p);

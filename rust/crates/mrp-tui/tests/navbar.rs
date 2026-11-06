@@ -43,7 +43,7 @@ fn ws_con(cfg: AppConfig, file: usize) -> (PathBuf, Workspace) {
         ws.open(p).unwrap();
     }
     ws.select(0);
-    ws.resize(80, 24);
+    ws.resize(80, 23);
     assert!(ws.wait_idle(Duration::from_secs(20)));
     (d, ws)
 }
@@ -67,7 +67,7 @@ fn clic_in(col: u16, riga: u16) -> MouseEvent {
 
 /// La colonna in cui comincia il pulsante `etichetta` nella riga `riga` dello schermo.
 fn colonna_di(ws: &mut Workspace, riga: usize, etichetta: &str) -> u16 {
-    let righe = ws.render_lines(80, 24);
+    let righe = ws.render_lines(80, 23);
     righe[riga]
         .find(etichetta)
         .unwrap_or_else(|| panic!("{etichetta} non c'e' in {:?}", righe[riga])) as u16
@@ -81,20 +81,23 @@ fn pulisci(d: PathBuf) {
 fn ctrl_b_shows_the_bar_under_the_tab_bar_and_hides_it_again() {
     let (d, mut ws) = ws();
     assert!(!ws.nav_bar());
-    let righe = ws.render_lines(80, 24);
+    let righe = ws.render_lines(80, 23);
     assert!(
-        righe[0].contains("f0.txt"),
-        "senza barra: il titolo e' in cima"
+        righe[0].contains("riga 00000"),
+        "senza barra: il testo e' in cima"
     );
     ws.handle_key(ctrl_b());
     assert!(ws.nav_bar());
-    let righe = ws.render_lines(80, 24);
+    let righe = ws.render_lines(80, 23);
     assert_eq!(righe[0], BARRA);
-    assert!(righe[1].contains("f0.txt"), "il titolo scende di una riga");
+    assert!(
+        righe[1].contains("riga 00000"),
+        "il testo scende di una riga"
+    );
     ws.handle_key(ctrl_b());
     assert!(!ws.nav_bar());
-    let righe = ws.render_lines(80, 24);
-    assert!(righe[0].contains("f0.txt"));
+    let righe = ws.render_lines(80, 23);
+    assert!(righe[0].contains("riga 00000"));
     pulisci(d);
 }
 
@@ -102,14 +105,14 @@ fn ctrl_b_shows_the_bar_under_the_tab_bar_and_hides_it_again() {
 fn with_two_tabs_the_jump_bar_goes_below_the_tab_bar() {
     let (d, mut ws) = ws_con(AppConfig::default(), 2);
     ws.handle_key(ctrl_b());
-    let righe = ws.render_lines(80, 24);
+    let righe = ws.render_lines(80, 23);
     assert!(
         righe[0].contains("f0.txt") && righe[0].contains("f1.txt"),
         "{:?}",
         righe[0]
     );
     assert_eq!(righe[1], BARRA);
-    assert!(righe[2].contains("f0.txt"));
+    assert!(righe[2].contains("riga 00000"));
     // la barra delle schede funziona ancora
     let c = colonna_di(&mut ws, 0, "f1.txt");
     ws.handle_mouse(clic_in(c, 0));
@@ -125,7 +128,7 @@ fn with_two_tabs_the_jump_bar_goes_below_the_tab_bar() {
 fn the_buttons_jump_by_pages_of_nineteen_rows() {
     let (d, mut ws) = ws();
     ws.handle_key(ctrl_b());
-    let _ = ws.render_lines(80, 24);
+    let _ = ws.render_lines(80, 23);
     let su = |ws: &mut Workspace, etichetta: &str| {
         let c = colonna_di(ws, 0, etichetta);
         ws.handle_mouse(clic_in(c + 1, 0));
@@ -153,7 +156,7 @@ fn the_buttons_jump_by_pages_of_nineteen_rows() {
 fn home_and_end_go_to_the_ends_of_the_file() {
     let (d, mut ws) = ws();
     ws.handle_key(ctrl_b());
-    let _ = ws.render_lines(80, 24);
+    let _ = ws.render_lines(80, 23);
     let c = colonna_di(&mut ws, 0, "[End]");
     ws.handle_mouse(clic_in(c + 2, 0));
     // l'ultima riga (29999) e' l'ultima del testo: 20 righe visibili, la prima e' la 29980
@@ -172,7 +175,7 @@ fn the_labels_follow_the_configured_multipliers() {
     };
     let (d, mut ws) = ws_con(cfg, 1);
     ws.handle_key(ctrl_b());
-    let righe = ws.render_lines(80, 24);
+    let righe = ws.render_lines(80, 23);
     assert_eq!(
         righe[0],
         "[Home] [-4] [-3] [-2] [-1] [+1] [+2] [+3] [+4] [End]"
@@ -187,7 +190,7 @@ fn the_labels_follow_the_configured_multipliers() {
 fn a_click_between_buttons_or_past_the_bar_does_nothing() {
     let (d, mut ws) = ws();
     ws.handle_key(ctrl_b());
-    let _ = ws.render_lines(80, 24);
+    let _ = ws.render_lines(80, 23);
     let c = colonna_di(&mut ws, 0, "[+1]");
     // lo spazio fra [+1] e [+10]
     ws.handle_mouse(clic_in(c + 4, 0));
@@ -202,11 +205,11 @@ fn a_click_between_buttons_or_past_the_bar_does_nothing() {
 fn a_click_on_the_text_counts_rows_below_the_bar() {
     let (d, mut ws) = ws();
     ws.handle_key(ctrl_b());
-    // riga 0 la barra dei salti, riga 1 il titolo, riga 2 la prima riga di testo
-    let righe = ws.render_lines(80, 24);
+    // riga 0 la barra dei salti, riga 1 la prima riga di testo
+    let righe = ws.render_lines(80, 23);
     // il gutter ha un carattere largo 3 byte: si contano le colonne, non i byte
-    let gutter = righe[2].split("riga 00000").next().unwrap().chars().count() as u16;
-    ws.handle_mouse(clic_in(gutter + 3, 4));
+    let gutter = righe[1].split("riga 00000").next().unwrap().chars().count() as u16;
+    ws.handle_mouse(clic_in(gutter + 3, 3));
     assert_eq!(ws.active().cursor(), 2 * RIGA + 3, "la terza riga di testo");
     pulisci(d);
 }
@@ -215,10 +218,10 @@ fn a_click_on_the_text_counts_rows_below_the_bar() {
 fn a_click_on_the_text_counts_rows_below_both_bars() {
     let (d, mut ws) = ws_con(AppConfig::default(), 2);
     ws.handle_key(ctrl_b());
-    // riga 0 le schede, riga 1 i salti, riga 2 il titolo, riga 3 la prima riga di testo
-    let righe = ws.render_lines(80, 24);
-    let gutter = righe[3].split("riga 00000").next().unwrap().chars().count() as u16;
-    ws.handle_mouse(clic_in(gutter + 2, 5));
+    // riga 0 le schede, riga 1 i salti, riga 2 la prima riga di testo
+    let righe = ws.render_lines(80, 23);
+    let gutter = righe[2].split("riga 00000").next().unwrap().chars().count() as u16;
+    ws.handle_mouse(clic_in(gutter + 2, 4));
     assert_eq!(ws.active().cursor(), 2 * RIGA + 2, "la terza riga di testo");
     pulisci(d);
 }
@@ -227,15 +230,15 @@ fn a_click_on_the_text_counts_rows_below_both_bars() {
 fn a_narrow_terminal_keeps_only_the_buttons_that_fit_whole() {
     let (d, mut ws) = ws();
     ws.handle_key(ctrl_b());
-    ws.resize(30, 24);
-    let righe = ws.render_lines(30, 24);
+    ws.resize(30, 23);
+    let righe = ws.render_lines(30, 23);
     // [Home] [-1000] [-100] [-10] [-1] = 6+1+7+1+6+1+5+1+4 = 32 > 30: il quinto non entra
     assert_eq!(righe[0], "[Home] [-1000] [-100] [-10]");
     // un clic dove sarebbe il pulsante tagliato non fa niente e non panica
     ws.handle_mouse(clic_in(29, 0));
     assert_eq!(ws.active().top(), 0);
-    ws.resize(5, 24);
-    let _ = ws.render_lines(5, 24);
+    ws.resize(5, 23);
+    let _ = ws.render_lines(5, 23);
     pulisci(d);
 }
 
@@ -271,7 +274,7 @@ fn the_bar_choice_is_saved_in_the_settings_and_read_back() {
     };
     let (d2, mut ws2) = ws_con(cfg, 1);
     assert!(ws2.nav_bar());
-    assert_eq!(ws2.render_lines(80, 24)[0], BARRA);
+    assert_eq!(ws2.render_lines(80, 23)[0], BARRA);
     let _ = std::fs::remove_dir_all(prof);
     pulisci(d);
     pulisci(d2);
@@ -291,7 +294,7 @@ fn a_new_tab_inherits_the_bar_and_a_theme_change_keeps_it_saved() {
     let altro = d.join("altro.txt");
     std::fs::write(&altro, testo(100)).unwrap();
     ws.open(&altro).unwrap();
-    let righe = ws.render_lines(80, 24);
+    let righe = ws.render_lines(80, 23);
     assert_eq!(
         righe[1], BARRA,
         "con due schede la barra dei salti e' la seconda riga"
@@ -311,13 +314,13 @@ fn a_button_that_fits_exactly_is_drawn() {
     let (d, mut ws) = ws();
     ws.handle_key(ctrl_b());
     // [Home] [-1000] [-100] [-10] = 27 colonne esatte
-    ws.resize(27, 24);
-    let righe = ws.render_lines(27, 24);
+    ws.resize(27, 23);
+    let righe = ws.render_lines(27, 23);
     assert_eq!(righe[0], "[Home] [-1000] [-100] [-10]");
     let c = righe[0].find("[-10]").unwrap() as u16;
     ws.handle_mouse(clic_in(c + 4, 0));
     assert_eq!(ws.active().top(), 0, "prima dell'inizio: resta a 0");
-    ws.resize(80, 24);
-    let _ = ws.render_lines(80, 24);
+    ws.resize(80, 23);
+    let _ = ws.render_lines(80, 23);
     pulisci(d);
 }

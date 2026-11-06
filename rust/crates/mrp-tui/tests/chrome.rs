@@ -76,15 +76,12 @@ fn without_chrome_every_row_of_the_screen_is_text() {
         !tutto.contains("VIEW") && !tutto.contains("F1") && !tutto.contains("Ln "),
         "{tutto}"
     );
-    // col disegno col terminale: titolo, 3 righe di testo, stato, tasti
+    // col disegno col terminale: 4 righe di testo, stato, tasti (il nome del file sta nella riga di stato)
     let (mut b, q) = app(true, 40, 6);
     let con = render_lines(&mut b, 40, 6);
-    assert!(
-        con[0].contains("mrp_chrome_test"),
-        "il titolo e' il nome del file: {:?}",
-        con[0]
-    );
-    assert_eq!(con[1], "   1│l00000000");
+    assert_eq!(con[0], "   1│l00000000");
+    assert_eq!(con[3], "   4│l00000003");
+    assert!(con[4].starts_with(" Ln 1"), "{:?}", con[4]);
     let _ = std::fs::remove_file(p);
     let _ = std::fs::remove_file(q);
 }

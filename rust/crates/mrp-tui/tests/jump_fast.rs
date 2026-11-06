@@ -26,14 +26,14 @@ fn app(indice: bool) -> (App, PathBuf) {
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 60);
+    a.resize(40, 59);
     assert!(a.wait_idle(Duration::from_secs(60)));
-    let _ = render_lines(&mut a, 40, 60);
+    let _ = render_lines(&mut a, 40, 59);
     (a, p)
 }
 
 fn prima_riga_di_testo(a: &mut App) -> String {
-    render_lines(a, 40, 60)[1].clone()
+    render_lines(a, 40, 59)[0].clone()
 }
 
 #[test]

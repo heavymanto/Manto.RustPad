@@ -167,15 +167,15 @@ fn inside_the_window_the_keys_stop_at_its_edges() {
 #[test]
 fn a_big_window_scrolls_by_page_and_the_scrollbar_maps_to_it() {
     let (dati, offset) = log();
-    // 10 righe di schermo: 7 di testo (titolo, stato e piede ne tolgono 3)
-    let (mut a, p) = app_con(&dati, 10);
+    // 9 righe di schermo: 7 di testo (stato e piede ne tolgono 2)
+    let (mut a, p) = app_con(&dati, 9);
     a.apply_time_range("2026-11-01 02:10", "2026-11-01 03:29")
         .unwrap();
     assert_eq!(a.time_window(), Some((offset[10], offset[90])));
     // alla fine della finestra: l'ultima riga (la 89) e' in fondo allo schermo, la prima visibile e' la 83
     a.scroll_to_fraction(1.0);
     assert_eq!(a.top(), offset[83]);
-    let s = schermo(&mut a, 10);
+    let s = schermo(&mut a, 9);
     assert!(s.contains("03:29:00") && !s.contains("03:30:00"), "{s}");
     a.scroll_to_fraction(0.0);
     assert_eq!(a.top(), offset[10]);

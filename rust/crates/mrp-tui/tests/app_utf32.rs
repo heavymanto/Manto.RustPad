@@ -74,7 +74,7 @@ fn app_file(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> (A
         ..AppConfig::default()
     };
     let mut a = App::open(&p, cfg).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
         a.handle_key(k(KeyCode::F(4)));
@@ -88,11 +88,29 @@ fn app(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> App {
 }
 
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 40, 10)
+    render_lines(a, 40, 9)
 }
 
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
 fn status(a: &mut App) -> String {
-    screen(a)[8].clone()
+    status_intera(a)
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
+/// La riga di stato a 80 colonne (a 40 non c'e' posto per la codifica, che sta a destra).
+fn status_larga(a: &mut App) -> String {
+    a.resize(80, 9);
+    let r = render_lines(a, 80, 9)[7].trim_end().to_string();
+    a.resize(40, 9);
+    r
+}
+
+fn status_intera(a: &mut App) -> String {
+    screen(a)[7].clone()
 }
 
 fn save(a: &mut App) {
@@ -113,12 +131,12 @@ fn utf32_files_with_a_bom_are_recognised_and_shown() {
     );
     assert_eq!(a.encoding(), LE);
     let s = screen(&mut a);
-    assert!(s[1].contains("ab"), "{:?}", s[1]);
-    assert!(s[2].contains("cd"), "{:?}", s[2]);
+    assert!(s[0].contains("ab"), "{:?}", s[0]);
+    assert!(s[1].contains("cd"), "{:?}", s[1]);
     assert!(
-        status(&mut a).trim_end().ends_with("utf-32le"),
+        status_larga(&mut a).contains("utf-32le"),
         "{:?}",
-        status(&mut a)
+        status_larga(&mut a)
     );
     let mut b = app(
         &dir,
@@ -127,7 +145,7 @@ fn utf32_files_with_a_bom_are_recognised_and_shown() {
         false,
     );
     assert_eq!(b.encoding(), BE);
-    assert!(screen(&mut b)[2].contains("cd"));
+    assert!(screen(&mut b)[1].contains("cd"));
     // un file UTF-8 e uno UTF-16 restano quel che sono
     let c = app(&dir, "ab\u{e8}\n".as_bytes(), None, false);
     assert_eq!(c.encoding(), Encoding::Utf8);
@@ -140,7 +158,7 @@ fn an_explicit_encoding_wins_and_the_index_is_built_for_it() {
     let dir = TestDir::new();
     let mut a = app(&dir, &le("ab\ncd\n"), Some(LE), false);
     assert_eq!(a.encoding(), LE);
-    assert!(screen(&mut a)[2].contains("cd"));
+    assert!(screen(&mut a)[1].contains("cd"));
     assert!(
         status(&mut a).starts_with(" Ln 1  Col 1  byte 0"),
         "{:?}",
@@ -208,14 +226,14 @@ fn an_invalid_unit_is_one_replacement_character_and_one_step() {
     let dati = [le("a"), vec![0x00, 0x00, 0x11, 0x00], le("b\n")].concat();
     let mut a = app(&dir, &dati, Some(LE), false);
     let s = screen(&mut a);
-    assert!(s[1].contains("a\u{fffd}b"), "{:?}", s[1]);
+    assert!(s[0].contains("a\u{fffd}b"), "{:?}", s[0]);
     a.handle_key(k(KeyCode::Right));
     a.handle_key(k(KeyCode::Right));
     assert_eq!(a.cursor(), 8);
     // un surrogato isolato (D800) vale lo stesso
     let dati = [le("a"), vec![0x00, 0xD8, 0x00, 0x00], le("b\n")].concat();
     let mut b = app(&dir, &dati, Some(LE), false);
-    assert!(screen(&mut b)[1].contains("a\u{fffd}b"));
+    assert!(screen(&mut b)[0].contains("a\u{fffd}b"));
 }
 
 #[test]
@@ -240,8 +258,8 @@ fn characters_with_the_byte_0a_do_not_split_lines() {
     a.handle_key(k(KeyCode::Up));
     assert_eq!(a.cursor(), 8);
     let s = screen(&mut a);
-    assert!(s[1].contains("A\u{0A0A}"), "{:?}", s[1]);
-    assert!(s[2].contains('x'), "{:?}", s[2]);
+    assert!(s[0].contains("A\u{0A0A}"), "{:?}", s[0]);
+    assert!(s[1].contains('x'), "{:?}", s[1]);
 }
 
 // ---------- scrittura e salvataggio ----------

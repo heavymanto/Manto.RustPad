@@ -21,9 +21,9 @@ fn app() -> (App, PathBuf) {
     let testo: String = (0..30).map(|i| format!("linea {i:02}\n")).collect();
     std::fs::write(&p, testo).unwrap();
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
-    let _ = render_lines(&mut a, 40, 10);
+    let _ = render_lines(&mut a, 40, 9);
     (a, p)
 }
 
@@ -41,7 +41,7 @@ fn appendi(p: &PathBuf, testo: &str) {
 }
 
 fn schermo(a: &mut App) -> String {
-    render_lines(a, 40, 10).join("\n")
+    render_lines(a, 40, 9).join("\n")
 }
 
 #[test]
@@ -211,7 +211,7 @@ fn a_file_that_shrinks_stops_following_with_a_message() {
 fn the_workspace_runs_the_command_and_its_tick_polls_twice_a_second() {
     let (a, p) = app();
     let mut ws = Workspace::new(a, AppConfig::default());
-    ws.resize(40, 10);
+    ws.resize(40, 9);
     assert!(commands::enabled(&ws, Cmd::Follow));
     assert!(ws.exec(Cmd::Follow));
     assert!(ws.active().follow());

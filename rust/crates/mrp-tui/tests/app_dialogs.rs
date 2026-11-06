@@ -95,6 +95,15 @@ fn screen(a: &mut App, w: u16, h: u16) -> Vec<String> {
         .collect()
 }
 
+/// La parte sinistra di una riga di stato: a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
+fn sinistra(riga: &str) -> String {
+    riga.split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
 fn shows(a: &mut App, w: u16, h: u16, text: &str) -> bool {
     screen(a, w, h).iter().any(|l| l.contains(text))
 }
@@ -104,7 +113,7 @@ fn shows(a: &mut App, w: u16, h: u16, text: &str) -> bool {
 #[test]
 fn help_opens_lists_the_keys_and_closes() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 80, 24, false);
+    let mut a = app_with(&dir, 80, 23, false);
     assert_eq!(a.dialog_kind(), None);
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
@@ -151,7 +160,7 @@ fn help_opens_lists_the_keys_and_closes() {
 #[test]
 fn theme_menu_lists_the_four_themes_and_applies_the_choice() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 90, 24, true);
+    let mut a = app_with(&dir, 90, 23, true);
     assert_eq!(a.theme_id(), ThemeId::Console);
     a.handle_key(k(KeyCode::F(6)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Theme));
@@ -178,7 +187,10 @@ fn theme_menu_lists_the_four_themes_and_applies_the_choice() {
     a.handle_key(k(KeyCode::Enter));
     assert_eq!(a.dialog_kind(), None);
     assert_eq!(a.theme_id(), ThemeId::Debian);
-    assert_eq!(screen(&mut a, 90, 24)[22], " theme: Debian (blue)");
+    assert_eq!(
+        sinistra(&screen(&mut a, 90, 23)[21]),
+        " theme: Debian (blue)"
+    );
     let s = Settings::load(&dir.0.join("prof").join("settings.txt"))
         .expect("le impostazioni si salvano al cambio");
     assert_eq!(s.theme, ThemeId::Debian);
@@ -188,7 +200,7 @@ fn theme_menu_lists_the_four_themes_and_applies_the_choice() {
 #[test]
 fn theme_menu_escape_changes_nothing() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 90, 24, true);
+    let mut a = app_with(&dir, 90, 23, true);
     a.handle_key(k(KeyCode::F(6)));
     a.handle_key(k(KeyCode::Up));
     a.handle_key(k(KeyCode::Esc));
@@ -213,7 +225,7 @@ fn the_configured_theme_is_the_starting_one() {
 #[test]
 fn language_menu_marks_ai_translations_and_switches_the_ui() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 90, 24, true);
+    let mut a = app_with(&dir, 90, 23, true);
     assert_eq!(a.lang_code(), "en");
     a.handle_key(k(KeyCode::F(7)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Lang));
@@ -232,12 +244,12 @@ fn language_menu_marks_ai_translations_and_switches_the_ui() {
     a.handle_key(k(KeyCode::Enter));
     assert_eq!(a.dialog_kind(), None);
     assert_eq!(a.lang_code(), "it");
-    let s = screen(&mut a, 90, 24);
-    assert_eq!(s[22], " lingua: Italiano");
+    let s = screen(&mut a, 90, 23);
+    assert_eq!(sinistra(&s[21]), " lingua: Italiano");
     assert!(
-        s[23].contains("F1 Aiuto") && s[23].contains("F10 Esci"),
+        s[22].contains("F1 Aiuto") && s[22].contains("F10 Esci"),
         "{:?}",
-        s[23]
+        s[22]
     );
     let salvate = Settings::load(&dir.0.join("prof").join("settings.txt")).unwrap();
     assert_eq!(salvate.lang.as_deref(), Some("it"));
@@ -246,18 +258,18 @@ fn language_menu_marks_ai_translations_and_switches_the_ui() {
 #[test]
 fn a_partial_language_falls_back_to_english_per_key() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 90, 24, false);
+    let mut a = app_with(&dir, 90, 23, false);
     a.handle_key(k(KeyCode::F(7)));
     a.handle_key(k(KeyCode::Down));
     a.handle_key(k(KeyCode::Down));
     a.handle_key(k(KeyCode::Enter));
     assert_eq!(a.lang_code(), "xx");
-    let s = screen(&mut a, 90, 24);
-    assert!(s[23].contains("F1 XX1"), "la chiave tradotta: {:?}", s[23]);
+    let s = screen(&mut a, 90, 23);
+    assert!(s[22].contains("F1 XX1"), "la chiave tradotta: {:?}", s[22]);
     assert!(
-        s[23].contains("F2 Save"),
+        s[22].contains("F2 Save"),
         "le altre cadono in inglese: {:?}",
-        s[23]
+        s[22]
     );
 }
 
@@ -292,7 +304,7 @@ fn the_configured_language_is_the_starting_one_and_unknown_codes_fall_back() {
 #[test]
 fn goto_opens_a_prompt_with_title_and_hint_and_the_cursor_in_it() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 80, 24, false);
+    let mut a = app_with(&dir, 80, 23, false);
     a.handle_key(ctrl('g'));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Goto));
     assert!(shows(&mut a, 80, 24, "GO TO"));
@@ -305,7 +317,7 @@ fn goto_opens_a_prompt_with_title_and_hint_and_the_cursor_in_it() {
     assert!(shows(&mut a, 80, 24, "Enter OK - Esc cancel"));
     type_text(&mut a, "12");
     assert!(
-        screen(&mut a, 80, 24).iter().any(|l| l.contains("> 12")),
+        screen(&mut a, 80, 23).iter().any(|l| l.contains("> 12")),
         "il testo scritto si vede dopo '> '"
     );
     assert!(
@@ -313,7 +325,7 @@ fn goto_opens_a_prompt_with_title_and_hint_and_the_cursor_in_it() {
         "nel prompt il cursore e' dopo il testo"
     );
     a.handle_key(k(KeyCode::Backspace));
-    assert!(screen(&mut a, 80, 24)
+    assert!(screen(&mut a, 80, 23)
         .iter()
         .any(|l| l.contains("> 1") && !l.contains("> 12")));
     a.handle_key(k(KeyCode::Esc));
@@ -324,7 +336,7 @@ fn goto_opens_a_prompt_with_title_and_hint_and_the_cursor_in_it() {
 #[test]
 fn goto_a_line_centers_it_when_it_was_not_visible() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 30, 8, false); // 5 righe di testo
+    let mut a = app_with(&dir, 30, 7, false); // 5 righe di testo
     a.handle_key(k(KeyCode::F(5)));
     type_text(&mut a, "12");
     a.handle_key(k(KeyCode::Enter));
@@ -352,7 +364,7 @@ fn goto_a_line_centers_it_when_it_was_not_visible() {
 #[test]
 fn goto_byte_offset_and_percent() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 30, 8, false);
+    let mut a = app_with(&dir, 30, 7, false);
     a.handle_key(ctrl('g'));
     type_text(&mut a, "@100");
     a.handle_key(k(KeyCode::Enter));
@@ -383,7 +395,7 @@ fn goto_byte_offset_and_percent() {
 #[test]
 fn goto_refuses_bad_input_with_a_message_and_does_not_move() {
     let dir = TestDir::new();
-    let mut a = app_with(&dir, 80, 24, false);
+    let mut a = app_with(&dir, 80, 23, false);
     for (input, atteso) in [
         ("abc", " not a valid position: abc"),
         ("0", " not a valid position: 0"),
@@ -397,7 +409,7 @@ fn goto_refuses_bad_input_with_a_message_and_does_not_move() {
         a.handle_key(k(KeyCode::Enter));
         assert_eq!(a.dialog_kind(), None, "{input}");
         assert_eq!(a.cursor(), 0, "{input}");
-        assert_eq!(screen(&mut a, 80, 24)[22], atteso, "{input}");
+        assert_eq!(sinistra(&screen(&mut a, 80, 23)[21]), atteso, "{input}");
         a.handle_key(k(KeyCode::Right));
         a.handle_key(k(KeyCode::Left));
     }
@@ -419,13 +431,13 @@ fn goto_a_line_needs_the_index() {
         },
     )
     .unwrap();
-    a.resize(80, 24);
+    a.resize(80, 23);
     a.handle_key(ctrl('g'));
     type_text(&mut a, "12");
     a.handle_key(k(KeyCode::Enter));
     assert_eq!(a.cursor(), 0);
     assert_eq!(
-        screen(&mut a, 80, 24)[22],
+        sinistra(&screen(&mut a, 80, 23)[21]),
         " Go to a line needs the line index: turn it on in the Settings (Alt+X)"
     );
     // ma offset e percentuale funzionano senza indice

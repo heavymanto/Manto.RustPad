@@ -58,15 +58,33 @@ fn type_text(a: &mut App, s: &str) {
 fn edit_app(dir: &TestDir, data: &[u8]) -> (App, PathBuf) {
     let p = dir.file("f.txt", data);
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     a.handle_key(k(KeyCode::F(4)));
     assert!(a.is_edit());
     (a, p)
 }
 
+/// La riga di stato a 80 colonne: a 40 il nome del file non ci sta.
+fn status_larga(a: &mut App) -> String {
+    a.resize(80, 9);
+    let r = render_lines(a, 80, 9)[7].trim_end().to_string();
+    a.resize(40, 9);
+    r
+}
+
+/// La parte sinistra della riga di stato (messaggio o posizione): a destra ci sono nome, dimensione e modo, almeno tre spazi dopo.
+fn status(a: &mut App) -> String {
+    screen(a)[7]
+        .split("   ")
+        .next()
+        .unwrap_or("")
+        .trim_end()
+        .to_string()
+}
+
 fn screen(a: &mut App) -> Vec<String> {
-    render_lines(a, 40, 10)
+    render_lines(a, 40, 9)
         .into_iter()
         .map(|l| l.trim_end().to_string())
         .collect()
@@ -84,10 +102,14 @@ fn typing_inserts_at_the_cursor_and_marks_the_document_modified() {
     assert_eq!(a.cursor(), 3);
     assert!(a.is_modified());
     let s = screen(&mut a);
-    assert!(s[0].starts_with(" f.txt *"), "{:?}", s[0]);
-    assert_eq!(s[1], "1│aXYb");
-    assert_eq!(s[2], "2│cd");
-    assert_eq!(s[8], " Ln 1  Col 4  byte 3  37%", "3 * 100 / 8");
+    assert!(
+        status_larga(&mut a).contains("f.txt *"),
+        "{:?}",
+        status_larga(&mut a)
+    );
+    assert_eq!(s[0], "1│aXYb");
+    assert_eq!(s[1], "2│cd");
+    assert_eq!(status(&mut a), " Ln 1  Col 4  byte 3  37%", "3 * 100 / 8");
     assert_eq!(
         std::fs::read(&p).unwrap(),
         b"ab\ncd\n",
@@ -105,7 +127,7 @@ fn enter_backspace_delete_and_tab() {
     assert_eq!(a.cursor(), 2);
     let s = screen(&mut a);
     assert_eq!(
-        (s[1].as_str(), s[2].as_str(), s[3].as_str()),
+        (s[0].as_str(), s[1].as_str(), s[2].as_str()),
         ("1│a", "2│b", "3│cd"),
         "i numeri di riga seguono le modifiche"
     );
@@ -175,9 +197,9 @@ fn ctrl_end_in_edit_mode_reaches_the_empty_last_row() {
     a.handle_key(ctrl_end());
     assert_eq!(a.cursor(), 3);
     let s = screen(&mut a);
-    assert_eq!(s[1], "1│ab");
-    assert_eq!(s[2], "2│", "la riga vuota finale, con il suo numero");
-    assert_eq!(s[8], " Ln 2  Col 1  byte 3  100%");
+    assert_eq!(s[0], "1│ab");
+    assert_eq!(s[1], "2│", "la riga vuota finale, con il suo numero");
+    assert_eq!(status(&mut a), " Ln 2  Col 1  byte 3  100%");
     type_text(&mut a, "z");
     assert_eq!(a.document_text(), b"ab\nz");
     // tornando in lettura il cursore non resta su una riga che non c'e' (qui non finisce piu' con a-capo: resta)
@@ -202,7 +224,7 @@ fn undo_and_redo_with_cursor_placement() {
     assert_eq!(a.document_text(), b"ab\ncd\n");
     assert_eq!(a.cursor(), 0);
     assert!(!a.is_modified(), "tornati allo stato del file");
-    assert_eq!(screen(&mut a)[8], " undo");
+    assert_eq!(status(&mut a), " undo");
     a.handle_key(ctrl('y'));
     assert_eq!(a.document_text(), b"abcab\ncd\n");
     assert_eq!(
@@ -211,7 +233,7 @@ fn undo_and_redo_with_cursor_placement() {
         "dopo il ripeti il cursore sta dopo il testo rimesso"
     );
     assert!(a.is_modified());
-    assert_eq!(screen(&mut a)[8], " redo");
+    assert_eq!(status(&mut a), " redo");
     // annullare una cancellazione rimette il testo e porta il cursore dopo
     a.handle_key(ctrl_home());
     a.handle_key(k(KeyCode::Delete));
@@ -234,12 +256,12 @@ fn typing_in_a_row_is_one_step_and_moving_closes_it() {
     a.handle_key(ctrl('z'));
     assert_eq!(a.document_text(), b"\n", "poi tutto 'abc'");
     a.handle_key(ctrl('z'));
-    assert_eq!(screen(&mut a)[8], " nothing to undo");
+    assert_eq!(status(&mut a), " nothing to undo");
     a.handle_key(ctrl('y'));
     a.handle_key(ctrl('y'));
     assert_eq!(a.document_text(), b"abXc\n");
     a.handle_key(ctrl('y'));
-    assert_eq!(screen(&mut a)[8], " nothing to redo");
+    assert_eq!(status(&mut a), " nothing to redo");
     // Enter chiude il passo
     a.handle_key(ctrl_home());
     type_text(&mut a, "1");
@@ -260,7 +282,7 @@ fn undo_and_save_are_not_for_view_mode_but_the_old_changes_stay() {
     assert!(!a.is_edit());
     assert!(a.is_modified());
     a.handle_key(ctrl('z'));
-    assert_eq!(screen(&mut a)[8], " read-only: press F4 to edit");
+    assert_eq!(status(&mut a), " read-only: press F4 to edit");
     assert_eq!(a.document_text(), b"xab\n");
 }
 
@@ -271,7 +293,7 @@ fn save_writes_the_file_and_the_index_follows() {
     let dir = TestDir::new();
     let (mut a, p) = edit_app(&dir, b"ab\ncd\n");
     a.handle_key(ctrl('s'));
-    assert_eq!(screen(&mut a)[8], " nothing to save");
+    assert_eq!(status(&mut a), " nothing to save");
     a.handle_key(k(KeyCode::Right));
     type_text(&mut a, "XY");
     a.handle_key(ctrl('s'));
@@ -285,14 +307,11 @@ fn save_writes_the_file_and_the_index_follows() {
     assert_eq!(std::fs::read(&p).unwrap(), b"aXYb\ncd\n");
     assert!(!a.is_modified());
     let s = screen(&mut a);
-    assert_eq!(s[8], " saved: f.txt");
-    assert!(
-        s[0].starts_with(" f.txt") && !s[0].contains('*'),
-        "{:?}",
-        s[0]
-    );
+    assert_eq!(status(&mut a), " saved: f.txt");
+    let larga = status_larga(&mut a);
+    assert!(larga.contains("f.txt") && !larga.contains('*'), "{larga:?}");
     assert_eq!(
-        s[1], "1│aXYb",
+        s[0], "1│aXYb",
         "i numeri di riga tornano dopo la ricostruzione dell'indice"
     );
     assert_eq!(
@@ -331,7 +350,7 @@ fn save_refuses_when_the_file_changed_on_disk() {
     }
     a.handle_key(ctrl('s'));
     assert!(a.wait_idle(Duration::from_secs(20)));
-    assert_eq!(screen(&mut a)[8], " the file changed on disk: save refused");
+    assert_eq!(status(&mut a), " the file changed on disk: save refused");
     assert!(a.is_modified(), "le modifiche restano");
     assert_eq!(
         std::fs::read(&p).unwrap(),
@@ -356,7 +375,7 @@ fn escape_while_saving_cancels_or_the_save_had_already_finished() {
     let su_disco = std::fs::read(&p).unwrap();
     if a.is_modified() {
         assert_eq!(su_disco, big, "annullato: il file originale e' intatto");
-        assert_eq!(screen(&mut a)[8], " save cancelled");
+        assert_eq!(status(&mut a), " save cancelled");
     } else {
         assert_eq!(su_disco.len(), big.len() + 1);
         assert_eq!(su_disco[0], b'Z');
@@ -435,7 +454,7 @@ fn save_and_quit_stays_open_if_the_save_fails() {
         "il salvataggio e' fallito: non si perde il lavoro uscendo"
     );
     assert!(a.is_modified());
-    assert_eq!(screen(&mut a)[8], " the file changed on disk: save refused");
+    assert_eq!(status(&mut a), " the file changed on disk: save refused");
 }
 
 #[test]
@@ -460,7 +479,7 @@ fn riga_con_taglio_dentro_a_un_carattere() -> (App, std::path::PathBuf) {
     let p = std::env::temp_dir().join(format!("mrp_taglio_{}_{}.txt", std::process::id(), n));
     std::fs::write(&p, &dati).unwrap();
     let mut a = App::open(&p, AppConfig::default()).unwrap();
-    a.resize(40, 10);
+    a.resize(40, 9);
     assert!(a.wait_idle(std::time::Duration::from_secs(20)));
     a.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
     // Giu': la seconda riga visuale comincia al taglio, dentro la "é"
