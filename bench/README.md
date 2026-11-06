@@ -29,6 +29,7 @@ mrp-loggen --size 100G --scenario bursts --seed 7 huge.log  # 100 GiB of quiet d
 mrp-loggen --size 5G --rate 2 --start 2024-03-01 slow.log   # 2 entries/s on average: the file spans months
 mrp-loggen --size 1G - | gzip > big.log.gz                  # to the standard output
 mrp-loggen --list                                           # the scenarios
+mrp-loggen --all samples/                                  # every scenario at once: samples/<scenario>.log, 1 MiB each, slow rate
 ```
 
 The same options give the **same bytes** on every machine and every version (a test pins them), so a number measured on
@@ -50,7 +51,7 @@ fit on GitHub (100 MB per file, 2 GB per release asset): publish the options, no
 | `report` | Log lines mixed with ASCII tables (many lines without a time), like a backtest report |
 | `text` | Plain prose: no dates, no levels (the timeline has to say there are no times) |
 
-`bench/samples/` has 1 MiB of each (`gunzip` and open): `python -I bench/make_samples.py` writes them again.
+`mrp-loggen --all DIR` writes all twelve in one go (1 MiB each by default, at a slow rate so that each one spans days; `--size` and `--rate` change them). `bench/samples/` has them gzipped (`gunzip` and open): `python -I bench/make_samples.py` writes them again, and with `--plain DIR` also the plain files.
 
 ## Reproduce
 

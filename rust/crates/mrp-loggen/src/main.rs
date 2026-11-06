@@ -1,6 +1,6 @@
 //! `mrp-loggen`: scrive un log sintetico della dimensione che si vuole (vedi la libreria per gli scenari).
 
-use mrp_loggen::{generate, parse_day, parse_size, Config, Scenario};
+use mrp_loggen::{generate, parse_day, parse_size, Config, Scenario, Stats};
 use std::fs::OpenOptions;
 use std::io::{self, BufWriter, IsTerminal, Write};
 use std::process::ExitCode;
@@ -11,6 +11,7 @@ mrp-loggen - writes a synthetic log file of any size (same bytes for the same op
 
 usage: mrp-loggen --size SIZE [options] FILE
        mrp-loggen --size SIZE [options] - > file        (standard output)
+       mrp-loggen --all [--size SIZE] [options] DIR      (every scenario at once, DIR/<scenario>.log)
        mrp-loggen --list
 
   --size SIZE        where to stop: 500, 64K, 10MB, 2G, 1.5GiB, 100G (multiples of 1024). The last entry is
@@ -19,6 +20,8 @@ usage: mrp-loggen --size SIZE [options] FILE
   --seed N           the random seed (default 1): same seed, same bytes
   --start YYYY-MM-DD the first day (default 2026-01-01)
   --rate N           average entries per second (default 20): the file spans more days when it is lower
+  --all              writes one small file per scenario into the directory DIR (created if missing): --size defaults
+                     to 1M and the rate to a slow one per scenario (so 1 MiB spans days); --scenario is not allowed
   --force            overwrite FILE if it exists (otherwise it is refused)
   --list             the scenarios, one per line
   -h, --help         this text
@@ -36,8 +39,10 @@ fn main() -> ExitCode {
     let mut bytes: Option<u64> = None;
     let mut seed = 1u64;
     let mut start = None;
-    let mut rate = 20.0f64;
+    let mut rate: Option<f64> = None;
+    let mut tutti = false;
     let mut force = false;
+    let mut scenario_dato = false;
     let mut file: Option<String> = None;
     while let Some(a) = args.next() {
         let mut valore = |nome: &str| args.next().ok_or_else(|| format!("{nome} needs a value"));
@@ -60,6 +65,7 @@ fn main() -> ExitCode {
                     );
                 }
                 "--scenario" => {
+                    scenario_dato = true;
                     let v = valore("--scenario")?;
                     scenario = Scenario::parse(&v)
                         .ok_or(format!("unknown scenario {v:?} (see --list)"))?;
@@ -81,11 +87,13 @@ fn main() -> ExitCode {
                         .parse::<f64>()
                         .ok()
                         .filter(|r| r.is_finite() && *r > 0.0 && *r <= 1.0e6)
+                        .map(Some)
                         .ok_or(format!(
                             "{v:?} is not a rate (entries per second, 0 < N <= 1000000)"
                         ))?;
                 }
                 "--force" => force = true,
+                "--all" => tutti = true,
                 s if s.starts_with('-') && s != "-" => return Err(format!("unknown option {s:?}")),
                 _ => {
                     if file.replace(a.clone()).is_some() {
@@ -99,58 +107,59 @@ fn main() -> ExitCode {
             return errore(&e);
         }
     }
-    let Some(bytes) = bytes else {
+    if tutti && scenario_dato {
+        return errore("--all writes every scenario: do not give --scenario");
+    }
+    let Some(bytes) = bytes.or(tutti.then_some(1 << 20)) else {
         return errore("--size is required");
     };
     let Some(file) = file else {
-        return errore("the output file is missing (use - for the standard output)");
-    };
-    let mut cfg = Config::new(scenario, bytes);
-    cfg.seed = seed;
-    cfg.rate = rate;
-    if let Some(d) = start {
-        cfg.start_day = d;
-    }
-
-    let inizio = Instant::now();
-    let tty = io::stderr().is_terminal();
-    let mut progress = |scritti: u64| {
-        if tty {
-            let pct = (scritti as f64 / bytes.max(1) as f64 * 100.0).min(100.0);
-            eprint!(
-                "\r{pct:5.1}%  {:.2} GiB",
-                scritti as f64 / (1u64 << 30) as f64
-            );
-        }
-    };
-    let esito = if file == "-" {
-        let mut out = BufWriter::with_capacity(1 << 20, io::stdout().lock());
-        generate(&cfg, &mut out, &mut progress)
-    } else {
-        let mut opts = OpenOptions::new();
-        opts.write(true);
-        if force {
-            opts.create(true).truncate(true);
+        return errore(if tutti {
+            "the directory is missing"
         } else {
-            opts.create_new(true);
-        }
-        let mut f = match opts.open(&file) {
-            Ok(f) => f,
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
-                return errore(&format!(
-                    "{file} already exists (use --force to overwrite it)"
-                ));
-            }
-            Err(e) => return errore(&format!("cannot create {file}: {e}")),
-        };
-        generate(&cfg, &mut f, &mut progress)
+            "the output file is missing (use - for the standard output)"
+        });
     };
-    match esito {
-        Ok(st) => {
-            if tty {
-                eprint!("\r{:60}\r", "");
+    let tty = io::stderr().is_terminal();
+    let configura = |scenario: Scenario, rate: f64| {
+        let mut cfg = Config::new(scenario, bytes);
+        cfg.seed = seed;
+        cfg.rate = rate;
+        if let Some(d) = start {
+            cfg.start_day = d;
+        }
+        cfg
+    };
+    if tutti {
+        if file == "-" {
+            return errore("--all needs a directory, not the standard output");
+        }
+        if let Err(e) = std::fs::create_dir_all(&file) {
+            return errore(&format!("cannot create the directory {file}: {e}"));
+        }
+        let mut totale = 0u64;
+        for s in Scenario::ALL {
+            let percorso = std::path::Path::new(&file).join(format!("{}.log", s.name()));
+            let cfg = configura(s, rate.unwrap_or(s.sample_rate()));
+            match scrivi(&cfg, percorso.to_str().unwrap_or(&file), force, tty) {
+                Ok((st, _)) => {
+                    totale += st.bytes;
+                    println!(
+                        "{:<10} {:>9} bytes  {}",
+                        s.name(),
+                        st.bytes,
+                        percorso.display()
+                    );
+                }
+                Err(e) => return errore(&e),
             }
-            let secondi = inizio.elapsed().as_secs_f64().max(0.001);
+        }
+        println!("{totale} bytes in {} files", Scenario::ALL.len());
+        return ExitCode::SUCCESS;
+    }
+    let cfg = configura(scenario, rate.unwrap_or(20.0));
+    match scrivi(&cfg, &file, force, tty) {
+        Ok((st, secondi)) => {
             let giorni = (st.last_ms - st.first_ms) as f64 / 86_400_000.0;
             let _ = writeln!(
                 io::stderr(),
@@ -164,11 +173,50 @@ fn main() -> ExitCode {
             );
             ExitCode::SUCCESS
         }
-        Err(e) => {
-            if tty {
-                eprintln!();
-            }
-            errore(&format!("writing failed: {e}"))
+        Err(e) => errore(&e),
+    }
+}
+
+/// Scrive un file (o la standard output se `file` e' `-`); torna cosa ha scritto e quanti secondi ci ha messo.
+fn scrivi(cfg: &Config, file: &str, force: bool, tty: bool) -> Result<(Stats, f64), String> {
+    let inizio = Instant::now();
+    let bytes = cfg.bytes;
+    let mut progress = |scritti: u64| {
+        if tty {
+            let pct = (scritti as f64 / bytes.max(1) as f64 * 100.0).min(100.0);
+            eprint!(
+                "\r{pct:5.1}%  {:.2} GiB",
+                scritti as f64 / (1u64 << 30) as f64
+            );
         }
+    };
+    let esito = if file == "-" {
+        let mut out = BufWriter::with_capacity(1 << 20, io::stdout().lock());
+        generate(cfg, &mut out, &mut progress)
+    } else {
+        let mut opts = OpenOptions::new();
+        opts.write(true);
+        if force {
+            opts.create(true).truncate(true);
+        } else {
+            opts.create_new(true);
+        }
+        let mut f = match opts.open(file) {
+            Ok(f) => f,
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                return Err(format!(
+                    "{file} already exists (use --force to overwrite it)"
+                ));
+            }
+            Err(e) => return Err(format!("cannot create {file}: {e}")),
+        };
+        generate(cfg, &mut f, &mut progress)
+    };
+    if tty {
+        eprint!("\r{:60}\r", "");
+    }
+    match esito {
+        Ok(st) => Ok((st, inizio.elapsed().as_secs_f64().max(0.001))),
+        Err(e) => Err(format!("writing {file} failed: {e}")),
     }
 }

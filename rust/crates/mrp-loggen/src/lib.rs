@@ -171,6 +171,15 @@ impl Scenario {
         }
     }
 
+    /// Le voci al secondo di un campione piccolo (`--all`): lento, cosi' 1 MiB copre giorni e la timeline ha qualcosa da
+    /// mostrare; `bursts` ancora piu' lento, perche' le sue raffiche sono ogni 12 ore.
+    pub fn sample_rate(self) -> f64 {
+        match self {
+            Scenario::Bursts => 0.02,
+            _ => 0.05,
+        }
+    }
+
     pub fn parse(s: &str) -> Option<Scenario> {
         Scenario::ALL.into_iter().find(|c| c.name() == s)
     }
