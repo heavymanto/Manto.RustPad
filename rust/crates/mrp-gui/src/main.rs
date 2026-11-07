@@ -191,6 +191,29 @@ fn run() -> i32 {
                 }
             }
             // uso da sviluppatore: MRPG_AZIONE=intervallo|formato apre il dialogo del tempo (per le schermate)
+            // MRPG_AZIONE puo' elencare piu' azioni separate da virgole: i nomi dei comandi (edit, view, tail, find, replace, goto, ...)
+            for nome in std::env::var("MRPG_AZIONE").unwrap_or_default().split(',') {
+                use mrp_tui::commands::Cmd;
+                let comando = match nome.trim() {
+                    "edit" => Some(Cmd::EditMode),
+                    "view" => Some(Cmd::ViewMode),
+                    "tail" => Some(Cmd::Follow),
+                    "modi" => Some(Cmd::ModeMenu),
+                    "find" => Some(Cmd::Find),
+                    "replace" => Some(Cmd::Replace),
+                    "goto" => Some(Cmd::Goto),
+                    "colonne" => Some(Cmd::ColumnMode),
+                    "salti" => Some(Cmd::NavBar),
+                    "aiuto" => Some(Cmd::Help),
+                    "codifica" => Some(Cmd::Encoding),
+                    "nuovo" => Some(Cmd::New),
+                    "salva_come" => Some(Cmd::SaveAs),
+                    _ => None,
+                };
+                if let Some(c) = comando {
+                    finestra.azione(c);
+                }
+            }
             match std::env::var("MRPG_AZIONE").as_deref() {
                 Ok("intervallo") => finestra.azione(mrp_tui::commands::Cmd::TimeRange),
                 Ok("formato") => finestra.azione(mrp_tui::commands::Cmd::TimeMask),
@@ -221,9 +244,15 @@ fn run() -> i32 {
                 }
                 _ => {}
             }
-            // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce
+            // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce (MRPG_ATTESA_MS: non prima di tanto)
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
-                Some(p) => finestra.con_scatto(p.into()),
+                Some(p) => {
+                    let attesa = std::env::var("MRPG_ATTESA_MS")
+                        .ok()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(0);
+                    finestra.con_scatto(p.into()).con_attesa_scatto(attesa)
+                }
                 None => finestra,
             }))
         }),

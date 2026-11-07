@@ -74,6 +74,8 @@ pub struct Finestra {
     scatto: Option<std::path::PathBuf>,
     giri: u32,
     scatto_chiesto: bool,
+    /// Non prima di quando si scatta (uso da sviluppatore: `MRPG_ATTESA_MS`, per vedere un lavoro lungo a meta').
+    scatto_dopo: Instant,
     /// Dove sta la griglia nell'ultimo disegno: l'angolo, la cella, colonne e righe (serve a portare il mouse alle celle).
     geometria: Option<(Pos2, Vec2, u16, u16)>,
     /// Il tasto sinistro e' premuto (si sta trascinando).
@@ -190,6 +192,7 @@ impl Finestra {
             scatto: None,
             giri: 0,
             scatto_chiesto: false,
+            scatto_dopo: Instant::now(),
             geometria: None,
             premuto: false,
             selettore: Box::new(|_| None),
@@ -246,6 +249,12 @@ impl Finestra {
     /// disegno senza una persona davanti.
     pub fn con_scatto(mut self, percorso: std::path::PathBuf) -> Finestra {
         self.scatto = Some(percorso);
+        self
+    }
+
+    /// Lo scatto aspetta almeno `ms` millisecondi dall'avvio (per vedere, per esempio, la barra di avanzamento di un file grande).
+    pub fn con_attesa_scatto(mut self, ms: u64) -> Finestra {
+        self.scatto_dopo = Instant::now() + Duration::from_millis(ms);
         self
     }
 
@@ -1294,9 +1303,13 @@ impl Finestra {
         let cella = Vec2::new(larga.max(1.0), alta.ceil().max(1.0));
         self.file_trascinato(ctx);
         self.giri += 1;
-        if self.scatto.is_some() && self.giri == 8 && !self.scatto_chiesto {
-            self.scatto_chiesto = true;
-            ctx.send_viewport_cmd(ViewportCommand::Screenshot(egui::UserData::default()));
+        if self.scatto.is_some() && self.giri >= 8 && !self.scatto_chiesto {
+            if Instant::now() >= self.scatto_dopo {
+                self.scatto_chiesto = true;
+                ctx.send_viewport_cmd(ViewportCommand::Screenshot(egui::UserData::default()));
+            } else {
+                ctx.request_repaint_after(Duration::from_millis(100));
+            }
         }
         let tocco = self.eventi(ctx, cella.y);
         if tocco {
