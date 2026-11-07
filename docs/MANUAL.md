@@ -177,6 +177,8 @@ status row as the terminal.
 #### M-03 Typing and editing
 - **Entry:** in EDIT: characters, `Enter`, `Tab`, `Backspace`, `Delete`; selection with `Shift`+arrows or the mouse; `Ctrl+C`/`X`/`V`.
 - **What it does:** changes the document in memory (see C2). A selection is replaced by what you type.
+  Copy (`Ctrl+C`) also puts the text in the system clipboard (through OSC 52, so it works over SSH). Paste (`Ctrl+V`) uses the program's own
+  clipboard; to paste text from another program use the terminal's own paste (`Ctrl+Shift+V` in Windows Terminal, which sends it as typed text).
 - **Expected response:** the status row shows ` *` after the file name; the text changes at once.
 - **Must not:** touch the file on disk before a save. In VIEW, typing is refused with the hint **"read-only: press Alt+E to edit"** *(observed)*.
 - **Auto tests:** yes (`app_edit`, `app_select`, `app_multibyte`).
@@ -635,21 +637,21 @@ only "remembered" item of this chapter that reaches the settings file.
 
 ## 4. UX test sheet
 
-One row per card. `Terminal` is the result of the terminal pass of 2026-11-07 (about 130 scenarios driven on the installed program); `Window` is the result of the window passes of the same day: screenshots produced by the developer hooks of `mrp-gui`, then the real window driven with keyboard and mouse. A defect that applies to the whole window: with `--theme light` and a file with recognised times, the timeline panel stays dark.
+One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 (about 130 scenarios driven on the installed program with simulated keys, then about 45 with a real console, keyboard and mouse); `Window` is the result of the window passes of the same day: screenshots produced by the developer hooks of `mrp-gui`, then the real window driven with keyboard and mouse. A defect that applies to the whole window: with `--theme light` and a file with recognised times, the timeline panel stays dark.
 
 | ID | Feature | Terminal | Window | Auto tests |
 |---|---|---|---|---|
 | N-01 | Open from the command line | NOTE: cut footer under 40 columns; mixed-language error; `--help` lists 4 of 6 themes | OK | yes |
 | N-02 | Open another file, new document | OK | NOTE: the native Open / Save as dialogs start in the working folder | yes |
-| N-03 | Move around | OK | OK (wheel, scrollbar drag, timeline click, mouse selection) | yes |
+| N-03 | Move around | OK (also with the real mouse: wheel, drag, jump-bar buttons) | OK (wheel, scrollbar drag, timeline click, mouse selection) | yes |
 | N-04 | Go to (line, @byte, %percent, ~time) | NOTE: errors do not say what is valid | OK | yes |
 | N-05 | Jump pages, jump bar | OK | OK | yes |
 | N-06 | Line numbers, line index | DEFECT: dialog button says "Replace"; long note cut | DEFECT: `Alt+X`, shown in the menu, does nothing in the window | yes |
-| N-07 | Tabs | DEFECT: closing a tab says "Save and quit" | OK | yes |
+| N-07 | Tabs | DEFECT: closing a tab says "Save and quit"; clicking a tab works | OK | yes |
 | N-08 | Progress of long jobs | OK (6 GB) | OK (5.6 GB: bar, bytes, speed, ETA) | yes |
 | M-01 | The three modes | OK | OK | yes |
-| M-02 | The mode menu | OK | OK (click on the mode word) | yes |
-| M-03 | Typing and editing | OK | OK | yes |
+| M-02 | The mode menu | NOTE: the click opens the menu but the entries cannot be clicked | OK (click on the mode word) | yes |
+| M-03 | Typing and editing | NOTE: `Ctrl+V` pastes only text copied inside the program ("clipboard is empty") | OK | yes |
 | M-04 | Undo and redo | OK | OK (Ctrl+Z removes the whole typed word) | yes |
 | M-05 | Save and Save as | DEFECT: Save as shows the internal Windows path prefix and a ~20-char field | OK: "saved: NAME", the title loses the `*`; NOTE: the dialog starts in the working folder | yes |
 | M-06 | Discard changes | DEFECT: "This cannot be undone" is cut off | OK (full text, wrapped) | yes |
@@ -658,7 +660,7 @@ One row per card. `Terminal` is the result of the terminal pass of 2026-11-07 (a
 | T-01 | Time format of the lines | OK | NOTE: `Alt+O` does nothing in the window (the Filters window works) | yes |
 | T-02 | Go to a time | NOTE: "no line with that time" on a file without times | not tested | yes |
 | T-03 | Time range | DEFECT: typing appends to the prefilled "From"; garbage accepted | DEFECT: `Alt+I`, shown in the menu, does nothing; the window itself is fine | yes |
-| T-04 | Timeline | NOTE: silent when too narrow; mentions a menu the terminal lacks | DEFECT: `Alt+B`, shown in the menu, does nothing; click and drag work | yes |
+| T-04 | Timeline | NOTE: silent when too narrow; mentions a menu the terminal lacks; click on the panel works | DEFECT: `Alt+B`, shown in the menu, does nothing; click and drag work | yes |
 | T-05 | Timeline step | NOTE: silent when the timeline is off | NOTE: `Alt+P` does nothing in the window | yes |
 | T-06 | Level filter | NOTE: silent when the timeline is off | NOTE: `Alt+S` does nothing in the window | yes |
 | T-07 | Log colours | NOTE: no feedback; colours not visible in the dump | OK | yes |
