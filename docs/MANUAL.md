@@ -76,7 +76,7 @@ status row as the terminal.
 - **Expected response:** first screen immediately, mode `VIEW`, position `Ln 1  Col 1  byte 0  0%`, file name and size on the right.
   While the index is being built: `indexing N%` on the right, `Ln ?` on the left, and a blank line-number gutter *(observed on a 6 GB file)*.
 - **Must not:** load the whole file; freeze the screen while indexing; ask anything.
-- **Limits and edge cases:** a missing file gives an error and no window; an empty file opens with 0 lines; a file that is one single
+- **Limits and edge cases:** **on Windows, while a file is open here, other programs can append to it, rename it or delete it, but cannot truncate it** (opening it for writing with truncation, or shrinking it, fails with a system error: the file is memory-mapped). A service that restarts its log from zero will get that error while someone is viewing the log; appending, rotating by rename and deleting are fine (tested). A missing file gives an error and no window; an empty file opens with 0 lines; a file that is one single
   huge line still scrolls (rows are cut at 128 KiB); a file of 64 MiB or more shows a progress bar after 2 s (N-08).
 - **Auto tests:** yes (`app_view`, `cli`, `pausa_indice`, `utf16_core`...).
 - **UX check:** `[ ]`
@@ -509,7 +509,7 @@ go to by byte (`@`) or percentage (`%`) works at once. Without the index, moveme
 encoding) and when you turn the index back on. In TAIL mode a grown file *extends* the index over the new bytes instead of rebuilding it.
 The newline shape (one byte, `CR`, or an aligned 2- or 4-byte unit for UTF-16/32) is detected from the first 64 KiB.
 
-**What can go wrong.** A file that cannot be opened by the background job gives "index failed" with the system error and no
+**What can go wrong.** (On Windows the memory mapping also prevents other programs from truncating the file while it is open here; they can append, rename and delete.) A file that cannot be opened by the background job gives "index failed" with the system error and no
 numbers, but everything else keeps working. A file shortened while indexing makes the affected block be redone through the
 mapping. A file truncated by another process under a live mapping can raise an access error from the system: a known and accepted
 risk of memory mapping.
