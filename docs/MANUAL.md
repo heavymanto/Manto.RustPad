@@ -355,6 +355,35 @@ status row as the terminal.
 - **Auto tests:** yes (`filter_view`, `filters_app`).
 - **UX check:** `[ ]`
 
+### 2.4 Encodings and line endings
+
+#### E-01 Encoding: detection and change (`F9`)
+- **Entry:** automatic on open; `F9` (window: View > Encoding…) opens the list of 64 encodings with the current one highlighted; on the command line `--encoding NAME`.
+- **What it does:** the file's bytes are never changed: the encoding is only how they are read. Detection looks at the first 64 KiB: a BOM (UTF-32, UTF-16, UTF-8), UTF-16 without BOM (by where the zero bytes are), valid UTF-8, and otherwise falls back to windows-1252. `F9` re-reads the same bytes with another encoding on the spot.
+- **Expected response:** the text re-reads in place and the status row names the encoding (nothing is shown for plain UTF-8). Observed on 28 test files (UTF-8 with and without BOM, UTF-16/32 both byte orders, 14 single-byte code pages, 7 DOS and Mac pages, Shift-JIS, EUC-JP, GBK, GB18030, Big5, EUC-KR): with `--encoding` all 28 read exactly; with detection, the Unicode ones with BOM, UTF-8, UTF-16 without BOM and windows-1252/ISO-8859-1 are right, and every other 8-bit or Asian file opens as windows-1252 (garbled but intact), and **choosing the right encoding in `F9` fixes the text in all 21 cases tried**.
+- **Must not:** change the file; lose or hide a byte that is not valid (it shows as one replacement character per byte and is written back unchanged).
+- **Limits and edge cases:** switching between UTF-16/32 and the other encodings is refused while the document is modified ("save before switching to/from UTF-16/32"). The status row does not say that the encoding was *guessed*.
+- **Auto tests:** yes (`app_encoding`, `app_utf16`, `app_utf32`, `app_multibyte`, core encoding tests).
+- **UX check:** `[ ]`
+
+#### E-02 Save as with another encoding (`Ctrl+Shift+S`)
+- **Entry:** `Ctrl+Shift+S`: first the path, then a list of encodings (the current one highlighted, `Tab` = write a BOM, `Enter` saves).
+- **What it does:** writes the whole document (unsaved edits included) in the chosen encoding, block by block, to a temporary file renamed over the target.
+- **Expected response:** "Saved NAME as ENCODING"; the document becomes the new file. Observed: 17 conversions from UTF-8 (UTF-16/32 both orders with and without BOM, ISO and Windows code pages, KOI8-R, CP866, Shift-JIS, EUC-JP, GBK, Big5, EUC-KR) gave **byte-exact files** with the right BOM and read back correctly; cp1251 → UTF-8 → cp1251 gave the identical file. A character the target cannot hold stops the save with a precise message ("Cannot write U+1F600 in windows-1252 (at byte 5): nothing was saved") and no file is created.
+- **Must not:** write a partial file; touch the source.
+- **Limits and edge cases:** the path field is pre-filled with the folder of the file: type only the new name (typing a full path appends to it and fails with the raw system error 123).
+- **Auto tests:** yes (`save_encoding`).
+- **UX check:** `[ ]`
+
+#### E-03 Editing keeps the encoding and the line ending
+- **Entry:** automatic.
+- **What it does:** what you type is encoded in the file's own encoding; the BOM stays; the line ending (LF, CRLF, CR) is detected from the first 64 KiB and `Enter` writes the same style.
+- **Expected response:** observed: typing `é`, `ж`, `あ`, `好`, `가` in windows-1252, windows-1251, UTF-16, Shift-JIS, GBK and EUC-KR files and saving gave exactly the right bytes; a BOM and invalid UTF-8 bytes are kept; typing a character the encoding cannot hold is refused at once ("cannot write '日' in windows-1252") and nothing is inserted.
+- **Must not:** break a line ending.
+- **Known defect (found 2026-11-07, not fixed):** in a **CRLF** file the cursor can sit between the `\r` and the `\n`, where `End`, the third `Right`, and `Shift+End` leave it. The status row shows the same column as after the last character (`Col 3`), but a few bytes further (`byte 3` instead of `byte 2`). Typing, `Enter`, `Backspace`, `Delete`, replacing a selection or cutting there leaves a lone `\r` or a bare `\n` in the file: for example `ab\r\ncd\r\n` + `End` + `X` saves `ab\rX\ncd\r\n`. Same in UTF-16 CRLF files. LF files are not affected.
+- **Auto tests:** yes (`app_lineending`, `eol_option`, `app_bom`), none of which covers editing at the end of a CRLF line.
+- **UX check:** `[ ]` — DEFECT (data integrity).
+
 ---
 
 ## 3. Under the hood
@@ -667,3 +696,6 @@ One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 
 | F-01 | Find | NOTE: raw regex error text | NOTE: label says "(exact bytes)" | yes |
 | F-02 | Replace | NOTE: switches to EDIT silently; hint cut | DEFECT: after the preview, Enter does not apply; only the button does | yes |
 | F-03 | Line filter | NOTE: raw regex error text | OK | yes |
+| E-01 | Encoding: detection and change | OK: 28/28 explicit, 21/21 fixed with F9; NOTE: a guess is not flagged | not tested | yes |
+| E-02 | Save as with another encoding | OK: 17/17 byte-exact; NOTE: pre-filled path with `\\?\` | not tested | yes |
+| E-03 | Editing keeps encoding and line ending | DEFECT: CRLF broken by typing at the end of a line | not tested | yes |
