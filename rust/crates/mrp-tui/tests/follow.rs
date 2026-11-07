@@ -178,12 +178,28 @@ fn editing_and_following_do_not_go_together() {
     let (mut a, p) = app();
     a.handle_key(k(KeyCode::F(4)));
     assert!(a.is_edit());
+    // una modifica da salvare: Alt+F non parte, si resta in modifica e si dice cosa fare
+    a.handle_key(k(KeyCode::Char('x')));
+    assert!(a.is_modified());
     a.handle_key(alt_f());
-    assert!(!a.follow(), "in modifica non si segue");
+    assert!(!a.follow(), "con delle modifiche da salvare non si segue");
+    assert!(a.is_edit(), "e si resta in modifica");
+    // F4 torna in lettura, le modifiche restano da salvare: ancora niente tail
     a.handle_key(k(KeyCode::F(4)));
     assert!(!a.is_edit());
     a.handle_key(alt_f());
-    assert!(a.follow());
+    assert!(!a.follow(), "un file modificato non si segue");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn from_editing_without_changes_alt_f_goes_straight_to_the_tail() {
+    let (mut a, p) = app();
+    a.handle_key(k(KeyCode::F(4)));
+    assert!(a.is_edit() && !a.is_modified());
+    a.handle_key(alt_f());
+    assert!(a.follow(), "senza modifiche da salvare si passa al tail");
+    assert!(!a.is_edit());
     // accendere la modifica ferma il seguire
     a.handle_key(k(KeyCode::F(4)));
     assert!(a.is_edit());

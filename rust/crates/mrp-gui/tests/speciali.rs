@@ -93,11 +93,14 @@ fn alt_f_toggles_following_in_the_window_and_the_status_says_so() {
     assert!(f.app().status().follow);
     giro(&mut f, &ctx, vec![alt_f]);
     assert!(!f.app().follow());
-    let vista = MENU
-        .iter()
-        .find(|(t, _)| *t == "gui.menu.log")
-        .map(|(_, v)| *v)
-        .unwrap();
-    assert!(vista.contains(&Some(Cmd::Follow)));
+    // il tail e' una delle tre modalita' d'uso: sta nel menu Modifica, non nel menu Log
+    let voci = |titolo: &str| {
+        MENU.iter()
+            .find(|(t, _)| *t == titolo)
+            .map(|(_, v)| *v)
+            .unwrap()
+    };
+    assert!(voci("gui.menu.edit").contains(&Some(Cmd::Follow)));
+    assert!(!voci("gui.menu.log").contains(&Some(Cmd::Follow)));
     let _ = std::fs::remove_file(p);
 }

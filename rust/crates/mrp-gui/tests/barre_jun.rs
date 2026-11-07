@@ -75,7 +75,7 @@ fn il_messaggio_e_il_lavoro_insieme_non_si_toccano() {
         vec![
             pezzo("searching 50%", None),
             pezzo("FORMAT", Some(Cmd::TimeMask)),
-            pezzo("EDIT", Some(Cmd::EditMode)),
+            pezzo("EDIT", Some(Cmd::ModeMenu)),
             pezzo("COL", Some(Cmd::ColumnMode)),
             spento("\u{b6}", Cmd::Special),
             spento("LOG", Cmd::LogColors),
@@ -182,7 +182,7 @@ fn i_pezzi_di_destra_della_finestra_vengono_dallo_stato() {
         f.stato_disegnato().unwrap().destra,
         vec![
             pezzo("FORMAT", Some(Cmd::TimeMask)),
-            pezzo("VIEW", Some(Cmd::EditMode)),
+            pezzo("VIEW", Some(Cmd::ModeMenu)),
             spento("\u{b6}", Cmd::Special),
             spento("LOG", Cmd::LogColors),
             pezzo("utf-8", Some(Cmd::Encoding)),

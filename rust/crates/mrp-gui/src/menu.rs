@@ -3,6 +3,7 @@
 //! La struttura (`MENU`, `voce_di`) e' dati puri, quindi provabile senza finestra; `disegna` la mostra con egui.
 
 use eframe::egui::{self, Ui};
+use mrp_tui::app::Modo;
 use mrp_tui::commands::{self, Cmd};
 use mrp_tui::workspace::Workspace;
 
@@ -52,8 +53,11 @@ const FILE: &[Option<Cmd>] = &[
     Some(Cmd::Quit),
 ];
 
+/// Le tre modalita' d'uso (lettura, modifica, tail) a mutua esclusione, una spunta sulla corrente.
 const MODIFICA: &[Option<Cmd>] = &[
+    Some(Cmd::ViewMode),
     Some(Cmd::EditMode),
+    Some(Cmd::Follow),
     None,
     Some(Cmd::Undo),
     Some(Cmd::Redo),
@@ -88,10 +92,9 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::ZoomReset),
 ];
 
-/// Gli strumenti per i log: seguire la coda, colorare, i filtri (la finestra Filtri comprende anche il filtro per testo: non c'e'
-/// una voce a parte), la timeline.
+/// Gli strumenti per i log: colorare, i filtri (la finestra Filtri comprende anche il filtro per testo: non c'e' una voce a
+/// parte), la timeline. Il tail e' una delle tre modalita' d'uso: sta nel menu Modifica.
 const LOG: &[Option<Cmd>] = &[
-    Some(Cmd::Follow),
     Some(Cmd::LogColors),
     None,
     Some(Cmd::TimeRange),
@@ -121,6 +124,8 @@ pub fn acceso(ws: &Workspace, cmd: Cmd) -> Option<bool> {
         Cmd::LineNumbers => Some(a.line_numbers()),
         Cmd::LineIndex => Some(ws.index_enabled()),
         Cmd::LogColors => Some(a.log_colors()),
+        Cmd::ViewMode => Some(a.work_mode() == Modo::View),
+        Cmd::EditMode => Some(a.is_edit()),
         Cmd::Follow => Some(a.follow()),
         Cmd::TimeFilter => Some(a.time_filter_on()),
         Cmd::Timeline => Some(a.timeline_on()),

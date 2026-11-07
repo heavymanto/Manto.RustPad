@@ -97,10 +97,8 @@ fn on_a_short_screen_the_help_scrolls_and_always_shows_how_to_close() {
     a.handle_key(k(KeyCode::Up));
     let su = schermo(&mut a, 100, 24);
     assert_ne!(su, prima);
-    assert!(
-        su.contains("start / end of the file") || su.contains("F4"),
-        "{su}"
-    );
+    // la riga che prima era appena sopra la finestra (undo / redo) torna in cima
+    assert!(su.contains("undo / redo"), "{su}");
     assert!(!su.contains("Arrows PgUp PgDn Home End"), "{su}");
     a.handle_key(k(KeyCode::End));
     // Home: di nuovo in cima. PgGiu salta di una pagina (20 righe) fino in fondo, PgSu torna in cima
@@ -219,7 +217,7 @@ fn the_descriptions_in_the_help_start_all_at_the_same_column() {
         let byte = riga.find(&descrizione).unwrap();
         colonne.push((riga[..byte].chars().count(), tasti));
     }
-    assert_eq!(colonne.len(), 26);
+    assert_eq!(colonne.len(), 27);
     let prima = colonne[0].0;
     for (c, tasti) in &colonne {
         assert_eq!(

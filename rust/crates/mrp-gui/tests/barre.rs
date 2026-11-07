@@ -71,7 +71,7 @@ fn the_status_text_in_english() {
         t.destra,
         vec![
             pezzo("FORMAT", Some(Cmd::TimeMask)),
-            pezzo("VIEW", Some(Cmd::EditMode)),
+            pezzo("VIEW", Some(Cmd::ModeMenu)),
             spento("\u{b6}", Cmd::Special),
             spento("LOG", Cmd::LogColors),
             pezzo("UTF-8", Some(Cmd::Encoding)),
@@ -133,7 +133,7 @@ fn edit_mode_column_mode_and_line_ending_show_up() {
         t.destra,
         vec![
             pezzo("FORMAT", Some(Cmd::TimeMask)),
-            pezzo("EDIT", Some(Cmd::EditMode)),
+            pezzo("EDIT", Some(Cmd::ModeMenu)),
             pezzo("COL", Some(Cmd::ColumnMode)),
             spento("\u{b6}", Cmd::Special),
             spento("LOG", Cmd::LogColors),
@@ -176,7 +176,7 @@ fn background_work_comes_first_on_the_right() {
         assert_eq!(t.destra.len(), 8, "{atteso}");
         assert_eq!(t.destra[0], pezzo(atteso, None));
         assert_eq!(t.destra[1], pezzo("FORMAT", Some(Cmd::TimeMask)));
-        assert_eq!(t.destra[2], pezzo("VIEW", Some(Cmd::EditMode)));
+        assert_eq!(t.destra[2], pezzo("VIEW", Some(Cmd::ModeMenu)));
     }
 }
 
@@ -206,7 +206,7 @@ fn the_status_speaks_the_chosen_language() {
     let t = testi_stato(&info(), &Catalog::with(it));
     assert_eq!(t.sinistra, "Rg 3 / 120   Col 4   byte 23   2%");
     assert_eq!(t.destra[0], pezzo("FORMATO", Some(Cmd::TimeMask)));
-    assert_eq!(t.destra[1], pezzo("LETTURA", Some(Cmd::EditMode)));
+    assert_eq!(t.destra[1], pezzo("LETTURA", Some(Cmd::ModeMenu)));
 }
 
 #[test]
@@ -411,16 +411,29 @@ fn clicking_the_encoding_piece_opens_the_encoding_menu() {
 }
 
 #[test]
-fn clicking_the_mode_piece_switches_between_view_and_edit() {
-    let (mut f, ctx, p) = finestra(b"abc\n", false);
+fn clicking_the_mode_piece_opens_the_menu_of_the_three_modes() {
+    use mrp_tui::app::Modo;
+    let (mut f, ctx, p) = finestra(
+        b"abc
+", false,
+    );
     disegna(&mut f, &ctx);
-    assert!(!f.app().is_edit());
-    let pos = centro_del_pezzo(&f, Cmd::EditMode);
+    assert_eq!(f.app().work_mode(), Modo::View);
+    let pos = centro_del_pezzo(&f, Cmd::ModeMenu);
     clic(&mut f, &ctx, pos);
-    assert!(f.app().is_edit());
+    assert_eq!(f.app().dialog_kind(), Some(DialogKind::Mode));
+    // la scelta di adesso e' evidenziata (VIEW), Giu e Invio portano alla modifica
+    assert_eq!(f.app().menu_index(), Some(0));
+    giro(&mut f, &ctx, vec![tasto(Key::ArrowDown), tasto(Key::Enter)]);
     disegna(&mut f, &ctx);
-    let pos = centro_del_pezzo(&f, Cmd::EditMode);
+    assert_eq!(f.app().work_mode(), Modo::Edit);
+    // di nuovo il menu: parte da EDIT; il tail dalla modifica (senza modifiche da salvare) passa direttamente
+    let pos = centro_del_pezzo(&f, Cmd::ModeMenu);
     clic(&mut f, &ctx, pos);
+    assert_eq!(f.app().menu_index(), Some(1));
+    giro(&mut f, &ctx, vec![tasto(Key::ArrowDown), tasto(Key::Enter)]);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.app().work_mode(), Modo::Tail);
     assert!(!f.app().is_edit());
     let _ = std::fs::remove_file(p);
 }

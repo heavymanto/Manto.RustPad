@@ -18,6 +18,10 @@ pub enum Cmd {
     CloseTab,
     Quit,
     EditMode,
+    /// Sola lettura (VIEW): spegne la modifica e il tail.
+    ViewMode,
+    /// Il menu dei tre modi (VIEW, EDIT, TAIL).
+    ModeMenu,
     Undo,
     Redo,
     Cut,
@@ -149,6 +153,20 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::F(4), NIENTE),
         "F4",
         "edit",
+    ),
+    comando(
+        Cmd::ViewMode,
+        "gui.view_mode",
+        tasto(KeyCode::Char('v'), ALT),
+        "Alt+V",
+        "view",
+    ),
+    comando(
+        Cmd::ModeMenu,
+        "gui.mode_menu",
+        tasto(KeyCode::Char('m'), ALT),
+        "Alt+M",
+        "mode",
     ),
     comando(
         Cmd::Undo,

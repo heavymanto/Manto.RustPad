@@ -3,15 +3,18 @@
 
 mod da_selezione;
 pub mod dialogs;
+mod modo;
 mod tempo;
 mod tempo_esempio;
 mod tempo_finestra;
 pub(crate) mod timeline_pannello;
+pub use modo::Modo;
 pub use tempo::{SourceKind, TimeSource, TimeSuggestion};
 pub use tempo_esempio::{ExampleCandidate, ExampleOutcome, ExampleProblem};
 pub use tempo_finestra::{CalendarInfo, Day, FilterConditions, Month};
 pub mod timeline;
 
+use self::modo::MODI_VOCI;
 use self::timeline_pannello::{TIMELINE_LEVELS_CHOICES, TIMELINE_STEP_CHOICES};
 use crate::settings::{Settings, JUMP_MAX, JUMP_MIN, JUMP_PAGES};
 use crate::theme::ThemeId;
@@ -446,6 +449,8 @@ pub enum DialogKind {
     TimelineStep,
     /// Alt+E: il menu dei livelli da mostrare (apre la vista con le sole righe di quei livelli).
     TimelineLevels,
+    /// Alt+M (o un clic sul modo nella riga di stato): il menu dei tre modi, VIEW, EDIT e TAIL.
+    Mode,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -1323,6 +1328,9 @@ impl App {
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // Alt+F: segui la coda del file (come `tail -f`)
             KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
+            // Alt+V: sola lettura (VIEW); Alt+M: il menu dei tre modi
+            KeyCode::Char('v') | KeyCode::Char('V') if alt && !ctrl => self.set_view(),
+            KeyCode::Char('m') | KeyCode::Char('M') if alt && !ctrl => self.open_mode_menu(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
             KeyCode::Char('b') | KeyCode::Char('B') if alt && !ctrl => self.toggle_timeline(),
             // Alt+P: il menu del passo dei periodi della timeline (automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno)
@@ -1362,6 +1370,10 @@ impl App {
 
     fn handle_mouse_at_inner(&mut self, m: MouseEvent, adesso: Instant) {
         self.seal_history();
+        // il modo nella riga di stato apre il menu dei modi
+        if self.mode_status_mouse(m) {
+            return;
+        }
         // il pannello della timeline ha i suoi clic: il testo non li vede
         if self.timeline_panel_mouse(m) {
             return;
@@ -1692,6 +1704,7 @@ impl App {
             // i menu della timeline partono dalla scelta di adesso
             DialogKind::TimelineStep => self.menu_index = self.timeline_step_menu_index(),
             DialogKind::TimelineLevels => self.menu_index = self.timeline_levels_menu_index(),
+            DialogKind::Mode => self.menu_index = self.mode_menu_index(),
             DialogKind::Help => self.help_scroll = 0,
             DialogKind::Goto => self.goto_text.clear(),
             DialogKind::Jumps => {
@@ -1755,7 +1768,8 @@ impl App {
             DialogKind::Theme
             | DialogKind::Lang
             | DialogKind::TimelineStep
-            | DialogKind::TimelineLevels => match key.code {
+            | DialogKind::TimelineLevels
+            | DialogKind::Mode => match key.code {
                 KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
                 KeyCode::Down => {
                     if self.menu_index + 1 < self.menu_len() {
@@ -2017,6 +2031,7 @@ impl App {
             Some(DialogKind::Encoding) | Some(DialogKind::SaveEncoding) => Encoding::all().len(),
             Some(DialogKind::TimelineStep) => TIMELINE_STEP_CHOICES,
             Some(DialogKind::TimelineLevels) => TIMELINE_LEVELS_CHOICES,
+            Some(DialogKind::Mode) => MODI_VOCI,
             _ => 0,
         }
     }
@@ -2062,6 +2077,11 @@ impl App {
             Some(DialogKind::TimelineLevels) => {
                 self.dialog = None;
                 self.timeline_levels_choose(self.menu_index);
+            }
+            // il menu dei modi: la scelta vale subito
+            Some(DialogKind::Mode) => {
+                self.dialog = None;
+                self.mode_menu_choose(self.menu_index);
             }
             _ => {}
         }
@@ -3556,7 +3576,8 @@ impl App {
             | Some(DialogKind::Encoding)
             | Some(DialogKind::SaveEncoding)
             | Some(DialogKind::TimelineStep)
-            | Some(DialogKind::TimelineLevels) => Some(self.menu_index),
+            | Some(DialogKind::TimelineLevels)
+            | Some(DialogKind::Mode) => Some(self.menu_index),
             _ => None,
         }
     }
@@ -5004,9 +5025,17 @@ impl App {
             self.flash = Some(self.cat.t("flash.follow_off").to_string());
             return;
         }
-        if self.edit {
+        // con delle modifiche non salvate il tail non parte (guarda solo il file: le butterebbe via) e si resta com'e';
+        // senza, dalla modifica si passa direttamente
+        if self.is_modified() {
             self.flash = Some(self.cat.t("flash.follow_edit").to_string());
             return;
+        }
+        if self.edit {
+            self.toggle_edit();
+            if self.edit {
+                return;
+            }
         }
         self.follow = true;
         self.follow_checked = Instant::now();

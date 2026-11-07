@@ -143,7 +143,7 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
                 "mode.view"
             })
             .to_string(),
-        comando: Some(Cmd::EditMode),
+        comando: Some(Cmd::ModeMenu),
         spento: false,
         tip: None,
     });

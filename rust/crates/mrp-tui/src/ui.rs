@@ -16,13 +16,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l27` (senza la 21) (l'ultima e' sempre Esc, `help.l10`). L'aiuto
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l28` (senza la 21) (l'ultima e' sempre Esc, `help.l10`). L'aiuto
 /// scorre quando lo schermo e' piu' basso (`App::help_scroll`).
-pub(crate) const HELP_KEYS: [&str; 26] = [
+pub(crate) const HELP_KEYS: [&str; 27] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l18", "help.l19", "help.l20", "help.l22", "help.l23", "help.l24", "help.l27", "help.l25",
-    "help.l26", "help.l10",
+    "help.l18", "help.l19", "help.l20", "help.l22", "help.l23", "help.l24", "help.l27", "help.l28",
+    "help.l25", "help.l26", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).
@@ -422,19 +422,8 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     if flash.is_none() && app.line_ending() != mrp_core::lineending::LineEnding::Lf {
         dopo.push(app.line_ending().label().to_string());
     }
-    let mode_key = if app.is_edit() {
-        "mode.edit"
-    } else if app.follow() {
-        "mode.tail"
-    } else {
-        "mode.view"
-    };
-    let mut modo = app.catalog().t(mode_key).to_string();
-    // La modalita' colonna si dice dopo il modo e con un solo spazio in mezzo ("VIEW COL" / "EDIT COL").
-    if app.column_mode() {
-        modo.push(' ');
-        modo.push_str(app.catalog().t("mode.column"));
-    }
+    // Il modo, e la modalita' colonna dopo con un solo spazio in mezzo ("VIEW COL" / "EDIT COL").
+    let modo = app.mode_text();
     let mode_style = if app.is_edit() {
         t.mode_edit
     } else {
@@ -783,10 +772,12 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             }
         }
         // I menu della timeline: le voci con la scelta evidenziata e, sotto, il suggerimento dei menu.
-        DialogKind::TimelineStep | DialogKind::TimelineLevels => {
+        DialogKind::TimelineStep | DialogKind::TimelineLevels | DialogKind::Mode => {
             let selezione = app.menu_index().unwrap_or(0);
             let (titolo, voci) = if kind == DialogKind::TimelineStep {
                 ("menu.timeline_step.title", app.timeline_step_menu_items())
+            } else if kind == DialogKind::Mode {
+                ("menu.mode.title", app.mode_menu_items())
             } else {
                 (
                     "menu.timeline_levels.title",

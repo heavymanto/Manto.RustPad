@@ -40,6 +40,8 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("columns", "📊"),
         ("special", "¶"),
         ("follow", "↓"),
+        ("view", "👁"),
+        ("mode", "⇄"),
         ("log_colors", "≡"),
         ("filter", "▽"),
         ("line_numbers", "#"),
@@ -92,7 +94,13 @@ fn the_toolbar_groups() {
             vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
             vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
             vec![Cmd::Timeline, Cmd::TimeFilter],
-            vec![Cmd::EditMode, Cmd::Follow, Cmd::ColumnMode, Cmd::NavBar],
+            vec![
+                Cmd::ViewMode,
+                Cmd::EditMode,
+                Cmd::Follow,
+                Cmd::ColumnMode,
+                Cmd::NavBar
+            ],
             vec![Cmd::ZoomOut, Cmd::ZoomIn],
         ]
     );
@@ -108,6 +116,7 @@ fn a_tooltip_is_the_name_and_the_shortcut() {
         (Cmd::Find, "Find… (F3)"),
         (Cmd::Replace, "Replace… (F4)"),
         (Cmd::EditMode, "Edit mode (F12)"),
+        (Cmd::ViewMode, "View mode (read-only) (Alt+V)"),
         (Cmd::NavBar, "Page-jump bar (Ctrl+B)"),
         (Cmd::ZoomIn, "Zoom in (Ctrl++)"),
         (Cmd::Home, "Go to start (Ctrl+Home)"),
@@ -350,6 +359,7 @@ fn buttons_are_grey_when_the_command_makes_no_sense_and_toggles_light_up() {
         Cmd::Find,
         Cmd::Replace,
         Cmd::Goto,
+        Cmd::ViewMode,
         Cmd::EditMode,
         Cmd::Follow,
         Cmd::ColumnMode,
@@ -360,6 +370,8 @@ fn buttons_are_grey_when_the_command_makes_no_sense_and_toggles_light_up() {
     for c in [Cmd::EditMode, Cmd::Follow, Cmd::ColumnMode, Cmd::NavBar] {
         assert!(!pulsante(&f, c).1, "{c:?} parte non premuto");
     }
+    // si parte in sola lettura: il selettore dei modi ha acceso VIEW
+    assert!(pulsante(&f, Cmd::ViewMode).1, "VIEW parte premuto");
     // F4: modifica; un carattere: salva e annulla si accendono; F8: colonna; Ctrl+B: salti
     giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
@@ -489,20 +501,49 @@ fn the_jump_buttons_jump_by_pages_of_the_grid() {
     let _ = std::fs::remove_file(p);
 }
 
+/// Quali dei tre pulsanti dei modi sono premuti (VIEW, EDIT, TAIL).
+fn modi_premuti(f: &Finestra) -> [bool; 3] {
+    [Cmd::ViewMode, Cmd::EditMode, Cmd::Follow].map(|c| pulsante(f, c).1)
+}
+
 #[test]
-fn the_tail_button_lights_up_with_alt_f_and_goes_out_when_editing_starts() {
-    let (mut f, ctx, p) = finestra(b"uno\ndue\n", false);
+fn the_three_mode_buttons_are_a_selector_with_exactly_one_lit() {
+    let (mut f, ctx, p) = finestra(
+        b"uno
+due
+",
+        false,
+    );
     disegna(&mut f, &ctx);
-    assert!(!pulsante(&f, Cmd::Follow).1, "parte spento");
-    // Alt+F: la terza modalita' (tail) si accende
+    assert_eq!(modi_premuti(&f), [true, false, false], "si parte in VIEW");
+    // un clic su TAIL: solo TAIL acceso
+    let pos = centro(&f, Cmd::Follow);
+    clic(&mut f, &ctx, pos);
+    disegna(&mut f, &ctx);
+    assert_eq!(modi_premuti(&f), [false, false, true], "clic su TAIL");
+    // un clic su EDIT: il tail si spegne, le due modalita' non stanno insieme
+    let pos = centro(&f, Cmd::EditMode);
+    clic(&mut f, &ctx, pos);
+    disegna(&mut f, &ctx);
+    assert_eq!(modi_premuti(&f), [false, true, false], "clic su EDIT");
+    // Alt+F dalla modifica (senza modifiche da salvare) passa a TAIL, senza fermarsi
     giro(&mut f, &ctx, vec![tasto(Key::F, Modifiers::ALT)]);
     disegna(&mut f, &ctx);
-    assert!(pulsante(&f, Cmd::Follow).1, "Alt+F lo accende");
-    assert!(!pulsante(&f, Cmd::EditMode).1);
-    // F12: la modifica spegne il tail, le due modalita' non stanno insieme
-    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    assert_eq!(modi_premuti(&f), [false, false, true], "Alt+F da EDIT");
+    // un clic su VIEW: tutto spento tranne VIEW
+    let pos = centro(&f, Cmd::ViewMode);
+    clic(&mut f, &ctx, pos);
     disegna(&mut f, &ctx);
-    assert!(pulsante(&f, Cmd::EditMode).1);
-    assert!(!pulsante(&f, Cmd::Follow).1, "la modifica lo spegne");
+    assert_eq!(modi_premuti(&f), [true, false, false], "clic su VIEW");
+    // con una modifica non salvata, TAIL non parte: si resta in EDIT
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![Event::Text("x".into())]);
+    giro(&mut f, &ctx, vec![tasto(Key::F, Modifiers::ALT)]);
+    disegna(&mut f, &ctx);
+    assert_eq!(
+        modi_premuti(&f),
+        [false, true, false],
+        "modifiche da salvare"
+    );
     let _ = std::fs::remove_file(p);
 }

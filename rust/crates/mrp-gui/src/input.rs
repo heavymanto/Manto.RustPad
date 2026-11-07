@@ -81,7 +81,7 @@ pub fn tasto(key: Key, m: Modifiers) -> Option<KeyEvent> {
         k if funzione(k).is_some() => KeyCode::F(funzione(k)?),
         k => {
             let c = carattere(k)?;
-            let alt_cmd = matches!(c, 'w' | 'f' | 'l' | 'g' | 'n')
+            let alt_cmd = matches!(c, 'w' | 'f' | 'l' | 'g' | 'n' | 'v' | 'm')
                 && m.alt
                 && !m.ctrl
                 && !m.command

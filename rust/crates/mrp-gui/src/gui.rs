@@ -17,7 +17,7 @@ use eframe::egui::{
     self, Align, Context, CursorIcon, Event, FontId, Frame, Label, Layout, Pos2, Rect, Sense, Vec2,
     ViewportCommand,
 };
-use mrp_tui::app::{App, AppConfig, Busy};
+use mrp_tui::app::{App, AppConfig, Busy, Modo};
 use mrp_tui::cells::{render_grid_workspace, BG_PREDEFINITO};
 use mrp_tui::commands::Cmd;
 use mrp_tui::workspace::Workspace;
@@ -682,6 +682,7 @@ impl Finestra {
                         let info = cmd.info();
                         let attivo = mrp_tui::commands::enabled(&self.ws, cmd);
                         let acceso = match cmd {
+                            Cmd::ViewMode => self.ws.active().work_mode() == Modo::View,
                             Cmd::EditMode => self.ws.active().is_edit(),
                             Cmd::Follow => self.ws.active().follow(),
                             Cmd::ColumnMode => self.ws.active().column_mode(),

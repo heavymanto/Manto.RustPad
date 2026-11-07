@@ -18,6 +18,9 @@ pub fn glifo(icona: &str) -> &'static str {
         "close" => "✖",
         "quit" => "⏻",
         "edit" => "✏",
+        // la sola lettura (VIEW) ha l'occhio; il menu dei modi non ha un pulsante
+        "view" => "👁",
+        "mode" => "⇄",
         "undo" => "↩",
         "revert" => "🗑",
         "redo" => "↪",
@@ -70,7 +73,13 @@ pub fn gruppi() -> Vec<Vec<Cmd>> {
         vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
         vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
         vec![Cmd::Timeline, Cmd::TimeFilter],
-        vec![Cmd::EditMode, Cmd::Follow, Cmd::ColumnMode, Cmd::NavBar],
+        vec![
+            Cmd::ViewMode,
+            Cmd::EditMode,
+            Cmd::Follow,
+            Cmd::ColumnMode,
+            Cmd::NavBar,
+        ],
         vec![Cmd::ZoomOut, Cmd::ZoomIn],
     ]
 }
