@@ -127,7 +127,7 @@ status row as the terminal.
 #### N-06 Line numbers and the line index
 - **Entry:** `Alt+N` shows/hides line numbers; `Alt+X` turns the line index on/off (window: View menu).
 - **What it does:** the index is what makes line numbers and "go to line" possible on a big file. Off = no counting and no numbers.
-- **Expected response:** turning the index off stops the work at once and the numbers disappear; turning it on restarts the count from zero.
+- **Expected response:** turning the index **off** first asks "TURN OFF THE LINE INDEX?", listing what is lost (line numbers, go to a line, the total of lines, fast page jumps, the line count of a selection) and what keeps working; Enter confirms and the numbers disappear (`Ln ?`), Esc cancels *(observed)*. Turning it on again restarts the count from zero without asking.
 - **Must not:** change the file.
 - **Auto tests:** yes (`line_numbers`, `pausa_indice`).
 - **UX check:** `[ ]`
@@ -635,33 +635,33 @@ only "remembered" item of this chapter that reaches the settings file.
 
 ## 4. UX test sheet
 
-One row per card; `Terminal` and `Window` are filled during the UX tests with `OK`, `DEFECT` (+ note) or `NOTE`.
+One row per card. `Terminal` is the result of the terminal pass of 2026-11-07 (about 130 scenarios driven on the installed program); `Window` is still empty: the window has not been tested yet.
 
 | ID | Feature | Terminal | Window | Auto tests |
 |---|---|---|---|---|
-| N-01 | Open from the command line | | | yes |
-| N-02 | Open another file, new document | | | yes |
-| N-03 | Move around | | | yes |
-| N-04 | Go to (line, @byte, %percent, ~time) | | | yes |
-| N-05 | Jump pages, jump bar | | | yes |
-| N-06 | Line numbers, line index | | | yes |
-| N-07 | Tabs | | | yes |
-| N-08 | Progress of long jobs | | | yes |
-| M-01 | The three modes | | | yes |
-| M-02 | The mode menu | | | yes |
-| M-03 | Typing and editing | | | yes |
-| M-04 | Undo and redo | | | yes |
-| M-05 | Save and Save as | | | yes |
-| M-06 | Discard changes | | | yes |
-| M-07 | Quit with unsaved changes | | | yes |
-| M-08 | Tail | | | yes |
-| T-01 | Time format of the lines | | | yes |
-| T-02 | Go to a time | | | yes |
-| T-03 | Time range | | | yes |
-| T-04 | Timeline | | | yes |
-| T-05 | Timeline step | | | yes |
-| T-06 | Level filter | | | yes |
-| T-07 | Log colours | | | yes |
-| F-01 | Find | | | yes |
-| F-02 | Replace | | | yes |
-| F-03 | Line filter | | | yes |
+| N-01 | Open from the command line | NOTE: cut footer under 40 columns; mixed-language error; `--help` lists 4 of 6 themes | | yes |
+| N-02 | Open another file, new document | OK | | yes |
+| N-03 | Move around | OK | | yes |
+| N-04 | Go to (line, @byte, %percent, ~time) | NOTE: errors do not say what is valid | | yes |
+| N-05 | Jump pages, jump bar | OK | | yes |
+| N-06 | Line numbers, line index | DEFECT: dialog button says "Replace"; long note cut | | yes |
+| N-07 | Tabs | DEFECT: closing a tab says "Save and quit" | | yes |
+| N-08 | Progress of long jobs | OK (6 GB) | | yes |
+| M-01 | The three modes | OK | | yes |
+| M-02 | The mode menu | OK | | yes |
+| M-03 | Typing and editing | OK | | yes |
+| M-04 | Undo and redo | OK | | yes |
+| M-05 | Save and Save as | DEFECT: Save as shows the internal Windows path prefix and a ~20-char field | | yes |
+| M-06 | Discard changes | DEFECT: "This cannot be undone" is cut off | | yes |
+| M-07 | Quit with unsaved changes | OK | | yes |
+| M-08 | Tail | OK | | yes |
+| T-01 | Time format of the lines | OK | | yes |
+| T-02 | Go to a time | NOTE: "no line with that time" on a file without times | | yes |
+| T-03 | Time range | DEFECT: typing appends to the prefilled "From"; garbage accepted | | yes |
+| T-04 | Timeline | NOTE: silent when too narrow; mentions a menu the terminal lacks | | yes |
+| T-05 | Timeline step | NOTE: silent when the timeline is off | | yes |
+| T-06 | Level filter | NOTE: silent when the timeline is off | | yes |
+| T-07 | Log colours | NOTE: no feedback; colours not visible in the dump | | yes |
+| F-01 | Find | NOTE: raw regex error text | | yes |
+| F-02 | Replace | NOTE: switches to EDIT silently; hint cut | | yes |
+| F-03 | Line filter | NOTE: raw regex error text | | yes |
