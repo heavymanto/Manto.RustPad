@@ -229,12 +229,12 @@ fn editing_is_refused_inside_a_window_and_possible_after_leaving_it() {
     let (dati, _) = log();
     let (mut a, p) = app_con(&dati, 24);
     a.apply_time_range("02:10", "02:19").unwrap();
-    tasto(&mut a, KeyCode::F(4), KeyModifiers::NONE);
+    tasto(&mut a, KeyCode::Char('e'), KeyModifiers::ALT);
     assert!(!a.is_edit(), "in una finestra di tempo non si modifica");
     assert!(a.flash().is_some());
     a.clear_time_window();
     assert_eq!(a.time_window(), None);
-    tasto(&mut a, KeyCode::F(4), KeyModifiers::NONE);
+    tasto(&mut a, KeyCode::Char('e'), KeyModifiers::ALT);
     assert!(a.is_edit());
     let _ = std::fs::remove_file(p);
 }

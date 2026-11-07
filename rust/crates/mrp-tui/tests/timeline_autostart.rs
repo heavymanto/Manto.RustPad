@@ -74,8 +74,8 @@ fn the_switch_and_the_terminal_keep_it_off() {
 #[test]
 fn a_document_with_unsaved_edits_does_not_start_it() {
     let (mut a, p) = apri(DATATO, false, TimelinePref::default());
-    // F4 passa in modifica, poi un carattere sporca il documento
-    a.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+    // Alt+E passa in modifica, poi un carattere sporca il documento
+    a.handle_key(modifica());
     a.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
     assert!(a.is_modified());
     a.timeline_tick();
@@ -213,4 +213,9 @@ fn choosing_the_side_changes_the_preference_and_keeps_the_rest() {
     a.set_timeline_show_empty(false);
     assert!(a.timeline_pref().right && a.timeline_pref().no_autostart);
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

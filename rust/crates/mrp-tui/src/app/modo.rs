@@ -1,6 +1,6 @@
 //! I tre modi d'uso dell'editor, a mutua esclusione: VIEW (sola lettura), EDIT (modifica) e TAIL (sola lettura che segue il file
 //! mentre cresce, come `tail -f`). Si scelgono da un menu (`Alt+M`, o un clic sul modo nella riga di stato) o con i tasti:
-//! `Alt+V` (VIEW), `Alt+E` (EDIT, alterna con VIEW; anche `F4`), `Alt+T` (TAIL, alterna con VIEW). La finestra ha gli stessi tre nella barra
+//! `Alt+V` (VIEW), `Alt+E` (EDIT), `Alt+T` (TAIL); i tasti F restano quelli di tutti i giorni (F4 e' Sostituisci). La finestra ha gli stessi tre nella barra
 //! degli strumenti.
 
 use super::dialogs::MenuItem;

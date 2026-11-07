@@ -144,7 +144,7 @@ fn the_footer_gets_the_extra_keys_only_where_there_is_room() {
         "{s200}"
     );
     // con una modifica compare anche Ctrl+R, prima di Alt+B
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Char('x')));
     let s200 = piede(&mut a, 200);
     assert!(s200.contains("Ctrl+R Discard"), "{s200}");
@@ -231,4 +231,9 @@ fn the_descriptions_in_the_help_start_all_at_the_same_column() {
         );
     }
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

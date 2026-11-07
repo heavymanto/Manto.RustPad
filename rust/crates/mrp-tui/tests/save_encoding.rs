@@ -207,7 +207,7 @@ fn the_keys_choose_toggle_the_bom_and_confirm_in_the_terminal() {
 #[test]
 fn unsaved_edits_are_part_of_the_converted_file() {
     let (mut a, _p, d) = app(b"abc\n");
-    tasto(&mut a, KeyCode::F(4));
+    a.handle_key(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT));
     tasto(&mut a, KeyCode::End);
     a.handle_key(KeyEvent::new(KeyCode::Char('é'), KeyModifiers::NONE));
     assert!(a.is_modified());

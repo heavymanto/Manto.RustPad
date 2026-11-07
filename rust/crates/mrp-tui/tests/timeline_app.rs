@@ -242,7 +242,7 @@ fn without_a_time_format_or_with_unsaved_edits_it_says_so() {
     let _ = std::fs::remove_file(&p);
     // un documento modificato non si calcola
     let (mut b, _, q) = app();
-    b.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+    b.handle_key(modifica());
     b.handle_key(KeyEvent::new(KeyCode::Char('x'), KeyModifiers::NONE));
     assert!(b.is_modified());
     b.set_timeline(true);
@@ -264,4 +264,9 @@ fn a_minute_step_over_three_days_is_under_the_cap() {
     a.set_timeline_show_empty(true);
     assert_eq!(a.timeline_rows(100_000).len(), 4291);
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

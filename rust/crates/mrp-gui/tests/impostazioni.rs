@@ -310,7 +310,7 @@ fn the_keys_tab_lists_every_command_with_the_window_shortcuts_and_the_other_keys
     let pos = controllo(&f, "Keys");
     clic(&mut f, &ctx, pos);
     let righe = f.impostazioni_tasti().to_vec();
-    // tutti i comandi del registro, coi tasti della finestra (F3, F4, F12) e Ctrl+, per le impostazioni
+    // tutti i comandi del registro, coi tasti della finestra (F3, F4, Alt+E) e Ctrl+, per le impostazioni
     for c in COMMANDS {
         let nome = f.app().text(c.label).trim_end_matches('…').to_string();
         assert!(righe.iter().any(|(n, _)| *n == nome), "manca {nome:?}");
@@ -323,7 +323,7 @@ fn the_keys_tab_lists_every_command_with_the_window_shortcuts_and_the_other_keys
     };
     assert_eq!(tasto("Find"), Some("F3"));
     assert_eq!(tasto("Replace"), Some("F4"));
-    assert_eq!(tasto("Edit mode"), Some("F12"));
+    assert_eq!(tasto("Edit mode"), Some("Alt+E"));
     assert_eq!(tasto("Show line numbers"), Some("Alt+N"));
     assert_eq!(tasto("Settings"), Some("Ctrl+,"));
     // e gli altri tasti, dalla tabella dell'aiuto (descrizione, tasti)

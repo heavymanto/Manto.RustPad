@@ -58,7 +58,7 @@ fn ws(dir: &Path, sess: &Path, nomi: &[&str]) -> Workspace {
 
 /// Scrive `testo` in testa al documento della scheda attiva (modalita' modifica, cursore all'inizio).
 fn scrivi_in_testa(w: &mut Workspace, testo: &str) {
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(modifica());
     w.handle_key(ctrl_home());
     for c in testo.chars() {
         w.handle_key(k(KeyCode::Char(c)));
@@ -393,7 +393,7 @@ fn the_encoding_comes_back_with_the_edits() {
     let mut w = Workspace::new(primo, cfg).with_session(sess.clone());
     w.resize(40, 8);
     assert!(w.wait_idle(Duration::from_secs(20)));
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(modifica());
     w.paste_text("語");
     w.handle_key(k(KeyCode::F(10)));
     drop(w);
@@ -429,7 +429,7 @@ fn a_change_that_leaves_the_cursor_where_it_was_still_rewrites_the_session() {
     let (dir, sess) = cartelle();
     scrivi(&dir, "a.txt", b"uno\ndue\n");
     let mut w = ws(&dir, &sess, &["a.txt"]);
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(modifica());
     w.tick();
     assert!(sess.join("tab-0.mrps").exists());
     std::fs::remove_file(sess.join("tab-0.mrps")).unwrap();
@@ -563,4 +563,9 @@ fn a_restored_cursor_beyond_the_end_of_the_file_is_brought_back_inside() {
         a.cursor()
     );
     pulisci(&dir);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

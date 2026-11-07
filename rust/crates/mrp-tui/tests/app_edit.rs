@@ -60,7 +60,7 @@ fn edit_app(dir: &TestDir, data: &[u8]) -> (App, PathBuf) {
     let mut a = App::open(&p, AppConfig::default()).unwrap();
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     assert!(a.is_edit());
     (a, p)
 }
@@ -204,7 +204,7 @@ fn ctrl_end_in_edit_mode_reaches_the_empty_last_row() {
     assert_eq!(a.document_text(), b"ab\nz");
     // tornando in lettura il cursore non resta su una riga che non c'e' (qui non finisce piu' con a-capo: resta)
     a.handle_key(k(KeyCode::Enter));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(vista());
     assert_eq!(
         a.cursor(),
         4,
@@ -278,11 +278,11 @@ fn undo_and_save_are_not_for_view_mode_but_the_old_changes_stay() {
     let dir = TestDir::new();
     let (mut a, _) = edit_app(&dir, b"ab\n");
     type_text(&mut a, "x");
-    a.handle_key(k(KeyCode::F(4))); // torna in lettura con una modifica non salvata
+    a.handle_key(vista()); // torna in lettura con una modifica non salvata
     assert!(!a.is_edit());
     assert!(a.is_modified());
     a.handle_key(ctrl('z'));
-    assert_eq!(status(&mut a), " read-only: press F4 to edit");
+    assert_eq!(status(&mut a), " read-only: press Alt+E to edit");
     assert_eq!(a.document_text(), b"xab\n");
 }
 
@@ -331,7 +331,7 @@ fn save_works_from_view_mode_too_when_there_are_changes() {
     let dir = TestDir::new();
     let (mut a, p) = edit_app(&dir, b"ab\n");
     type_text(&mut a, "x");
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(ctrl('s'));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert_eq!(std::fs::read(&p).unwrap(), b"xab\n");
@@ -481,7 +481,7 @@ fn riga_con_taglio_dentro_a_un_carattere() -> (App, std::path::PathBuf) {
     let mut a = App::open(&p, AppConfig::default()).unwrap();
     a.resize(40, 9);
     assert!(a.wait_idle(std::time::Duration::from_secs(20)));
-    a.handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+    a.handle_key(modifica());
     // Giu': la seconda riga visuale comincia al taglio, dentro la "é"
     a.handle_key(KeyEvent::new(KeyCode::Down, KeyModifiers::NONE));
     assert_eq!(a.cursor(), 131_072, "il cursore e' in mezzo alla é");
@@ -515,4 +515,14 @@ fn delete_and_backspace_at_a_cut_inside_a_character_take_whole_characters() {
     );
     assert!(std::str::from_utf8(&t).is_ok());
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
+}
+
+/// Alt+V: torna in sola lettura.
+fn vista() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT)
 }

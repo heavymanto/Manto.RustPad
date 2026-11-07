@@ -504,7 +504,7 @@ pub fn destra_stato(
 
 /// Riga h-1: `" "` + `Alt+V View  Alt+E Edit  Alt+T Tail  F1 Help  ...` (voci separate da due spazi): i tre modi stanno sempre
 /// in testa, quello di adesso in evidenza; a un terminale stretto cedono il posto le voci F meno usate (tema, lingua,
-/// colonne, codifica). La riga e' tagliata alla larghezza dal disegno. Se con due spazi la riga non sta nello schermo ma con uno sola si', si usa uno
+/// colonne, codifica, poi vai a, sostituisci). La riga e' tagliata alla larghezza dal disegno. Se con due spazi la riga non sta nello schermo ma con uno sola si', si usa uno
 /// spazio solo (cosi' su 80 colonne ci sono tutte le voci, compreso F10); se non sta nemmeno cosi' restano i
 /// due spazi e la riga si taglia.
 fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
@@ -515,12 +515,13 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         Modo::Tail => "Alt+T",
     };
     let mut voci = vec![
-        ("Alt+V", "footer.f4.view"),
-        ("Alt+E", "footer.f4.edit"),
+        ("Alt+V", "footer.mode.view"),
+        ("Alt+E", "footer.mode.edit"),
         ("Alt+T", "footer.tail"),
         ("F1", "footer.f1"),
         ("F2", "footer.f2"),
         ("F3", "footer.f3"),
+        ("F4", "footer.f4.replace"),
         ("F5", "footer.f5"),
         ("F6", "footer.f6"),
         ("F7", "footer.f7"),
@@ -542,7 +543,7 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // la timeline. Ognuna entra solo se ci sta con lo stesso separatore che hanno le voci di base (le voci in piu' non fanno
     // stringere gli spazi alle altre: con spazio di sobra restano due spazi).
     // se nemmeno con un solo spazio ci sta tutto, si lasciano le voci meno usate, una alla volta, finche' ci sta
-    for tasto in ["F6", "F7", "F8", "F9", "F5", "F3", "F2"] {
+    for tasto in ["F6", "F7", "F8", "F9", "F5", "F4", "F3", "F2"] {
         if largo(&voci, 1) <= w as usize {
             break;
         }

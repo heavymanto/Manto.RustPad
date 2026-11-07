@@ -66,7 +66,7 @@ fn help_is_a_table_of_keys_and_descriptions() {
         ("Arrows PgUp PgDn Home End".to_string(), "move".to_string())
     );
     assert!(rows.contains(&(
-        "Ctrl+H".to_string(),
+        "F4 / Ctrl+H".to_string(),
         "replace (text, glob, regex; this or all tabs)".to_string()
     )));
     assert!(rows.contains(&(
@@ -291,7 +291,7 @@ fn goto_is_a_prompt_with_a_hint_and_runs_the_text() {
 #[test]
 fn save_as_is_a_prompt_too_and_an_existing_file_asks_before_replacing_it() {
     let (mut a, p) = app(b"uno\n", false);
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Char('x')));
     let altro = file(b"vecchio");
     a.handle_key(KeyEvent::new(
@@ -327,7 +327,7 @@ fn save_as_is_a_prompt_too_and_an_existing_file_asks_before_replacing_it() {
 #[test]
 fn the_exit_confirmation_has_three_choices_without_the_hotkey_letters() {
     let (mut a, p) = app(b"uno\n", false);
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Char('x')));
     a.request_close();
     let DialogView::Confirm {
@@ -373,7 +373,7 @@ fn the_exit_confirmation_has_three_choices_without_the_hotkey_letters() {
 #[test]
 fn confirming_with_save_saves_and_quits() {
     let (mut a, p) = app(b"uno\n", false);
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Char('x')));
     a.request_close();
     a.dialog_confirm(ConfirmChoice::Save);
@@ -405,4 +405,9 @@ fn a_dialog_with_a_view_is_not_drawn_as_text_without_the_terminal_chrome() {
     assert!(tutto.contains("KEYS"), "{tutto}");
     let _ = std::fs::remove_file(p);
     let _ = std::fs::remove_file(q);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

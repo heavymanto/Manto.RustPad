@@ -58,7 +58,7 @@ fn due_schede(dir: &Path, sess: &Path) -> Workspace {
 
 /// Passa in modifica, va alla seconda riga e scrive `XY` (il cursore finisce a 4 + 2 = 6).
 fn modifica(w: &mut Workspace) {
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(k(KeyCode::Down));
     w.handle_key(k(KeyCode::Char('X')));
     w.handle_key(k(KeyCode::Char('Y')));
@@ -137,7 +137,7 @@ fn confirming_brings_back_the_file_as_it_is_on_disk() {
         b"uno\ndue\ntre\n"
     );
     // e adesso si puo' di nuovo modificare da capo, e salvare: niente e' rimasto della storia di prima
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(k(KeyCode::Char('Z')));
     assert!(w.active().is_modified());
     pulisci(&dir);
@@ -150,7 +150,7 @@ fn undo_has_nothing_left_after_discarding() {
     modifica(&mut w);
     w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(KeyEvent::new(KeyCode::Char('z'), KeyModifiers::CONTROL));
     assert_eq!(w.active().flash(), Some("nothing to undo"));
     pulisci(&dir);
@@ -162,7 +162,7 @@ fn it_keeps_the_other_tabs_and_the_encoding() {
     let mut w = due_schede(&dir, &sess);
     // la seconda scheda modificata, la prima no
     w.select(1);
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(k(KeyCode::Char('Q')));
     assert!(w.active().is_modified());
     w.handle_key(ctrl_r());
@@ -253,7 +253,7 @@ fn the_file_comes_back_in_the_same_encoding() {
     assert!(schermo(&mut w)
         .iter()
         .any(|r| r.replace(' ', "").contains("日本語")));
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(k(KeyCode::Char('Q')));
     w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
@@ -283,7 +283,7 @@ fn the_new_tab_takes_the_size_of_the_screen() {
         .with_session_timing(Duration::ZERO, Duration::ZERO);
     w.resize(60, 12);
     assert!(w.wait_idle(Duration::from_secs(20)));
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(k(KeyCode::Char('Q')));
     w.handle_key(ctrl_r());
     w.handle_key(k(KeyCode::Enter));
@@ -300,7 +300,7 @@ fn a_cursor_past_the_end_of_the_original_goes_to_its_last_line() {
     // il cursore sta nel file, all'inizio dell'ultima riga ("tre", a 8: in lettura non si va oltre l'ultimo a-capo, a 11)
     let (dir, sess) = cartelle();
     let mut w = due_schede(&dir, &sess);
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(alt_e());
     w.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::CONTROL));
     for c in "abcdefgh".chars() {
         w.handle_key(k(KeyCode::Char(c)));
@@ -328,4 +328,9 @@ fn alt_r_is_a_synonym_of_ctrl_r() {
     ));
     assert_eq!(w.active().dialog_kind(), None);
     pulisci(&dir);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn alt_e() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

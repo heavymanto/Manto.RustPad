@@ -237,7 +237,7 @@ fn ctrl_shift_s_saves_any_document_under_a_new_name_and_leaves_the_old_file() {
     let mut a = App::open(&vecchio, AppConfig::default()).unwrap();
     a.resize(70, 12);
     assert!(a.wait_idle(Duration::from_secs(20)));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     scrivi(&mut a, "+");
     a.handle_key(ctrl_maiusc('s'));
     assert_eq!(a.dialog_kind(), Some(DialogKind::SaveAs));
@@ -558,4 +558,9 @@ fn leaving_without_a_session_removes_the_scratch_files_and_leaving_with_one_keep
         "con la sessione tornano alla prossima apertura"
     );
     pulisci(d);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

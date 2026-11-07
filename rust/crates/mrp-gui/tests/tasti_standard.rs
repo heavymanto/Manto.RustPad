@@ -1,4 +1,4 @@
-//! I tasti standard della finestra e due cose di disposizione: F3 = Trova, F4 = Sostituisci, F12 = lettura / modifica (nel
+//! I tasti standard della finestra e due cose di disposizione: F3 = Trova, F4 = Sostituisci (nel
 //! terminale F4 resta la modifica); la barra dei salti sta sopra le schede; le finestre dei dialoghi si spostano trascinando
 //! il titolo e restano dove le si lascia. Scritti da ARCH.
 
@@ -47,12 +47,16 @@ fn giro(f: &mut Finestra, ctx: &Context, eventi: Vec<Event>) -> FullOutput {
 }
 
 fn tasto(key: Key) -> Event {
+    tasto_con(key, Modifiers::NONE)
+}
+
+fn tasto_con(key: Key, modifiers: Modifiers) -> Event {
     Event::Key {
         key,
         physical_key: Some(key),
         pressed: true,
         repeat: false,
-        modifiers: Modifiers::NONE,
+        modifiers,
     }
 }
 
@@ -63,7 +67,7 @@ fn tasti(f: &mut Finestra, ctx: &Context, key: Key) {
 }
 
 #[test]
-fn f3_finds_f4_replaces_and_f12_switches_between_reading_and_editing() {
+fn f3_finds_f4_replaces_and_alt_e_alt_v_switch_between_editing_and_reading() {
     let (mut f, ctx, p) = finestra();
     tasti(&mut f, &ctx, Key::F3);
     assert_eq!(f.dialogo_titolo(), Some("FIND"));
@@ -73,9 +77,9 @@ fn f3_finds_f4_replaces_and_f12_switches_between_reading_and_editing() {
     assert_eq!(f.dialogo_titolo(), Some("REPLACE"));
     tasti(&mut f, &ctx, Key::Escape);
     assert!(!f.app().is_edit(), "F4 non e' piu' la modifica");
-    tasti(&mut f, &ctx, Key::F12);
+    giro(&mut f, &ctx, vec![tasto_con(Key::E, Modifiers::ALT)]);
     assert!(f.app().is_edit());
-    tasti(&mut f, &ctx, Key::F12);
+    giro(&mut f, &ctx, vec![tasto_con(Key::V, Modifiers::ALT)]);
     assert!(!f.app().is_edit());
     let _ = std::fs::remove_file(p);
 }

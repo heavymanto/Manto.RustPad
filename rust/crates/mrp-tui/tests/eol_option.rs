@@ -122,7 +122,7 @@ fn enter_writes_the_forced_style() {
         // un file senza a-capo (niente da riconoscere) e uno con l'altro stile: l'opzione vince
         for dati in [&b"ab"[..], b"x\ny\n", b"x\r\ny\r\n"] {
             let (mut a, p) = app(dati, Some(eol));
-            a.handle_key(k(KeyCode::F(4)));
+            a.handle_key(modifica());
             a.handle_key(k(KeyCode::Enter));
             let t = a.document_text();
             assert!(
@@ -148,7 +148,7 @@ fn without_the_option_the_file_decides_as_before() {
 #[test]
 fn the_forced_style_leaves_the_existing_lines_alone() {
     let (mut a, p) = app(b"uno\ndue\n", Some(LineEnding::CrLf));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Enter));
     assert_eq!(a.document_text(), b"\r\nuno\ndue\n");
     let _ = std::fs::remove_file(p);
@@ -189,11 +189,16 @@ fn forcing_cr_on_a_file_with_line_feeds_keeps_its_lines_apart() {
 #[test]
 fn forcing_cr_on_a_file_without_line_breaks_makes_enter_break_the_line() {
     let (mut a, p) = app(b"ab", Some(LineEnding::Cr));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Enter));
     let righe = mrp_tui::ui::render_lines(&mut a, 60, 6);
     // riga 1 vuota, riga 2 "ab": il CR e' un a-capo vero per il documento
     assert!(righe[0].ends_with('│'), "{:?}", righe[0]);
     assert!(righe[1].ends_with("ab"), "{:?}", righe[1]);
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

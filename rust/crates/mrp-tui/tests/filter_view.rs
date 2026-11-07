@@ -205,7 +205,7 @@ fn modes_case_and_unsaved_edits() {
     w.close(1);
     // le modifiche non salvate entrano nel filtro
     w.select(0);
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(modifica());
     w.handle_key(KeyEvent::new(KeyCode::Home, KeyModifiers::CONTROL));
     digita(&mut w, "ERROR nuova");
     w.handle_key(k(KeyCode::Enter));
@@ -259,7 +259,7 @@ fn closing_the_view_removes_its_scratch_file_and_the_view_is_not_in_the_session(
 fn a_filtered_view_cannot_be_edited() {
     let (d, mut w) = ws();
     filtra(&mut w, "ERROR", false);
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(modifica());
     assert!(!w.active().is_edit());
     assert!(schermo(&mut w).contains("read-only"), "{}", schermo(&mut w));
     pulisci(d);
@@ -312,4 +312,9 @@ fn with_a_session_the_scratch_file_of_a_view_goes_away_on_exit_too() {
     drop(w);
     assert!(!scratch.exists());
     pulisci(d);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

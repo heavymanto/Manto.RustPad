@@ -41,7 +41,7 @@ fn schermo(a: &mut App) -> Vec<String> {
 fn alt_v_goes_to_view_from_every_mode() {
     let (mut a, p) = app();
     assert_eq!(a.work_mode(), Modo::View);
-    a.handle_key(tasto(KeyCode::F(4)));
+    a.handle_key(alt('e'));
     assert_eq!(a.work_mode(), Modo::Edit);
     a.handle_key(alt('v'));
     assert_eq!(a.work_mode(), Modo::View);
@@ -61,7 +61,7 @@ fn the_mode_word_in_the_status_row_follows_the_mode() {
     let (mut a, p) = app();
     let riga = |a: &mut App| schermo(a)[8].trim_end().to_string();
     assert!(riga(&mut a).ends_with("VIEW"), "{}", riga(&mut a));
-    a.handle_key(tasto(KeyCode::F(4)));
+    a.handle_key(alt('e'));
     assert!(riga(&mut a).ends_with("EDIT"), "{}", riga(&mut a));
     a.handle_key(alt('t'));
     // il messaggio del passaggio occupa il posto a sinistra, il modo resta a destra
@@ -114,7 +114,7 @@ fn alt_m_opens_the_menu_with_the_current_mode_highlighted_and_each_choice_works(
 #[test]
 fn choosing_the_tail_from_editing_with_unsaved_changes_stays_in_edit_and_says_why() {
     let (mut a, p) = app();
-    a.handle_key(tasto(KeyCode::F(4)));
+    a.handle_key(alt('e'));
     a.handle_key(tasto(KeyCode::Char('x')));
     a.handle_key(alt('m'));
     a.handle_key(tasto(KeyCode::Down));
@@ -162,7 +162,7 @@ fn the_column_mode_word_follows_the_mode_word() {
 }
 
 #[test]
-fn alt_e_and_alt_t_choose_their_mode_without_toggling_and_f4_still_toggles() {
+fn alt_e_and_alt_t_choose_their_mode_without_toggling_and_f4_is_replace_not_a_mode() {
     let (mut a, p) = app();
     a.handle_key(alt('e'));
     assert_eq!(a.work_mode(), Modo::Edit);
@@ -181,11 +181,10 @@ fn alt_e_and_alt_t_choose_their_mode_without_toggling_and_f4_still_toggles() {
     assert_eq!(a.work_mode(), Modo::Tail);
     a.handle_key(alt('t'));
     assert_eq!(a.work_mode(), Modo::Tail);
-    // F4 invece alterna come sempre: da TAIL porta alla modifica, da EDIT alla lettura
+    // F4 e' Sostituisci (il tasto standard): non cambia il modo e apre il dialogo
     a.handle_key(tasto(KeyCode::F(4)));
-    assert_eq!(a.work_mode(), Modo::Edit);
-    a.handle_key(tasto(KeyCode::F(4)));
-    assert_eq!(a.work_mode(), Modo::View);
+    assert_eq!(a.dialog_kind(), Some(DialogKind::Replace));
+    assert_eq!(a.work_mode(), Modo::Tail);
     let _ = std::fs::remove_file(p);
 }
 

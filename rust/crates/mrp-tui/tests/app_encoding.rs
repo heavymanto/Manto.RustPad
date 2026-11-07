@@ -69,7 +69,7 @@ fn app(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> App {
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
         assert!(a.is_edit());
     }
     a
@@ -270,7 +270,7 @@ fn copy_gives_utf8_text_and_paste_encodes_it_back() {
     // gli appunti del terminale (OSC 52) sono UTF-8
     assert_eq!(a.take_copied(), Some("caff\u{e8}".as_bytes().to_vec()));
     a.handle_key(k(KeyCode::Esc));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(ctrl('v'));
     assert_eq!(a.document_text(), b"caff\xe8caff\xe8\n");
 }
@@ -492,4 +492,9 @@ fn column_copy_gives_utf8_text_in_a_code_page() {
     a.handle_key(shift(KeyCode::Right));
     a.handle_key(ctrl('c'));
     assert_eq!(a.take_copied(), Some("\u{e8}\n\u{e8}".as_bytes().to_vec()));
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

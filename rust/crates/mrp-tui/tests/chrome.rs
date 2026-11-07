@@ -148,7 +148,7 @@ fn the_status_says_what_the_footer_would() {
     let s = a.status();
     assert_eq!((s.line, s.column, s.offset, s.percent), (Some(3), 4, 23, 2));
     // la modalita' di modifica e la modifica
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Char('x')));
     let s = a.status();
     assert!(s.edit && s.modified);
@@ -279,4 +279,9 @@ fn an_empty_document_has_a_full_bar_and_scrolls_nowhere() {
     assert_eq!(a.top(), 0);
     drop(a);
     let _ = std::fs::remove_dir_all(d);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

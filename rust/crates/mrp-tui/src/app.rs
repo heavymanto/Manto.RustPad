@@ -1281,7 +1281,7 @@ impl App {
             // precedente; senza un testo cercato si apre il prompt.
             KeyCode::F(3) if shift => self.find_key(false),
             KeyCode::F(3) => self.find_key(true),
-            KeyCode::F(4) => self.toggle_edit(),
+            KeyCode::F(4) => self.open_dialog(DialogKind::Replace),
             KeyCode::F(5) => self.open_dialog(DialogKind::Goto),
             KeyCode::F(6) => self.open_dialog(DialogKind::Theme),
             KeyCode::F(7) => self.open_dialog(DialogKind::Lang),
@@ -1326,9 +1326,9 @@ impl App {
             }
             // Alt+G: filtra le righe (come `grep`): una vista nuova con solo quelle che corrispondono
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
-            // I tre modi: Alt+V sola lettura (VIEW), Alt+E modifica (EDIT, come F4), Alt+T segui la coda (TAIL, come `tail -f`);
+            // I tre modi: Alt+V sola lettura (VIEW), Alt+E modifica (EDIT), Alt+T segui la coda (TAIL, come `tail -f`);
             // Alt+M: il menu dei tre modi
-            // (scelgono il modo, non lo alternano: premuti nel modo in cui si e' gia' non fanno niente; F4 invece alterna)
+            // (scelgono il modo, non lo alternano: premuti nel modo in cui si e' gia' non fanno niente)
             KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => self.set_tail(),
             KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => self.set_edit(),
             KeyCode::Char('v') | KeyCode::Char('V') if alt && !ctrl => self.set_view(),
@@ -4985,7 +4985,7 @@ impl App {
 
     // ----- modo e scrittura -----
 
-    /// F4: alterna lettura e modifica; tornando in lettura il cursore si limita all'ultimo a-capo.
+    /// Alterna lettura e modifica (la usano set_view e set_edit); tornando in lettura il cursore si limita all'ultimo a-capo.
     fn toggle_edit(&mut self) {
         // dentro una finestra di tempo si legge soltanto
         if self.window.is_some() && !self.edit {

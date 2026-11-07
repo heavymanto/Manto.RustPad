@@ -77,7 +77,7 @@ fn app_file(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> (A
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
         assert!(a.is_edit());
     }
     (a, p)
@@ -445,7 +445,7 @@ fn copy_gives_utf8_text_and_paste_writes_utf16() {
         Some("caff\u{e8} \u{1f600}".as_bytes().to_vec())
     );
     a.handle_key(k(KeyCode::Esc));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(ctrl('v'));
     assert_eq!(
         a.document_text(),
@@ -520,4 +520,9 @@ fn switching_to_utf16_in_the_middle_of_a_surrogate_pair_goes_back_to_its_start()
     assert_eq!(b.cursor(), 6);
     b.set_encoding(LE);
     assert_eq!(b.cursor(), 6);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

@@ -144,7 +144,7 @@ fn a_short_file_does_not_move_and_does_not_panic() {
 #[test]
 fn the_jump_works_in_edit_mode_and_typing_goes_there() {
     let (mut a, p) = app(10_000);
-    premi(&mut a, KeyCode::F(4), NESSUNO);
+    premi(&mut a, KeyCode::Char('e'), ALT);
     premi(&mut a, KeyCode::PageDown, ALT);
     assert_eq!(a.cursor(), 60 * RIGA);
     a.handle_key(tasto(KeyCode::Char('X'), NESSUNO));

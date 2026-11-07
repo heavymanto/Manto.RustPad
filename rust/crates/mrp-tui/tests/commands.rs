@@ -111,7 +111,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::SelectAll, Some(k(KeyCode::Char('a'), CTRL)), "Ctrl+A"),
         (Cmd::Find, Some(k(KeyCode::Char('f'), CTRL)), "Ctrl+F"),
         (Cmd::Goto, Some(k(KeyCode::Char('g'), CTRL)), "Ctrl+G"),
-        (Cmd::Replace, Some(k(KeyCode::Char('h'), CTRL)), "Ctrl+H"),
+        (Cmd::Replace, Some(k(KeyCode::F(4), NIENTE)), "F4"),
         (Cmd::Filter, Some(k(KeyCode::Char('g'), ALT)), "Alt+G"),
         (Cmd::ColumnMode, Some(k(KeyCode::F(8), NIENTE)), "F8"),
         (Cmd::Special, Some(k(KeyCode::Char('w'), ALT)), "Alt+W"),
@@ -165,7 +165,7 @@ fn save_is_enabled_only_when_there_is_something_to_save() {
     let d = cartella();
     let mut ws = ws_con_file(&d, "uno\n");
     assert!(!commands::enabled(&ws, Cmd::Save));
-    ws.handle_key(k(KeyCode::F(4), NIENTE));
+    ws.handle_key(k(KeyCode::Char('e'), ALT));
     ws.handle_key(k(KeyCode::Char('x'), NIENTE));
     assert!(commands::enabled(&ws, Cmd::Save));
     ws.handle_key(k(KeyCode::F(2), NIENTE));
@@ -182,7 +182,7 @@ fn undo_and_redo_follow_the_history_and_need_edit_mode() {
     let d = cartella();
     let mut ws = ws_con_file(&d, "uno\n");
     assert!(!commands::enabled(&ws, Cmd::Undo) && !commands::enabled(&ws, Cmd::Redo));
-    ws.handle_key(k(KeyCode::F(4), NIENTE));
+    ws.handle_key(k(KeyCode::Char('e'), ALT));
     ws.handle_key(k(KeyCode::Char('x'), NIENTE));
     assert!(commands::enabled(&ws, Cmd::Undo));
     assert!(!commands::enabled(&ws, Cmd::Redo));
@@ -190,12 +190,12 @@ fn undo_and_redo_follow_the_history_and_need_edit_mode() {
     assert!(!commands::enabled(&ws, Cmd::Undo));
     assert!(commands::enabled(&ws, Cmd::Redo));
     // in lettura la storia non si usa
-    ws.handle_key(k(KeyCode::F(4), NIENTE));
+    ws.handle_key(k(KeyCode::Char('v'), ALT));
     assert!(!commands::enabled(&ws, Cmd::Redo));
-    ws.handle_key(k(KeyCode::F(4), NIENTE));
+    ws.handle_key(k(KeyCode::Char('e'), ALT));
     ws.handle_key(k(KeyCode::Char('y'), NIENTE));
     assert!(commands::enabled(&ws, Cmd::Undo));
-    ws.handle_key(k(KeyCode::F(4), NIENTE));
+    ws.handle_key(k(KeyCode::Char('v'), ALT));
     assert!(
         !commands::enabled(&ws, Cmd::Undo),
         "in lettura non si annulla"
@@ -219,7 +219,7 @@ fn copy_needs_a_selection_and_cut_and_paste_need_edit_mode() {
         !commands::enabled(&ws, Cmd::Cut),
         "ma in lettura non si taglia"
     );
-    ws.handle_key(k(KeyCode::F(4), NIENTE));
+    ws.handle_key(k(KeyCode::Char('e'), ALT));
     assert!(commands::enabled(&ws, Cmd::Cut));
     assert!(commands::enabled(&ws, Cmd::Paste));
     // senza selezione taglia e copia non hanno niente da fare, incolla si

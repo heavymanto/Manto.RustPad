@@ -162,7 +162,8 @@ fn help_has_one_button_and_it_closes_the_window() {
 #[test]
 fn keys_and_text_go_to_the_window_not_to_the_document_while_a_dialog_is_open() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F12);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
+    giro(&mut f, &ctx, vec![]);
     premi(&mut f, &ctx, Key::F1);
     disegna(&mut f, &ctx);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
@@ -339,7 +340,8 @@ fn goto_buttons_ok_runs_and_cancel_does_not() {
 #[test]
 fn the_exit_confirmation_has_three_buttons() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F12);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
+    giro(&mut f, &ctx, vec![]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     f.workspace().active_mut().request_close();
     disegna(&mut f, &ctx);
@@ -364,7 +366,8 @@ fn the_exit_confirmation_has_three_buttons() {
 #[test]
 fn saving_and_quitting_from_the_confirmation_writes_the_file() {
     let (mut f, ctx, p) = finestra(b"uno\n", false);
-    premi(&mut f, &ctx, Key::F12);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
+    giro(&mut f, &ctx, vec![]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     f.workspace().active_mut().request_close();
     disegna(&mut f, &ctx);
@@ -407,8 +410,7 @@ fn discarding_the_changes_asks_with_two_buttons_and_goes_back_to_the_file() {
     disegna(&mut f, &ctx);
     assert_eq!(f.app().dialog_kind(), None);
     // una modifica (8 byte nel file, 9 col carattere in piu')
-    f.app()
-        .handle_key(KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE));
+    f.app().handle_key(modifica());
     f.app()
         .handle_key(KeyEvent::new(KeyCode::Char('X'), KeyModifiers::NONE));
     assert!(f.app().is_modified());
@@ -435,4 +437,9 @@ fn discarding_the_changes_asks_with_two_buttons_and_goes_back_to_the_file() {
     assert_eq!(f.workspace().len(), 1);
     assert_eq!(std::fs::read(&p).unwrap(), b"uno\ndue\n");
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

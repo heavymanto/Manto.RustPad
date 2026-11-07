@@ -58,8 +58,8 @@ fn the_right_side_has_the_name_the_size_and_the_mode_in_that_order() {
     assert!(s.ends_with("note.txt  8 B  VIEW"), "{s:?}");
     // fra la posizione e il nome ci sono almeno tre spazi
     assert!(s.contains("0%   "), "{s:?}");
-    // il modo cambia con F4 e il segno di modificato segue il nome
-    a.handle_key(k(KeyCode::F(4)));
+    // il modo cambia con Alt+E e il segno di modificato segue il nome
+    a.handle_key(modifica());
     a.handle_key(k(KeyCode::Char('x')));
     let s = stato(&mut a, 80, 6);
     assert!(s.ends_with("note.txt *  9 B  EDIT"), "{s:?}");
@@ -134,14 +134,14 @@ fn what_does_not_fit_goes_away_in_order_name_then_size_then_mode() {
 #[test]
 fn a_message_on_the_left_is_never_cut_by_the_right_side() {
     let (mut a, p) = app("note.txt", "uno\n", 50, 6);
-    a.handle_key(k(KeyCode::Char('x'))); // in lettura: il messaggio "read-only: press F4 to edit"
+    a.handle_key(k(KeyCode::Char('x'))); // in lettura: il messaggio "read-only: press Alt+E to edit"
     let s = stato(&mut a, 50, 6);
-    assert!(s.starts_with(" read-only: press F4 to edit"), "{s:?}");
-    // a 30 colonne il messaggio c'e' tutto e a destra non resta posto
-    a.resize(30, 6);
+    assert!(s.starts_with(" read-only: press Alt+E to edit"), "{s:?}");
+    // a 32 colonne il messaggio c'e' tutto e a destra non resta posto
+    a.resize(32, 6);
     a.handle_key(k(KeyCode::Char('x')));
-    let s = stato(&mut a, 30, 6);
-    assert_eq!(s, " read-only: press F4 to edit");
+    let s = stato(&mut a, 32, 6);
+    assert_eq!(s, " read-only: press Alt+E to edit");
     pulisci(p);
 }
 
@@ -268,7 +268,7 @@ fn the_mode_has_its_own_colour_and_a_three_row_screen_still_draws() {
     };
     let vista = colore(&mut a);
     assert_eq!(vista.fg, t.mode_view.fg);
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     let modifica = colore(&mut a);
     assert_eq!(modifica.fg, t.mode_edit.fg);
     assert_ne!(vista.fg, modifica.fg);
@@ -280,4 +280,9 @@ fn the_mode_has_its_own_colour_and_a_three_row_screen_still_draws() {
     assert!(righe[1].starts_with(" Ln 1"), "{:?}", righe[1]);
     pulisci(p);
     pulisci(q);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

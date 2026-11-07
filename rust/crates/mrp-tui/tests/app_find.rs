@@ -297,7 +297,7 @@ fn it_works_without_the_line_index_and_on_a_modified_document() {
 
     // in modifica: due caratteri all'inizio spostano tutto di 2 byte e la ricerca li trova
     let mut b = app(&dir);
-    b.handle_key(k(KeyCode::F(4)));
+    b.handle_key(modifica());
     type_text(&mut b, "ZZ");
     assert_eq!(b.cursor(), 2);
     find(&mut b, "line 02");
@@ -331,4 +331,9 @@ fn the_text_is_searched_as_exact_utf8_bytes() {
     a.handle_key(k(KeyCode::Enter));
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert_eq!(a.cursor(), 14);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

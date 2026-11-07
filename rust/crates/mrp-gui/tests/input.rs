@@ -75,12 +75,8 @@ fn function_keys() {
         Key::F12,
     ];
     for (i, k) in tasti.iter().enumerate() {
-        // F4 e F12 sono i tasti standard della finestra: F4 = Sostituisci (Ctrl+H), F12 = lettura / modifica (F4 del motore)
-        let atteso = match i + 1 {
-            4 => KeyEvent::new(KeyCode::Char('h'), KeyModifiers::CONTROL),
-            12 => KeyEvent::new(KeyCode::F(4), KeyModifiers::NONE),
-            n => KeyEvent::new(KeyCode::F(n as u8), KeyModifiers::NONE),
-        };
+        // i tasti F arrivano al motore come sono: F4 = Sostituisci, F12 non ha un significato suo
+        let atteso = KeyEvent::new(KeyCode::F((i + 1) as u8), KeyModifiers::NONE);
         assert_eq!(tasto(*k, nessuno()), Some(atteso), "F{}", i + 1);
     }
     // con un modificatore F4 resta F4 (il motore decide)

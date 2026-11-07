@@ -178,7 +178,7 @@ fn turning_it_on_again_returns_to_the_end() {
 #[test]
 fn editing_and_following_do_not_go_together() {
     let (mut a, p) = app();
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     assert!(a.is_edit());
     // una modifica da salvare: Alt+T non parte, si resta in modifica e si dice cosa fare
     a.handle_key(k(KeyCode::Char('x')));
@@ -186,8 +186,8 @@ fn editing_and_following_do_not_go_together() {
     a.handle_key(alt_f());
     assert!(!a.follow(), "con delle modifiche da salvare non si segue");
     assert!(a.is_edit(), "e si resta in modifica");
-    // F4 torna in lettura, le modifiche restano da salvare: ancora niente tail
-    a.handle_key(k(KeyCode::F(4)));
+    // Alt+V torna in lettura, le modifiche restano da salvare: ancora niente tail
+    a.handle_key(vista());
     assert!(!a.is_edit());
     a.handle_key(alt_f());
     assert!(!a.follow(), "un file modificato non si segue");
@@ -197,13 +197,13 @@ fn editing_and_following_do_not_go_together() {
 #[test]
 fn from_editing_without_changes_alt_f_goes_straight_to_the_tail() {
     let (mut a, p) = app();
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     assert!(a.is_edit() && !a.is_modified());
     a.handle_key(alt_f());
     assert!(a.follow(), "senza modifiche da salvare si passa al tail");
     assert!(!a.is_edit());
     // accendere la modifica ferma il seguire
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     assert!(a.is_edit());
     assert!(!a.follow());
     let _ = std::fs::remove_file(p);
@@ -242,4 +242,14 @@ fn the_workspace_runs_the_command_and_its_tick_polls_twice_a_second() {
     ws.tick();
     assert_eq!(ws.active_mut().status().size, 30 * 9 + 2);
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
+}
+
+/// Alt+V: torna in sola lettura.
+fn vista() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT)
 }

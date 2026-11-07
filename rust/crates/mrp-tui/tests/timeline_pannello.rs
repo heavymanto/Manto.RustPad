@@ -305,7 +305,7 @@ fn a_file_with_no_times_says_so_in_the_panel() {
 #[test]
 fn a_document_with_unsaved_changes_says_it_is_not_available() {
     let (mut a, p) = spenta_su(&dati());
-    a.handle_key(tasto(KeyCode::F(4), KeyModifiers::NONE));
+    a.handle_key(tasto(KeyCode::Char('e'), KeyModifiers::ALT));
     a.handle_key(tasto(KeyCode::Char('x'), KeyModifiers::NONE));
     a.set_timeline(true);
     finche(&mut a, |a| {

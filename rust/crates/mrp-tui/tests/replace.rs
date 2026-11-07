@@ -383,7 +383,7 @@ fn a_cursor_before_the_replacement_does_not_move() {
 fn replace_keeps_earlier_edits_and_undoes_only_itself_first() {
     let d = cartella();
     let mut w = ws_con(&d, &[("a.txt", b"uno\n")]);
-    w.handle_key(k(KeyCode::F(4)));
+    w.handle_key(modifica());
     digita(&mut w, ">");
     apri_sostituisci(&mut w, "uno", "1");
     w.handle_key(k(KeyCode::Enter));
@@ -802,4 +802,9 @@ fn the_summary_says_how_many_tabs_were_skipped() {
         schermo(&mut w)
     );
     pulisci(d);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

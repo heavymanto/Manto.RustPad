@@ -180,7 +180,7 @@ fn each_tab_keeps_its_own_cursor_and_edits() {
     assert_eq!(ws.active().cursor(), 4);
     ws.handle_key(alt(KeyCode::Right));
     assert_eq!(ws.active().cursor(), 0);
-    ws.handle_key(k(KeyCode::F(4)));
+    ws.handle_key(modifica());
     ws.handle_key(k(KeyCode::Char('X')));
     assert_eq!(ws.active().document_text(), b"Xtre\nquattro\ncinque\n");
     // la barra segna con * la scheda modificata
@@ -286,7 +286,7 @@ fn ctrl_w_closes_a_clean_tab_at_once_and_the_last_one_ends_the_session() {
 #[test]
 fn closing_a_modified_tab_asks_first() {
     let (d, mut ws) = due();
-    ws.handle_key(k(KeyCode::F(4)));
+    ws.handle_key(modifica());
     ws.handle_key(k(KeyCode::Char('X')));
     ws.handle_key(ctrl('w'));
     assert_eq!(ws.active().dialog_kind(), Some(DialogKind::Confirm));
@@ -309,7 +309,7 @@ fn closing_a_modified_tab_asks_first() {
 fn closing_a_modified_tab_that_is_not_active_brings_it_forward_to_ask() {
     let (d, mut ws) = due();
     ws.handle_key(alt(KeyCode::Right));
-    ws.handle_key(k(KeyCode::F(4)));
+    ws.handle_key(modifica());
     ws.handle_key(k(KeyCode::Char('X')));
     ws.select(0);
     ws.close(1);
@@ -328,7 +328,7 @@ fn quitting_asks_for_each_modified_tab_and_ends_only_when_all_are_settled() {
     // modifico a.txt e c.txt, non b.txt
     for i in [0, 2] {
         ws.select(i);
-        ws.handle_key(k(KeyCode::F(4)));
+        ws.handle_key(modifica());
         ws.handle_key(k(KeyCode::Char('X')));
     }
     ws.select(1);
@@ -355,7 +355,7 @@ fn quitting_asks_for_each_modified_tab_and_ends_only_when_all_are_settled() {
 #[test]
 fn cancelling_during_quit_stops_the_quit_and_a_later_f10_starts_again() {
     let (d, mut ws) = due();
-    ws.handle_key(k(KeyCode::F(4)));
+    ws.handle_key(modifica());
     ws.handle_key(k(KeyCode::Char('X')));
     ws.handle_key(k(KeyCode::F(10)));
     assert_eq!(ws.active().dialog_kind(), Some(DialogKind::Confirm));
@@ -452,7 +452,7 @@ fn many_tabs_scroll_the_bar_to_keep_the_active_one_visible() {
 #[test]
 fn the_terminal_cursor_sits_one_row_lower_with_the_bar() {
     let (d, mut ws) = due();
-    ws.handle_key(k(KeyCode::F(4)));
+    ws.handle_key(modifica());
     let mut t = Terminal::new(TestBackend::new(40, 8)).unwrap();
     t.draw(|f| ws.draw(f)).unwrap();
     let pos = t.get_cursor_position().unwrap();
@@ -581,7 +581,7 @@ fn a_tab_that_finishes_saving_while_not_active_closes_and_the_active_one_stays()
         scrivi(&d, n, b"uno\n");
     }
     let mut ws = ws_con(&d, &["a.txt", "b.txt", "c.txt"]);
-    ws.handle_key(k(KeyCode::F(4)));
+    ws.handle_key(modifica());
     ws.handle_key(k(KeyCode::Char('X')));
     ws.handle_key(ctrl('w'));
     // S: salva e poi chiude; il salvataggio e' in corso e si passa alla scheda b prima che finisca
@@ -616,4 +616,9 @@ fn ctrl_alt_page_keys_jump_pages_and_do_not_switch_tabs() {
     ws.handle_key(mod_k(KeyCode::PageDown, KeyModifiers::CONTROL));
     assert_eq!(nome_attivo(&ws), "b.txt");
     pulisci(d);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

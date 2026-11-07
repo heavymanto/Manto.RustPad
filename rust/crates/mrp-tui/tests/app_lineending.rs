@@ -55,7 +55,7 @@ fn app_file(dir: &TestDir, data: &[u8], enc: Option<Encoding>, edit: bool) -> (A
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
         assert!(a.is_edit());
     }
     (a, p)
@@ -219,4 +219,9 @@ fn a_crlf_file_switches_between_8_and_16_bit_keeping_its_style() {
     assert_eq!(a.line_ending(), LineEnding::CrLf);
     a.set_encoding(Encoding::Utf8);
     assert_eq!(a.line_ending(), LineEnding::CrLf);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

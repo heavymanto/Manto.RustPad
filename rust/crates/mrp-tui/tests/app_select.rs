@@ -66,7 +66,7 @@ fn app(dir: &TestDir, data: &[u8], edit: bool) -> App {
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
         assert!(a.is_edit());
     }
     a
@@ -502,4 +502,9 @@ fn two_pastes_in_a_row_are_two_undo_steps() {
     assert_eq!(text(&a), "1abc\n");
     a.handle_key(ctrl('z'));
     assert_eq!(text(&a), "abc\n");
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

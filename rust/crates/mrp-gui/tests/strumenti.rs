@@ -115,7 +115,7 @@ fn a_tooltip_is_the_name_and_the_shortcut() {
         (Cmd::Undo, "Undo (Ctrl+Z)"),
         (Cmd::Find, "Find… (F3)"),
         (Cmd::Replace, "Replace… (F4)"),
-        (Cmd::EditMode, "Edit mode (F12)"),
+        (Cmd::EditMode, "Edit mode (Alt+E)"),
         (Cmd::ViewMode, "View mode (read-only) (Alt+V)"),
         (Cmd::NavBar, "Page-jump bar (Ctrl+B)"),
         (Cmd::ZoomIn, "Zoom in (Ctrl++)"),
@@ -373,7 +373,7 @@ fn buttons_are_grey_when_the_command_makes_no_sense_and_toggles_light_up() {
     // si parte in sola lettura: il selettore dei modi ha acceso VIEW
     assert!(pulsante(&f, Cmd::ViewMode).1, "VIEW parte premuto");
     // F4: modifica; un carattere: salva e annulla si accendono; F8: colonna; Ctrl+B: salti
-    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::F8, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![tasto(Key::B, ctrl())]);
@@ -546,7 +546,7 @@ due
     disegna(&mut f, &ctx);
     assert_eq!(modi_premuti(&f), [true, false, false], "clic su VIEW");
     // con una modifica non salvata, TAIL non parte: si resta in EDIT
-    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::T, Modifiers::ALT)]);
     disegna(&mut f, &ctx);

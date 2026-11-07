@@ -227,8 +227,8 @@ pub const COMMANDS: &[Command] = &[
     comando(
         Cmd::Replace,
         "gui.replace",
-        tasto(KeyCode::Char('h'), CTRL),
-        "Ctrl+H",
+        tasto(KeyCode::F(4), NIENTE),
+        "F4",
         "replace",
     ),
     comando(

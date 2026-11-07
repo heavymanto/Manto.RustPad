@@ -194,7 +194,7 @@ fn dump_can_type_edit_and_save() {
         "--dump",
         "40x7",
         "--keys",
-        "F4,text:XY,Ctrl+S",
+        "Alt+e,text:XY,Ctrl+S",
         f.to_str().unwrap(),
     ]);
     assert_eq!(o.code, 0, "{}", o.stderr);

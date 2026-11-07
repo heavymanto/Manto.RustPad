@@ -63,7 +63,7 @@ fn app(dir: &TestDir, data: &[u8], edit: bool) -> App {
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
         assert!(a.is_edit());
     }
     a.handle_key(k(KeyCode::F(8)));
@@ -557,4 +557,9 @@ fn a_stream_selection_made_before_the_mode_does_not_survive_it() {
     assert_eq!(a.selection(), None);
     a.handle_key(k(KeyCode::F(8)));
     assert_eq!(a.selection(), None);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

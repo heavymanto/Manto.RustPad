@@ -75,8 +75,8 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
 fn the_shortcut_written_on_a_menu_entry_is_the_key_it_sends() {
     for v in voci() {
         if let Some(k) = v.azione.info().key {
-            // Trova, Sostituisci e Lettura / modifica hanno nella finestra i tasti standard (F3, F4, F12)
-            if matches!(v.azione, Cmd::Find | Cmd::Replace | Cmd::EditMode) {
+            // Trova ha nella finestra il tasto standard F3 (anche Ctrl+F)
+            if matches!(v.azione, Cmd::Find) {
                 continue;
             }
             assert_eq!(v.scorciatoia, shortcut_text(k), "{}", v.chiave);
@@ -84,7 +84,7 @@ fn the_shortcut_written_on_a_menu_entry_is_the_key_it_sends() {
     }
     assert_eq!(voce("gui.find").scorciatoia, "F3");
     assert_eq!(voce("gui.replace").scorciatoia, "F4");
-    assert_eq!(voce("gui.edit_mode").scorciatoia, "F12");
+    assert_eq!(voce("gui.edit_mode").scorciatoia, "Alt+E");
     assert_eq!(voce("gui.open").scorciatoia, "Ctrl+O");
     assert_eq!(voce("gui.zoom_in").scorciatoia, "Ctrl++");
     assert_eq!(voce("gui.zoom_out").scorciatoia, "Ctrl+-");
@@ -196,7 +196,7 @@ fn cancelling_the_open_dialog_leaves_the_document_alone() {
 fn opening_with_unsaved_changes_opens_a_new_tab_and_keeps_the_edits() {
     let q = file(b"due\n");
     let (mut f, ctx, p, titoli) = finestra(b"uno\n", vec![q.clone()]);
-    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
     assert!(f.app().is_modified());
     f.azione(Cmd::Open);
@@ -264,7 +264,7 @@ fn the_menu_entries_do_what_their_shortcuts_do() {
 #[test]
 fn undo_and_redo_from_the_menu_walk_the_history() {
     let (mut f, ctx, p, _t) = finestra(b"abc\n", vec![]);
-    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
     giro(&mut f, &ctx, vec![Event::Text("X".into())]);
     assert_eq!(f.app().document_text(), b"Xabc\n");
     f.azione(voce("gui.undo").azione);
@@ -556,7 +556,7 @@ fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
         },
     ));
     let ctx = Context::default();
-    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    giro(&mut f, &ctx, vec![tasto(Key::E, Modifiers::ALT)]);
     giro(&mut f, &ctx, vec![Event::Text("+".into())]);
     giro(&mut f, &ctx, vec![tasto(Key::S, ctrl())]);
     assert!(

@@ -75,7 +75,7 @@ fn app_file(dir: &TestDir, data: &[u8], e: Option<Encoding>, edit: bool) -> (App
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
         assert!(a.is_edit());
     }
     (a, p)
@@ -302,7 +302,7 @@ fn copy_gives_utf8_text_and_paste_writes_the_encoding() {
     a.handle_key(ctrl('c'));
     assert_eq!(a.take_copied(), Some("한국어 ok".as_bytes().to_vec()));
     a.handle_key(k(KeyCode::Esc));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     a.handle_key(ctrl('v'));
     assert_eq!(a.document_text(), b("euc-kr", "한국어 ok한국어 ok\n"));
     // incollare un testo che la codifica non ha: niente cambia
@@ -362,4 +362,9 @@ fn search_and_the_encoding_switch_also_look_back_far_enough() {
     assert_eq!(c.cursor(), 5);
     c.set_encoding(sj);
     assert_eq!(c.cursor(), 4);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

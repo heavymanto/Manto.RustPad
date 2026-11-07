@@ -26,7 +26,7 @@ fn app(data: &[u8], enc: Option<Encoding>, edit: bool) -> (App, PathBuf, u16) {
     a.resize(40, 9);
     assert!(a.wait_idle(Duration::from_secs(20)));
     if edit {
-        a.handle_key(k(KeyCode::F(4)));
+        a.handle_key(modifica());
     }
     // un disegno: serve ai clic (ricordano le righe disegnate); il gutter e' la colonna del cursore a 0
     let _ = render_lines(&mut a, 40, 9);
@@ -512,4 +512,9 @@ fn a_run_of_spaces_stops_at_the_row_edges_not_at_the_newlines() {
         "gli spazi in testa, non l'a-capo prima"
     );
     let _ = std::fs::remove_file(p);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }

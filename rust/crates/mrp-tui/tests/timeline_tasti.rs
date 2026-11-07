@@ -312,13 +312,13 @@ fn turning_the_timeline_off_and_on_again_gives_the_periods_again() {
 #[test]
 fn the_footer_shows_the_two_menus_only_while_the_timeline_is_on() {
     let (d, mut w) = con_timeline();
-    w.resize(160, 24);
-    let piede = w.render_lines(160, 24).last().unwrap().clone();
+    w.resize(200, 24);
+    let piede = w.render_lines(200, 24).last().unwrap().clone();
     assert!(piede.contains("Alt+B Timeline"), "{piede:?}");
     assert!(piede.contains("Alt+P Period"), "{piede:?}");
     assert!(piede.contains("Alt+S Levels"), "{piede:?}");
     w.handle_key(alt('b'));
-    let piede = w.render_lines(160, 24).last().unwrap().clone();
+    let piede = w.render_lines(200, 24).last().unwrap().clone();
     assert!(piede.contains("Alt+B Timeline"), "{piede:?}");
     assert!(
         !piede.contains("Alt+P") && !piede.contains("Alt+S"),

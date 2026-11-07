@@ -362,10 +362,10 @@ fn resizing_keeps_the_cursor_visible() {
 // ---------- modalita' e uscita ----------
 
 #[test]
-fn f4_switches_between_view_and_edit() {
+fn alt_e_and_alt_v_switch_between_view_and_edit() {
     let dir = TestDir::new();
     let mut a = app(&dir, &thirty(), 80, 7);
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     assert!(a.is_edit());
     let s = screen(&mut a, 80, 7);
     assert!(s[5].ends_with("240 B  EDIT"), "{:?}", s[5]);
@@ -382,7 +382,7 @@ fn f4_switches_between_view_and_edit() {
     a.handle_key(k(KeyCode::Down)); // il messaggio sparisce al tasto successivo
     let s = screen(&mut a, 80, 7);
     assert!(s[5].starts_with(" Ln 2  Col 1  byte 8  3%"), "{:?}", s[5]);
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(vista());
     assert!(!a.is_edit());
     let s = screen(&mut a, 80, 7);
     assert!(s[5].ends_with("240 B  VIEW"), "{:?}", s[5]);
@@ -403,7 +403,7 @@ fn typing_in_view_mode_is_refused_with_a_hint() {
     ] {
         a.handle_key(e);
         let st = screen(&mut a, 80, 7)[5].clone();
-        assert!(st.starts_with(" read-only: press F4 to edit"), "{st:?}");
+        assert!(st.starts_with(" read-only: press Alt+E to edit"), "{st:?}");
         a.handle_key(k(KeyCode::Right)); // cancella il messaggio
     }
     assert_eq!(a.document_len(), 240);
@@ -437,4 +437,14 @@ fn a_cut_row_shows_no_line_number_on_the_continuation() {
         s[1]
     );
     assert!(s[0].ends_with('»'));
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
+}
+
+/// Alt+V: torna in sola lettura.
+fn vista() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT)
 }

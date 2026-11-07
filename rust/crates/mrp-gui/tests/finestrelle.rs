@@ -161,7 +161,7 @@ fn aperture() -> Vec<(&'static str, Apertura)> {
             "conferma",
             Box::new(|f, ctx| {
                 // una modifica non salvata e poi chiudere la scheda: chiede cosa fare
-                giro(f, ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+                giro(f, ctx, vec![tasto(Key::E, Modifiers::ALT)]);
                 giro(f, ctx, vec![Event::Text("x".into())]);
                 f.azione(Cmd::CloseTab);
                 giro(f, ctx, vec![]);

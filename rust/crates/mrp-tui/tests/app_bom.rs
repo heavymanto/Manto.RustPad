@@ -45,7 +45,7 @@ fn editor(dir: &TestDir, data: &[u8], enc: Option<Encoding>) -> App {
     let mut a = App::open(&dir.file(data), cfg).unwrap();
     a.resize(40, 10);
     assert!(a.wait_idle(Duration::from_secs(20)));
-    a.handle_key(k(KeyCode::F(4)));
+    a.handle_key(modifica());
     assert!(a.is_edit());
     a
 }
@@ -143,4 +143,9 @@ fn switching_the_encoding_updates_what_counts_as_a_bom() {
     b.set_encoding(Encoding::Utf8);
     b.handle_key(k(KeyCode::Char('x')));
     assert_eq!(b.document_text(), [0xEF, 0xBB, 0xBF, b'x', b'a', b'\n']);
+}
+
+/// Alt+E: passa alla modifica (F4 e' Sostituisci).
+fn modifica() -> KeyEvent {
+    KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }
