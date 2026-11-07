@@ -425,7 +425,7 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let mode_key = if app.is_edit() {
         "mode.edit"
     } else if app.follow() {
-        "mode.follow"
+        "mode.tail"
     } else {
         "mode.view"
     };
@@ -560,10 +560,14 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         in_piu.push(("Alt+P", "footer.timeline_step"));
         in_piu.push(("Alt+E", "footer.timeline_levels"));
     }
+    // il tail e' l'ultimo: a un terminale stretto cede il posto alla timeline
+    in_piu.push(("Alt+F", "footer.tail"));
+    // in ordine di precedenza: la prima che non ci sta ferma le altre (una voce meno importante non passa avanti a una scartata)
     for voce in in_piu {
         voci.push(voce);
         if largo(&voci, sep_base) > w as usize {
             voci.pop();
+            break;
         }
     }
     let sep = if largo(&voci, 2) > w as usize && largo(&voci, 1) <= w as usize {

@@ -138,7 +138,7 @@ pub fn testi_stato(s: &StatusInfo, cat: &Catalog) -> TestiStato {
             .t(if s.edit {
                 "mode.edit"
             } else if s.follow {
-                "mode.follow"
+                "mode.tail"
             } else {
                 "mode.view"
             })

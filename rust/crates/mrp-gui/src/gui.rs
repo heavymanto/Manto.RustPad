@@ -683,14 +683,15 @@ impl Finestra {
                         let attivo = mrp_tui::commands::enabled(&self.ws, cmd);
                         let acceso = match cmd {
                             Cmd::EditMode => self.ws.active().is_edit(),
+                            Cmd::Follow => self.ws.active().follow(),
                             Cmd::ColumnMode => self.ws.active().column_mode(),
                             Cmd::NavBar => self.ws.nav_bar(),
                             Cmd::TimeFilter => self.ws.active().time_filter_on(),
                             Cmd::Timeline => self.ws.active().timeline_on(),
                             _ => false,
                         };
-                        // il filtro per data ha l'imbuto, disegnato a mano sul pulsante (il glifo nel font non c'e')
-                        let icona = if cmd == Cmd::TimeFilter {
+                        // il filtro per data e il tail hanno il segno disegnato a mano sul pulsante (il glifo nel font non c'e')
+                        let icona = if matches!(cmd, Cmd::TimeFilter | Cmd::Follow) {
                             ""
                         } else {
                             glifo(info.icon)
@@ -719,6 +720,15 @@ impl Finestra {
                                 ui.style().interact(&r).fg_stroke.color
                             };
                             crate::strumenti::imbuto(ui.painter(), r.rect.center(), colore, 12.0);
+                        }
+                        // il tail ha la freccia sulla riga di fondo, disegnata a mano come l'imbuto
+                        if cmd == Cmd::Follow {
+                            let colore = if acceso {
+                                self.tavolozza.acceso_fg
+                            } else {
+                                ui.style().interact(&r).fg_stroke.color
+                            };
+                            crate::strumenti::coda(ui.painter(), r.rect.center(), colore, 12.0);
                         }
                         if r.clicked() {
                             scelta = Some(cmd);
@@ -1242,12 +1252,21 @@ impl Finestra {
             self.tema_applicato = Some(tema);
         }
         crate::stile::registra(ctx, &self.tavolozza);
-        // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7)
+        // il font per la scrittura della codifica attuale (F9 la puo' cambiare) e della lingua dei menu (F7); con le impostazioni
+        // aperte anche quelli delle lingue giapponese e cinese, perche' l'elenco delle lingue le scrive con la loro scrittura
         let mut nuova = false;
+        let per_l_elenco = if self.impostazioni.aperta {
+            fonts::scritture_dell_elenco_lingue()
+        } else {
+            &[]
+        };
         for s in [
             fonts::scrittura_di(self.ws.active().encoding()),
             fonts::scrittura_della_lingua(self.ws.active().lang_code()),
-        ] {
+        ]
+        .into_iter()
+        .chain(per_l_elenco.iter().copied())
+        {
             if s != Scrittura::Nessuna && !self.scritture.contains(&s) {
                 self.scritture.push(s);
                 nuova = true;

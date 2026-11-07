@@ -30,6 +30,7 @@ pub fn glifo(icona: &str) -> &'static str {
         "replace" => "🔁",
         "columns" => "📊",
         "special" => "¶",
+        // il tail ha la freccia che si ferma sulla riga di fondo, che nel font non c'e': si disegna a mano (`coda`); qui un segno qualunque
         "follow" => "↓",
         "log_colors" => "≡",
         "filter" => "▽",
@@ -69,7 +70,7 @@ pub fn gruppi() -> Vec<Vec<Cmd>> {
         vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
         vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
         vec![Cmd::Timeline, Cmd::TimeFilter],
-        vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
+        vec![Cmd::EditMode, Cmd::Follow, Cmd::ColumnMode, Cmd::NavBar],
         vec![Cmd::ZoomOut, Cmd::ZoomIn],
     ]
 }
@@ -183,6 +184,40 @@ pub fn imbuto(
         colore,
         eframe::egui::Stroke::NONE,
     ));
+}
+
+/// Disegna il segno del tail (una freccia verso il basso che si ferma su una riga: "vai in fondo e resta li'") centrato in `c`,
+/// di colore `colore`, alto circa `alto` punti: nel font non c'e' il glifo.
+pub fn coda(
+    painter: &eframe::egui::Painter,
+    c: eframe::egui::Pos2,
+    colore: eframe::egui::Color32,
+    alto: f32,
+) {
+    use eframe::egui::{Pos2, Shape, Stroke};
+    let k = alto / 10.0;
+    let tratto = Stroke::new(1.6_f32, colore);
+    // l'asta, la punta e la riga di fondo
+    painter.line_segment(
+        [Pos2::new(c.x, c.y - 5.0 * k), Pos2::new(c.x, c.y + 1.0 * k)],
+        tratto,
+    );
+    painter.add(Shape::convex_polygon(
+        vec![
+            Pos2::new(c.x - 3.5 * k, c.y - 1.5 * k),
+            Pos2::new(c.x + 3.5 * k, c.y - 1.5 * k),
+            Pos2::new(c.x, c.y + 2.5 * k),
+        ],
+        colore,
+        Stroke::NONE,
+    ));
+    painter.line_segment(
+        [
+            Pos2::new(c.x - 5.0 * k, c.y + 5.0 * k),
+            Pos2::new(c.x + 5.0 * k, c.y + 5.0 * k),
+        ],
+        tratto,
+    );
 }
 
 /// Il tooltip di un pulsante: il nome del comando nella lingua attiva e la sua scorciatoia, `nome (scorciatoia)`.

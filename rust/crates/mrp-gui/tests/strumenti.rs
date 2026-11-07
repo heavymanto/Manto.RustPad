@@ -92,7 +92,7 @@ fn the_toolbar_groups() {
             vec![Cmd::Cut, Cmd::Copy, Cmd::Paste],
             vec![Cmd::Find, Cmd::Replace, Cmd::Goto],
             vec![Cmd::Timeline, Cmd::TimeFilter],
-            vec![Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar],
+            vec![Cmd::EditMode, Cmd::Follow, Cmd::ColumnMode, Cmd::NavBar],
             vec![Cmd::ZoomOut, Cmd::ZoomIn],
         ]
     );
@@ -351,12 +351,13 @@ fn buttons_are_grey_when_the_command_makes_no_sense_and_toggles_light_up() {
         Cmd::Replace,
         Cmd::Goto,
         Cmd::EditMode,
+        Cmd::Follow,
         Cmd::ColumnMode,
         Cmd::NavBar,
     ] {
         assert!(pulsante(&f, c).0, "{c:?} dovrebbe essere acceso");
     }
-    for c in [Cmd::EditMode, Cmd::ColumnMode, Cmd::NavBar] {
+    for c in [Cmd::EditMode, Cmd::Follow, Cmd::ColumnMode, Cmd::NavBar] {
         assert!(!pulsante(&f, c).1, "{c:?} parte non premuto");
     }
     // F4: modifica; un carattere: salva e annulla si accendono; F8: colonna; Ctrl+B: salti
@@ -485,5 +486,23 @@ fn the_jump_buttons_jump_by_pages_of_the_grid() {
     let pos = cerca(&f, SaltoAzione::Inizio);
     clic(&mut f, &ctx, pos);
     assert_eq!(f.app().top(), 0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_tail_button_lights_up_with_alt_f_and_goes_out_when_editing_starts() {
+    let (mut f, ctx, p) = finestra(b"uno\ndue\n", false);
+    disegna(&mut f, &ctx);
+    assert!(!pulsante(&f, Cmd::Follow).1, "parte spento");
+    // Alt+F: la terza modalita' (tail) si accende
+    giro(&mut f, &ctx, vec![tasto(Key::F, Modifiers::ALT)]);
+    disegna(&mut f, &ctx);
+    assert!(pulsante(&f, Cmd::Follow).1, "Alt+F lo accende");
+    assert!(!pulsante(&f, Cmd::EditMode).1);
+    // F12: la modifica spegne il tail, le due modalita' non stanno insieme
+    giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
+    disegna(&mut f, &ctx);
+    assert!(pulsante(&f, Cmd::EditMode).1);
+    assert!(!pulsante(&f, Cmd::Follow).1, "la modifica lo spegne");
     let _ = std::fs::remove_file(p);
 }

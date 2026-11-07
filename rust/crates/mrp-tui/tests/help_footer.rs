@@ -140,6 +140,12 @@ fn the_footer_gets_the_extra_keys_only_where_there_is_room() {
     let s200 = piede(&mut a, 200);
     assert!(s200.contains("Alt+B Timeline"), "{s200}");
     assert!(!s200.contains("Ctrl+R"), "{s200}");
+    // il tail e' l'ultima voce e c'e' dove c'e' posto per tutte, mai prima della timeline
+    assert!(s200.contains("Alt+F Tail"), "{s200}");
+    assert!(
+        s200.find("Alt+B").unwrap() < s200.find("Alt+F").unwrap(),
+        "{s200}"
+    );
     // con una modifica compare anche Ctrl+R, prima di Alt+B
     a.handle_key(k(KeyCode::F(4)));
     a.handle_key(k(KeyCode::Char('x')));
@@ -168,7 +174,10 @@ fn the_footer_gets_the_extra_keys_only_where_there_is_room() {
         // e finisce con una voce intera, mai con un pezzo ("Ctr", "Alt+B Timelin")
         let fine = s.trim_end();
         assert!(
-            fine.ends_with("Quit") || fine.ends_with("Discard") || fine.ends_with("Timeline"),
+            fine.ends_with("Quit")
+                || fine.ends_with("Discard")
+                || fine.ends_with("Timeline")
+                || fine.ends_with("Tail"),
             "a {w} colonne il piede e' tagliato: {s}"
         );
         visto_r |= r;

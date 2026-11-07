@@ -606,3 +606,59 @@ fn the_view_menu_has_the_line_index_switch() {
     );
     let _ = std::fs::remove_dir_all(p.parent().unwrap());
 }
+
+#[test]
+fn the_language_list_names_japanese_and_chinese_in_their_own_script_whatever_the_interface_language(
+) {
+    // senza un font asiatico di sistema (un server Linux) non c'e' niente da provare
+    let c = mrp_gui::fonts::candidati;
+    let ce_il_font = [
+        mrp_gui::fonts::Scrittura::Giapponese,
+        mrp_gui::fonts::Scrittura::CineseSemplificato,
+    ]
+    .iter()
+    .all(|s| c(*s).iter().any(|p| std::path::Path::new(p).exists()));
+    if !ce_il_font {
+        return;
+    }
+    // l'app con tutte le lingue (come la lancia il programma), in inglese
+    let (p, settings) = percorsi();
+    std::fs::write(
+        &p, b"uno
+",
+    )
+    .unwrap();
+    let cfg = move || AppConfig {
+        chrome: false,
+        settings_path: Some(settings.clone()),
+        langs: mrp_core::lang::registry().0,
+        ..AppConfig::default()
+    };
+    let mut app = App::open(&p, cfg()).unwrap();
+    assert!(app.wait_idle(Duration::from_secs(20)));
+    let mut f = Finestra::da_app(app, Box::new(cfg));
+    let ctx = Context::default();
+    giro(&mut f, &ctx, vec![]);
+    giro(&mut f, &ctx, vec![]);
+    let font = egui::FontId::proportional(14.0);
+    let nomi: String = f
+        .workspace()
+        .active()
+        .language_list()
+        .iter()
+        .map(|(_, n)| n.clone())
+        .collect();
+    assert!(
+        nomi.contains("日本語") && nomi.contains("简体中文"),
+        "{nomi}"
+    );
+    // con l'interfaccia in inglese e le impostazioni chiuse quei nomi non si possono scrivere: i font non ci sono
+    assert!(!ctx.fonts(|fo| fo.has_glyphs(&font, &nomi)));
+    apri(&mut f, &ctx);
+    giro(&mut f, &ctx, vec![]);
+    assert!(
+        ctx.fonts(|fo| fo.has_glyphs(&font, &nomi)),
+        "l'elenco delle lingue ha dei quadrati: {nomi}"
+    );
+    let _ = std::fs::remove_dir_all(p.parent().unwrap());
+}

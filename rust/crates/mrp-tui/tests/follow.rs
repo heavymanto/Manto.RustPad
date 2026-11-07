@@ -68,11 +68,11 @@ fn alt_f_turns_it_on_and_shows_the_end_of_the_file() {
     let s = schermo(&mut a);
     assert!(s.contains("linea 29"), "{s}");
     assert!(!s.contains("linea 00"), "{s}");
-    assert!(s.contains("FOLLOW"), "il titolo dice che si segue: {s}");
+    assert!(s.contains("TAIL"), "il titolo dice che si segue: {s}");
     // Alt+F di nuovo lo spegne
     a.handle_key(alt_f());
     assert!(!a.follow());
-    assert!(!schermo(&mut a).contains("FOLLOW"));
+    assert!(!schermo(&mut a).contains("TAIL"));
     let _ = std::fs::remove_file(p);
 }
 

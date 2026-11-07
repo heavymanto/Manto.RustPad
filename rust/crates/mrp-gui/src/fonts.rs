@@ -49,6 +49,12 @@ pub fn scrittura_della_lingua(code: &str) -> Scrittura {
     }
 }
 
+/// Le scritture dei nomi delle lingue nell'elenco delle impostazioni ("日本語", "简体中文"): scritte con la loro scrittura anche
+/// quando l'interfaccia e' in un'altra lingua, senza un font asiatico uscirebbero come quadrati.
+pub fn scritture_dell_elenco_lingue() -> &'static [Scrittura] {
+    &[Scrittura::Giapponese, Scrittura::CineseSemplificato]
+}
+
 /// I file dei font di sistema da provare per una scrittura, in ordine di preferenza (Windows, macOS, Linux).
 pub fn candidati(s: Scrittura) -> &'static [&'static str] {
     match s {
