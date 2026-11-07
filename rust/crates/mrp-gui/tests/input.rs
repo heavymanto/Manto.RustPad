@@ -138,10 +138,14 @@ fn letters_only_count_with_ctrl() {
         Some(KeyEvent::new(KeyCode::Char('l'), KeyModifiers::ALT))
     );
     assert_eq!(
-        tasto(Key::F, alt),
-        Some(KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT))
+        tasto(Key::T, alt),
+        Some(KeyEvent::new(KeyCode::Char('t'), KeyModifiers::ALT))
     );
-    assert_eq!(tasto(Key::F, Modifiers { shift: true, ..alt }), None);
+    assert_eq!(
+        tasto(Key::E, alt),
+        Some(KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT))
+    );
+    assert_eq!(tasto(Key::T, Modifiers { shift: true, ..alt }), None);
     assert_eq!(
         tasto(Key::W, alt),
         Some(KeyEvent::new(KeyCode::Char('w'), KeyModifiers::ALT))

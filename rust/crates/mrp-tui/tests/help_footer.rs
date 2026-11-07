@@ -36,7 +36,7 @@ fn the_help_lists_every_key_that_was_missing() {
     a.handle_key(k(KeyCode::F(1)));
     let s = schermo(&mut a, 100, 40);
     for atteso in [
-        "Alt+T / Alt+O",
+        "Alt+I / Alt+O",
         "time range / time format of the lines",
         "Alt+B",
         "timeline: the file in time, next to the text",
@@ -60,10 +60,10 @@ fn on_a_short_screen_the_help_scrolls_and_always_shows_how_to_close() {
     let (mut a, p) = app("uno\n", 100, 24);
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
-    // in cima: le prime 21 righe (fino a Alt+T / Alt+O), non le ultime; in fondo come si chiude e che si scorre
+    // in cima: le prime 21 righe (fino a Alt+I / Alt+O), non le ultime; in fondo come si chiude e che si scorre
     let s = schermo(&mut a, 100, 24);
     assert!(s.contains("Arrows PgUp PgDn Home End"), "{s}");
-    assert!(s.contains("Alt+T / Alt+O"), "{s}");
+    assert!(s.contains("Alt+I / Alt+O"), "{s}");
     assert!(!s.contains("Ctrl+R"), "{s}");
     assert!(!s.contains("timeline: the file in time"), "{s}");
     assert!(s.contains("Esc closes"), "{s}");
@@ -138,10 +138,9 @@ fn the_footer_gets_the_extra_keys_only_where_there_is_room() {
     let s200 = piede(&mut a, 200);
     assert!(s200.contains("Alt+B Timeline"), "{s200}");
     assert!(!s200.contains("Ctrl+R"), "{s200}");
-    // il tail e' l'ultima voce e c'e' dove c'e' posto per tutte, mai prima della timeline
-    assert!(s200.contains("Alt+F Tail"), "{s200}");
+    // i tre modi stanno in testa, prima di tutte le altre voci
     assert!(
-        s200.find("Alt+B").unwrap() < s200.find("Alt+F").unwrap(),
+        s200.starts_with(" Alt+V View  Alt+E Edit  Alt+T Tail  F1 Help"),
         "{s200}"
     );
     // con una modifica compare anche Ctrl+R, prima di Alt+B
@@ -169,6 +168,10 @@ fn the_footer_gets_the_extra_keys_only_where_there_is_room() {
             "a {w} colonne Alt+B e' tagliata: {s}"
         );
         assert!(s.contains("F10"), "a {w} colonne manca F10: {s}");
+        assert!(
+            s.contains("Alt+V View") && s.contains("Alt+E Edit") && s.contains("Alt+T Tail"),
+            "a {w} colonne mancano i tre modi: {s}"
+        );
         // e finisce con una voce intera, mai con un pezzo ("Ctr", "Alt+B Timelin")
         let fine = s.trim_end();
         assert!(

@@ -1,4 +1,4 @@
-//! Seguire la coda nell'editor (fase 2, 3.1): Alt+F accende "segui" su un documento in lettura; `App::follow_poll` (lo chiama
+//! Seguire la coda nell'editor (fase 2, 3.1): Alt+T accende "segui" su un documento in lettura; `App::follow_poll` (lo chiama
 //! `tick` ogni mezzo secondo) guarda se il file e' cresciuto, lo riallinea e porta la vista in fondo; qualunque movimento che
 //! lascia la fine del file ferma il seguire; la modifica e il seguire non stanno insieme. Scritti da ARCH: gli attesi sono
 //! calcolati a mano. Il file ha 30 righe "linea NN\n" (NN da 00 a 29); il terminale e' 40 x 10 (7 righe di testo).
@@ -32,7 +32,7 @@ fn k(c: KeyCode) -> KeyEvent {
 }
 
 fn alt_f() -> KeyEvent {
-    KeyEvent::new(KeyCode::Char('f'), KeyModifiers::ALT)
+    KeyEvent::new(KeyCode::Char('t'), KeyModifiers::ALT)
 }
 
 fn appendi(p: &PathBuf, testo: &str) {
@@ -48,7 +48,7 @@ fn schermo(a: &mut App) -> String {
 fn the_command_is_alt_f_and_it_starts_off() {
     let c = Cmd::Follow.info();
     assert_eq!(c.label, "gui.follow");
-    assert_eq!(c.shortcut, "Alt+F");
+    assert_eq!(c.shortcut, "Alt+T");
     assert_eq!(c.key, Some(alt_f()));
     assert_eq!(commands::from_key(alt_f()), Some(Cmd::Follow));
     let (a, p) = app();
@@ -69,7 +69,7 @@ fn alt_f_turns_it_on_and_shows_the_end_of_the_file() {
     assert!(s.contains("linea 29"), "{s}");
     assert!(!s.contains("linea 00"), "{s}");
     assert!(s.contains("TAIL"), "il titolo dice che si segue: {s}");
-    // Alt+F di nuovo lo spegne
+    // Alt+T di nuovo lo spegne
     a.handle_key(alt_f());
     assert!(!a.follow());
     assert!(!schermo(&mut a).contains("TAIL"));
@@ -178,7 +178,7 @@ fn editing_and_following_do_not_go_together() {
     let (mut a, p) = app();
     a.handle_key(k(KeyCode::F(4)));
     assert!(a.is_edit());
-    // una modifica da salvare: Alt+F non parte, si resta in modifica e si dice cosa fare
+    // una modifica da salvare: Alt+T non parte, si resta in modifica e si dice cosa fare
     a.handle_key(k(KeyCode::Char('x')));
     assert!(a.is_modified());
     a.handle_key(alt_f());

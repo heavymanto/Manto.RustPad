@@ -1,7 +1,7 @@
 //! Il disegno del TUI: legge l'`App` e scrive su un `Frame` (layout in `docs/TEAM/DESIGN_TUI.md`, sezione 2).
 
 use crate::app::timeline_pannello::{Pannello, RigaPannello, BARRA_W, ETICHETTA_W, LEGENDA_W};
-use crate::app::{App, DialogKind};
+use crate::app::{App, DialogKind, Modo};
 use crate::theme::{Theme, ThemeId};
 use mrp_core::block::{block_spans, ColumnBlock};
 use mrp_core::encoding::Encoding;
@@ -502,22 +502,25 @@ pub fn destra_stato(
     (destra, modo)
 }
 
-/// Riga h-1: `" "` + `F1 Help  F2 Save  ...` (voci separate da due spazi, F4 cambia etichetta col modo), tagliata
-/// alla larghezza dal disegno. Se con due spazi la riga non sta nello schermo ma con uno sola si', si usa uno
+/// Riga h-1: `" "` + `Alt+V View  Alt+E Edit  Alt+T Tail  F1 Help  ...` (voci separate da due spazi): i tre modi stanno sempre
+/// in testa, quello di adesso in evidenza; a un terminale stretto cedono il posto le voci F meno usate (tema, lingua,
+/// colonne, codifica). La riga e' tagliata alla larghezza dal disegno. Se con due spazi la riga non sta nello schermo ma con uno sola si', si usa uno
 /// spazio solo (cosi' su 80 colonne ci sono tutte le voci, compreso F10); se non sta nemmeno cosi' restano i
 /// due spazi e la riga si taglia.
 fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     let cat = app.catalog();
-    let f4 = if app.is_edit() {
-        "footer.f4.view"
-    } else {
-        "footer.f4.edit"
+    let attivo = match app.work_mode() {
+        Modo::View => "Alt+V",
+        Modo::Edit => "Alt+E",
+        Modo::Tail => "Alt+T",
     };
     let mut voci = vec![
+        ("Alt+V", "footer.f4.view"),
+        ("Alt+E", "footer.f4.edit"),
+        ("Alt+T", "footer.tail"),
         ("F1", "footer.f1"),
         ("F2", "footer.f2"),
         ("F3", "footer.f3"),
-        ("F4", f4),
         ("F5", "footer.f5"),
         ("F6", "footer.f6"),
         ("F7", "footer.f7"),
@@ -538,6 +541,13 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // Dopo F10, se lo schermo e' largo abbastanza (a 80 colonne non c'e' posto): scartare le modifiche (solo quando ce ne sono) e
     // la timeline. Ognuna entra solo se ci sta con lo stesso separatore che hanno le voci di base (le voci in piu' non fanno
     // stringere gli spazi alle altre: con spazio di sobra restano due spazi).
+    // se nemmeno con un solo spazio ci sta tutto, si lasciano le voci meno usate, una alla volta, finche' ci sta
+    for tasto in ["F6", "F7", "F8", "F9", "F5", "F3", "F2"] {
+        if largo(&voci, 1) <= w as usize {
+            break;
+        }
+        voci.retain(|(t, _)| *t != tasto);
+    }
     let sep_base = if largo(&voci, 2) <= w as usize { 2 } else { 1 };
     let mut in_piu = Vec::new();
     if app.is_modified() && !app.is_untitled() {
@@ -547,10 +557,8 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
     // con la timeline accesa, i due menu che la riguardano: il passo dei periodi e i livelli da mostrare
     if app.timeline_on() {
         in_piu.push(("Alt+P", "footer.timeline_step"));
-        in_piu.push(("Alt+E", "footer.timeline_levels"));
+        in_piu.push(("Alt+S", "footer.timeline_levels"));
     }
-    // il tail e' l'ultimo: a un terminale stretto cede il posto alla timeline
-    in_piu.push(("Alt+F", "footer.tail"));
     // in ordine di precedenza: la prima che non ci sta ferma le altre (una voce meno importante non passa avanti a una scartata)
     for voce in in_piu {
         voci.push(voce);
@@ -569,8 +577,15 @@ fn draw_footer(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         if i > 0 {
             spans.push(Span::raw(sep));
         }
-        spans.push(Span::styled((*tasto).to_string(), t.key));
-        spans.push(Span::raw(format!(" {}", cat.t(chiave))));
+        if *tasto == attivo {
+            spans.push(Span::styled(
+                format!("{tasto} {}", cat.t(chiave)),
+                t.selected,
+            ));
+        } else {
+            spans.push(Span::styled((*tasto).to_string(), t.key));
+            spans.push(Span::raw(format!(" {}", cat.t(chiave))));
+        }
     }
     f.render_widget(
         Paragraph::new(Line::from(spans)).style(t.screen),

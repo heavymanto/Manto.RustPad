@@ -65,7 +65,7 @@ impl FilterConditions {
 }
 
 impl App {
-    /// Alt+T (`intervallo`) e Alt+O: nella finestra con i controlli nativi aprono la finestra "Tempo" (con il fuoco sul filtro o sul
+    /// Alt+I (`intervallo`) e Alt+O: nella finestra con i controlli nativi aprono la finestra "Tempo" (con il fuoco sul filtro o sul
     /// formato); nel terminale i due dialoghi separati.
     pub(super) fn open_time_dialog_for_mode(&mut self, intervallo: bool) {
         if self.chrome {

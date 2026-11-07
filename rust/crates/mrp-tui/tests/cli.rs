@@ -153,7 +153,7 @@ fn dump_prints_the_first_screen() {
             "  4│line 04",
             "  5│line 05",
             " Ln 1  Col 1  byte 0  0%",
-            " F1 Help  F2 Save  F3 Find  F4",
+            " Alt+V View  Alt+E Edit  Alt+T",
         ]
     );
 }

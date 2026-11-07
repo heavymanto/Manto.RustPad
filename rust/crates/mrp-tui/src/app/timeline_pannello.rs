@@ -230,7 +230,7 @@ impl App {
         .to_string()
     }
 
-    /// Alt+P e Alt+E (e il clic sull'intestazione): apre il menu del passo o dei livelli, se la timeline e' accesa.
+    /// Alt+P e Alt+S (e il clic sull'intestazione): apre il menu del passo o dei livelli, se la timeline e' accesa.
     pub(super) fn open_timeline_menu(&mut self, quale: DialogKind) {
         if self.timeline_on() {
             self.open_dialog(quale);

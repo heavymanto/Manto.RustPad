@@ -150,8 +150,8 @@ pub const COMMANDS: &[Command] = &[
     comando(
         Cmd::EditMode,
         "gui.edit_mode",
-        tasto(KeyCode::F(4), NIENTE),
-        "F4",
+        tasto(KeyCode::Char('e'), ALT),
+        "Alt+E",
         "edit",
     ),
     comando(
@@ -269,8 +269,8 @@ pub const COMMANDS: &[Command] = &[
     comando(
         Cmd::Follow,
         "gui.follow",
-        tasto(KeyCode::Char('f'), ALT),
-        "Alt+F",
+        tasto(KeyCode::Char('t'), ALT),
+        "Alt+T",
         "follow",
     ),
     comando(
@@ -283,8 +283,8 @@ pub const COMMANDS: &[Command] = &[
     comando(
         Cmd::TimeRange,
         "gui.time_range",
-        tasto(KeyCode::Char('t'), ALT),
-        "Alt+T",
+        tasto(KeyCode::Char('i'), ALT),
+        "Alt+I",
         "time_range",
     ),
     comando(

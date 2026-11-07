@@ -46,7 +46,7 @@ fn there_is_no_title_row_the_text_starts_on_the_first_row() {
     assert_eq!(righe[0], "1│uno");
     assert_eq!(righe[1], "2│due");
     assert!(righe[4].starts_with(" Ln 1"), "{:?}", righe[4]);
-    assert!(righe[5].starts_with(" F1 Help"), "{:?}", righe[5]);
+    assert!(righe[5].starts_with(" Alt+V View"), "{:?}", righe[5]);
     pulisci(p);
 }
 

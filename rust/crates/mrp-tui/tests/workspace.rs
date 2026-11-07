@@ -98,7 +98,7 @@ fn two_tabs_draw_the_bar_on_top_and_the_active_document_below() {
     assert_eq!(righe[1], "1│uno");
     assert_eq!(righe[2], "2│due");
     // la scheda attiva sta 1 riga piu' in basso, ma ha tutte le sue righe: il piede e' in fondo
-    assert!(righe[7].starts_with(" F1 Help"), "{:?}", righe[7]);
+    assert!(righe[7].starts_with(" Alt+V View"), "{:?}", righe[7]);
     pulisci(d);
 }
 

@@ -435,7 +435,7 @@ pub enum DialogKind {
     SaveEncoding,
     /// Gli ingranaggi della barra dei salti: le pagine dei tre salti (Alt+Pag, con Maiusc, con Ctrl).
     Jumps,
-    /// Alt+T: l'intervallo di tempo (da / a) che restringe la vista (la finestra di tempo).
+    /// Alt+I: l'intervallo di tempo (da / a) che restringe la vista (la finestra di tempo).
     TimeRange,
     /// Alt+O: il formato dell'orario scritto nelle righe del file (la maschera).
     TimeMask,
@@ -447,7 +447,7 @@ pub enum DialogKind {
     Revert,
     /// Alt+P (o un clic sull'intestazione del pannello): il menu del passo dei periodi della timeline.
     TimelineStep,
-    /// Alt+E: il menu dei livelli da mostrare (apre la vista con le sole righe di quei livelli).
+    /// Alt+S: il menu dei livelli da mostrare (apre la vista con le sole righe di quei livelli).
     TimelineLevels,
     /// Alt+M (o un clic sul modo nella riga di stato): il menu dei tre modi, VIEW, EDIT e TAIL.
     Mode,
@@ -485,7 +485,7 @@ pub struct StatusInfo {
     pub modified: bool,
     pub column_mode: bool,
     pub untitled: bool,
-    /// Si segue la coda del file (Alt+F).
+    /// Si segue la coda del file (Alt+T).
     pub follow: bool,
     /// Quante righe ha il documento (`None` finche' l'indice non e' pronto).
     pub line_count: Option<u64>,
@@ -846,7 +846,7 @@ pub struct App {
     /// Il gesto del blocco col mouse (Alt+clic, o clic in modalita' colonna) in corso: l'inizio della riga e la colonna
     /// virtuale dell'ancora. Il rilascio lo chiude.
     block_drag: Option<(u64, u64)>,
-    /// Seguire la coda del file (Alt+F): a ogni controllo il documento si riallinea al file cresciuto e la vista va in fondo.
+    /// Seguire la coda del file (Alt+T): a ogni controllo il documento si riallinea al file cresciuto e la vista va in fondo.
     follow: bool,
     /// L'ultimo controllo della coda (`follow_poll`): il prossimo e' fra `FOLLOW_EVERY`.
     follow_checked: Instant,
@@ -1317,8 +1317,8 @@ impl App {
             // a-capo, Tab un tabulatore, Backspace e Delete tolgono il carattere prima o sotto il cursore;
             // con una selezione agiscono su quella (un carattere, Enter e Tab la sostituiscono, Backspace e
             // Delete la tolgono e basta). In lettura sono rifiutati con un suggerimento.
-            // Alt+T: l'intervallo di tempo (da / a); Alt+O: il formato dell'orario
-            KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => {
+            // Alt+I: l'intervallo di tempo (da / a); Alt+O: il formato dell'orario
+            KeyCode::Char('i') | KeyCode::Char('I') if alt && !ctrl => {
                 self.open_time_dialog_for_mode(true)
             }
             KeyCode::Char('o') | KeyCode::Char('O') if alt && !ctrl => {
@@ -1326,9 +1326,10 @@ impl App {
             }
             // Alt+G: filtra le righe (come `grep`): una vista nuova con solo quelle che corrispondono
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
-            // Alt+F: segui la coda del file (come `tail -f`)
-            KeyCode::Char('f') | KeyCode::Char('F') if alt && !ctrl => self.toggle_follow(),
-            // Alt+V: sola lettura (VIEW); Alt+M: il menu dei tre modi
+            // I tre modi: Alt+V sola lettura (VIEW), Alt+E modifica (EDIT, come F4), Alt+T segui la coda (TAIL, come `tail -f`);
+            // Alt+M: il menu dei tre modi
+            KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => self.toggle_follow(),
+            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => self.toggle_edit(),
             KeyCode::Char('v') | KeyCode::Char('V') if alt && !ctrl => self.set_view(),
             KeyCode::Char('m') | KeyCode::Char('M') if alt && !ctrl => self.open_mode_menu(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta
@@ -1337,8 +1338,8 @@ impl App {
             KeyCode::Char('p') | KeyCode::Char('P') if alt && !ctrl => {
                 self.open_timeline_menu(DialogKind::TimelineStep)
             }
-            // Alt+E: il menu dei livelli da mostrare (tutte le righe, errori, + avvisi, + info)
-            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => {
+            // Alt+S: il menu dei livelli da mostrare (tutte le righe, errori, + avvisi, + info)
+            KeyCode::Char('s') | KeyCode::Char('S') if alt && !ctrl => {
                 self.open_timeline_menu(DialogKind::TimelineLevels)
             }
             // Ctrl+R (o Alt+R): scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma)
@@ -5012,12 +5013,12 @@ impl App {
 
     // ----- seguire la coda -----
 
-    /// Si segue la coda del file (Alt+F).
+    /// Si segue la coda del file (Alt+T).
     pub fn follow(&self) -> bool {
         self.follow
     }
 
-    /// Alt+F: accende o spegne il seguire. Acceso, la vista va in fondo e a ogni controllo il file cresciuto si
+    /// Alt+T: accende o spegne il seguire. Acceso, la vista va in fondo e a ogni controllo il file cresciuto si
     /// riallinea (`follow_poll`); in modifica non si accende (si dice come fare).
     fn toggle_follow(&mut self) {
         if self.follow {

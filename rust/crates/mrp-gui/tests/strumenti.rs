@@ -526,10 +526,10 @@ due
     clic(&mut f, &ctx, pos);
     disegna(&mut f, &ctx);
     assert_eq!(modi_premuti(&f), [false, true, false], "clic su EDIT");
-    // Alt+F dalla modifica (senza modifiche da salvare) passa a TAIL, senza fermarsi
-    giro(&mut f, &ctx, vec![tasto(Key::F, Modifiers::ALT)]);
+    // Alt+T dalla modifica (senza modifiche da salvare) passa a TAIL, senza fermarsi
+    giro(&mut f, &ctx, vec![tasto(Key::T, Modifiers::ALT)]);
     disegna(&mut f, &ctx);
-    assert_eq!(modi_premuti(&f), [false, false, true], "Alt+F da EDIT");
+    assert_eq!(modi_premuti(&f), [false, false, true], "Alt+T da EDIT");
     // un clic su VIEW: tutto spento tranne VIEW
     let pos = centro(&f, Cmd::ViewMode);
     clic(&mut f, &ctx, pos);
@@ -538,7 +538,7 @@ due
     // con una modifica non salvata, TAIL non parte: si resta in EDIT
     giro(&mut f, &ctx, vec![tasto(Key::F12, Modifiers::NONE)]);
     giro(&mut f, &ctx, vec![Event::Text("x".into())]);
-    giro(&mut f, &ctx, vec![tasto(Key::F, Modifiers::ALT)]);
+    giro(&mut f, &ctx, vec![tasto(Key::T, Modifiers::ALT)]);
     disegna(&mut f, &ctx);
     assert_eq!(
         modi_premuti(&f),

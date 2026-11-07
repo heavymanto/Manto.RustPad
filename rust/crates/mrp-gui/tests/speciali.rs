@@ -78,20 +78,20 @@ fn the_menu_command_toggles_them_too_and_sits_in_the_view_menu() {
 }
 
 #[test]
-fn alt_f_toggles_following_in_the_window_and_the_status_says_so() {
+fn alt_t_toggles_following_in_the_window_and_the_status_says_so() {
     let (mut f, ctx, p) = finestra();
     assert!(!f.app().follow());
-    let alt_f = Event::Key {
-        key: Key::F,
-        physical_key: Some(Key::F),
+    let alt_t = Event::Key {
+        key: Key::T,
+        physical_key: Some(Key::T),
         pressed: true,
         repeat: false,
         modifiers: Modifiers::ALT,
     };
-    giro(&mut f, &ctx, vec![alt_f.clone()]);
+    giro(&mut f, &ctx, vec![alt_t.clone()]);
     assert!(f.app().follow());
     assert!(f.app().status().follow);
-    giro(&mut f, &ctx, vec![alt_f]);
+    giro(&mut f, &ctx, vec![alt_t]);
     assert!(!f.app().follow());
     // il tail e' una delle tre modalita' d'uso: sta nel menu Modifica, non nel menu Log
     let voci = |titolo: &str| {

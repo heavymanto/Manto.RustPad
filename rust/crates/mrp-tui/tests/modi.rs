@@ -1,5 +1,5 @@
 //! I tre modi d'uso nel terminale, a mutua esclusione: VIEW (sola lettura), EDIT (modifica), TAIL (sola lettura che segue il
-//! file). Si scelgono dal menu (Alt+M, o un clic sul modo nella riga di stato), con Alt+V (VIEW), F4 (EDIT) e Alt+F (TAIL).
+//! file). Si scelgono dal menu (Alt+M, o un clic sul modo nella riga di stato), con Alt+V (VIEW), Alt+E (EDIT) e Alt+T (TAIL).
 //! Scritti da ARCH.
 
 use mrp_tui::app::{App, AppConfig, DialogKind, Modo};
@@ -45,7 +45,7 @@ fn alt_v_goes_to_view_from_every_mode() {
     assert_eq!(a.work_mode(), Modo::Edit);
     a.handle_key(alt('v'));
     assert_eq!(a.work_mode(), Modo::View);
-    a.handle_key(alt('f'));
+    a.handle_key(alt('t'));
     assert_eq!(a.work_mode(), Modo::Tail);
     a.handle_key(alt('v'));
     assert_eq!(a.work_mode(), Modo::View);
@@ -63,7 +63,7 @@ fn the_mode_word_in_the_status_row_follows_the_mode() {
     assert!(riga(&mut a).ends_with("VIEW"), "{}", riga(&mut a));
     a.handle_key(tasto(KeyCode::F(4)));
     assert!(riga(&mut a).ends_with("EDIT"), "{}", riga(&mut a));
-    a.handle_key(alt('f'));
+    a.handle_key(alt('t'));
     // il messaggio del passaggio occupa il posto a sinistra, il modo resta a destra
     assert!(riga(&mut a).ends_with("TAIL"), "{}", riga(&mut a));
     a.handle_key(alt('v'));
@@ -156,7 +156,52 @@ fn the_column_mode_word_follows_the_mode_word() {
     let (mut a, p) = app();
     a.handle_key(tasto(KeyCode::F(8)));
     assert_eq!(a.mode_text(), "VIEW COL");
-    a.handle_key(alt('f'));
+    a.handle_key(alt('t'));
     assert_eq!(a.mode_text(), "TAIL COL");
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn alt_e_and_alt_t_switch_their_mode_on_and_off_and_f4_is_the_same_as_alt_e() {
+    let (mut a, p) = app();
+    a.handle_key(alt('e'));
+    assert_eq!(a.work_mode(), Modo::Edit);
+    // Alt+E di nuovo: si torna in lettura
+    a.handle_key(alt('e'));
+    assert_eq!(a.work_mode(), Modo::View);
+    // da TAIL, Alt+E passa alla modifica
+    a.handle_key(alt('t'));
+    assert_eq!(a.work_mode(), Modo::Tail);
+    a.handle_key(alt('e'));
+    assert_eq!(a.work_mode(), Modo::Edit);
+    // da EDIT senza modifiche, Alt+T passa a TAIL; di nuovo, si torna in lettura
+    a.handle_key(alt('t'));
+    assert_eq!(a.work_mode(), Modo::Tail);
+    a.handle_key(alt('t'));
+    assert_eq!(a.work_mode(), Modo::View);
+    // F4 resta com'era
+    a.handle_key(tasto(KeyCode::F(4)));
+    assert_eq!(a.work_mode(), Modo::Edit);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn the_footer_shows_the_three_modes_in_every_mode() {
+    let (mut a, p) = app();
+    let piede = |a: &mut App| schermo(a)[9].trim_end().to_string();
+    for passo in 0..3 {
+        let riga = piede(&mut a);
+        assert!(
+            riga.starts_with(" Alt+V View")
+                && riga.contains("Alt+E Edit")
+                && riga.contains("Alt+T Tail"),
+            "{riga:?}"
+        );
+        match passo {
+            0 => a.handle_key(alt('e')),
+            1 => a.handle_key(alt('t')),
+            _ => {}
+        }
+    }
     let _ = std::fs::remove_file(p);
 }

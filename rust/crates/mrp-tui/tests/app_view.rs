@@ -111,7 +111,7 @@ fn the_first_screen() {
             "  4│line 04".to_string(),
             "  5│line 05".to_string(),
             " Ln 1  Col 1  byte 0  0%".to_string(),
-            " F1 Help  F2 Save  F3 Find  F4".to_string(),
+            " Alt+V View  Alt+E Edit  Alt+T".to_string(),
         ]
     );
     assert_eq!((a.top(), a.cursor()), (0, 0));
@@ -146,7 +146,7 @@ fn an_empty_file() {
             String::new(),
             String::new(),
             " Ln 1  Col 1  byte 0  0%".to_string(),
-            " F1 Help  F2 Save  F3 Find  F4".to_string(),
+            " Alt+V View  Alt+E Edit  Alt+T".to_string(),
         ]
     );
 }
@@ -374,7 +374,11 @@ fn f4_switches_between_view_and_edit() {
         "{:?}",
         s[5]
     );
-    assert!(s[6].contains("F4 View"), "{:?}", s[6]);
+    assert!(
+        s[6].contains("Alt+V View") && s[6].contains("Alt+E Edit"),
+        "{:?}",
+        s[6]
+    );
     a.handle_key(k(KeyCode::Down)); // il messaggio sparisce al tasto successivo
     let s = screen(&mut a, 80, 7);
     assert!(s[5].starts_with(" Ln 2  Col 1  byte 8  3%"), "{:?}", s[5]);
@@ -383,7 +387,7 @@ fn f4_switches_between_view_and_edit() {
     let s = screen(&mut a, 80, 7);
     assert!(s[5].ends_with("240 B  VIEW"), "{:?}", s[5]);
     assert!(s[5].starts_with(" view mode"), "{:?}", s[5]);
-    assert!(s[6].contains("F4 Edit"));
+    assert!(s[6].contains("Alt+E Edit"), "{:?}", s[6]);
 }
 
 #[test]

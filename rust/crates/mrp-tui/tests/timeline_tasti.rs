@@ -1,5 +1,5 @@
 //! I menu della timeline nel terminale: Alt+P (o un clic sull'intestazione del pannello) apre il menu del passo dei periodi
-//! (automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno); Alt+E apre quello dei livelli (tutte le righe, errori, errori e avvisi,
+//! (automatico, 1 minuto, 10 minuti, 1 ora, 1 giorno); Alt+S apre quello dei livelli (tutte le righe, errori, errori e avvisi,
 //! fino a INFO) e la scelta apre la vista con le sole righe di quei livelli. Spegnere e riaccendere la timeline (Alt+B) rida' i
 //! periodi. Scritti da ARCH.
 //!
@@ -80,7 +80,7 @@ fn aspetta_passo(w: &mut Workspace, passo: Step) {
     }
 }
 
-/// Apre il menu con `apri` (Alt+P o Alt+E), va alla voce `voce` dalla voce evidenziata di partenza e conferma.
+/// Apre il menu con `apri` (Alt+P o Alt+S), va alla voce `voce` dalla voce evidenziata di partenza e conferma.
 fn scegli(w: &mut Workspace, apri: char, voce: usize) {
     w.handle_key(alt(apri));
     let da = w.active().menu_index().expect("un menu");
@@ -207,7 +207,7 @@ fn the_keys_do_nothing_when_the_timeline_is_off() {
     w.active_mut().set_timeline(false);
     w.handle_key(alt('p'));
     assert_eq!(w.active().dialog_kind(), None);
-    w.handle_key(alt('e'));
+    w.handle_key(alt('s'));
     assert_eq!(w.active().dialog_kind(), None);
     assert_eq!(w.len(), 1, "nessuna vista aperta");
     assert!(w.active().timeline_filter_levels().iter().all(|&l| !l));
@@ -217,7 +217,7 @@ fn the_keys_do_nothing_when_the_timeline_is_off() {
 #[test]
 fn alt_e_opens_a_menu_of_the_levels_and_the_choice_opens_the_view_with_those_lines() {
     let (d, mut w) = con_timeline();
-    w.handle_key(alt('e'));
+    w.handle_key(alt('s'));
     assert_eq!(w.active().dialog_kind(), Some(DialogKind::TimelineLevels));
     assert_eq!(w.active().menu_index(), Some(0));
     let s = schermo(&mut w);
@@ -233,7 +233,7 @@ fn alt_e_opens_a_menu_of_the_levels_and_the_choice_opens_the_view_with_those_lin
     w.handle_key(tasto(KeyCode::Esc));
     assert_eq!(w.len(), 1, "Esc non apre niente");
     // errori
-    scegli(&mut w, 'e', 1);
+    scegli(&mut w, 's', 1);
     finisce_il_filtro(&mut w);
     assert_eq!(w.len(), 2);
     assert!(w.active().is_filter_view());
@@ -245,10 +245,10 @@ fn alt_e_opens_a_menu_of_the_levels_and_the_choice_opens_the_view_with_those_lin
     assert_eq!(v.len(), 36);
     assert!(v.iter().all(|r| r.contains("[ERROR]")));
     // nella vista il menu parte da "solo errori"; errori e avvisi: la vista si rifa' con le due
-    w.handle_key(alt('e'));
+    w.handle_key(alt('s'));
     assert_eq!(w.active().menu_index(), Some(1));
     w.handle_key(tasto(KeyCode::Esc));
-    scegli(&mut w, 'e', 2);
+    scegli(&mut w, 's', 2);
     finisce_il_filtro(&mut w);
     assert_eq!(
         w.active().timeline_filter_levels(),
@@ -260,7 +260,7 @@ fn alt_e_opens_a_menu_of_the_levels_and_the_choice_opens_the_view_with_those_lin
         .iter()
         .all(|r| r.contains("[ERROR]") || r.contains("[WARN]")));
     // fino a INFO
-    scegli(&mut w, 'e', 3);
+    scegli(&mut w, 's', 3);
     finisce_il_filtro(&mut w);
     assert_eq!(
         w.active().timeline_filter_levels(),
@@ -270,7 +270,7 @@ fn alt_e_opens_a_menu_of_the_levels_and_the_choice_opens_the_view_with_those_lin
     assert_eq!(v.len(), 108);
     assert!(v.iter().all(|r| !r.contains("[DEBUG]")));
     // la prima voce: nessun livello, si torna al file vero
-    scegli(&mut w, 'e', 0);
+    scegli(&mut w, 's', 0);
     assert!(w.wait_idle(Duration::from_secs(30)));
     w.tick();
     assert!(w.wait_idle(Duration::from_secs(30)));
@@ -285,7 +285,7 @@ fn levels_chosen_elsewhere_start_the_menu_from_the_first_entry() {
     let (d, mut w) = con_timeline();
     // per esempio i soli DEBUG scelti con la finestra: non sono una voce del menu
     w.active_mut().set_timeline_filter_level(3, true);
-    w.handle_key(alt('e'));
+    w.handle_key(alt('s'));
     assert_eq!(w.active().menu_index(), Some(0));
     w.handle_key(tasto(KeyCode::Esc));
     let _ = std::fs::remove_dir_all(d);
@@ -316,12 +316,12 @@ fn the_footer_shows_the_two_menus_only_while_the_timeline_is_on() {
     let piede = w.render_lines(160, 24).last().unwrap().clone();
     assert!(piede.contains("Alt+B Timeline"), "{piede:?}");
     assert!(piede.contains("Alt+P Period"), "{piede:?}");
-    assert!(piede.contains("Alt+E Levels"), "{piede:?}");
+    assert!(piede.contains("Alt+S Levels"), "{piede:?}");
     w.handle_key(alt('b'));
     let piede = w.render_lines(160, 24).last().unwrap().clone();
     assert!(piede.contains("Alt+B Timeline"), "{piede:?}");
     assert!(
-        !piede.contains("Alt+P") && !piede.contains("Alt+E"),
+        !piede.contains("Alt+P") && !piede.contains("Alt+S"),
         "{piede:?}"
     );
     let _ = std::fs::remove_dir_all(d);
@@ -334,7 +334,7 @@ fn the_help_lists_the_two_keys() {
     assert!(
         aiuto
             .iter()
-            .any(|(tasti, _)| tasti.contains("Alt+P") && tasti.contains("Alt+E")),
+            .any(|(tasti, _)| tasti.contains("Alt+P") && tasti.contains("Alt+S")),
         "{aiuto:?}"
     );
     let _ = std::fs::remove_dir_all(d);

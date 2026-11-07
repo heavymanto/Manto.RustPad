@@ -439,7 +439,7 @@ impl App {
         Ok((lo, hi))
     }
 
-    /// Alt+T: apre il dialogo dell'intervallo di tempo. I campi partono dalla finestra attuale, se c'e', altrimenti da
+    /// Alt+I: apre il dialogo dell'intervallo di tempo. I campi partono dalla finestra attuale, se c'e', altrimenti da
     /// "dall'orario della prima riga visibile, senza fine".
     pub fn open_time_range_dialog(&mut self) {
         self.assicura_maschera();

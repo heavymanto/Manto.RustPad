@@ -1,4 +1,4 @@
-//! I dialoghi della navigazione temporale (F1): Alt+T apre l'intervallo di tempo (da / a), Alt+O il formato dell'orario. Si
+//! I dialoghi della navigazione temporale (F1): Alt+I apre l'intervallo di tempo (da / a), Alt+O il formato dell'orario. Si
 //! guidano con le stesse azioni dei tasti. Scritti da ARCH.
 
 use mrp_tui::app::{App, AppConfig, DialogKind};
@@ -49,7 +49,7 @@ fn tasto(a: &mut App, c: KeyCode) {
 #[test]
 fn alt_t_opens_the_range_dialog_starting_from_the_time_of_the_top_row() {
     let (mut a, _, p) = app();
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     assert_eq!(a.dialog_kind(), Some(DialogKind::TimeRange));
     let Some(DialogView::TimeRange {
         from,
@@ -72,14 +72,14 @@ fn alt_t_opens_the_range_dialog_starting_from_the_time_of_the_top_row() {
 #[test]
 fn typing_the_two_times_and_enter_applies_the_range() {
     let (mut a, offset, p) = app();
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     a.dialog_set_field(0, "02:10");
     a.dialog_set_field(1, "02:19");
     a.dialog_submit();
     assert_eq!(a.dialog_kind(), None);
     assert_eq!(a.time_window(), Some((offset[10], offset[20])));
     // riaperto, il dialogo parte dalla finestra e offre di toglierla
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     let Some(DialogView::TimeRange {
         from, to, clear, ..
     }) = a.dialog_view()
@@ -94,7 +94,7 @@ fn typing_the_two_times_and_enter_applies_the_range() {
 #[test]
 fn a_bad_time_keeps_the_dialog_open_with_the_reason() {
     let (mut a, offset, p) = app();
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     a.dialog_set_field(0, "foo");
     a.dialog_submit();
     assert_eq!(a.dialog_kind(), Some(DialogKind::TimeRange), "resta aperto");
@@ -116,7 +116,7 @@ fn a_bad_time_keeps_the_dialog_open_with_the_reason() {
 #[test]
 fn the_keys_type_in_the_focused_field_tab_switches_and_alt_r_removes_the_range() {
     let (mut a, offset, p) = app();
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     // il campo "da" parte pieno: si svuota e si scrive con i tasti
     for _ in 0..30 {
         tasto(&mut a, KeyCode::Backspace);
@@ -136,7 +136,7 @@ fn the_keys_type_in_the_focused_field_tab_switches_and_alt_r_removes_the_range()
     tasto(&mut a, KeyCode::Enter);
     assert_eq!(a.time_window(), Some((offset[30], offset[35])));
     // Alt+R nel dialogo toglie l'intervallo e chiude
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     alt(&mut a, 'r');
     assert_eq!(a.dialog_kind(), None);
     assert_eq!(a.time_window(), None);
@@ -147,7 +147,7 @@ fn the_keys_type_in_the_focused_field_tab_switches_and_alt_r_removes_the_range()
 fn escape_changes_nothing_and_the_dialog_is_drawn() {
     let (mut a, offset, p) = app();
     a.apply_time_range("02:10", "02:19").unwrap();
-    alt(&mut a, 't');
+    alt(&mut a, 'i');
     a.dialog_set_field(0, "03:00");
     let s = render_lines(&mut a, 100, 24).join("\n");
     assert!(
