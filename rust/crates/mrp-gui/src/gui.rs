@@ -905,11 +905,17 @@ impl Finestra {
                         // l'indicizzazione un suggerimento spiega che si puo' continuare e quando arrivano i numeri di riga
                         if i == 0 {
                             if let Some((lavoro, percento)) = stato.busy {
-                                ui.add(
-                                    egui::ProgressBar::new(f32::from(percento) / 100.0)
-                                        .desired_width(90.0)
-                                        .desired_height(10.0),
-                                );
+                                // la barra e il dettaglio (byte, velocita', tempo che resta) compaiono dopo un po' e solo per un
+                                // file grande; prima c'e' soltanto la percentuale
+                                if let Some(a) = self.ws.active().progress() {
+                                    ui.add(
+                                        egui::ProgressBar::new(f32::from(percento) / 100.0)
+                                            .desired_width(90.0)
+                                            .desired_height(10.0),
+                                    );
+                                    let cat = self.ws.active().catalog();
+                                    ui.label(mrp_tui::ui::dettaglio_avanzamento(cat, &a));
+                                }
                                 if lavoro == Busy::Indexing {
                                     r.clone().on_hover_text(
                                         self.ws.active().catalog().t("status.indexing_hint"),

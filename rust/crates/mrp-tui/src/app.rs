@@ -1,6 +1,7 @@
 //! L'app del TUI: una macchina a stati testabile senza terminale (il contratto sta in `docs/TEAM/DESIGN_TUI.md`).
 //! Riceve tasti, mouse e dimensioni dello schermo; non disegna (lo fa `ui.rs`); tutta la logica di testo e' nel core.
 
+mod avanzamento;
 mod da_selezione;
 pub mod dialogs;
 mod modo;
@@ -8,6 +9,7 @@ mod tempo;
 mod tempo_esempio;
 mod tempo_finestra;
 pub(crate) mod timeline_pannello;
+pub use avanzamento::{fmt_durata, Avanzamento, Misura, MOSTRA_DA_BYTE, MOSTRA_DOPO};
 pub use modo::Modo;
 pub use tempo::{SourceKind, TimeSource, TimeSuggestion};
 pub use tempo_esempio::{ExampleCandidate, ExampleOutcome, ExampleProblem};
@@ -782,6 +784,8 @@ pub struct App {
     cancel: Arc<AtomicBool>,
     /// L'indicizzazione in corso, se c'e'.
     index_job: Option<IndexJob>,
+    /// Le misure del lavoro lungo in corso (per l'avanzamento con il tempo che resta; vedi `progress`).
+    misura: std::cell::RefCell<Misura>,
     /// Quando l'indicizzazione in pausa (per un salto dell'utente) puo' riprendere; `None`: non e' in pausa.
     index_resume: Option<Instant>,
     /// La maschera dell'orario di questo file (riconosciuta dalle prime righe o scelta a mano).
@@ -1077,6 +1081,7 @@ impl App {
             theme: cfg.theme,
             cancel,
             index_job,
+            misura: Default::default(),
             index_resume: None,
             time_mask: None,
             time_mask_tried: false,
@@ -4325,6 +4330,32 @@ impl App {
     /// Il testo scritto nel prompt di ricerca.
     pub(crate) fn find_text(&self) -> &str {
         &self.find_text
+    }
+
+    /// L'avanzamento del lavoro lungo in corso (salvataggio, ricerca o indicizzazione) con i byte, la velocita' e il tempo che
+    /// resta: `None` se non c'e' un lavoro, o finche' non e' il momento di mostrarlo (dopo `MOSTRA_DOPO` e solo per un file di
+    /// almeno `MOSTRA_DA_BYTE`). Va chiamata a ogni disegno: le misure si prendono li'.
+    pub fn progress(&self) -> Option<Avanzamento> {
+        let lavoro = if let Some(j) = self.save_job.as_ref() {
+            Some((Busy::Saving, j.progress.load(Ordering::Relaxed), j.len))
+        } else if let Some(j) = self.search_job.as_ref() {
+            Some((Busy::Searching, j.progress.load(Ordering::Relaxed), j.len))
+        } else {
+            self.index_job.as_ref().map(|j| {
+                (
+                    Busy::Indexing,
+                    j.progress.load(Ordering::Relaxed),
+                    self.document_len(),
+                )
+            })
+        };
+        let (busy, fatti, totale) = match lavoro {
+            Some((b, f, t)) => (Some(b), f, t),
+            None => (None, 0, 0),
+        };
+        self.misura
+            .borrow_mut()
+            .registra(busy, fatti, totale, Instant::now())
     }
 
     /// La percentuale dell'indicizzazione in corso (0..=100); `None` se non c'e' un lavoro in corso.

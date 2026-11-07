@@ -16,6 +16,7 @@
   "footer.f10": "Ende",
   "status.pos": " Ze {}  Sp {}  byte {}  {}%",
   "status.indexing": "indiziere {}%",
+  "status.eta": "noch {}",
   "status.indexing_hint": "Die Zeilen der Datei werden im Hintergrund gezählt: die Zeilennummern erscheinen danach. Sie können weiterarbeiten.",
   "status.searching": "suche {}%",
   "status.saving": "sichere {}%",

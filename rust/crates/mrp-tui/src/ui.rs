@@ -1,7 +1,7 @@
 //! Il disegno del TUI: legge l'`App` e scrive su un `Frame` (layout in `docs/TEAM/DESIGN_TUI.md`, sezione 2).
 
 use crate::app::timeline_pannello::{Pannello, RigaPannello, BARRA_W, ETICHETTA_W, LEGENDA_W};
-use crate::app::{App, DialogKind, Modo};
+use crate::app::{fmt_durata, App, Avanzamento, DialogKind, Modo};
 use crate::theme::{Theme, ThemeId};
 use mrp_core::block::{block_spans, ColumnBlock};
 use mrp_core::encoding::Encoding;
@@ -11,7 +11,7 @@ use mrp_core::view::{self, ViewOptions};
 use mrp_core::Document;
 use ratatui::backend::TestBackend;
 use ratatui::layout::Rect;
-use ratatui::style::Style;
+use ratatui::style::{Color, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
@@ -409,6 +409,16 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         app.index_progress()
             .map(|p| app.catalog().tf("status.indexing", &[&p.to_string()]))
     };
+    // Dopo un po' e solo per un file grande: la barra, i byte, la velocita' e il tempo che resta (vedi `testo_avanzamento`).
+    let mut barra = None;
+    let lavoro = match (lavoro, app.progress()) {
+        (Some(base), Some(a)) => {
+            let (testo, posto) = testo_avanzamento(app.catalog(), &a, &base, w);
+            barra = posto.map(|p| (testo.clone(), p));
+            Some(testo)
+        }
+        (lavoro, _) => lavoro,
+    };
     let mut nome = app.file_name().to_string();
     if app.is_modified() {
         nome.push_str(" *");
@@ -442,11 +452,20 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
             + destra.chars().count()
             + modo.as_ref().map_or(0, |m| m.chars().count() + 1),
     );
-    let mut pezzi = vec![
-        Span::styled(left, t.status),
-        Span::raw(" ".repeat(pad)),
-        Span::styled(destra, t.status),
-    ];
+    let mut pezzi = vec![Span::styled(left, t.status), Span::raw(" ".repeat(pad))];
+    // la barra col suo spettro, se il pezzo del lavoro e' sopravvissuto alla larghezza e il tema ha i colori
+    match barra {
+        Some((testo, (da, pieni, larga)))
+            if destra.starts_with(&testo) && t.log.error.fg.is_some() =>
+        {
+            let prima: String = testo.chars().take(da).collect();
+            let dopo_barra: String = destra.chars().skip(da + larga).collect();
+            pezzi.push(Span::styled(prima, t.status));
+            pezzi.extend(barra_spettro(pieni, larga, t.status));
+            pezzi.push(Span::styled(dopo_barra, t.status));
+        }
+        _ => pezzi.push(Span::styled(destra, t.status)),
+    }
     if let Some(modo) = modo {
         pezzi.push(Span::styled(modo, mode_style));
         pezzi.push(Span::raw(" "));
@@ -456,6 +475,80 @@ fn draw_status(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         Paragraph::new(line).style(t.screen),
         Rect::new(0, h - 2, w, 1),
     );
+}
+
+/// Le tinte della barra di avanzamento, in ordine d'arcobaleno: la parte piena le percorre cella per cella (come nel loader di
+/// Manto.FreeDisk).
+const SPETTRO: [Color; 6] = [
+    Color::LightRed,
+    Color::LightYellow,
+    Color::LightGreen,
+    Color::LightCyan,
+    Color::LightBlue,
+    Color::LightMagenta,
+];
+
+/// La larghezza della barra di avanzamento nella riga di stato.
+const BARRA_STATO_W: usize = 12;
+
+/// La barra di `larga` celle con `pieni` piene (`#`, ognuna della sua tinta) e il resto vuoto (`.` in grigio scuro).
+fn barra_spettro(pieni: usize, larga: usize, base: Style) -> Vec<Span<'static>> {
+    (0..larga)
+        .map(|i| {
+            if i < pieni {
+                Span::styled(
+                    "#",
+                    base.fg(SPETTRO[i * SPETTRO.len() / larga.max(SPETTRO.len())]),
+                )
+            } else {
+                Span::styled(".", base.fg(Color::DarkGray))
+            }
+        })
+        .collect()
+}
+
+/// Il pezzo del lavoro lungo nella riga di stato di uno schermo largo `w`: il testo di sempre (`base`, per esempio "indexing 45%"),
+/// poi la barra (da 60 colonne), poi il tempo che resta (da 90) e, da 140, i byte fatti sui totali e la velocita'. Restituisce il
+/// testo e, se c'e' la barra, dove sta (carattere di inizio, celle piene, celle in tutto).
+pub fn testo_avanzamento(
+    cat: &Catalog,
+    a: &Avanzamento,
+    base: &str,
+    w: u16,
+) -> (String, Option<(usize, usize, usize)>) {
+    if w < 60 {
+        return (base.to_string(), None);
+    }
+    let pieni = usize::from(a.percento()) * BARRA_STATO_W / 100;
+    let mut testo = format!("{base} ");
+    let da = testo.chars().count();
+    testo.push_str(&"#".repeat(pieni));
+    testo.push_str(&".".repeat(BARRA_STATO_W - pieni));
+    if w >= 140 {
+        testo.push_str(&format!("  {} / {}", fmt_size(a.fatti), fmt_size(a.totale)));
+        if let Some(v) = a.velocita {
+            testo.push_str(&format!("  {}/s", fmt_size(v)));
+        }
+    }
+    if w >= 90 {
+        if let Some(r) = a.resta {
+            testo.push_str(&format!("  {}", cat.tf("status.eta", &[&fmt_durata(r)])));
+        }
+    }
+    (testo, Some((da, pieni, BARRA_STATO_W)))
+}
+
+/// Il dettaglio dell'avanzamento per la finestra, dopo la barra: byte fatti sui totali, velocita' e tempo che resta (quando ci sono),
+/// separati da un punto in mezzo.
+pub fn dettaglio_avanzamento(cat: &Catalog, a: &Avanzamento) -> String {
+    let mut pezzi = vec![format!("{} / {}", fmt_size(a.fatti), fmt_size(a.totale))];
+    if let Some(v) = a.velocita {
+        pezzi.push(format!("{}/s", fmt_size(v)));
+    }
+    if let Some(r) = a.resta {
+        pezzi.push(cat.tf("status.eta", &[&fmt_durata(r)]));
+    }
+    pezzi.join(" \u{b7} ")
 }
 
 /// La parte destra della riga di stato di uno schermo largo `w` con una sinistra larga `sinistra` celle: il testo dei pezzi
