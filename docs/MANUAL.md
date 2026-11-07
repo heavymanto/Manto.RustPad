@@ -635,33 +635,33 @@ only "remembered" item of this chapter that reaches the settings file.
 
 ## 4. UX test sheet
 
-One row per card. `Terminal` is the result of the terminal pass of 2026-11-07 (about 130 scenarios driven on the installed program); `Window` is the result of the window pass of the same day, done from screenshots (about 35, produced by the developer hooks of `mrp-gui`): anything that needs a real mouse or keyboard is marked *not tested*. One defect applies to the whole window: `--theme light` opens dark when the file has recognised times.
+One row per card. `Terminal` is the result of the terminal pass of 2026-11-07 (about 130 scenarios driven on the installed program); `Window` is the result of the window passes of the same day: screenshots produced by the developer hooks of `mrp-gui`, then the real window driven with keyboard and mouse. A defect that applies to the whole window: with `--theme light` and a file with recognised times, the timeline panel stays dark.
 
 | ID | Feature | Terminal | Window | Auto tests |
 |---|---|---|---|---|
 | N-01 | Open from the command line | NOTE: cut footer under 40 columns; mixed-language error; `--help` lists 4 of 6 themes | OK | yes |
-| N-02 | Open another file, new document | OK | NOTE: new document OK; the system dialog was not exercised | yes |
-| N-03 | Move around | OK | not tested | yes |
+| N-02 | Open another file, new document | OK | NOTE: the native Open / Save as dialogs start in the working folder | yes |
+| N-03 | Move around | OK | OK (wheel, scrollbar drag, timeline click, mouse selection) | yes |
 | N-04 | Go to (line, @byte, %percent, ~time) | NOTE: errors do not say what is valid | OK | yes |
 | N-05 | Jump pages, jump bar | OK | OK | yes |
-| N-06 | Line numbers, line index | DEFECT: dialog button says "Replace"; long note cut | OK (checkbox in Settings) | yes |
+| N-06 | Line numbers, line index | DEFECT: dialog button says "Replace"; long note cut | DEFECT: `Alt+X`, shown in the menu, does nothing in the window | yes |
 | N-07 | Tabs | DEFECT: closing a tab says "Save and quit" | OK | yes |
 | N-08 | Progress of long jobs | OK (6 GB) | OK (5.6 GB: bar, bytes, speed, ETA) | yes |
 | M-01 | The three modes | OK | OK | yes |
-| M-02 | The mode menu | OK | NOTE: the click on the mode word was not exercised | yes |
-| M-03 | Typing and editing | OK | not tested | yes |
-| M-04 | Undo and redo | OK | not tested (button states only) | yes |
-| M-05 | Save and Save as | DEFECT: Save as shows the internal Windows path prefix and a ~20-char field | not tested (native dialog) | yes |
-| M-06 | Discard changes | DEFECT: "This cannot be undone" is cut off | not tested | yes |
-| M-07 | Quit with unsaved changes | OK | not tested | yes |
-| M-08 | Tail | OK | NOTE: first screen may show only the last line at the top | yes |
-| T-01 | Time format of the lines | OK | OK (Filters window) | yes |
+| M-02 | The mode menu | OK | OK (click on the mode word) | yes |
+| M-03 | Typing and editing | OK | OK | yes |
+| M-04 | Undo and redo | OK | OK (Ctrl+Z removes the whole typed word) | yes |
+| M-05 | Save and Save as | DEFECT: Save as shows the internal Windows path prefix and a ~20-char field | OK: "saved: NAME", the title loses the `*`; NOTE: the dialog starts in the working folder | yes |
+| M-06 | Discard changes | DEFECT: "This cannot be undone" is cut off | OK (full text, wrapped) | yes |
+| M-07 | Quit with unsaved changes | OK | NOTE: closing a tab says "Save and quit" | yes |
+| M-08 | Tail | OK | OK (live: appended lines are followed) | yes |
+| T-01 | Time format of the lines | OK | NOTE: `Alt+O` does nothing in the window (the Filters window works) | yes |
 | T-02 | Go to a time | NOTE: "no line with that time" on a file without times | not tested | yes |
-| T-03 | Time range | DEFECT: typing appends to the prefilled "From"; garbage accepted | OK (calendar, no prefill problem) | yes |
-| T-04 | Timeline | NOTE: silent when too narrow; mentions a menu the terminal lacks | OK (click/drag not tested) | yes |
-| T-05 | Timeline step | NOTE: silent when the timeline is off | OK | yes |
-| T-06 | Level filter | NOTE: silent when the timeline is off | OK | yes |
+| T-03 | Time range | DEFECT: typing appends to the prefilled "From"; garbage accepted | DEFECT: `Alt+I`, shown in the menu, does nothing; the window itself is fine | yes |
+| T-04 | Timeline | NOTE: silent when too narrow; mentions a menu the terminal lacks | DEFECT: `Alt+B`, shown in the menu, does nothing; click and drag work | yes |
+| T-05 | Timeline step | NOTE: silent when the timeline is off | NOTE: `Alt+P` does nothing in the window | yes |
+| T-06 | Level filter | NOTE: silent when the timeline is off | NOTE: `Alt+S` does nothing in the window | yes |
 | T-07 | Log colours | NOTE: no feedback; colours not visible in the dump | OK | yes |
 | F-01 | Find | NOTE: raw regex error text | NOTE: label says "(exact bytes)" | yes |
-| F-02 | Replace | NOTE: switches to EDIT silently; hint cut | OK | yes |
+| F-02 | Replace | NOTE: switches to EDIT silently; hint cut | DEFECT: after the preview, Enter does not apply; only the button does | yes |
 | F-03 | Line filter | NOTE: raw regex error text | OK | yes |
