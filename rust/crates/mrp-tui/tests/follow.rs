@@ -69,8 +69,10 @@ fn alt_f_turns_it_on_and_shows_the_end_of_the_file() {
     assert!(s.contains("linea 29"), "{s}");
     assert!(!s.contains("linea 00"), "{s}");
     assert!(s.contains("TAIL"), "il titolo dice che si segue: {s}");
-    // Alt+T di nuovo lo spegne
+    // Alt+T di nuovo non fa niente (sceglie il modo, non lo alterna); Alt+V lo spegne
     a.handle_key(alt_f());
+    assert!(a.follow());
+    a.handle_key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT));
     assert!(!a.follow());
     assert!(!schermo(&mut a).contains("TAIL"));
     let _ = std::fs::remove_file(p);

@@ -1163,6 +1163,13 @@ impl Finestra {
             Cmd::TimeFilter => self.ws.active_mut().toggle_time_filter(),
             // la timeline si accende e si spegne
             Cmd::Timeline => self.ws.active_mut().toggle_timeline(),
+            // i pulsanti dei modi: un clic su quello acceso lo spegne e torna in VIEW (i tasti Alt+E / Alt+T invece scelgono e basta)
+            Cmd::EditMode if self.ws.active().work_mode() == Modo::Edit => {
+                self.ws.exec(Cmd::ViewMode);
+            }
+            Cmd::Follow if self.ws.active().work_mode() == Modo::Tail => {
+                self.ws.exec(Cmd::ViewMode);
+            }
             c => {
                 self.ws.exec(c);
             }

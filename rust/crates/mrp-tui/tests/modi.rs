@@ -162,26 +162,30 @@ fn the_column_mode_word_follows_the_mode_word() {
 }
 
 #[test]
-fn alt_e_and_alt_t_switch_their_mode_on_and_off_and_f4_is_the_same_as_alt_e() {
+fn alt_e_and_alt_t_choose_their_mode_without_toggling_and_f4_still_toggles() {
     let (mut a, p) = app();
     a.handle_key(alt('e'));
     assert_eq!(a.work_mode(), Modo::Edit);
-    // Alt+E di nuovo: si torna in lettura
+    // Alt+E di nuovo non fa niente: sceglie il modo, non lo alterna (come Alt+T)
     a.handle_key(alt('e'));
+    assert_eq!(a.work_mode(), Modo::Edit);
+    a.handle_key(alt('v'));
     assert_eq!(a.work_mode(), Modo::View);
     // da TAIL, Alt+E passa alla modifica
     a.handle_key(alt('t'));
     assert_eq!(a.work_mode(), Modo::Tail);
     a.handle_key(alt('e'));
     assert_eq!(a.work_mode(), Modo::Edit);
-    // da EDIT senza modifiche, Alt+T passa a TAIL; di nuovo, si torna in lettura
+    // da EDIT senza modifiche, Alt+T passa a TAIL; di nuovo non cambia niente
     a.handle_key(alt('t'));
     assert_eq!(a.work_mode(), Modo::Tail);
     a.handle_key(alt('t'));
-    assert_eq!(a.work_mode(), Modo::View);
-    // F4 resta com'era
+    assert_eq!(a.work_mode(), Modo::Tail);
+    // F4 invece alterna come sempre: da TAIL porta alla modifica, da EDIT alla lettura
     a.handle_key(tasto(KeyCode::F(4)));
     assert_eq!(a.work_mode(), Modo::Edit);
+    a.handle_key(tasto(KeyCode::F(4)));
+    assert_eq!(a.work_mode(), Modo::View);
     let _ = std::fs::remove_file(p);
 }
 

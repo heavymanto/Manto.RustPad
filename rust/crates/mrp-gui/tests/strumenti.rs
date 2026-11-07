@@ -521,6 +521,16 @@ due
     clic(&mut f, &ctx, pos);
     disegna(&mut f, &ctx);
     assert_eq!(modi_premuti(&f), [false, false, true], "clic su TAIL");
+    // un secondo clic sul pulsante acceso lo spegne: VIEW (poi si riaccende, per il resto del giro)
+    clic(&mut f, &ctx, pos);
+    disegna(&mut f, &ctx);
+    assert_eq!(
+        modi_premuti(&f),
+        [true, false, false],
+        "secondo clic su TAIL"
+    );
+    clic(&mut f, &ctx, pos);
+    disegna(&mut f, &ctx);
     // un clic su EDIT: il tail si spegne, le due modalita' non stanno insieme
     let pos = centro(&f, Cmd::EditMode);
     clic(&mut f, &ctx, pos);

@@ -91,7 +91,17 @@ fn alt_t_toggles_following_in_the_window_and_the_status_says_so() {
     giro(&mut f, &ctx, vec![alt_t.clone()]);
     assert!(f.app().follow());
     assert!(f.app().status().follow);
+    // Alt+T di nuovo non fa niente; Alt+V torna in VIEW
     giro(&mut f, &ctx, vec![alt_t]);
+    assert!(f.app().follow());
+    let alt_v = Event::Key {
+        key: Key::V,
+        physical_key: Some(Key::V),
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::ALT,
+    };
+    giro(&mut f, &ctx, vec![alt_v]);
     assert!(!f.app().follow());
     // il tail e' una delle tre modalita' d'uso: sta nel menu Modifica, non nel menu Log
     let voci = |titolo: &str| {

@@ -1328,8 +1328,9 @@ impl App {
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // I tre modi: Alt+V sola lettura (VIEW), Alt+E modifica (EDIT, come F4), Alt+T segui la coda (TAIL, come `tail -f`);
             // Alt+M: il menu dei tre modi
-            KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => self.toggle_follow(),
-            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => self.toggle_edit(),
+            // (scelgono il modo, non lo alternano: premuti nel modo in cui si e' gia' non fanno niente; F4 invece alterna)
+            KeyCode::Char('t') | KeyCode::Char('T') if alt && !ctrl => self.set_tail(),
+            KeyCode::Char('e') | KeyCode::Char('E') if alt && !ctrl => self.set_edit(),
             KeyCode::Char('v') | KeyCode::Char('V') if alt && !ctrl => self.set_view(),
             KeyCode::Char('m') | KeyCode::Char('M') if alt && !ctrl => self.open_mode_menu(),
             // Alt+B: la barra del tempo (la timeline) accanto al testo, accesa o spenta

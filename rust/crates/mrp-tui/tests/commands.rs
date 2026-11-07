@@ -293,7 +293,10 @@ fn exec_does_what_the_key_does() {
     assert_eq!(ws.active_index(), 1);
     assert!(ws.exec(Cmd::NavBar));
     assert!(ws.nav_bar());
+    // Alt+E sceglie la modifica, non la alterna: la scheda senza nome era gia' in modifica e ci resta
     assert!(ws.exec(Cmd::EditMode));
+    assert!(ws.active().is_edit());
+    assert!(ws.exec(Cmd::ViewMode));
     assert!(
         !ws.active().is_edit(),
         "la scheda senza nome era in modifica: ora in lettura"

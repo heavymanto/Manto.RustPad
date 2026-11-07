@@ -371,3 +371,23 @@ plain 2019 text
     assert_eq!(fg(&mut ws, 11, 0), ansi(Color::Magenta), "l'indirizzo");
     let _ = std::fs::remove_dir_all(d);
 }
+
+/// DEBUG e' blu nei temi con lo sfondo scuro o chiaro (grigio scuro su nero era quasi invisibile); nei temi con lo sfondo blu
+/// resta grigio, perche' il blu sparirebbe.
+#[test]
+fn debug_is_blue_on_black_dark_and_light_backgrounds_and_stays_grey_on_blue_ones() {
+    use mrp_tui::theme::Theme;
+    let blu = |c: Color| match c {
+        Color::LightBlue => true,
+        Color::Rgb(r, g, b) => b > r && b > g,
+        _ => false,
+    };
+    for id in [ThemeId::Console, ThemeId::Dark, ThemeId::Light] {
+        let fg = Theme::for_id(id).log.debug.fg.expect("DEBUG ha un colore");
+        assert!(blu(fg), "{id:?}: {fg:?}");
+    }
+    for id in [ThemeId::Night, ThemeId::Debian] {
+        let fg = Theme::for_id(id).log.debug.fg.expect("DEBUG ha un colore");
+        assert!(!blu(fg), "{id:?}: {fg:?}");
+    }
+}
