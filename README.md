@@ -73,7 +73,7 @@ The engine is one (`mrp-core`: documents, tabs, search, edits, sessions) — and
 
 | `mrp-tui` — in the terminal | `mrp-gui` — in a window |
 |:---:|:---:|
-| <a href="#two-frontends-one-engine"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in motion: the log, the scroll, the timeline that lights up, the level colours" /></a> | <a href="#two-frontends-one-engine"><img src="docs/img/gui-dark.png" alt="mrp-gui: the desktop window, dark theme" /></a> |
+| <a href="#two-frontends-one-engine"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in motion: the log, the scroll, the timeline that lights up, the level colours" /></a> | <a href="#two-frontends-one-engine"><img src="docs/img/gui-demo.gif" alt="mrp-gui in motion: the coloured log in the window, the scroll" /></a> |
 
 | | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |

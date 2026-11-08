@@ -73,7 +73,7 @@ Il motore e' uno (`mrp-core`: documenti, schede, ricerca, modifiche, sessioni) �
 
 | `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
 |:---:|:---:|
-| <a href="#due-frontend-un-motore"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: il log, lo scroll, la timeline che si accende, i colori dei livelli" /></a> | <a href="#due-frontend-un-motore"><img src="docs/img/gui-dark.png" alt="mrp-gui: la finestra del desktop, tema scuro" /></a> |
+| <a href="#due-frontend-un-motore"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: il log, lo scroll, la timeline che si accende, i colori dei livelli" /></a> | <a href="#due-frontend-un-motore"><img src="docs/img/gui-demo.gif" alt="mrp-gui in movimento: il log colorato nella finestra, lo scroll" /></a> |
 
 | | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
