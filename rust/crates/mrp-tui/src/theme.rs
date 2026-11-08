@@ -259,6 +259,9 @@ impl Theme {
     }
 
     /// Scuro: grigio scuro morbido (#1e1e1e), testo grigio chiaro, accenti azzurri, selezione blu scuro, trovato giallo.
+    /// I colori dei log sono gli stessi nomi ANSI del tema Console (non RGB): il testo del log e' identico davanti al
+    /// terminale e alla finestra — cambia la cornice, non le parole. Nella finestra i nomi ANSI diventano i colori della
+    /// console di Windows (`cells::colore`), esattamente quelli che il terminale mostra col tema Console.
     fn dark() -> Theme {
         let rgb = |r, g, b| Color::Rgb(r, g, b);
         Theme {
@@ -270,12 +273,12 @@ impl Theme {
                 .fg(rgb(0xd4, 0xd4, 0xd4)),
             fg: Style::new().fg(rgb(0xd4, 0xd4, 0xd4)),
             log: LogStyles {
-                error: Style::new().fg(rgb(0xf4, 0x87, 0x71)).bold(),
-                warn: Style::new().fg(rgb(0xe5, 0xc0, 0x7b)),
-                info: Style::new().fg(rgb(0x89, 0xd1, 0x85)),
-                debug: Style::new().fg(rgb(0x56, 0x9c, 0xd6)),
-                time: Style::new().fg(rgb(0x4e, 0xc9, 0xb0)),
-                ip: Style::new().fg(rgb(0xc5, 0x86, 0xc0)),
+                error: Style::new().fg(Color::LightRed).bold(),
+                warn: Style::new().fg(Color::Yellow),
+                info: Style::new().fg(Color::Green),
+                debug: Style::new().fg(Color::LightBlue),
+                time: Style::new().fg(Color::Cyan),
+                ip: Style::new().fg(Color::Magenta),
             },
             title: Style::new().fg(rgb(0x9c, 0xdc, 0xfe)).bold(),
             hint: Style::new().fg(rgb(0x80, 0x80, 0x80)),
