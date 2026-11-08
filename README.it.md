@@ -39,6 +39,18 @@ L'idea nasce da un fastidio che conosco bene: un log di molti gigabyte e nessun 
 
 **Manto.RustPad** e' quel tool. Apre il file memory-mapped e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi *Modifica* lo stesso file diventa editabile — nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.
 
+## I quattro pilastri
+
+Ognuno sta in piedi su un'idea ben nota — non e' invenzione, e' letteratura applicata:
+
+1. **Un file enorme si apre in secondi — e resta aperto.** Il file e' *memory-mappato*: il kernel consegna all'editor le pagine che chiede, quando le chiede (come fanno `less` e i grandi visualizzatori di log). L'indice delle righe si costruisce in background, e **si mette in pausa mentre salti** cosi' il disco resta tuo. Leggere 100 GB costa decine di MiB perche' nulla viene mai copiato.
+
+2. **Nulla si perde mai — nemmeno cio' che non hai salvato, nemmeno con un crash.** Il salvataggio e' *atomico*: il file nuovo viene scritto intero accanto al vecchio, scaricato su disco, poi scambiato con un solo rename — lo stesso protocollo tutto-o-niente che SQLite usa per i suoi commit. E la sessione e' un diario delle *sole modifiche*: chiudi senza chiedere, uccidi il processo, manca la luce — riapri, e le schede, i cursori e **le modifiche non salvate** sono di nuovo li' (la piece table tiene l'originale intatto e le modifiche a parte: la struttura che Crowley ha descritto per gli editor di testo nel 1998 e che VS Code ha adottato nel 2018).
+
+3. **I livelli, a colpo d'occhio.** ERROR in rosso, WARN in giallo, INFO in verde, date e orari con le loro tinte: il colore e' *preattentivo* — l'occhio lo processa prima di leggere una riga (il lavoro di Healey sul preattentive processing). Su un log con tempeste di errori, vedi la tempesta prima di trovarla.
+
+4. **La timeline — unica nel suo genere.** Una colonna di periodi, ognuno lungo quanto il suo volume di righe, diviso per livello: una mappa proporzionale del file intero, dove i punti densi *sono* i problemi. Scorri, e il log si legge come una radiografia di se' stesso: dove le cose sono andate storte si vede prima di leggere una riga. I periodi si trovano per ricerca binaria, senza leggere il file.
+
 ## Misurato, non promesso
 
 Su un file da 6,0 GB (60 milioni di righe), una macchina, un HDD — il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):

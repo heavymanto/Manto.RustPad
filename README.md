@@ -39,6 +39,18 @@ The idea comes from a frustration I know well: a log of many gigabytes and no to
 
 **Manto.RustPad** is that tool. It opens the file memory-mapped and read-only, builds a sparse line index in the background, and the moment you press *Edit* the same file becomes editable — no reload, no copy. Your edits live in a small piece table next to the untouched original; saving streams a new file and swaps it in atomically.
 
+## The four pillars
+
+Each one stands on a well-known idea — this is not invention, it is the literature, applied:
+
+1. **A big file opens in seconds — and stays open.** The file is *memory-mapped*: the kernel hands the editor the pages it asks for, as it asks for them (the way `less` and the big log viewers work). The line index builds in the background, and **pauses while you jump** so the disk stays yours. Reading 100 GB costs tens of MiB because nothing is ever copied.
+
+2. **Nothing is ever lost — not even what you did not save, not even on a crash.** Saving is *atomic*: the new file is written whole next to the old one, flushed, then swapped in with a single rename — the same all-or-nothing protocol SQLite uses for its commits. And the session is a journal of *changes only*: close without asking, kill the process, lose power — reopen, and the tabs, the cursors and the **unsaved edits** are back (the piece table keeps the original intact and the edits apart, the structure Crowley described for text editors in 1998 and VS Code adopted in 2018).
+
+3. **The levels, at a glance.** ERROR in red, WARN in yellow, INFO in green, dates and times in their own hues: colour is *preattentive* — the eye parses it before reading a single line (Healey's work on preattentive processing). On a log with storms of errors, you see the storm before you find it.
+
+4. **The timeline — one of a kind.** A column of periods, each as long as its volume of lines, split by level: a proportional map of the whole file, where the dense spots *are* the problems. Scroll it, and the log reads like an X-ray of itself: where things went wrong shows before any line is read. The periods are found by binary search, without reading the file.
+
 ## Measured, not promised
 
 On a 6.0 GB file (60 million lines), one machine, one HDD — the whole method in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
