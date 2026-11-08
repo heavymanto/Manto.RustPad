@@ -1,7 +1,12 @@
 # Benchmarks: what existing tools do with multi-gigabyte files
 
-*Measured 2026-10-28/29. Scripts and raw data: [`bench/`](../bench). Every number below is reproducible with those scripts;
-every statement that is **not** a measurement is labelled *inference* or *not measured*.*
+<p align="justify">
+Mea­sured 2026-10-28/29, on one machine, one HDD. Scripts and raw data:
+[`bench/`](../bench) — every number below is re­pro­ducible with those
+scripts; every state­ment that is **not** a mea­sure­ment is la­belled
+*in­fer­ence* or *not mea­sured*. No number in the README exists without the
+output behind it: this is where the outputs live.
+</p>
 
 ## Summary
 

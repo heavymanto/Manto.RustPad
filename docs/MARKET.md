@@ -1,10 +1,17 @@
 # Landscape: tools for very large text files
 
-*Research date: 2026-10-28. Everything below comes from public pages listed in [Sources](#sources) unless marked
-**(measured)** (our own tests, see [BENCHMARKS.md](BENCHMARKS.md)) or **(from memory)** (not re-checked, treat as a lead).*
-
-Manto.RustPad exists because we did not want to build "yet another tool that already exists". This page records what
-does exist, so the gap we aim at is explicit and falsifiable.
+<p align="justify">
+Re­search date: 2026-10-28. Ev­ery­thing below comes from public pages listed
+in [Sources](#sources) unless marked **(mea­sured)** (our own tests, see
+[BENCHMARKS.md](BENCHMARKS.md)) or **(from memory)** (not re-checked,
+treat as a lead).
+</p>
+<p align="justify">
+I did not want to build "yet another tool that already exists". This page
+records what does exist, so the gap Manto.RustPad aims at is ex­plic­it —
+and fal­si­fi­able. The README tells the story without names; this is where
+the names live, each with its source.
+</p>
 
 ## 1. Terminal viewers (read-only)
 
