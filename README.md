@@ -76,12 +76,9 @@ The engine is one (`mrp-core`: documents, tabs, search, edits, sessions) — and
 
 <a href="#in-action"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in motion: scroll, timeline, level colours" /></a>
 
-And `mrp-gui`, the same engine in a window:
+And `mrp-gui`, the same engine in a window — the log opens, the scroll runs, in full colour:
 
-| | |
-|:---:|:---:|
-| <a href="#in-action"><img src="docs/img/gui-light.png" alt="mrp-gui, light theme: menu, toolbar, tabs, status bar" /></a> | <a href="#in-action"><img src="docs/img/gui-dark.png" alt="mrp-gui, dark theme" /></a> |
-| light | dark — Automatic follows the system |
+<a href="#in-action"><img src="docs/img/gui-demo.gif" alt="mrp-gui in motion: the log in the window, the scroll" /></a>
 
 ## What it does
 

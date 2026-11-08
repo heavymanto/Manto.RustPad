@@ -76,12 +76,9 @@ Il motore e' uno (`mrp-core`: documenti, schede, ricerca, modifiche, sessioni) �
 
 <a href="#in-azione"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: scroll, timeline, colori dei livelli" /></a>
 
-E `mrp-gui`, lo stesso motore in una finestra:
+E `mrp-gui`, lo stesso motore in una finestra — il log si apre, lo scroll gira, a colori:
 
-| | |
-|:---:|:---:|
-| <a href="#in-azione"><img src="docs/img/gui-light.png" alt="mrp-gui, tema chiaro" /></a> | <a href="#in-azione"><img src="docs/img/gui-dark.png" alt="mrp-gui, tema scuro" /></a> |
-| chiaro | scuro — Automatico segue il sistema |
+<a href="#in-azione"><img src="docs/img/gui-demo.gif" alt="mrp-gui in movimento: il log nella finestra, lo scroll" /></a>
 
 ## Cosa fa
 
