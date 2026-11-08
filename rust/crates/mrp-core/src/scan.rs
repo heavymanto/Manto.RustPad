@@ -8,6 +8,7 @@
 //! arrotonda per difetto.
 
 use crate::document::Document;
+use crate::newline::Newline;
 
 /// Quanti byte al massimo si esaminano per cercare un a-capo (128 KiB).
 /// Una riga piu' lunga si spezza in righe visuali: con 1 MiB un file senza a-capo costava 40 MiB di letture a schermata.
@@ -123,6 +124,36 @@ pub fn row_end(doc: &Document, pos: u64, max_scan: u64) -> u64 {
     match primo_nl(doc, pos, fine) {
         Some(i) => i,
         None => fine.max(pos),
+    }
+}
+
+/// Vero se in `off` c'e' un `\r\n` intero (un `\r` e subito dopo l'a-capo del documento, nella stessa codifica).
+/// Nei file con il solo `\r` come a-capo non ci sono coppie.
+pub fn crlf_at(doc: &Document, off: u64) -> bool {
+    let nl = doc.newline();
+    if nl == Newline::Cr {
+        return false;
+    }
+    let unit = nl.unit();
+    let u = unit as u64;
+    if !off.is_multiple_of(u) || off.saturating_add(2 * u) > doc.len() {
+        return false;
+    }
+    let b = doc.read_range(off, 2 * u);
+    b.len() == 2 * unit && b[..unit] == *nl.cr_bytes() && nl.is_newline(&b[unit..])
+}
+
+/// Dove sta il cursore a fine riga: come `row_end`, ma in un file CRLF prima del `\r` (il `\r\n` e' un solo a-capo e il
+/// testo si scrive prima di lui, non fra i due).
+pub fn cursor_end(doc: &Document, pos: u64, max_scan: u64) -> u64 {
+    let fine = row_end(doc, pos, max_scan);
+    let unit = doc.newline().unit() as u64;
+    let inizio = pos.min(doc.len());
+    let inizio = inizio - inizio % unit;
+    if fine >= inizio + unit && crlf_at(doc, fine - unit) {
+        fine - unit
+    } else {
+        fine
     }
 }
 

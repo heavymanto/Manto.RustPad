@@ -487,13 +487,19 @@ fn random_rows_agree_with_the_oracle() {
                 width,
                 "round {round}: col_of a fine riga"
             );
+            // oltre la fine il cursore sta prima del `\r` nascosto di un `\r\n` (il CRLF e' un solo a-capo)
+            let fine_cursore = if nl && end > start && model[end - 1] == b'\r' {
+                end - 1
+            } else {
+                end
+            };
             assert_eq!(
                 offset_at_col(&d, start as u64, width as u64, &o),
-                end as u64
+                fine_cursore as u64
             );
             assert_eq!(
                 offset_at_col(&d, start as u64, width as u64 + 50, &o),
-                end as u64
+                fine_cursore as u64
             );
         }
     }

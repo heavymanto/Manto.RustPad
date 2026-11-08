@@ -62,7 +62,12 @@ fn ciclo(terminale: &mut Schermo, app: &mut Workspace) -> io::Result<()> {
                 Event::Key(t)
                     if t.kind == KeyEventKind::Press || t.kind == KeyEventKind::Repeat =>
                 {
-                    app.handle_key(t)
+                    // su Windows i caratteri con AltGr arrivano come Ctrl+Alt: tornano testo (V-02)
+                    app.handle_key(if cfg!(windows) {
+                        crate::keys::altgr(t)
+                    } else {
+                        t
+                    })
                 }
                 Event::Mouse(m) => app.handle_mouse(m),
                 // l'incolla del terminale (con le parentesi): il testo entra come un incolla da tastiera

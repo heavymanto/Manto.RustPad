@@ -110,7 +110,7 @@ status row as the terminal.
 - **Expected response:** the cursor goes there and the target is shown near the middle of the screen *(observed: `500` -> `Ln 500`,
   `%50` -> `49%`, `@1000000` -> `byte 1000000`)*. `0` -> "not a valid position: 0"; a line past the end -> "line N is beyond the end (M lines)".
 - **Must not:** move the cursor on an invalid target; land inside a multi-byte character (it snaps back to its start).
-- **Limits and edge cases:** *known defect on Windows with an AltGr keyboard (Italian, German, Spanish, French...)*: in the terminal the `@` of `@byte` cannot be typed (see M-03). By line needs the index (while it is still being built you get a "wait" message and nothing moves);
+- **Limits and edge cases:** The `@` of `@byte` is typed with AltGr on many keyboards (Italian, German, Spanish, French...): it works in the terminal on Windows too (see M-03). By line needs the index (while it is still being built you get a "wait" message and nothing moves);
   `@` and `%` need no index; `~time` needs a recognised time format (see C4).
 - **Auto tests:** yes (`app_jump`, `time_dialogs`).
 - **UX check:** `[ ]`
@@ -180,7 +180,7 @@ status row as the terminal.
   Copy (`Ctrl+C`) also puts the text in the system clipboard (through OSC 52, so it works over SSH). Paste (`Ctrl+V`) uses the program's own
   clipboard; to paste text from another program use the terminal's own paste (`Ctrl+Shift+V` in Windows Terminal, which sends it as typed text).
 - **Expected response:** the status row shows ` *` after the file name; the text changes at once.
-- **Known defect (found 2026-11-08, not fixed):** in the **terminal on Windows with a keyboard layout that uses AltGr** (Italian, German, Spanish, French, Portuguese...), the characters `@ [ ] { } ~ # `` are dropped: typing `a@b{c}[d]` gives `abcd`. The terminal receives them with Ctrl+Alt and accepts text only without modifiers. It affects every text field (edit, Find, Replace, Filter, Go to `@byte`). The window is not affected.
+- **AltGr (Windows, fixed 2026-11-08):** on keyboards that use AltGr (Italian, German, Spanish, French, Portuguese...) the characters `@ [ ] { } ~ # ` \ |` and `€` reach the terminal as Ctrl+Alt+character; the program turns them back into plain text (Ctrl+Alt+letter or digit, Alt+key and Ctrl+key stay shortcuts). It works in every text field (edit, Find, Replace, Filter, Go to `@byte`). Before the fix they were dropped: `a@b{c}[d]` gave `abcd`.
 - **Must not:** touch the file on disk before a save. In VIEW, typing is refused with the hint **"read-only: press Alt+E to edit"** *(observed)*.
 - **Auto tests:** yes (`app_edit`, `app_select`, `app_multibyte`).
 - **UX check:** `[ ]`
@@ -381,9 +381,9 @@ status row as the terminal.
 - **What it does:** what you type is encoded in the file's own encoding; the BOM stays; the line ending (LF, CRLF, CR) is detected from the first 64 KiB and `Enter` writes the same style.
 - **Expected response:** observed: typing `é`, `ж`, `あ`, `好`, `가` in windows-1252, windows-1251, UTF-16, Shift-JIS, GBK and EUC-KR files and saving gave exactly the right bytes; a BOM and invalid UTF-8 bytes are kept; typing a character the encoding cannot hold is refused at once ("cannot write '日' in windows-1252") and nothing is inserted.
 - **Must not:** break a line ending.
-- **Known defect (found 2026-11-07, not fixed):** in a **CRLF** file the cursor can sit between the `\r` and the `\n`, where `End`, the third `Right`, and `Shift+End` leave it. The status row shows the same column as after the last character (`Col 3`), but a few bytes further (`byte 3` instead of `byte 2`). Typing, `Enter`, `Backspace`, `Delete`, replacing a selection or cutting there leaves a lone `\r` or a bare `\n` in the file: for example `ab\r\ncd\r\n` + `End` + `X` saves `ab\rX\ncd\r\n`. Same in UTF-16 CRLF files. LF files are not affected.
-- **Auto tests:** yes (`app_lineending`, `eol_option`, `app_bom`), none of which covers editing at the end of a CRLF line.
-- **UX check:** `[ ]` — DEFECT (data integrity).
+- **CRLF (fixed 2026-11-08):** in a CRLF file (UTF-8, UTF-16 LE/BE, UTF-32) the `\r\n` is one line end: `End` and `Shift+End` stop before the `\r`, typing and `Enter` at the end of a line go before it, `Right`/`Left`/`Backspace`/`Delete` step over the pair as one character, and `Down` from the end of a line lands at the end of the next. Before the fix the cursor could sit between `\r` and `\n` and typing there saved `ab\rX\ncd\r\n`.
+- **Auto tests:** yes (`app_lineending`, `eol_option`, `app_bom`, `app_crlf` for editing at the end of a CRLF line in UTF-8 and UTF-16, `altgr`).
+- **UX check:** `[x]` — checked again in the installed program after the fix.
 
 ---
 
@@ -699,4 +699,4 @@ One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 
 | F-03 | Line filter | NOTE: raw regex error text | OK | yes |
 | E-01 | Encoding: detection and change | OK: 28/28 explicit, 21/21 fixed with F9; NOTE: a guess is not flagged | not tested | yes |
 | E-02 | Save as with another encoding | OK: 17/17 byte-exact; NOTE: pre-filled path with `\\?\` | not tested | yes |
-| E-03 | Editing keeps encoding and line ending | DEFECT: CRLF broken by typing at the end of a line | not tested | yes |
+| E-03 | Editing keeps encoding and line ending | OK (CRLF defect fixed) | not tested | yes |

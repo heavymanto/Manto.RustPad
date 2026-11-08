@@ -1,7 +1,10 @@
 //! Test della navigazione per righe/righe-visuali (`scan`). Scritti da ARCH prima dell'implementazione: gli attesi
 //! vengono da cicli ingenui su un `Vec<u8>` che replica le modifiche, mai dal codice.
 
-use mrp_core::scan::{next_row, prev_row_start, row_end, row_start, Next, DEFAULT_MAX_SCAN};
+use mrp_core::newline::Newline;
+use mrp_core::scan::{
+    crlf_at, cursor_end, next_row, prev_row_start, row_end, row_start, Next, DEFAULT_MAX_SCAN,
+};
 use mrp_core::Document;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -323,4 +326,35 @@ fn walking_the_whole_document_row_by_row_visits_every_line_start() {
     }
     indietro.reverse();
     assert_eq!(indietro, starts);
+}
+
+#[test]
+fn cursor_end_stops_before_the_cr_of_a_crlf_pair() {
+    let dir = TestDir::new();
+    // UTF-8: `ab\r\ncd\r\nef` (l'ultima riga non ha a-capo)
+    let d = dir.open(b"ab\r\ncd\r\nef");
+    assert!(crlf_at(&d, 2) && crlf_at(&d, 6));
+    assert!(!crlf_at(&d, 1) && !crlf_at(&d, 3) && !crlf_at(&d, 8));
+    assert_eq!(row_end(&d, 0, DEFAULT_MAX_SCAN), 3);
+    assert_eq!(cursor_end(&d, 0, DEFAULT_MAX_SCAN), 2);
+    assert_eq!(cursor_end(&d, 4, DEFAULT_MAX_SCAN), 6);
+    assert_eq!(cursor_end(&d, 8, DEFAULT_MAX_SCAN), 10);
+    // una riga vuota (`\r\n` all'inizio) ha la fine al suo inizio, non prima
+    let v = dir.open(b"\r\nab");
+    assert_eq!(cursor_end(&v, 0, DEFAULT_MAX_SCAN), 0);
+    // un `\r` solo, o un `\n` solo, non sono una coppia
+    let l = dir.open(b"a\rb\nc\n");
+    assert!(!crlf_at(&l, 1));
+    assert_eq!(
+        cursor_end(&l, 0, DEFAULT_MAX_SCAN),
+        row_end(&l, 0, DEFAULT_MAX_SCAN)
+    );
+    assert_eq!(cursor_end(&l, 4, DEFAULT_MAX_SCAN), 5);
+    // 16 bit little endian: `a \r \n b` e la stessa cosa a unita' di 2 byte
+    let mut u = dir.open(&[b'a', 0, 0x0D, 0, 0x0A, 0, b'b', 0]);
+    assert!(u.set_newline(Newline::Le16));
+    assert!(crlf_at(&u, 2));
+    assert!(!crlf_at(&u, 4));
+    assert_eq!(row_end(&u, 0, DEFAULT_MAX_SCAN), 4);
+    assert_eq!(cursor_end(&u, 0, DEFAULT_MAX_SCAN), 2);
 }

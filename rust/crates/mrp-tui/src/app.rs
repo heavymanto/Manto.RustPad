@@ -1601,6 +1601,29 @@ impl App {
         Some((c, n as u64))
     }
 
+    /// Quanti byte occupa il passo a destra di `off`: il carattere che comincia li' (1 byte se non valido), o un
+    /// `\r\n` intero (in un file CRLF e' un solo a-capo).
+    fn step_after(&self, doc: &Document, off: u64) -> u64 {
+        if scan::crlf_at(doc, off) {
+            return 2 * doc.newline().unit() as u64;
+        }
+        let restanti = doc.len().saturating_sub(off).min(4);
+        let buf = doc.read_range(off, restanti);
+        self.enc.first_char(&buf).map_or(1, |(_, n)| n) as u64
+    }
+
+    /// Quanti byte occupa il passo a sinistra di `off`: il carattere che finisce li', o un `\r\n` intero.
+    fn step_before(&self, doc: &Document, off: u64) -> u64 {
+        let due = 2 * doc.newline().unit() as u64;
+        if off >= due && scan::crlf_at(doc, off - due) {
+            return due;
+        }
+        // 4 byte bastano quasi sempre; le multibyte asiatiche ne vogliono di piu' (`back_window`)
+        let da = off.saturating_sub(self.enc.back_window() as u64);
+        let buf = doc.read_range(da, off - da);
+        self.enc.last_char_len(&buf) as u64
+    }
+
     /// Doppio clic: seleziona la parola (lettere, cifre e '_') sotto il cursore; su spazi o segni la sequenza di
     /// caratteri della stessa specie; a fine riga l'ultima parola. Resta sulla riga e su caratteri interi.
     fn select_word(&mut self) {
@@ -1609,7 +1632,7 @@ impl App {
         };
         let off = self.cursor;
         let riga = scan::row_start(doc, off, MAX_SCAN).0;
-        let fine = scan::row_end(doc, riga, MAX_SCAN);
+        let fine = scan::cursor_end(doc, riga, MAX_SCAN);
         let dopo = if off < fine {
             self.char_after(off)
         } else {
@@ -1646,7 +1669,7 @@ impl App {
             return;
         };
         let riga = scan::row_start(doc, self.cursor, MAX_SCAN).0;
-        let fine = scan::row_end(doc, riga, MAX_SCAN);
+        let fine = scan::cursor_end(doc, riga, MAX_SCAN);
         self.select_span(riga, fine);
     }
 
@@ -2603,7 +2626,7 @@ impl App {
     /// La larghezza in celle della riga visuale che inizia in `row`.
     fn row_width(&self, row: u64) -> Option<u64> {
         let doc = self.doc.as_ref()?;
-        let fine = scan::row_end(doc, row, MAX_SCAN);
+        let fine = scan::cursor_end(doc, row, MAX_SCAN);
         Some(view::col_of(doc, row, fine, &self.view_opts()) as u64)
     }
 
@@ -4681,10 +4704,9 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
-        // 4 byte bastano quasi sempre; le multibyte asiatiche ne vogliono di piu' (`back_window`)
-        let da = self.cursor.saturating_sub(self.enc.back_window() as u64);
-        let buf = doc.read_range(da, self.cursor - da);
-        self.cursor -= self.enc.last_char_len(&buf) as u64;
+        // un `\r\n` e' un solo a-capo: un passo lo salta intero
+        let passo = self.step_before(doc, self.cursor);
+        self.cursor -= passo;
         self.remember_col();
         self.scroll_adjust();
     }
@@ -4697,9 +4719,7 @@ impl App {
         let Some(doc) = self.doc.as_ref() else {
             return;
         };
-        let restanti = (doc.len() - self.cursor).min(4);
-        let buf = doc.read_range(self.cursor, restanti);
-        let n = self.enc.first_char(&buf).map_or(1, |(_, n)| n) as u64;
+        let n = self.step_after(doc, self.cursor);
         self.cursor = (self.cursor + n).min(max);
         self.remember_col();
         self.scroll_adjust();
@@ -4720,7 +4740,7 @@ impl App {
             return;
         };
         let row = scan::row_start(doc, self.cursor, MAX_SCAN).0;
-        let fine = scan::row_end(doc, row, MAX_SCAN);
+        let fine = scan::cursor_end(doc, row, MAX_SCAN);
         self.cursor = fine.min(self.max_cursor());
         self.remember_col();
         self.scroll_adjust();
@@ -4745,7 +4765,7 @@ impl App {
             };
             // L'ultima riga e' quella che contiene l'ultimo byte; la sua fine sta prima dell'eventuale a-capo.
             let ultima = scan::row_start(doc, len - 1, MAX_SCAN).0;
-            scan::row_end(doc, ultima, MAX_SCAN).min(self.max_cursor())
+            scan::cursor_end(doc, ultima, MAX_SCAN).min(self.max_cursor())
         };
         self.remember_col();
         self.scroll_adjust();
@@ -5093,7 +5113,7 @@ impl App {
             0
         } else {
             let ultima = scan::row_start(doc, len - 1, MAX_SCAN).0;
-            scan::row_end(doc, ultima, MAX_SCAN).min(self.max_cursor())
+            scan::cursor_end(doc, ultima, MAX_SCAN).min(self.max_cursor())
         };
         self.cursor >= fine && self.top >= self.last_top()
     }
@@ -5530,14 +5550,14 @@ impl App {
         if self.cursor <= self.bom {
             return;
         }
+        // Il carattere precedente sta nei 4 byte prima del cursore (un carattere UTF-8 occupa al piu' 4
+        // byte, in una code page uno; un byte non valido e' un carattere tutto suo); un `\r\n` e' uno solo.
+        let Some(n) = self.doc.as_ref().map(|d| self.step_before(d, self.cursor)) else {
+            return;
+        };
         let Some(doc) = self.doc.as_mut() else {
             return;
         };
-        // Il carattere precedente sta nei 4 byte prima del cursore (un carattere UTF-8 occupa al piu' 4
-        // byte, in una code page uno; un byte non valido e' un carattere tutto suo).
-        let da = self.cursor.saturating_sub(self.enc.back_window() as u64);
-        let buf = doc.read_range(da, self.cursor - da);
-        let n = self.enc.last_char_len(&buf) as u64;
         if let Err(e) = doc.delete(self.cursor - n, n) {
             self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
             return;
@@ -5561,17 +5581,19 @@ impl App {
         if self.cursor < self.bom {
             self.cursor = self.bom;
         }
-        let Some(doc) = self.doc.as_mut() else {
+        let Some(len) = self.doc.as_ref().map(|d| d.len()) else {
             return;
         };
-        let len = doc.len();
         if self.cursor >= len {
             return;
         }
-        // Il carattere successivo comincia al cursore: ne bastano 4 byte (in una code page uno).
-        let restanti = (len - self.cursor).min(4);
-        let buf = doc.read_range(self.cursor, restanti);
-        let n = self.enc.first_char(&buf).map_or(1, |(_, n)| n) as u64;
+        // Il carattere successivo comincia al cursore: ne bastano 4 byte (in una code page uno); un `\r\n` e' uno solo.
+        let Some(n) = self.doc.as_ref().map(|d| self.step_after(d, self.cursor)) else {
+            return;
+        };
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
         if let Err(e) = doc.delete(self.cursor, n) {
             self.flash = Some(self.cat.tf("flash.edit_failed", &[&format!("{:?}", e)]));
             return;

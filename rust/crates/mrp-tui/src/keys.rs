@@ -112,3 +112,19 @@ fn togli_prefisso<'a>(s: &'a str, prefisso: &str) -> Option<&'a str> {
         None
     }
 }
+
+/// Su Windows i caratteri della tastiera con AltGr (`@ [ ] { } ~ # \` ...) arrivano da crossterm come Ctrl+Alt+carattere: qui
+/// tornano a essere testo semplice (resta Maiusc). Le vere combinazioni (Ctrl+Alt+lettera o cifra, Alt+qualcosa, Ctrl+qualcosa)
+/// e i tasti che non sono caratteri restano come sono.
+pub fn altgr(ev: KeyEvent) -> KeyEvent {
+    let altgr = KeyModifiers::CONTROL | KeyModifiers::ALT;
+    match ev.code {
+        KeyCode::Char(c) if ev.modifiers.contains(altgr) && !c.is_ascii_alphanumeric() => {
+            KeyEvent {
+                modifiers: ev.modifiers - altgr,
+                ..ev
+            }
+        }
+        _ => ev,
+    }
+}

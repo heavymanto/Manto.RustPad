@@ -55,6 +55,17 @@ impl Newline {
         }
     }
 
+    /// I byte di un `\r` come unita' della stessa forma: il primo pezzo di un `\r\n` (CRLF) di quella codifica.
+    pub fn cr_bytes(self) -> &'static [u8] {
+        match self {
+            Newline::Byte | Newline::Cr => b"\r",
+            Newline::Le16 => b"\r\0",
+            Newline::Be16 => b"\0\r",
+            Newline::Le32 => b"\r\0\0\0",
+            Newline::Be32 => b"\0\0\0\r",
+        }
+    }
+
     /// Vero se `unita` (esattamente `unit()` byte) e' un a-capo.
     pub fn is_newline(self, unita: &[u8]) -> bool {
         unita == self.bytes()

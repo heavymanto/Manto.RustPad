@@ -203,7 +203,7 @@ pub fn col_of(doc: &Document, row_start: u64, off: u64, opts: &ViewOptions) -> u
 }
 
 /// Offset del carattere che copre la colonna `col` della riga che inizia a `row_start` (una colonna dentro un
-/// carattere largo o una tabulazione e' quel carattere); oltre la fine della riga: la fine della riga (prima del `\n`).
+/// carattere largo o una tabulazione e' quel carattere); oltre la fine della riga: la fine della riga per il cursore, prima del `\n` e, in un file CRLF, prima anche del `\r` (il `\r\n` e' un solo a-capo).
 pub fn offset_at_col(doc: &Document, row_start: u64, col: u64, opts: &ViewOptions) -> u64 {
     let (end, _, a_capo, _) = fine_riga(doc, row_start, opts.max_scan);
     let col = usize::try_from(col).unwrap_or(usize::MAX);
@@ -212,6 +212,10 @@ pub fn offset_at_col(doc: &Document, row_start: u64, col: u64, opts: &ViewOption
     let mut colonna = 0usize;
     while let Some((p, c, n)) = caratteri.prossimo() {
         let nascosto = c == '\r' && p + n as u64 == end && a_capo;
+        if nascosto {
+            // il `\r` di un `\r\n` e' parte dell'a-capo: la fine della riga per il cursore sta prima di lui
+            return p;
+        }
         let (w, _) = cella(c, colonna, tab, nascosto, false);
         if w > 0 {
             if col < colonna + w {
