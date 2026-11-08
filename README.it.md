@@ -2,173 +2,134 @@
   <tr>
     <td valign="middle">
       <h1>Manto.RustPad</h1>
-      <h3>Un viewer di log per i file che non stanno in RAM, con la timeline dell'intero file e la modifica a colonna</h3>
-      <p><strong><em>Apri un log da 100 GB in un attimo e ne vedi tutta la vita a colpo d'occhio: la timeline del file mostra, livello per livello, dove sono gli errori e gli avvisi, e un clic ti ci porta. Scorri, salta a una riga o a un orario, segui la fine, filtra, colora — e quando serve cambiare qualcosa lo modifichi sul posto, con la modifica a colonna (a blocchi). Un editor familiare, non modale, in Rust, in una finestra o nel terminale, la cui memoria non dipende dalla dimensione del file e che non tronca mai i dati in silenzio.</em></strong></p>
+      <h3>Un visualizzatore di log per file che non stanno in RAM</h3>
       <p>
-        <img src="https://img.shields.io/badge/SI%20APRE-SUBITO-e3b341?style=for-the-badge" alt="si apre subito" />
+        <img src="https://img.shields.io/badge/APRE-ALL'ISTANTE-e3b341?style=for-the-badge" alt="apre all'istante" />
         <img src="https://img.shields.io/badge/TIMELINE-DEL%20FILE-e3b341?style=for-the-badge" alt="timeline del file" />
-        <img src="https://img.shields.io/badge/SCORRE-FILE%20DA%20100%20GB-e3b341?style=for-the-badge" alt="scorre file da 100 GB" />
-        <img src="https://img.shields.io/badge/MODIFICA-A%20COLONNA-e3b341?style=for-the-badge" alt="modifica a colonna" />
-        <img src="https://img.shields.io/badge/NON-TRONCA%20MAI-e3b341?style=for-the-badge" alt="non tronca mai" />
+        <img src="https://img.shields.io/badge/SCORRE-FILE%20DA%20100%20GB-e3b341?style=for-the-badge" alt="file da 100 GB" />
+        <img src="https://img.shields.io/badge/MODALITA'-COLONNA-e3b341?style=for-the-badge" alt="modalita' colonna" />
+        <img src="https://img.shields.io/badge/MAI-TRUNCA-e3b341?style=for-the-badge" alt="mai trunca" />
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <img src="https://img.shields.io/badge/test-1538-brightgreen" alt="1538 test" />
-        <img src="https://img.shields.io/badge/programmi-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
+        <img src="https://img.shields.io/badge/frontend-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
         <img src="https://img.shields.io/badge/stato-sviluppo%20iniziale-orange" alt="sviluppo iniziale" />
       </p>
-      <p><sub>📖 <a href="docs/BENCHMARKS.md"><b>Le misure</b></a> · 🔧 <a href="#avvio-rapido"><b>Avvio rapido</b></a> · 🇬🇧 <a href="README.md"><b>Read it in English</b></a></sub></p>
+      <p>
+        <a href="docs/BENCHMARKS.md"><img src="https://img.shields.io/badge/%F0%9F%93%96-MISURE-007ec6?style=flat-square" alt="Misure" /></a>
+        <a href="#quickstart"><img src="https://img.shields.io/badge/%F0%9F%94%A7-QUICKSTART-007ec6?style=flat-square" alt="Quickstart" /></a>
+        <a href="README.md"><img src="https://img.shields.io/badge/%F0%9F%87%AC%F0%9F%87%A7-READ%20IN%20ENGLISH-007ec6?style=flat-square" alt="Read it in English" /></a>
+      </p>
     </td>
   </tr>
 </table>
 
-<div align="center">
-<img src="docs/img/gui-light.png" alt="mrp-gui, la finestra: barra dei menu, barra degli strumenti, due schede, numeri di riga, barra di stato e scorrimento" width="80%" />
-<br /><sub><b>mrp-gui</b> — la finestra: menu, barra degli strumenti, schede, barra di stato e scorrimento, con un log e un dump SQL aperti in due schede.</sub>
-</div>
+---
+
+## Abstract
+
+**Apri un log da 100 GB in un lampo. Guarda la sua vita intera nella timeline. E quando serve, modificalo — colonna per colonna. Il file non entra mai in RAM.**
+
+<p align="justify">
+L'idea nasce da un fastidio che conosco bene: un log di molti gigabyte e nessun tool che sapesse tenerlo. Gli editor bravi a modificare caricano tutto in RAM — e cadono. I visualizzatori bravi a scorrere non modificano — punto. E uno di loro, il piu' fidato, quello che sta su ogni macchina: al salvataggio ha troncato il file in silenzio e si e' mangiato 1,7 GB di dati senza chiedere. Quel giorno ho smesso di cercare e ho deciso di scrivermelo da solo — come avevo gia' fatto per il disco: un motore solo, due frontend, in una finestra e nel terminale.
+</p>
+
+**Manto.RustPad** e' quel tool. Apre il file memory-mapped e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi *Modifica* lo stesso file diventa editabile — nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.
+
+## Misurato, non promesso
+
+Su un file da 6,0 GB (60 milioni di righe), una macchina, un HDD — il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
+
+| | Memoria | Apertura | Cosa succede |
+|---|---:|---|---|
+| L'editor che tutti usano | 6.288 MiB | 7 s a caldo / 26–30 s a freddo | tiene tutto in RAM |
+| Quello del sistema operativo | 4.100 MiB | 2,8 s | **trunca a 4 GiB — perde 1,7 GB al salvataggio** |
+| Il visualizzatore in streaming | 43 MiB | UI 0,5 s | scansione completa in background, ~86 s |
+| Quello commerciale | 19 MiB | 7,5 s | scrive una copia temporanea di 5,7 GB; `Ctrl+Fine` rilegge il file |
+| **Manto.RustPad** | **13–35 MiB** | **all'istante** | esatto, nessun troncamento, nessuna copia — l'indice si riempie dietro di te |
+
+La memoria cresce di circa 3,7 MB per GB di file — e non tiene mai il file. Un log da 100 GB su un hard disk si apre in 36 ms. *(Chi e' chi, con versioni e fonti: [docs/MARKET.md](docs/MARKET.md).)*
 
 ---
 
-## L'idea
+## Due frontend, un motore
 
-**A cosa serve.** Leggere un log enorme come fa un viewer di log — aprirlo subito, vedere su una timeline dove sono le sue righe (e i suoi errori), trascinare la scrollbar dove vuoi, saltare a una riga o a un orario, seguire la fine, filtrare le righe che contano — e poi, nello stesso programma e sullo stesso file, **modificarlo, anche a colonna (a blocchi)**: quello che i viewer di sola lettura non sanno fare e che gli editor che caricano tutto il file non possono permettersi. Un file da 100 GB si apre in millisecondi; i numeri di riga si riempiono da un indice in background mentre già leggi.
+Il motore e' uno (`mrp-core`: documenti, schede, ricerca, modifiche, sessioni) — e due modi di guardarlo: **`mrp-tui`** per qualunque terminale, pensato per i server e per SSH; **`mrp-gui`** per il desktop, con menu' veri, barra degli strumenti, finestre di dialogo, gli appunti di sistema e il drag-and-drop. Una funzionalita' aggiunta al motore arriva in entrambi.
 
-I file di testo enormi (log, dump SQL, esportazioni CSV, XML) sono routine, e gli strumenti si dividono in due campi:
+| `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
+|:---:|:---:|
+| <a href="#due-frontend-un-motore"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: il log, lo scroll, la timeline che si accende, i colori dei livelli" /></a> | <a href="#due-frontend-un-motore"><img src="docs/img/gui-dark.png" alt="mrp-gui: la finestra del desktop, tema scuro" /></a> |
 
-- **Editor che caricano tutto in RAM.** Veloci e semplici, ma il file deve entrare in memoria. Abbiamo misurato
-  **Notepad++ a 6,3 GB di RAM** per un file da 6 GB e **Microsoft Edit che tronca in silenzio un file da 6 GB a 4 GiB: salvando
-  si sono persi 1,7 GB di dati, senza alcun avviso.**
-- **Viewer e editor a flusso.** Memoria minima, ma il costo si sposta altrove: **LTFViewer** (43 MiB) legge tutto il file
-  all'apertura (≈ 86 s, limitato dalla CPU); **UltraEdit** (19 MiB) scrive una copia temporanea completa e rilegge tutto il
-  file a ogni salto a fine file. I viewer di log da terminale (lnav, logana, bvr, klogg) sono ottimi ma **di sola lettura**.
+| | `mrp-tui` | `mrp-gui` |
+| --- | --- | --- |
+| **Si avvia** | `mrp-tui file...` | `mrp-gui file...` |
+| **Look** | sei temi da terminale | Blu (stile Total Commander), Debian, Scuro, Chiaro — o Automatico, che segue il sistema |
+| **Timeline** | `Alt+B`, una colonna accanto al testo | lo stesso, o una barra accanto alla scrollbar |
+| **Menu'** | i tasti funzione | menu' veri, barra strumenti, barra di stato, scrollbar |
 
-Non volevamo fare "l'ennesimo tool che esiste già". Abbiamo cercato uno strumento leggero in memoria, economico da
-navigare **e** modificabile, e non l'abbiamo trovato ([indagine](docs/MARKET.md)). Così è nato **Manto.RustPad**: apre il file
-mappato in memoria e in sola lettura, costruisce in background un indice righe "sparso", e appena premi *Modifica* lo stesso file
-diventa modificabile, senza ricaricare e senza copie. Le tue modifiche stanno in una piccola *piece table* accanto all'originale
-intatto; salvando, il programma scrive un file nuovo lì accanto e lo scambia in modo atomico.
+## In azione
 
-## Misurato su un file da 6,0 GB (60 M righe)
+`mrp-tui` su un log: il file si apre all'istante, lo scroll gira libero, poi la timeline si accende (`Alt+B`) — ogni periodo lungo quanto il suo volume di righe, diviso per livello (ERROR, WARN, INFO, DEBUG), le tempeste di errori visibili a colpo d'occhio — e arrivano i colori dei livelli (`Alt+L`):
 
-| | Memoria | Apertura | Note |
-|---|---|---|---|
-| Microsoft Edit 1.2.1 | 4.100 MiB | 2,8 s | **tronca a 4 GiB, perde 1,7 GB salvando** |
-| Notepad++ 8.8.1 | 6.288 MiB | 7 s a caldo / 26–30 s a freddo | tiene tutto in RAM |
-| LTFViewer 5.2u | 43 MiB | interfaccia 0,5 s | scansione completa in background, ~86 s |
-| UltraEdit-32 10.20.3 | 19 MiB | 7,5 s | scrive una copia temporanea da 5,7 GB; `Ctrl+Fine` rilegge il file (21,6 s) |
-| **Manto.RustPad, motore** (solo la libreria) | 19–28 MiB | indice righe dell'intero file in 38 s a freddo / 1,3 s a caldo | esatto, senza troncamenti né copie; il tempo a freddo coincide con la velocità sequenziale del disco |
+<a href="#in-azione"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: scroll, timeline, colori dei livelli" /></a>
 
-L'editor vero e proprio apre subito un file da 6 GB e tiene circa 13–35 MiB di memoria privata, anche durante il salvataggio.
-La memoria cresce piano con il file (circa 3,7 MB per GB: ~410 MiB su un file sparso da 100 GiB, il cui working set resta sotto i 20 MiB).
-**Una macchina, un disco meccanico, poche misure**: metodo, script e avvertenze in [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+E `mrp-gui`, lo stesso motore in una finestra:
+
+| | |
+|:---:|:---:|
+| <a href="#in-azione"><img src="docs/img/gui-light.png" alt="mrp-gui, tema chiaro" /></a> | <a href="#in-azione"><img src="docs/img/gui-dark.png" alt="mrp-gui, tema scuro" /></a> |
+| chiaro | scuro — Automatico segue il sistema |
+
+## Cosa fa
+
+- **Un visualizzatore di log per file immensi.** Apre all'istante, scorre con rotella, scrollbar e salti di pagina (`Alt+PgSu/PgGiu'`: 10 pagine, con Shift 100, con Ctrl 1000). I numeri di riga si riempiono da un indice in background che **si mette in pausa mentre salti**. Vai a una riga (`Ctrl+G`) o a un orario, segui la coda come `tail -f` (`Alt+F`), filtra le righe come `grep` (`Alt+G`), colora i livelli (`Alt+L`).
+- **Una timeline del file.** Una colonna di periodi — un minuto, dieci minuti, un'ora, un giorno — ognuno lungo quanto il suo volume di righe e diviso per livello, cosi' dove sono gli errori si vede a colpo d'occhio. La parte che stai leggendo e' marcata; un click o un trascinamento ti porta li'. I periodi si trovano per ricerca binaria **senza leggere il file**.
+- **…e puoi modificarlo, con la modifica per colonne.** Premi `F4` e lo stesso file diventa editabile — nessun ricaricamento, nessuna copia. **La modalita' colonna (blocco)** (`F8`, o `Alt`+trascinamento col mouse): digitare, `Tab`, copia, taglia e incolla agiscono su tutte le righe del blocco in una volta, in un file di qualunque taglia.
+- **Memoria indipendente dalla taglia del file.** Decine di MiB, qualunque sia il file. Mai il file intero in memoria.
+- **Non perde mai dati.** Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore rumoroso invece del troncamento silenzioso, salvataggio a prova di crash.
+- **Schede, e chiudere non perde nulla.** Piu' file insieme; esci senza che ti venga chiesto — la volta dopo le schede, i cursori e **le modifiche non salvate** sono di nuovo li'. Si salvano solo le modifiche: su un file da 100 GB con poche correzioni, la sessione pesa pochi KB.
+- **Trova e sostituisci con glob e regex** (`Ctrl+F` / `Ctrl+H`), con una **preview** prima di toccare qualunque cosa e un solo `Ctrl+Z` che annulla tutto.
+- **Onesto con le codifiche.** UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale — su file piu' grandi della RAM.
+
+Non-obiettivi: un analizzatore di log (gli aiuti qui sono quelli che servono a un *visualizzatore*), e una piattaforma di plugin/IDE.
 
 ## Scaricalo
 
-Niente da installare: estrai e avvia. Entrambi i programmi funzionano subito, in modo *portatile*: l'inglese è incorporato, le altre
-sei lingue si trovano in `lang/` accanto ai programmi; impostazioni e sessione salvata restano nella stessa cartella. Li vuoi come comandi da qualunque cartella? Ogni pacchetto contiene `install.ps1` (Windows) o `install.sh` (Linux, macOS): copia `mrp-tui` e `mrp-gui` in `~/.local/bin` (e su Windows lo aggiunge al PATH utente) e le lingue nel tuo profilo.
+Niente da installare: estrai ed esegui — entrambi i programmi funzionano subito, in modalita' *portabile* (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Ogni pacchetto porta `install.ps1` (Windows) o `install.sh` (Linux, macOS) se li vuoi come comandi da qualunque cartella.
 
 [![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
 [![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
 [![macOS](https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge)](../../releases/latest)
 
-I pacchetti (uno ZIP per Windows, un tar.gz per Linux e macOS, ciascuno con il suo SHA256) li costruisce il
-[workflow di release](.github/workflows/release.yml) quando si pubblica il tag di una versione. Finché non esce la prima release,
-compilalo dai sorgenti: bastano due comandi, vedi l'[Avvio rapido](#avvio-rapido).
+Finche' la prima release non esce, compilandolo da fonte — due comandi, nel [Quickstart](#quickstart).
 
----
+## Quickstart
 
-## Due programmi, un solo motore
-
-| `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
-|:---:|:---:|
-| ![mrp-tui: il dialogo Sostituisci con l'anteprima, nel terminale](docs/img/tui-replace.png) | ![mrp-gui: la finestra, tema scuro](docs/img/gui-dark.png) |
-
-| | `mrp-tui` | `mrp-gui` |
-| --- | --- | --- |
-| **Cos'è** | un editor a tutto schermo per qualsiasi terminale (ratatui), pensato per server e SSH | un'applicazione desktop (egui): menu, barra degli strumenti, barra di stato, scorrimento e dialoghi veri, gli appunti di sistema, i caratteri CJK e il trascinamento dei file |
-| **Avvio** | `mrp-tui file...` | `mrp-gui file...` (senza file riprende l'ultima sessione, o apre un "Senza nome 1" vuoto) |
-| **Menu** | i tasti funzione, mostrati nel piede (`F1` = aiuto) | una barra dei menu (File, Modifica, Visualizza, Log, Aiuto), una barra degli strumenti con le icone, il menu del tasto destro e i dialoghi nativi di apertura e salvataggio |
-| **Schede** | una barra sulla prima riga, una scheda per file | una striscia con il pulsante di chiusura per ogni scheda |
-| **Aspetto** | quattro temi da terminale | Blu (stile Total Commander), Debian, Scuro o Chiaro; Automatico (il predefinito) segue l'impostazione chiaro / scuro del sistema |
-| **Il mouse** | posiziona il cursore, seleziona (doppio clic: parola, triplo: riga), sceglie la scheda | lo stesso, e il clic centrale chiude una scheda |
-| **Timeline** | una colonna accanto al testo (`Alt+B`); un clic o un trascinamento ci salta | una barra accanto al testo o alla scrollbar (`Alt+B`, la barra degli strumenti o il menu Log); il tasto destro sulla barra sceglie il passo, il lato e se parte da sola |
-
-Condividono **un solo motore**: la logica dell'editor (documenti, schede, ricerca, modifiche, sessioni) sta in un posto solo; `mrp-gui` disegna il testo come la stessa griglia di celle, ma la avvolge nei propri controlli nativi. Una funzione aggiunta al motore c'è in entrambi.
-
-## Cosa fa
-
-- **Un viewer di log per file enormi.** Si apre subito (mappato in memoria, in sola lettura) e scorre con la rotella, la scrollbar, `PgSu/PgGiù` e la barra dei salti (`Alt+PgSu/PgGiù` saltano di 10 pagine, con Maiusc 100, con Ctrl 1000: configurabili con l'ingranaggio). I numeri di riga (accesi di fabbrica, `Alt+N`) vengono da un indice sparso costruito in background: la barra di stato mostra l'avanzamento e dice che puoi continuare a lavorare, e l'indice **si ferma mentre salti**, così il disco resta libero. Vai a una riga (`Ctrl+G`) o a un orario, segui la fine come `tail -f`, filtra le righe come `grep` (anche dal menu del tasto destro su una selezione: *Filtra le righe con…*, *Escludi le righe con…*, *Cerca…*), colora i livelli del log; la barra di stato mostra sempre riga / totale, colonna, byte, percentuale e selezione. Su un file da 100 GB su disco meccanico si apre in 36 ms ([misurato](docs/BENCHMARKS.md#a-100-gb-file-on-a-hard-disk)).
-- **La timeline del file.** Per un log con gli orari, una colonna di periodi — un minuto, dieci minuti, un'ora o un giorno, scelti per te o da te — ciascuno lungo quanto il suo volume di righe e diviso per livello (ERROR, WARN, INFO, DEBUG), così si vede a colpo d'occhio dove sono gli errori, anche uno solo fra migliaia di righe. La parte che stai leggendo è segnata; un clic o un trascinamento ti porta in quel punto; nella finestra, i pulsanti dei livelli aprono una vista con solo quelle righe, e parte da sola su un file con un orario riconosciuto fino a 2 GiB (si può spegnere). I periodi si trovano con una ricerca binaria **senza leggere il file** (gli orari devono crescere lungo il file); contare i livelli è una passata in background che puoi annullare, e finché non è finita le barre sono sbiadite. Nella finestra e nel terminale (`Alt+B`); le scelte fatte in uno valgono anche nell'altro.
-- **…e lo puoi modificare, anche a colonna.** Premi `F4` e lo stesso file diventa modificabile, senza ricaricare e senza copie. La **modalità colonna (a blocchi)** è un tipo di selezione di prima classe nel motore (`F8`), anche col mouse: `Alt`+trascinamento disegna il blocco (e accende la modalità); con la modalità accesa basta trascinare. Scrittura, `Tab`, `Backspace`, `Canc`, copia, taglia e incolla agiscono su tutte le righe del blocco insieme (fino a 200.000 righe), in un file di qualsiasi dimensione.
-- **Memoria indipendente dalla dimensione del file.** Decine di MiB, qualunque sia il file. Mai l'intero file in memoria.
-- **Non perde mai dati.** Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore chiaro invece di troncamento silenzioso, salvataggio a prova di interruzione.
-- **Schede.** Più file insieme, ciascuno con la propria ricerca, cronologia delle modifiche e cursore. `Ctrl+O` apre (un file già aperto torna solo in primo piano),
-  `Ctrl+W` chiude (chiede se ci sono modifiche), `Ctrl+PgSu/PgGiù`, `Ctrl+Tab` / `Ctrl+Maiusc+Tab` e `Alt+←/→` cambiano scheda, `Alt+1..9` vanno a quella col numero.
-- **Chiudere l'editor non fa perdere niente.** Esci con `F10`, `Ctrl+Q` o il pulsante di chiusura della finestra *senza che ti venga chiesto nulla*: alla volta dopo tornano
-  le schede, i cursori e le **modifiche non salvate**. Si salvano solo le modifiche, mai una copia del file: su un file da 100 GB con poche modifiche la sessione pesa pochi KB.
-  Se nel frattempo il file è cambiato sul disco, la scheda si apre pulita, lo dice, e la tua copia resta da parte. Ci hai ripensato su quello che è tornato? `Ctrl+R` (File > *Scarta le modifiche…*) chiede conferma, poi butta le modifiche e torna al file com'è sul disco.
-- **Cerca e Sostituisci con glob e regex.** `Ctrl+F` / `F3` cercano; `Ctrl+H` sostituisce. Tre modi — **testo** semplice, **glob** (`*`, `?`, `[abc]`)
-  e **regex** (con `$1` e `${nome}` nella sostituzione) — più maiuscole/minuscole e un ambito: questa scheda o **tutte le schede aperte**.
-  Il primo `Invio` mostra l'**anteprima** (*"9 occorrenze in 2 scheda/e"*, senza toccare niente), il secondo applica, e un solo `Ctrl+Z` annulla tutto.
-- **Filtra le righe** (`Alt+G`, come `grep`): mostra solo le righe che corrispondono (testo, glob o regex, con o senza maiuscole; `Alt+I` mostra quelle che NON corrispondono) in una scheda nuova di sola lettura `[filtro] testo`. Gira in background su un file di qualsiasi dimensione (avanzamento nella riga di stato, `Esc` annulla), non tiene mai in memoria più di un blocco, e `Invio` su un risultato salta a quella riga nel file vero.
-- **Colori dei log** (`Alt+L`, spenti di fabbrica): il livello di una riga (ERROR/FATAL in rosso, WARN in giallo, INFO in verde, DEBUG in grigio), le date e gli orari e gli indirizzi IPv4 hanno ciascuno il proprio colore in ogni tema; le righe di errore e di avviso si tingono per intero. Si trovano scorrendo a mano il solo testo visibile, quindi non costano nulla su un file enorme. ![colori dei log](docs/img/gui-log-colors.png)
-- **Salta a un orario** (`Ctrl+G`, poi `~03:20` o `~2026-10-31 09:00`): in un log con gli orari che solo crescono, una ricerca binaria sui byte trova la prima riga da quell'orario in poi in poche decine di letture, senza indice, anche in un file di centinaia di GB. Le righe senza orario (tracce, intestazioni) si attraversano.
-- **Segui la fine di un file** (`Alt+F`, come `tail -f`): un log che continua a crescere si segue fino alla sua nuova fine due volte al secondo, senza rileggere niente (il file si rimappa e i numeri di riga si allungano contando solo i byte nuovi). Salire con un tasto o con la rotella lo ferma; non si combina con la modifica.
-- **Caratteri speciali visibili** (`Alt+W`): spazi come `·`, tabulazioni come `→`, fine riga come `¶`, caratteri di controllo come `¤`; le colonne e le posizioni del mouse non si spostano. Si salva con le impostazioni.
-- **Onesto con le codifiche.** UTF-8, UTF-16 e UTF-32 (little e big endian, coppie surrogate comprese), 53 tabelle di caratteri a byte singolo
-  (Windows-125x e 874, ISO-8859-x, DOS 437/850/855/…, KOI8, i set Mac, US-ASCII) e le codifiche asiatiche a più byte (Shift_JIS, EUC-JP,
-  GBK, GB18030, Big5, EUC-KR), su file più grandi della RAM. Si scelgono con `F9` o `--encoding`, o si riconoscono all'apertura (quelle a più byte non si indovinano mai: si scelgono a mano). **Salva con nome** può scrivere il file in un'altra codifica (con o senza BOM), convertendolo a blocchi mentre scrive.
-- **Una finestra Impostazioni** (`Ctrl+,`) che raccoglie ogni opzione col suo tasto scritto accanto, i **temi** (sei nel terminale; nella finestra quattro — *Blu* nello stile di Total Commander, *Debian*, *Scuro* e *Chiaro* — più *Automatico*, il predefinito, che segue l'impostazione chiaro / scuro del sistema) e **sette lingue** (English, Deutsch, Español, Italiano, 日本語, Português do Brasil, 简体中文), che si cambiano al volo con `F6` / `F7`.
-
-Fuori dagli obiettivi: un analizzatore di log (usa lnav, logana, klogg: gli aiuti per i log che ci sono qui — seguire, colori, salto a un orario, filtro — sono quelli che servono a un lettore, non un'analisi) e una piattaforma di plugin/IDE.
-
-### I temi
-
-| | |
-|:---:|:---:|
-| ![blu](docs/img/theme-blue.png) | ![debian](docs/img/theme-debian.png) |
-| `blue` — blu dappertutto, popup compresi, accenti gialli (Total Commander) | `debian` — schermo blu, popup grigio chiaro, accenti rossi (l'installer) |
-| ![scuro](docs/img/theme-dark.png) | ![chiaro](docs/img/theme-light.png) |
-| `dark` (scuro) | `light` (chiaro) |
-
-In ogni tema un popup ha la sua testata in risalto e il pulsante di chiusura (**X**), e ogni popup si trascina da qualunque punto. La finestra segue il sistema finché non scegli: chiara se il sistema è chiaro, scura altrimenti, anche dal vivo. Scegliere un tema nelle Impostazioni lo fissa; *Automatico* restituisce la scelta al sistema. L'editor da terminale ha i suoi temi (`night`, `debian`, `console`, il predefinito, `minimal`, `dark`, `light`; `F6`).
-
-L'immagine del terminale in *Due programmi* mostra Sostituisci con la sua anteprima prima che cambi qualcosa (`Ctrl+H`, poi `Alt+M` per il modo, `Alt+C` per le maiuscole, `Alt+A` per l'ambito).
-<sub>È generata dal testo dell'opzione `--dump` dell'editor, quindi è senza colori; il terminale vero usa quelli del tema.</sub>
-
----
-
-## Avvio rapido
-
-Servono [Rust](https://rustup.rs) (`cargo --version`) e una copia di questo repository.
+Serve [Rust](https://rustup.rs) e un clone di questo repository.
 
 ```sh
 cd rust
 cargo build --release                 # mrp-tui e mrp-gui in target/release/
-./target/release/mrp-tui ilmiofile.txt    # F1 = aiuto, F4 = modifica, F10 = esci
-./target/release/mrp-gui ilmiofile.txt   # lo stesso, in una finestra
+./target/release/mrp-tui tuofile.txt      # F1 = aiuto, F4 = modifica, F10 = esci
+./target/release/mrp-gui tuofile.txt     # lo stesso, in una finestra
 ```
 
-Windows (PowerShell): `.\install.ps1` in `rust\` è facoltativo: copia `mrp-tui.exe` in `%USERPROFILE%\.local\bin` e i file delle lingue in
-`%APPDATA%\mrp\lang`; non tocca mai il `PATH` né le impostazioni salvate. `.\portable.ps1` (dopo la compilazione) crea una cartella con i programmi e `lang\`:
-copiala dove vuoi, e finché `lang` sta accanto ai programmi, lingue, impostazioni (`settings.txt`) e sessione restano in quella cartella e nel tuo profilo non si scrive nulla.
+Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni macchina:
 
-Per provare le funzioni a più file: `mrp-tui a.txt b.txt c.txt`, poi `Ctrl+H`, scrivi un modello, `Tab`, scrivi la sostituzione, `Alt+A` (tutte le schede), `Invio`.
+```sh
+./target/release/mrp-loggen --size 2M --scenario bursts demo.log
+```
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** L'editor funziona ed è coperto da 1416 test automatici (più 3 su file da 6 GB oltre i 4 GiB, da lanciare a richiesta), ma non è stato
-  usato a lungo da molte persone. Tieni una copia di ciò che conta.
-- **Prima di tutto Windows.** È stato usato soprattutto su Windows. L'editor da terminale e tutto il motore (con i loro test) sono stati provati anche su **Linux** (Debian, sotto WSL);
-  la finestra `mrp-gui` su Linux/macOS e macOS in generale non sono provati. La CI lancia i test su tutti e tre i sistemi a ogni push.
-- **La finestra (`mrp-gui`)** è stata verificata con test automatici e schermate, non ancora con lunghe sessioni di tastiera e mouse veri.
-- **Regex, glob e "ignora maiuscole" funzionano solo su documenti UTF-8** (si applicano riga per riga, come grep: un'occorrenza non attraversa mai una riga). La ricerca di testo semplice funziona in ogni codifica.
-  In "tutte le schede" una scheda che non può usare la regex viene saltata, e il dialogo lo dice.
-- Una sola Sostituzione gestisce fino a **2.000.000** di occorrenze; una riga più lunga di 16 MiB si legge a pezzi, quindi un'occorrenza a cavallo del taglio può sfuggire.
-- **La chiusura senza domande è sempre attiva** quando esiste una cartella del profilo o portatile (non c'è ancora un interruttore per spegnerla).
-- Le misure vengono da **una macchina e un disco meccanico**: vedi [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- **Sviluppo iniziale.** 1.538 test automatici, ma non ancora lunghe sessioni d'uso vero. Tieni una copia di cio' che ti e' caro.
+- **Windows prima**; l'editor da terminale e il core girano anche su Linux (Debian, WSL). La CI gira tutta la suite sui tre sistemi a ogni push.
+- **La finestra (`mrp-gui`)** e' stata verificata con test automatici e screenshot, non ancora con lungo uso vero di tastiera e mouse.
+- Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
+- Le misure vengono da una macchina sola e un HDD solo: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Sviluppo
 
@@ -183,39 +144,36 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 | Percorso | Contenuto |
 |---|---|
-| `rust/crates/mrp-core` | Il motore (Rust): `FileSource`, `LineIndex`, `PieceTable`/`Document` (modifica, annulla, salvataggio), cerca e sostituisci (`pattern`), record di sessione (`session`), codifiche, lingue |
-| `rust/crates/mrp-tui` | L'editor da terminale `mrp-tui` (ratatui): `App` (un documento), `Workspace` (le schede e la sessione), schermo, temi, impostazioni, riga di comando |
-| `rust/crates/mrp-gui` | La finestra `mrp-gui` (egui): la barra dei menu, la striscia delle schede e la griglia di celle dell'editor da terminale |
-| `rust/install.ps1`, `rust/portable.ps1` | Installazione locale su Windows; una cartella portatile |
-| `docs/` | `MARKET.md` (il panorama degli strumenti esistenti, con le fonti), `BENCHMARKS.md` (misure, metodo, limiti) |
-| `bench/` | Script riproducibili (Windows, Python 3.12, senza dipendenze) e risultati grezzi |
-| `.github/workflows/` | `ci.yml` (test su tre sistemi, formato, clippy) e `release.yml` (i pacchetti) |
+| `rust/crates/mrp-core` | il motore: `FileSource`, `LineIndex`, `PieceTable`/`Document`, ricerca, sessioni, codifiche, lingue |
+| `rust/crates/mrp-tui` | l'editor da terminale (ratatui) |
+| `rust/crates/mrp-gui` | la finestra del desktop (egui) |
+| `rust/crates/mrp-loggen` | log sintetici di qualunque taglia, stessi byte a parita' di seme |
+| `docs/` | `MARKET.md` (il panorama, con le fonti), `BENCHMARKS.md` (misure, metodo) |
+| `bench/` | script riproducibili e risultati grezzi |
 
 ## Documentazione
 
-- [docs/MARKET.md](docs/MARKET.md) — il panorama degli strumenti esistenti, con le fonti
+- [docs/MARKET.md](docs/MARKET.md) — il panorama dei tool esistenti, con le fonti
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — misure, metodo, limiti
-- [CHANGELOG.md](CHANGELOG.md) — cosa è cambiato
-- [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilità in privato
+- [CHANGELOG.md](CHANGELOG.md) — cosa e' cambiato
+- [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilita' in privato
 
 ## Contribuire
 
-Vedi [CONTRIBUTING.md](CONTRIBUTING.md). In breve: gli offset sono a 64 bit, l'intero file non sta mai in memoria e ogni numero nella
-documentazione è stato davvero misurato. Le issue sono aperte — tre modelli (bug, domanda, funzione) portano il contesto. Una nota sulle aspettative: è un
-progetto per hobby, tutto viene letto ma non si promettono tempi di risposta.
+Vedi [CONTRIBUTING.md](CONTRIBUTING.md). In breve: gli offset sono a 64 bit, il file intero non entra mai in memoria, e ogni numero nei documenti e' stato misurato davvero. E' un progetto hobby — tutto viene letto, ma nessun tempo di risposta e' promesso.
 
-## Progetto gemello
+## Il progetto gemello
 
-[Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — un analizzatore dello spazio su disco in Rust; la divisione motore/CLI/TUI usata lì è il modello di questo repository.
+[Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — un analizzatore di spazio disco in Rust; la divisione core/frontend usata li' e' il modello di questo repository.
 
 ## Licenza
 
 Copyright (C) 2026 Francesco Mantovanelli.
 
-Questo programma è software libero: puoi ridistribuirlo e/o modificarlo secondo i
-termini della **GNU Affero General Public License v3.0**, pubblicata dalla Free
-Software Foundation — vedi [LICENSE](LICENSE). Una licenza commerciale è disponibile
-su richiesta per i prodotti che non possono essere distribuiti con l'AGPL.
+Questo programma e' software libero: puoi ridistribuirlo e/o modificarlo nei
+termini della **GNU Affero General Public License v3.0** come pubblicata dalla
+Free Software Foundation — vedi [LICENSE](LICENSE). La licenza commerciale e'
+disponibile su richiesta per prodotti che non possono viaggiare in AGPL.
 
 ---
 
