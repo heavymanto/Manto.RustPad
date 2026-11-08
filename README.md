@@ -109,9 +109,28 @@ Non-goals: a log analyser (the log aids here are what a *viewer* needs), and a p
 
 Nothing to install: extract and run — both programs work right away, in *portable* mode (English embedded, the other six languages in `lang/` next to the programs). Each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS) if you want them as commands from any folder.
 
-[![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
-[![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
-[![macOS](https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge)](../../releases/latest)
+<div align="center">
+<details>
+<summary><h3>💚 ⬇️ DOWNLOAD ⬇️ 💚</h3></summary>
+<br/>
+<p align="center">
+  <a href="#get-it"><img src="docs/img/star.png" alt="Star" width="120" /></a>
+  <br/><br/>
+  <b>We give you the software. You give us a star.</b> ⭐<br/>
+  <i>Stars make dreams — and for a young project they are the proof<br/>
+  it matters. They fuel what comes next.</i>
+  <br/><br/>
+  <a href="https://github.com/heavymanto/Manto.RustPad"><img src="https://img.shields.io/badge/%E2%AD%90-GIVE%20US%20A%20STAR-e3b341?style=for-the-badge" alt="Give us a star" /></a>
+  <br/>
+  <a href="https://github.com/heavymanto/Manto.RustPad/stargazers"><img src="https://img.shields.io/github/stars/heavymanto/Manto.RustPad?style=flat-square&label=stars" alt="stars" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/downloads/heavymanto/Manto.RustPad/total?style=flat-square&label=downloads" alt="downloads" /></a>
+  <br/><br/>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge" alt="Windows x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge" alt="Linux x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge" alt="macOS" /></a>
+</p>
+</details>
+</div>
 
 Until the first release is out, build it from source — two commands, in the [Quickstart](#quickstart).
 

@@ -109,9 +109,28 @@ Non-obiettivi: un analizzatore di log (gli aiuti qui sono quelli che servono a u
 
 Niente da installare: estrai ed esegui — entrambi i programmi funzionano subito, in modalita' *portabile* (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Ogni pacchetto porta `install.ps1` (Windows) o `install.sh` (Linux, macOS) se li vuoi come comandi da qualunque cartella.
 
-[![Windows x64](https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
-[![Linux x64](https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge)](../../releases/latest)
-[![macOS](https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge)](../../releases/latest)
+<div align="center">
+<details>
+<summary><h3>💚 ⬇️ DOWNLOAD ⬇️ 💚</h3></summary>
+<br/>
+<p align="center">
+  <a href="#scaricalo"><img src="docs/img/star.png" alt="Stella" width="120" /></a>
+  <br/><br/>
+  <b>Noi ti doniamo il software. Tu donaci una stella.</b> ⭐<br/>
+  <i>Le stelle fanno sognare — e per un progetto giovane sono la prova<br/>
+  che serve. Sono il carburante di cio' che verra'.</i>
+  <br/><br/>
+  <a href="https://github.com/heavymanto/Manto.RustPad"><img src="https://img.shields.io/badge/%E2%AD%90-LASCIA%20UNA%20STELLA-e3b341?style=for-the-badge" alt="Lascia una stella" /></a>
+  <br/>
+  <a href="https://github.com/heavymanto/Manto.RustPad/stargazers"><img src="https://img.shields.io/github/stars/heavymanto/Manto.RustPad?style=flat-square&label=stelle" alt="stelle" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/downloads/heavymanto/Manto.RustPad/total?style=flat-square&label=download" alt="download" /></a>
+  <br/><br/>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge" alt="Windows x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge" alt="Linux x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/latest"><img src="https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge" alt="macOS" /></a>
+</p>
+</details>
+</div>
 
 Finche' la prima release non esce, compilandolo da fonte — due comandi, nel [Quickstart](#quickstart).
 
