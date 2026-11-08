@@ -3,7 +3,15 @@
 # Same semantics as the repo's original (rust/install.ps1), for Linux:
 # binaries go to ~/.local/bin, languages to ~/.config/mrp/lang (XDG).
 # The installed copy is a snapshot: re-run after every new tar.gz.
+#
+# Optional:  ./install.sh --associa
+#   also makes mrp-gui the default for text files (.txt and .log are both
+#   text/plain): writes ~/.local/share/applications/mrp-gui.desktop and calls
+#   xdg-mime. On Linux the default CAN be set by the installer - no guard.
 set -e
+
+ASSOCIA=0
+if [ "$1" = "--associa" ]; then ASSOCIA=1; fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 BIN_DIR="$HOME/.local/bin"
@@ -41,3 +49,24 @@ esac
 
 echo "self-test:"
 "$BIN_DIR/mrp-tui" --help
+
+# File associations (opt-in): mrp-gui as the default for text/plain.
+# On Linux the installer can set the default itself (xdg-mime): no hash guard.
+if [ "$ASSOCIA" = "1" ]; then
+    APPS="$HOME/.local/share/applications"
+    mkdir -p "$APPS"
+    cat > "$APPS/mrp-gui.desktop" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Manto.RustPad
+Exec=$BIN_DIR/mrp-gui %f
+MimeType=text/plain;
+Terminal=false
+EOF
+    if command -v xdg-mime >/dev/null 2>&1; then
+        xdg-mime default mrp-gui.desktop text/plain
+        echo "default for text/plain (.txt, .log): mrp-gui"
+    else
+        echo "NOTE: xdg-mime not found - the desktop entry is installed anyway"
+    fi
+fi

@@ -12,6 +12,11 @@
 #       .\install.ps1
 #       mrp-tui <file>        -> apre il file (lettura; F4 per modificare, F1 aiuto)
 #       mrp-tui --help        -> le opzioni
+# Opzionale:  .\install.ps1 -Associa   mette anche mrp-gui nell'elenco "Apri
+#   con" di .txt e .log e in Impostazioni > App predefinite (solo utente, HKCU:
+#   niente admin). Il default resta il tuo click: Windows non lascia che sia un
+#   programma a prendersi un'estensione in silenzio.
+param([switch]$Associa)
 $ErrorActionPreference = 'Stop'
 $binDir = Join-Path $env:USERPROFILE '.local\bin'
 New-Item -ItemType Directory -Force -Path $binDir | Out-Null
@@ -80,4 +85,33 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "mrp-tui --lang it --dump ha restituito $LASTEXITCODE" }
 } finally {
     Remove-Item $prova -Force -ErrorAction SilentlyContinue
+}
+
+# Associazioni file (opt-in): mrp-gui nell'elenco "Apri con" di .txt e .log e in
+# Impostazioni > App predefinite. Tutto in HKCU, niente admin. Il default e'
+# l'ultimo click dell'utente (vedi l'intestazione): quella firma la mette Windows.
+if ($Associa) {
+    $exe = Join-Path $binDir 'mrp-gui.exe'
+    $progId = 'Manto.RustPad'
+    New-Item -Path "HKCU:\Software\Classes\$progId" -Force | Out-Null
+    Set-ItemProperty -Path "HKCU:\Software\Classes\$progId" -Name '(Default)' -Value 'Manto.RustPad'
+    New-Item -Path "HKCU:\Software\Classes\$progId\DefaultIcon" -Force | Out-Null
+    Set-ItemProperty -Path "HKCU:\Software\Classes\$progId\DefaultIcon" -Name '(Default)' -Value "`"$exe`",0"
+    New-Item -Path "HKCU:\Software\Classes\$progId\shell\open\command" -Force | Out-Null
+    Set-ItemProperty -Path "HKCU:\Software\Classes\$progId\shell\open\command" -Name '(Default)' -Value "`"$exe`" `"%1`""
+    foreach ($est in '.txt', '.log') {
+        $chiave = "HKCU:\Software\Classes\$est\OpenWithProgids"
+        New-Item -Path $chiave -Force | Out-Null
+        New-ItemProperty -Path $chiave -Name $progId -Value ([byte[]]@()) -PropertyType None -Force | Out-Null
+    }
+    # Impostazioni > App predefinite: il programma compare li', col nome e l'icona
+    New-Item -Path 'HKCU:\Software\Manto\RustPad\Capabilities\FileAssociations' -Force | Out-Null
+    Set-ItemProperty -Path 'HKCU:\Software\Manto\RustPad\Capabilities' -Name 'ApplicationName' -Value 'Manto.RustPad'
+    Set-ItemProperty -Path 'HKCU:\Software\Manto\RustPad\Capabilities' -Name 'ApplicationDescription' -Value 'The editor for files that do not fit in RAM'
+    Set-ItemProperty -Path 'HKCU:\Software\Manto\RustPad\Capabilities\FileAssociations' -Name '.txt' -Value $progId
+    Set-ItemProperty -Path 'HKCU:\Software\Manto\RustPad\Capabilities\FileAssociations' -Name '.log' -Value $progId
+    New-ItemProperty -Path 'HKCU:\Software\RegisteredApplications' -Name 'Manto.RustPad' -Value 'Software\Manto\RustPad\Capabilities' -PropertyType String -Force | Out-Null
+    "associazioni file: mrp-gui e' nell'elenco 'Apri con' di .txt e .log"
+    "e in Impostazioni > App predefinite. Il default e' il tuo click:"
+    "click destro su un .txt > Apri con > Scegli un'altra app > mrp-gui > sempre"
 }

@@ -14,6 +14,12 @@ Want more? install.sh (same folder) publishes both as user commands
 (~/.local/bin - make sure it is in your PATH) and drops the six languages
 in ~/.config/mrp/lang.
 
+  ./install.sh --associa   also makes mrp-gui the default for text files
+                           (.txt and .log are both text/plain): it writes
+                           ~/.local/share/applications/mrp-gui.desktop and
+                           calls xdg-mime. On Linux the installer can set
+                           the default itself.
+
 Verify the download: the .sha256 file that rides next to this archive.
 
 Note: the terminal editor and the engine have been tested on Linux; the

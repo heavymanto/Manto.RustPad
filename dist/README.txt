@@ -14,6 +14,12 @@ Want more? install.ps1 (same folder) publishes both as user commands
 (%USERPROFILE%\.local\bin, added to your user PATH if it is not there) and
 drops the six languages in %APPDATA%\mrp\lang.
 
+  .\install.ps1 -Associate   also puts mrp-gui in the "Open with" list of
+                             .txt and .log, and in Settings > Default apps
+                             (your user only, no admin). Making it the default
+                             stays one click of yours: right click a file,
+                             Open with, Choose another app, mrp-gui, "Always".
+
 Verify the download: the .sha256 file that rides next to this ZIP.
 
 License: AGPL-3.0 - see LICENSE. The full story (measurements, architecture)
