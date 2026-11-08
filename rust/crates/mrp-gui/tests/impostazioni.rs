@@ -628,10 +628,14 @@ fn the_language_list_names_japanese_and_chinese_in_their_own_script_whatever_the
 ",
     )
     .unwrap();
+    // le lingue del repository, non quelle della macchina: su un runner di CI il profilo utente e' vergine e il
+    // registro non troverebbe niente — il test deve dire le sue proprio li', ora che i runner Windows hanno i
+    // font asiatici e non salta piu' alla prima guardia
+    let dir_lingue = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../mrp-core/lang");
     let cfg = move || AppConfig {
         chrome: false,
         settings_path: Some(settings.clone()),
-        langs: mrp_core::lang::registry().0,
+        langs: mrp_core::lang::registry_in(Some(&dir_lingue)).0,
         ..AppConfig::default()
     };
     let mut app = App::open(&p, cfg()).unwrap();
