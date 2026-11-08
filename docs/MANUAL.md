@@ -110,7 +110,7 @@ status row as the terminal.
 - **Expected response:** the cursor goes there and the target is shown near the middle of the screen *(observed: `500` -> `Ln 500`,
   `%50` -> `49%`, `@1000000` -> `byte 1000000`)*. `0` -> "not a valid position: 0"; a line past the end -> "line N is beyond the end (M lines)".
 - **Must not:** move the cursor on an invalid target; land inside a multi-byte character (it snaps back to its start).
-- **Limits and edge cases:** by line needs the index (while it is still being built you get a "wait" message and nothing moves);
+- **Limits and edge cases:** *known defect on Windows with an AltGr keyboard (Italian, German, Spanish, French...)*: in the terminal the `@` of `@byte` cannot be typed (see M-03). By line needs the index (while it is still being built you get a "wait" message and nothing moves);
   `@` and `%` need no index; `~time` needs a recognised time format (see C4).
 - **Auto tests:** yes (`app_jump`, `time_dialogs`).
 - **UX check:** `[ ]`
@@ -180,6 +180,7 @@ status row as the terminal.
   Copy (`Ctrl+C`) also puts the text in the system clipboard (through OSC 52, so it works over SSH). Paste (`Ctrl+V`) uses the program's own
   clipboard; to paste text from another program use the terminal's own paste (`Ctrl+Shift+V` in Windows Terminal, which sends it as typed text).
 - **Expected response:** the status row shows ` *` after the file name; the text changes at once.
+- **Known defect (found 2026-11-08, not fixed):** in the **terminal on Windows with a keyboard layout that uses AltGr** (Italian, German, Spanish, French, Portuguese...), the characters `@ [ ] { } ~ # `` are dropped: typing `a@b{c}[d]` gives `abcd`. The terminal receives them with Ctrl+Alt and accepts text only without modifiers. It affects every text field (edit, Find, Replace, Filter, Go to `@byte`). The window is not affected.
 - **Must not:** touch the file on disk before a save. In VIEW, typing is refused with the hint **"read-only: press Alt+E to edit"** *(observed)*.
 - **Auto tests:** yes (`app_edit`, `app_select`, `app_multibyte`).
 - **UX check:** `[ ]`
