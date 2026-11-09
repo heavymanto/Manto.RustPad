@@ -4,6 +4,11 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-09
+
+### Fixed
+- **Opening an associated file no longer opens a black console window next to the real one**: mrp-gui was built as a console program, so Windows gave it a terminal every time Explorer launched it (the icon was right, the window was not). The release build is now a proper window program (`windows_subsystem`); the service lines — the usage, `--help`, the errors that stop the program before the window opens — still reach the terminal that launched it, when there is one (`AttachConsole` + `CONOUT$`, the new `mrp_gui::console`), and go nowhere on a double click, where the window is the interface. Development builds keep their console, for the debug prints. Only mrp-gui changes: the terminal editor stays 0.1.1.
+
 ## [0.1.1] - 2026-11-08
 
 ### Changed

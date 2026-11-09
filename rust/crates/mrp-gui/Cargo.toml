@@ -1,6 +1,6 @@
-[package]
+﻿[package]
 name = "mrp-gui"
-version = "0.1.1"
+version = "0.1.2"
 edition = "2021"
 license = "AGPL-3.0-only"
 repository = "https://github.com/heavymanto/Manto.RustPad"

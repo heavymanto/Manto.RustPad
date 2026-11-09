@@ -410,7 +410,7 @@ impl Finestra {
                 Event::Screenshot { image, .. } => {
                     if let Some(percorso) = &self.scatto {
                         if let Err(e) = salva_png(percorso, &image) {
-                            eprintln!("{e}");
+                            crate::console::scrivi(&e.to_string());
                         }
                         self.chiusura = true;
                         ctx.send_viewport_cmd(ViewportCommand::Close);

@@ -1,9 +1,16 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 //! Il binario `mrp-gui`: la versione grafica di Manto.RustPad. Stessi argomenti del TUI (`mrp-tui`) per file, tema, lingua e
 //! codifica; apre la finestra con l'`App` del TUI disegnata da egui. Codici di uscita: 0 tutto bene, 1 il file non si
 //! apre o la finestra non parte, 2 errore d'uso.
+//!
+//! Nelle build di rilascio su Windows il binario e' senza console (l'attributo qui sopra): Explorer non apre la
+//! finestra nera accanto a quella vera quando si apre un file associato; le righe di servizio (uso, `--help`, gli
+//! errori) passano da `mrp_gui::console`, che si aggancia alla console del genitore se c'e'. Le build di sviluppo
+//! tengono la console: i `println!` di debug restano visibili.
 
 use eframe::egui;
 use mrp_core::lang::Catalog;
+use mrp_gui::console;
 use mrp_gui::gui::Finestra;
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::args;
@@ -25,7 +32,7 @@ fn run() -> i32 {
         Ok(None) | Err(_) => Catalog::english(),
     };
     if a.help {
-        println!("mrp-gui [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
+        console::scrivi("mrp-gui [FILE...] [--encoding NAME] [--theme NAME] [--lang CODE]");
         return 0;
     }
     // nella finestra contano solo Blu (Night), Debian, Scuro e Chiaro: un altro tema nel file (Console o Minimal, scelto nel
@@ -44,7 +51,7 @@ fn run() -> i32 {
     let theme = match args::resolve_theme(&a, &profilo.settings) {
         Ok(t) => t,
         Err(nome) => {
-            eprintln!("{}", cat.tf("cli.err.theme", &[&nome]));
+            console::scrivi(&cat.tf("cli.err.theme", &[&nome]));
             return 2;
         }
     };
@@ -52,21 +59,21 @@ fn run() -> i32 {
         Ok(Some(l)) => Some(l.code),
         Ok(None) => None,
         Err(code) => {
-            eprintln!("{}", cat.tf("cli.err.lang", &[&code]));
+            console::scrivi(&cat.tf("cli.err.lang", &[&code]));
             return 2;
         }
     };
     let encoding = match args::resolve_encoding(&a) {
         Ok(e) => e,
         Err(nome) => {
-            eprintln!("{}", cat.tf("cli.err.encoding", &[&nome]));
+            console::scrivi(&cat.tf("cli.err.encoding", &[&nome]));
             return 2;
         }
     };
     let eol = match args::resolve_eol(&a) {
         Ok(e) => e,
         Err(nome) => {
-            eprintln!("{}", cat.tf("cli.err.eol", &[&nome]));
+            console::scrivi(&cat.tf("cli.err.eol", &[&nome]));
             return 2;
         }
     };
@@ -110,13 +117,10 @@ fn run() -> i32 {
         _ => None,
     };
     let errore_apertura = |file: &std::path::Path, e: &std::io::Error| {
-        eprintln!(
-            "{}",
-            cat.tf(
-                "cli.err.open",
-                &[&file.display().to_string(), &e.to_string()]
-            )
-        );
+        console::scrivi(&cat.tf(
+            "cli.err.open",
+            &[&file.display().to_string(), &e.to_string()],
+        ));
         1
     };
     // le schede: un file ciascuno (la prima avanti); senza file si riapre l'ultima sessione e, se non c'e', si sceglie
@@ -146,7 +150,7 @@ fn run() -> i32 {
             match Workspace::start(cfg, sessione.clone()) {
                 Ok(ws) => ws,
                 Err(e) => {
-                    eprintln!("{e}");
+                    console::scrivi(&e.to_string());
                     return 1;
                 }
             }
@@ -260,7 +264,7 @@ fn run() -> i32 {
     match esito {
         Ok(()) => 0,
         Err(e) => {
-            eprintln!("{e}");
+            console::scrivi(&e.to_string());
             1
         }
     }
@@ -281,6 +285,6 @@ fn scegli(titolo: &str) -> Option<std::path::PathBuf> {
 
 /// Gli argomenti non sono validi: l'uso, nella lingua scelta.
 fn uso(cat: &Catalog) -> i32 {
-    eprintln!("{}", cat.tf("cli.err.no_file", &[]));
+    console::scrivi(&cat.tf("cli.err.no_file", &[]));
     2
 }

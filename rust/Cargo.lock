@@ -2002,7 +2002,7 @@ dependencies = [
 
 [[package]]
 name = "mrp-gui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "eframe",
  "mrp-core",
@@ -2021,7 +2021,7 @@ dependencies = [
 
 [[package]]
 name = "mrp-tui"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "mrp-core",
  "parking_lot",
