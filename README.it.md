@@ -107,7 +107,7 @@ Non-obiettivi: un analizzatore di log (gli aiuti qui sono quelli che servono a u
 
 ## Scaricalo
 
-Niente da installare: estrai ed esegui — entrambi i programmi funzionano subito, in modalita' *portabile* (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Ogni pacchetto porta `install.ps1` (Windows) o `install.sh` (Linux, macOS) se li vuoi come comandi da qualunque cartella.
+Niente da installare: estrai ed esegui — entrambi i programmi funzionano subito, in modalita' *portabile* (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Ogni pacchetto porta `install.ps1` (Windows) o `install.sh` (Linux, macOS) se li vuoi come comandi da qualunque cartella. Quello Windows accetta anche `-Associa`: mrp-gui finisce nell'elenco "Apri con" di `.txt` e `.log` e in Impostazioni > App predefinite, solo per il tuo utente (niente admin) — il default resta un click tuo, quello che Windows firma. Su Linux `./install.sh --associa` imposta davvero il default dei file di testo.
 
 <div align="center">
 <details>

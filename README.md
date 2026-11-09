@@ -107,7 +107,7 @@ Non-goals: a log analyser (the log aids here are what a *viewer* needs), and a p
 
 ## Get it
 
-Nothing to install: extract and run — both programs work right away, in *portable* mode (English embedded, the other six languages in `lang/` next to the programs). Each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS) if you want them as commands from any folder.
+Nothing to install: extract and run — both programs work right away, in *portable* mode (English embedded, the other six languages in `lang/` next to the programs). Each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS) if you want them as commands from any folder. The Windows installer also takes `-Associate`: mrp-gui lands in the "Open with" list of `.txt` and `.log` and in Settings > Default apps, for your user only (no admin) — the default itself stays one click of yours, the one Windows signs. On Linux `./install.sh --associa` sets the default for text files outright.
 
 <div align="center">
 <details>
