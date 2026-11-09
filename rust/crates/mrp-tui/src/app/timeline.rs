@@ -90,13 +90,12 @@ struct LevelsJob {
 }
 
 /// Cosa si ricorda della timeline fra una sessione e l'altra (le impostazioni dell'utente): com'era quando si e' chiusa, per
-/// riaprirla uguale. Non e' lo stato di una scheda: e' il punto di partenza di quelle che si aprono.
+/// riaprirla uguale. Non e' lo stato di una scheda: e' il punto di partenza di quelle che si aprono. Il passo non si ricorda:
+/// ogni file riparte da un giorno (vedi `TimelineState::from_pref`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TimelinePref {
     /// Accesa.
     pub on: bool,
-    /// Il passo fisso scelto; `None`: lo sceglie da solo (di fabbrica).
-    pub step: Option<Step>,
     /// Le righe seguono i byte invece del tempo.
     pub bytes: bool,
     /// Si vedono anche i periodi senza righe.
@@ -167,12 +166,15 @@ impl Default for TimelineState {
 }
 
 impl TimelineState {
-    /// Lo stato di una scheda che si apre: come lo lascia la preferenza.
+    /// Lo stato di una scheda che si apre: come lo lascia la preferenza. Il passo riparte sempre da un giorno fisso: una
+    /// scelta fine che restava salvata rompeva i file piu' lunghi ("troppi periodi", e la timeline sembrava rotta), un
+    /// giorno e' il passo piu' lungo del menu e ci vuole piu' di mezzo secolo di log per non starci. Chi vuole piu'
+    /// fino se lo sceglie, della scheda: e' una scelta del file che si sta guardando, non un'abitudine.
     pub(super) fn from_pref(p: TimelinePref) -> Self {
         TimelineState {
             on: p.on,
-            step: p.step.unwrap_or(Step::Day),
-            auto: p.step.is_none(),
+            step: Step::Day,
+            auto: false,
             mode: if p.bytes {
                 TimelineMode::Bytes
             } else {
@@ -187,7 +189,6 @@ impl TimelineState {
     fn pref(&self, lato: TimelinePref) -> TimelinePref {
         TimelinePref {
             on: self.on,
-            step: (!self.auto).then_some(self.step),
             bytes: self.mode == TimelineMode::Bytes,
             empty: self.show_empty,
             right: lato.right,
@@ -233,6 +234,17 @@ impl App {
         self.set_timeline(!self.timeline.on);
     }
 
+    /// Cambiata la regola del tempo (la maschera dell'orario scelta a mano): gli estremi del file cambiano con lei,
+    /// quindi il passo torna al predefinito (un giorno, come all'apertura di un file: una scelta fine che restava
+    /// com'era poteva diventare "troppi periodi" senza spiegazione) e le tacche si ricalcolano sulla regola nuova.
+    pub(super) fn timeline_time_rule_changed(&mut self) {
+        self.timeline.step = Step::Day;
+        self.timeline.auto = false;
+        self.timeline.built_len = 0;
+        self.timeline.built_window = None;
+        self.timeline.built_step = None;
+    }
+
     /// Il passo della timeline in uso: quello delle tacche che ci sono (con il passo automatico, quello scelto per il file) o,
     /// prima che ci siano, il passo fisso (di fabbrica un giorno).
     pub fn timeline_step(&self) -> Step {
@@ -247,17 +259,16 @@ impl App {
         self.timeline.auto
     }
 
-    /// Sceglie un passo fisso: le tacche si ricalcolano.
+    /// Sceglie un passo fisso, per questa scheda: le tacche si ricalcolano. Non si scrive nelle impostazioni: un file
+    /// nuovo riparte da un giorno (vedi `TimelineState::from_pref`).
     pub fn set_timeline_step(&mut self, passo: Step) {
         self.timeline.step = passo;
         self.timeline.auto = false;
-        self.remember_timeline();
     }
 
-    /// Torna al passo scelto da solo: le tacche si ricalcolano.
+    /// Torna al passo scelto da solo, per questa scheda: le tacche si ricalcolano.
     pub fn set_timeline_auto(&mut self) {
         self.timeline.auto = true;
-        self.remember_timeline();
     }
 
     /// Come si dispongono le righe (di fabbrica: l'altezza e' il tempo).

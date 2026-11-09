@@ -4,6 +4,9 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+### Fixed
+- **The timeline no longer looks broken on a long file because of a fine step chosen once**: the period step is no longer remembered between files — every file starts from one day (the longest of the menu: it takes more than half a century of log for even that to be too many), and changing the time rule resets it there too, because the ends of the file change with it. Before, a 10min chosen once stayed in the settings and every file longer than ~5 months opened with "too many buckets" and the timeline seemed dead. The old `timeline_step` line is ignored (a settings file from a previous version changes nothing), and the step chosen in a tab stays of that tab: it is a choice about the file being looked at, not a habit. The "too many" message, when it truly shows, is now red and bold in both programs (it was small and grey): it asks for a longer step and must be seen.
+
 ## [0.1.2] - 2026-11-09
 
 ### Fixed

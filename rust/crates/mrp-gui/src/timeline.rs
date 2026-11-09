@@ -333,7 +333,14 @@ pub fn disegna(
                 if !msg.is_empty() {
                     let mut ui_msg =
                         ui.new_child(egui::UiBuilder::new().max_rect(corpo.shrink(5.0)));
-                    ui_msg.label(RichText::new(msg).small().weak());
+                    // "troppi periodi" e' un'anomalia che chiede un passo piu' lungo: rossa e forte,
+                    // non una noticina piccola e sbiadita che non si vede
+                    let testo = if matches!(stato_t, TimelineStatus::TooMany(_)) {
+                        RichText::new(msg).strong().color(tav.log_errore)
+                    } else {
+                        RichText::new(msg).small().weak()
+                    };
+                    ui_msg.label(testo);
                 }
             }
             // il clic e il trascinamento portano al punto; il passaggio dice l'orario; il clic destro sceglie la disposizione

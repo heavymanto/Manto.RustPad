@@ -118,10 +118,11 @@ fn finisce_il_filtro(w: &mut Workspace) {
 #[test]
 fn alt_p_opens_a_menu_of_the_steps_that_starts_from_the_current_one() {
     let (d, mut w) = con_timeline();
-    assert!(w.active().timeline_auto());
+    // di fabbrica (e a ogni file che si apre) il passo e' un giorno fisso: il menu parte da lì
+    assert!(!w.active().timeline_auto());
     w.handle_key(alt('p'));
     assert_eq!(w.active().dialog_kind(), Some(DialogKind::TimelineStep));
-    assert_eq!(w.active().menu_index(), Some(0), "l'automatico");
+    assert_eq!(w.active().menu_index(), Some(4), "un giorno di fabbrica");
     let s = schermo(&mut w);
     for voce in [
         "TIMELINE: PERIOD",
@@ -136,7 +137,7 @@ fn alt_p_opens_a_menu_of_the_steps_that_starts_from_the_current_one() {
     // Esc rinuncia: non cambia niente
     w.handle_key(tasto(KeyCode::Esc));
     assert_eq!(w.active().dialog_kind(), None);
-    assert!(w.active().timeline_auto());
+    assert!(!w.active().timeline_auto());
     let _ = std::fs::remove_dir_all(d);
 }
 
@@ -171,7 +172,13 @@ fn a_step_chosen_in_the_menu_applies_and_the_menu_starts_from_it_next_time() {
 #[test]
 fn the_step_shows_in_the_header_of_the_panel_with_a_tilde_when_it_is_automatic() {
     let (d, mut w) = con_timeline();
-    // tre giorni: il passo automatico e' l'ora (72 periodi) e si riconosce dalla tilde
+    // di fabbrica il passo e' un giorno fisso: nell'intestazione, senza tilde
+    let h = intestazione(&mut w);
+    assert!(h.contains("1 day") && !h.contains('~'), "{h:?}");
+    // l'automatico: tre giorni, il passo e' l'ora (72 periodi) e si riconosce dalla tilde
+    scegli(&mut w, 'p', 0);
+    aspetta_passo(&mut w, Step::Hour);
+    pronta(&mut w);
     let h = intestazione(&mut w);
     assert!(h.contains("~1 hour"), "{h:?}");
     scegli(&mut w, 'p', 2); // 10 minuti

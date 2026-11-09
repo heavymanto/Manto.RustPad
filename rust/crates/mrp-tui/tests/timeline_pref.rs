@@ -1,5 +1,6 @@
-//! La timeline si riapre com'era quando si e' chiusa (accesa, passo, disposizione) e i periodi senza righe non fanno una distesa di
-//! righe uguali. Scritti da ARCH: l'oracolo e' il testo del file di impostazioni e i giorni scritti nel log di prova.
+//! La timeline si riapre com'era quando si e' chiusa (accesa, disposizione, periodi vuoti) e i periodi senza righe non fanno
+//! una distesa di righe uguali. Il passo no: ogni file riparte da un giorno, una scelta fine vale solo la sua scheda.
+//! Scritti da ARCH: l'oracolo e' il testo del file di impostazioni e i giorni scritti nel log di prova.
 
 use mrp_core::timeline::Step;
 use mrp_tui::app::timeline::{TimelineMode, TimelinePref, TimelineStatus};
@@ -55,7 +56,6 @@ fn the_settings_file_keeps_the_timeline_and_ignores_what_it_does_not_understand(
     let s = Settings {
         timeline: TimelinePref {
             on: true,
-            step: Some(Step::Hour),
             bytes: true,
             empty: true,
             right: false,
@@ -64,17 +64,16 @@ fn the_settings_file_keeps_the_timeline_and_ignores_what_it_does_not_understand(
         ..Settings::default()
     };
     let testo = s.to_text();
-    for riga in [
-        "timeline=1",
-        "timeline_step=hour",
-        "timeline_mode=bytes",
-        "timeline_empty=1",
-    ] {
+    for riga in ["timeline=1", "timeline_mode=bytes", "timeline_empty=1"] {
         assert!(
             testo.lines().any(|r| r == riga),
             "manca {riga:?} in {testo:?}"
         );
     }
+    assert!(
+        !testo.contains("timeline_step"),
+        "il passo non si scrive: {testo:?}"
+    );
     assert_eq!(Settings::from_text(&testo).timeline, s.timeline);
     // di fabbrica non scrive niente della timeline
     assert!(!Settings::default().to_text().contains("timeline"));
@@ -83,21 +82,20 @@ fn the_settings_file_keeps_the_timeline_and_ignores_what_it_does_not_understand(
         "timeline=forse\ntimeline_step=anno\ntimeline_mode=su\ntimeline_empty=2\n",
     );
     assert_eq!(strano.timeline, TimelinePref::default());
-    // il passo automatico (nessuna riga) e tutti e quattro i passi tornano com'erano
-    for passo in [Step::Minute, Step::TenMinutes, Step::Hour, Step::Day] {
-        let t = Settings {
-            timeline: TimelinePref {
-                step: Some(passo),
-                ..TimelinePref::default()
-            },
-            ..Settings::default()
-        };
-        assert_eq!(Settings::from_text(&t.to_text()).timeline.step, Some(passo));
-    }
+    // una riga di una versione vecchia (quando il passo si scriveva) non conta piu' niente: e' una
+    // chiave come le altre sconosciute, e un 10min salvato non rompe i file lunghi di oggi
+    let vecchia = Settings::from_text("timeline=1\ntimeline_step=10min\n");
+    assert_eq!(
+        vecchia.timeline,
+        TimelinePref {
+            on: true,
+            ..TimelinePref::default()
+        }
+    );
 }
 
 #[test]
-fn what_the_user_chooses_is_written_and_a_new_app_opens_the_same() {
+fn what_the_user_chooses_is_written_but_the_step_resets_to_a_day() {
     let log = log_con_buchi();
     let imp = unico("settings.txt");
     let mut a = App::open(&log, cfg_gui(Some(imp.clone()), TimelinePref::default())).unwrap();
@@ -111,29 +109,30 @@ fn what_the_user_chooses_is_written_and_a_new_app_opens_the_same() {
         scritte.timeline,
         TimelinePref {
             on: true,
-            step: Some(Step::Hour),
             bytes: true,
             empty: true,
             right: false,
             no_autostart: false,
         }
     );
-    // chiusa e riaperta: com'era
+    // chiusa e riaperta: com'era, tranne il passo, che riparte da un giorno
     let b = App::open(&log, cfg_gui(Some(imp.clone()), scritte.timeline)).unwrap();
     assert!(b.timeline_on());
-    assert_eq!(b.timeline_step(), Step::Hour);
+    assert_eq!(b.timeline_step(), Step::Day);
     assert!(!b.timeline_auto());
     assert_eq!(b.timeline_mode(), TimelineMode::Bytes);
     assert!(b.timeline_show_empty());
-    // spenta e con il passo automatico: anche questo si ricorda
+    // nella prima scheda la scelta fine resta sua: e' del file che si sta guardando
+    assert_eq!(a.timeline_step(), Step::Hour);
+    // spenta: anche questo si ricorda, e il passo di una scheda non finisce nel file
     a.set_timeline(false);
     a.set_timeline_auto();
     let scritte = Settings::load(&imp).unwrap();
     assert!(!scritte.timeline.on);
-    assert_eq!(scritte.timeline.step, None);
     let c = App::open(&log, cfg_gui(Some(imp.clone()), scritte.timeline)).unwrap();
     assert!(!c.timeline_on());
-    assert!(c.timeline_auto());
+    assert!(!c.timeline_auto());
+    assert_eq!(c.timeline_step(), Step::Day);
     let _ = std::fs::remove_file(log);
     let _ = std::fs::remove_file(imp);
 }
@@ -163,7 +162,7 @@ fn the_terminal_opens_with_the_choice_of_the_window_and_does_not_lose_it() {
 }
 
 #[test]
-fn the_choice_reaches_the_other_tabs_and_the_ones_opened_later() {
+fn the_switch_reaches_the_tabs_opened_later_the_step_stays_of_its_tab() {
     let log = log_con_buchi();
     let altro = log_con_buchi();
     let imp = unico("settings.txt");
@@ -180,13 +179,21 @@ fn the_choice_reaches_the_other_tabs_and_the_ones_opened_later() {
     let terzo = log_con_buchi();
     ws.open(&terzo).unwrap();
     assert!(ws.active().timeline_on());
-    assert_eq!(ws.active().timeline_step(), Step::TenMinutes);
+    // il passo no: una scelta fine vale solo la scheda dove e' stata fatta, un file nuovo riparte
+    // da un giorno (un 10min rimasto salvato rompeva i file di mesi con "troppi periodi")
+    assert_eq!(ws.active().timeline_step(), Step::Day);
     // un'altra scheda che scrive le impostazioni (cambia la barra dei salti) non cancella la timeline
     ws.select(1);
     ws.active_mut().set_nav_bar(true, true);
     let s = Settings::load(&imp).unwrap();
     assert!(s.timeline.on);
-    assert_eq!(s.timeline.step, Some(Step::TenMinutes));
+    assert_eq!(
+        s.timeline,
+        TimelinePref {
+            on: true,
+            ..TimelinePref::default()
+        }
+    );
     for p in [log, altro, terzo, imp] {
         let _ = std::fs::remove_file(p);
     }

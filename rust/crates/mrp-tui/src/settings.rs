@@ -37,7 +37,7 @@ pub struct Settings {
     pub time_rules: Vec<(String, usize, usize)>,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
-    /// La timeline com'era quando si e' chiuso: si riapre uguale (accesa, passo, disposizione, periodi vuoti).
+    /// La timeline com'era quando si e' chiuso: si riapre uguale (accesa, disposizione, periodi vuoti). Il passo no: ogni file riparte da un giorno.
     pub timeline: crate::app::timeline::TimelinePref,
 }
 
@@ -120,9 +120,6 @@ impl Settings {
         }
         if self.timeline.on {
             out.push_str("timeline=1\n");
-        }
-        if let Some(passo) = self.timeline.step {
-            out.push_str(&format!("timeline_step={}\n", passo.code()));
         }
         if self.timeline.bytes {
             out.push_str("timeline_mode=bytes\n");
@@ -239,9 +236,8 @@ impl Settings {
                     _ => {}
                 },
                 "timeline_step" => {
-                    if let Some(p) = mrp_core::timeline::Step::parse(v) {
-                        s.timeline.step = Some(p);
-                    }
+                    // non si scrive piu' (il passo riparte da un giorno a ogni file): una riga di una
+                    // versione vecchia si ignora, come le chiavi sconosciute
                 }
                 "timeline_mode" => match v.to_ascii_lowercase().as_str() {
                     "bytes" => s.timeline.bytes = true,

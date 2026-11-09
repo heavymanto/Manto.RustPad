@@ -1,5 +1,6 @@
 //! Il disegno del TUI: legge l'`App` e scrive su un `Frame` (layout in `docs/TEAM/DESIGN_TUI.md`, sezione 2).
 
+use crate::app::timeline::TimelineStatus;
 use crate::app::timeline_pannello::{Pannello, RigaPannello, BARRA_W, ETICHETTA_W, LEGENDA_W};
 use crate::app::{fmt_durata, App, Avanzamento, DialogKind, Modo};
 use crate::theme::{Theme, ThemeId};
@@ -339,8 +340,15 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
             match &corpo {
                 Pannello::Testo(righe) => {
                     let s = righe.get(i - 1).map_or("", String::as_str);
+                    // "troppi periodi" e' un'anomalia che chiede un passo piu' lungo: rossa e in grassetto,
+                    // non una noticina grigia che non si vede
+                    let stile = if matches!(app.timeline_status(), TimelineStatus::TooMany(_)) {
+                        t.log.error
+                    } else {
+                        t.hint
+                    };
                     (
-                        vec![Span::styled(in_colonne(&format!(" {s}"), dentro), t.hint)],
+                        vec![Span::styled(in_colonne(&format!(" {s}"), dentro), stile)],
                         false,
                     )
                 }

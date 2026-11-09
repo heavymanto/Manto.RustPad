@@ -248,6 +248,8 @@ impl App {
         self.time_mask = Some(mask);
         self.time_mask_tried = true;
         self.window = None;
+        // la regola del tempo e' cambiata: il passo della timeline torna al predefinito e le tacche si ricalcolano
+        self.timeline_time_rule_changed();
         Ok(())
     }
 

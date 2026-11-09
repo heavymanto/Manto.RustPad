@@ -512,13 +512,14 @@ fn the_state_of_the_timeline_is_shared_through_the_preference() {
     assert!(a.timeline_on());
     pronta(&mut a);
     let righe = render_lines(&mut a, 100, 23);
-    // a destra: il testo da 0, il pannello da 75
+    // a destra: il testo da 0, il pannello da 75; il passo di fabbrica e' un giorno (senza tilde:
+    // non e' l'automatico) e il titolo ci sta intero o ridotto al passo, secondo la percentuale
     assert!(righe[0].starts_with("   1│2026-11-01"), "{:?}", righe[0]);
-    assert!(righe[0]
-        .chars()
-        .skip(75)
-        .collect::<String>()
-        .starts_with("│ ~1 hour"));
+    let titolo: String = righe[0].chars().skip(75).collect();
+    assert!(
+        titolo.contains("1 day") && !titolo.contains('~'),
+        "{titolo:?}"
+    );
     let _ = std::fs::remove_file(p);
 }
 
