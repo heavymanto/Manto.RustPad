@@ -31,10 +31,11 @@
 
 ## Abstract
 
-**Apri un log da 100 GB in un lampo. Guarda la sua vita intera nella timeline. E quando serve, modificalo — colonna per colonna. Il file non entra mai in RAM.**
+**Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticità in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Modifica il contenuto con la modalità a colonne evoluto colonna. **
 
 <p align="justify">
-L'idea nasce da un fastidio che conosco bene: un log di molti gigabyte e nessun tool che sapesse tenerlo. Gli editor bravi a modificare caricano tutto in RAM — e cadono. I visualizzatori bravi a scorrere non modificano — punto. E uno di loro, il piu' fidato, quello che sta su ogni macchina: al salvataggio ha troncato il file in silenzio e si e' mangiato 1,7 GB di dati senza chiedere. Quel giorno ho smesso di cercare e ho deciso di scrivermelo da solo — come avevo gia' fatto per il disco: un motore solo, due frontend, in una finestra e nel terminale.
+L'idea nasce da un fastidio che conosco bene, ossia esaminare log di grandi dimensione senza saturare la RAM, cercare i punti di interesse e all'occorrenza fare piccole modifiche. L'idea era di sfruttare la gestione dell memoria di Rust che, essendo senza GC (Garbage Collector), ha una gestione incredibilmente parsimoniosa. Scommessa vinta! FIno ad oggni suavo più tool, alcuni gestiscono bene la memoria ma sono viewer limitatissimi, altri hanno fuznioni avanzate ma usano molta ram, gli editor fanno ancora molta fatica. In nessun caso ho mai visto timeline visuali che mi dessero il colpo d'occhi sia sulla cronologia degli eventi che sulla densità delgli stessi. in un file enorme come "vedo" dove si sono verificati maggiormente gli errori. 
+Così ho deciso di creare il mio tool 5 in 1, apre file onori, usa poca RAM, è velocissimo, da un colpo di colore per focalizzarsi su quello che serve. Scorri la crenologia degli eventi ed individua subito dove stanno i problemi. Tutto questo sia in modalità terminale che gui e su ben 3 OS. Il design è minimale, qui si va al sodo.
 </p>
 
 **Manto.RustPad** e' quel tool. Apre il file memory-mapped e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi *Modifica* lo stesso file diventa editabile — nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.
@@ -51,7 +52,9 @@ Ognuno sta in piedi su un'idea ben nota — non e' invenzione, e' letteratura ap
 
 4. **La timeline — unica nel suo genere.** Una colonna di periodi, ognuno lungo quanto il suo volume di righe, diviso per livello: una mappa proporzionale del file intero, dove i punti densi *sono* i problemi. Scorri, e il log si legge come una radiografia di se' stesso: dove le cose sono andate storte si vede prima di leggere una riga. I periodi si trovano per ricerca binaria, senza leggere il file.
 
-## Misurato, non promesso
+5. **Multi uso, multi platfor - lo puoi usare in un termininale (es SSH) senza bisogno dell'interfaccia grafica. Gira su Win/Linux/Mac
+
+## POC con tool "noti"
 
 Su un file da 6,0 GB (60 milioni di righe), una macchina, un HDD — il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
 
@@ -101,11 +104,9 @@ E `mrp-gui`, lo stesso motore in una finestra — il log si apre, lo scroll gira
 - **Non perde mai dati.** Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore rumoroso invece del troncamento silenzioso, salvataggio a prova di crash.
 - **Schede, e chiudere non perde nulla.** Piu' file insieme; esci senza che ti venga chiesto — la volta dopo le schede, i cursori e **le modifiche non salvate** sono di nuovo li'. Si salvano solo le modifiche: su un file da 100 GB con poche correzioni, la sessione pesa pochi KB.
 - **Trova e sostituisci con glob e regex** (`Ctrl+F` / `Ctrl+H`), con una **preview** prima di toccare qualunque cosa e un solo `Ctrl+Z` che annulla tutto.
-- **Onesto con le codifiche.** UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale — su file piu' grandi della RAM.
+- **Codifiche.** UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale — su file piu' grandi della RAM.
 
-Non-obiettivi: un analizzatore di log (gli aiuti qui sono quelli che servono a un *visualizzatore*), e una piattaforma di plugin/IDE.
-
-## Scaricalo
+## Download
 
 Niente da installare: estrai ed esegui — entrambi i programmi funzionano subito, in modalita' *portabile* (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Ogni pacchetto porta `install.ps1` (Windows) o `install.sh` (Linux, macOS) se li vuoi come comandi da qualunque cartella. Quello Windows accetta anche `-Associa`: mrp-gui finisce nell'elenco "Apri con" di `.txt` e `.log` e in Impostazioni > App predefinite, solo per il tuo utente (niente admin) — il default resta un click tuo, quello che Windows firma. Su Linux `./install.sh --associa` imposta davvero il default dei file di testo.
 
@@ -153,9 +154,7 @@ Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni mac
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** 1.538 test automatici, ma non ancora lunghe sessioni d'uso vero. Tieni una copia di cio' che ti e' caro.
-- **Windows prima**; l'editor da terminale e il core girano anche su Linux (Debian, WSL). La CI gira tutta la suite sui tre sistemi a ogni push.
-- **La finestra (`mrp-gui`)** e' stata verificata con test automatici e screenshot, non ancora con lungo uso vero di tastiera e mouse.
+- **Windows prima**; Sviluppato e testato principalmente su windows. l'editor da terminale e il core girano anche su Linux (Debian, WSL), le release sono state fatte in modo automatico via CI.
 - Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
 - Le misure vengono da una macchina sola e un HDD solo: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
@@ -181,18 +180,13 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ## Documentazione
 
-- [docs/MARKET.md](docs/MARKET.md) — il panorama dei tool esistenti, con le fonti
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — misure, metodo, limiti
+- [docs/MANUAL.md](docs/MANUAL.md) — il manuale delle funzionalità in dettaglio
 - [CHANGELOG.md](CHANGELOG.md) — cosa e' cambiato
 - [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilita' in privato
 
 ## Contribuire
 
 Vedi [CONTRIBUTING.md](CONTRIBUTING.md). In breve: gli offset sono a 64 bit, il file intero non entra mai in memoria, e ogni numero nei documenti e' stato misurato davvero. E' un progetto hobby — tutto viene letto, ma nessun tempo di risposta e' promesso.
-
-## Il progetto gemello
-
-[Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — un analizzatore di spazio disco in Rust; la divisione core/frontend usata li' e' il modello di questo repository.
 
 ## Licenza
 
