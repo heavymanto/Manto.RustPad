@@ -31,7 +31,7 @@
 
 ## Abstract
 
-**Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticità in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Modifica il contenuto con la modalità a colonne evoluto colonna. **
+**Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM. Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticità in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Modifica il contenuto con la modalità a colonne evoluto colonna.**
 
 <p align="justify">
 L'idea nasce da un fastidio che conosco bene, ossia esaminare log di grandi dimensione senza saturare la RAM, cercare i punti di interesse e all'occorrenza fare piccole modifiche. L'idea era di sfruttare la gestione dell memoria di Rust che, essendo senza GC (Garbage Collector), ha una gestione incredibilmente parsimoniosa. Scommessa vinta! FIno ad oggni suavo più tool, alcuni gestiscono bene la memoria ma sono viewer limitatissimi, altri hanno fuznioni avanzate ma usano molta ram, gli editor fanno ancora molta fatica. In nessun caso ho mai visto timeline visuali che mi dessero il colpo d'occhi sia sulla cronologia degli eventi che sulla densità delgli stessi. in un file enorme come "vedo" dove si sono verificati maggiormente gli errori. 
