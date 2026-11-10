@@ -64,8 +64,6 @@ A 6.0 GB file (60 million lines), one machine, one hard disk. The whole method i
 | The commercial one | 19 MiB | 7.5 s | writes a 5.7 GB temp copy; `Ctrl+End` re-reads the file |
 | **Manto.RustPad** | **13–35 MiB** | **instantly** | exact, no truncation, no copy; the index builds in the background |
 
-Memory grows at about 3.7 MB per GB of file; the file is never loaded into memory. A 100 GB log on a hard disk opens in 36 ms. *(Who is who, with versions and sources: [docs/MARKET.md](docs/MARKET.md).)*
-
 ---
 
 ## Two frontends, one engine
@@ -179,12 +177,11 @@ cargo clippy --workspace --all-targets -- -D warnings
 | `rust/crates/mrp-tui` | the terminal editor (ratatui) |
 | `rust/crates/mrp-gui` | the desktop window (egui) |
 | `rust/crates/mrp-loggen` | synthetic logs of any size, same bytes for the same seed |
-| `docs/` | `MARKET.md` (the landscape, with sources), `BENCHMARKS.md` (measurements, method) |
+| `docs/` | `MANUAL.md` (the manual), `BENCHMARKS.md` (measurements, method) |
 | `bench/` | reproducible scripts and raw results |
 
 ## Documentation
 
-- [docs/MARKET.md](docs/MARKET.md) — the landscape of existing tools, with sources
 - [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — measurements, method, limitations
 - [CHANGELOG.md](CHANGELOG.md) — what changed
 - [SECURITY.md](SECURITY.md) — how to report a vulnerability privately

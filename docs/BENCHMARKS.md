@@ -256,7 +256,7 @@ These are **targets** derived from the tables above. The first three are now met
 - Keyboard events for GUI programs go to the real foreground window; where the script could not bring the window forward it
   skipped the key and says so (`gui.jsonl`: `ctrl_end` field). Notepad++ `Ctrl+End` numbers come from earlier runs kept in
   `results/gui_run1_senza_risposta_ai_dialoghi.jsonl`.
-- EmEditor, Sublime Text, VS Code, Vim, Emacs+VLF, lnav and logana were **not** benchmarked; see [MARKET.md](MARKET.md).
+- EmEditor, Sublime Text, VS Code, Vim, Emacs+VLF, lnav and logana were **not** benchmarked.
 
 ## Reproduce
 

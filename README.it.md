@@ -64,8 +64,6 @@ Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk. Il metodo p
 | Quello commerciale | 19 MiB | 7,5 s | scrive una copia temporanea di 5,7 GB; `Ctrl+Fine` rilegge il file |
 | **Manto.RustPad** | **13–35 MiB** | **all'istante** | esatto, nessun troncamento, nessuna copia; l'indice si costruisce in background |
 
-La memoria cresce di circa 3,7 MB per GB di file; il file non viene mai caricato in memoria. Un log da 100 GB su hard disk si apre in 36 ms. *(Chi e' chi, con versioni e fonti: [docs/MARKET.md](docs/MARKET.md).)*
-
 ---
 
 ## Due frontend, un motore
@@ -176,7 +174,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 | `rust/crates/mrp-tui` | l'editor da terminale (ratatui) |
 | `rust/crates/mrp-gui` | la finestra del desktop (egui) |
 | `rust/crates/mrp-loggen` | log sintetici di qualunque taglia, stessi byte a parita' di seme |
-| `docs/` | `MANUAL.md` (il manuale), `BENCHMARKS.md` (misure, metodo), `MARKET.md` (il panorama, con le fonti) |
+| `docs/` | `MANUAL.md` (il manuale), `BENCHMARKS.md` (misure, metodo) |
 | `bench/` | script riproducibili e risultati grezzi |
 
 ## Documentazione
