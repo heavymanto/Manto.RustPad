@@ -12,6 +12,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
+        <img src="https://img.shields.io/badge/versione-0.1.4-blue" alt="versione 0.1.4" />
         <img src="https://img.shields.io/badge/test-1538-brightgreen" alt="1538 test" />
         <img src="https://img.shields.io/badge/frontend-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
@@ -107,6 +108,8 @@ Non e' un analizzatore di log (gli aiuti alla lettura sono quelli che servono a 
 
 ## Scaricalo
 
+Versione attuale: **0.1.4** (novembre 2026).
+
 Niente installazione: estrai il pacchetto ed esegui. Entrambi i programmi funzionano subito in modalita' portabile (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Se li vuoi come comandi da qualunque cartella, c'e' `install.ps1` su Windows e `install.sh` su Linux e macOS. Su Windows, `install.ps1 -Associa` aggiunge mrp-gui all'elenco "Apri con" di `.txt` e `.log` e a Impostazioni > App predefinite, solo per l'utente corrente e senza admin: il default resta una scelta che firma Windows. Su Linux, `./install.sh --associa` imposta il default per i file di testo.
 
 <div align="center">
@@ -125,9 +128,9 @@ Niente installazione: estrai il pacchetto ed esegui. Entrambi i programmi funzio
   <a href="https://github.com/heavymanto/Manto.RustPad/stargazers"><img src="https://img.shields.io/github/stars/heavymanto/Manto.RustPad?style=flat-square&label=stelle" alt="stelle" /></a>
   <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/downloads/heavymanto/Manto.RustPad/total?style=flat-square&label=download" alt="download" /></a>
   <br/><br/>
-  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.3/manto-rustpad-0.1.3-win-x64.zip"><img src="https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge" alt="Windows x64" /></a>
-  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.3/manto-rustpad-0.1.3-linux-x64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge" alt="Linux x64" /></a>
-  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.3/manto-rustpad-0.1.3-macos-aarch64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge" alt="macOS" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.4/manto-rustpad-0.1.4-win-x64.zip"><img src="https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge" alt="Windows x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.4/manto-rustpad-0.1.4-linux-x64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge" alt="Linux x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.4/manto-rustpad-0.1.4-macos-aarch64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge" alt="macOS" /></a>
 </p>
 </details>
 </div>

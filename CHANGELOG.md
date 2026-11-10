@@ -4,6 +4,8 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-11-09
+
 ### Changed
 - **The timeline step is the automatic one again** — the longest that gives a readable bar for the file (a one-day log goes to hours, a two-week one to days, a seven-minute one to minutes). 0.1.3 had made it a fixed day while the real disease — a chosen step that stayed saved and broke longer files — was being cured; now that the choice is no longer remembered, the automatic has no contraindication left, and a fixed day was useless on short files. The reset on a time-rule change goes to the automatic too.
 
