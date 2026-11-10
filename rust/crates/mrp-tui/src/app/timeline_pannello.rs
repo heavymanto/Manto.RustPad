@@ -141,7 +141,7 @@ fn intestazione(nome: &str, avanzamento: Option<f32>) -> String {
     }
 }
 
-/// Le colonne della legenda dei livelli (`█E▓W▒I░D`) a destra dell'intestazione.
+/// Le colonne della legenda dei livelli (`█E█W█I█D`, blocchi pieni nel colore di ciascuno) a destra dell'intestazione.
 pub(crate) const LEGENDA_W: usize = 8;
 /// Le colonne che restano al titolo nell'intestazione: il pannello meno il filetto e meno la legenda.
 const TITOLO_W: usize = PANNELLO_W as usize - 1 - LEGENDA_W;

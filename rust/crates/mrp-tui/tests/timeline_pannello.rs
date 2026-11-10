@@ -169,10 +169,10 @@ fn the_panel_has_a_row_per_period_with_a_bar_split_by_level() {
     // livelli (forma e lettera, 8 colonne)
     assert_eq!(
         primi(&righe[0], 24),
-        format!(" Timeline 1 day{}█E▓W▒I░D", " ")
+        format!(" Timeline 1 day{}█E█W█I█D", " ")
     );
     // tre periodi uguali: 12 celle, tre per livello (ERROR, WARN, INFO, DEBUG)
-    let barra = "███▓▓▓▒▒▒░░░";
+    let barra = "████████████";
     for i in 0..20usize {
         let etichetta = match i {
             0 => "2026-11-01",
@@ -244,7 +244,7 @@ fn on_the_right_the_panel_follows_the_text() {
     }
     // il filetto e' la prima colonna del pannello (dal lato del testo), poi la data e la barra
     assert_eq!(colonna(&con[1], 75), '┃');
-    let barra = "███▓▓▓▒▒▒░░░";
+    let barra = "████████████";
     assert_eq!(
         con[1].chars().skip(76).collect::<String>(),
         format!("2026-11-01  {barra}")
@@ -278,10 +278,10 @@ fn before_the_levels_are_counted_the_bars_are_dim_and_in_one_shape() {
     finche(&mut a, |a| a.timeline_status() == TimelineStatus::Ready);
     assert!(!a.timeline_levels_ready());
     let righe = render_lines(&mut a, 100, 23);
-    assert_eq!(primi(&righe[1], 24), "2026-11-01  ▒▒▒▒▒▒▒▒▒▒▒▒");
+    assert_eq!(primi(&righe[1], 24), "2026-11-01  ░░░░░░░░░░░░");
     pronta(&mut a);
     let righe = render_lines(&mut a, 100, 23);
-    assert_eq!(primi(&righe[1], 24), "2026-11-01  ███▓▓▓▒▒▒░░░");
+    assert_eq!(primi(&righe[1], 24), "2026-11-01  ████████████");
     let _ = std::fs::remove_file(p);
 }
 
@@ -482,7 +482,11 @@ fn the_colors_of_the_bar_are_the_ones_of_the_theme_for_each_level() {
     // la legenda nell'intestazione (riga di schermo 0, da colonna 16): forma e lettera di ogni livello, nel suo colore
     for (k, &c) in atteso.iter().enumerate() {
         let x = 16 + 2 * k as u16;
-        assert_eq!(buf[(x, 0)].symbol(), ["█", "▓", "▒", "░"][k]);
+        assert_eq!(
+            buf[(x, 0)].symbol(),
+            "█",
+            "tutti i livelli, stessa forma piena"
+        );
         assert_eq!(buf[(x + 1, 0)].symbol(), ["E", "W", "I", "D"][k]);
         assert_eq!(buf[(x, 0)].fg, c, "forma del livello {k}");
         assert_eq!(buf[(x + 1, 0)].fg, c, "lettera del livello {k}");
@@ -615,9 +619,9 @@ fn a_dated_log_without_levels_has_plain_bars() {
     pronta(&mut a);
     let righe = render_lines(&mut a, 100, 23);
     // due periodi in 20 righe: le prime 10 e le altre 10
-    assert_eq!(primi(&righe[1], 24), "2026-11-01  ▒▒▒▒▒▒▒▒▒▒▒▒");
-    assert_eq!(primi(&righe[2], 24), format!("{:<11} ▒▒▒▒▒▒▒▒▒▒▒▒", ""));
-    assert_eq!(primi(&righe[11], 24), "2026-11-02  ▒▒▒▒▒▒▒▒▒▒▒▒");
+    assert_eq!(primi(&righe[1], 24), "2026-11-01  ░░░░░░░░░░░░");
+    assert_eq!(primi(&righe[2], 24), format!("{:<11} ░░░░░░░░░░░░", ""));
+    assert_eq!(primi(&righe[11], 24), "2026-11-02  ░░░░░░░░░░░░");
     let _ = std::fs::remove_file(p);
 }
 
@@ -725,7 +729,7 @@ fn the_label_the_rule_and_the_dim_bars_have_their_own_styles() {
     let buf = terminale.backend().buffer();
     let stile = |x: u16, y: u16| (buf[(x, y)].fg, buf[(x, y)].bg);
     // la barra fioca (riga 0 del corpo = riga di schermo 1, colonna 12)
-    assert_eq!(buf[(12, 1)].symbol(), "▒");
+    assert_eq!(buf[(12, 1)].symbol(), "░");
     assert_eq!(stile(12, 1), colori(&t, t.gutter));
     // la data e il filetto del tratto che si legge (riga 0 del corpo): in risalto; dove non si legge (riga 14 di schermo): normali
     assert_eq!(buf[(24, 1)].symbol(), "┃");

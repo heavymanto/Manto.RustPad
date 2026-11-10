@@ -58,6 +58,8 @@ adjacent buttons, one lit.
 **Standard keys, the same in the terminal and in the window:** `F1` help, `F2` save, `F3` find (`Shift+F3` previous), `F4`
 replace, `F5` go to, `F6` theme, `F7` language, `F8` column mode, `F9` encoding, `F10` quit, `Esc` closes a window.
 `Ctrl+Z`/`Ctrl+Y` undo/redo, `Ctrl+C`/`X`/`V` clipboard, `Ctrl+A` select all, `Ctrl+O` open, `Ctrl+N` new, `Ctrl+W` close tab.
+The help has two tabs in the window (Keys, and *Info* with the version, the license and the GitHub address as a real link) and, in
+the terminal, the same three lines close the key table: version, AGPL-3.0, code.
 
 **The window** has a menu (File, Edit, View, Log, Help), a toolbar (New, Open, Save | Undo, Redo | Cut, Copy, Paste |
 Find, Replace, Go to | Timeline, Time filter | VIEW, EDIT, TAIL, Column mode, Jump bar | Zoom), tabs, a scrollbar and the same
@@ -283,12 +285,15 @@ status row as the terminal.
   length of the bar is the volume of that period, and each bar is split by level (ERROR, WARN, INFO, DEBUG) in proportion to how many
   lines of each level start in it. A click or a drag jumps to that period.
 - **Expected response:** a 25-column panel with a header (`~1 hour`, the `~` meaning the step is automatic, then the legend `E W I D`)
-  and one row per period like `01-01 04:00 ▒▒▒▒▒` *(observed)*. A level that is present always gets at least one cell, so a single
-  ERROR among thousands of INFO lines is still visible.
+  and one row per period like `01-01 04:00 █████` *(observed)*: the bar is all solid blocks, the colour tells the level (ERROR red,
+  WARN yellow, INFO green, DEBUG grey); the cells not yet counted stay faint. A level that is present always gets at least one cell,
+  so a single ERROR among thousands of INFO lines is still visible.
 - **Must not:** read the whole file for each period (it gallops forward and bisects); block the screen (it is built in a background thread
   that opens its own copy of the file); work on a modified document (it says "unavailable").
 - **Limits and edge cases:** needs at least 40 text columns; at most 20,000 periods (forcing 1 minute on a multi-day log gives
-  "too many buckets" with the count); UTF-16/32 documents have no timeline.
+  "too many buckets" with the count, in red and bold); UTF-16/32 documents have no timeline. On a file with no times the timeline
+  turns itself off and the status line says why, with its advice (pick a time format by hand): the preference is not touched, the next
+  file with times reopens it as it was left.
 - **Auto tests:** yes (`timeline_*`, core `timeline*`).
 - **UX check:** `[ ]` — in the window: *(to verify by hand)* the drawn bar, click and drag.
 
@@ -297,8 +302,10 @@ status row as the terminal.
 - **What it does:** chooses the size of the period.
 - **Expected response:** a menu "TIMELINE: PERIOD": *Auto (chosen from the length of the log)*, 1 minute, 10 minutes, 1 hour, 1 day *(observed)*.
   Auto picks the longest of day / hour / 10 minutes that still gives at least 12 periods, else the minute.
+- **The choice is of the tab, not an habit:** it is not remembered between files — every file starts from Auto, and changing the time
+  format resets to Auto too (the ends of the file change with it). A fine step that stayed saved used to break longer files.
 - **Must not:** change the file or the range.
-- **Auto tests:** yes (`timeline_tasti`).
+- **Auto tests:** yes (`timeline_tasti`, `timeline_pref`).
 - **UX check:** `[ ]`
 
 #### T-06 Level filter (`Alt+S`)
@@ -322,6 +329,8 @@ status row as the terminal.
 
 #### F-01 Find (`F3` / `Ctrl+F`)
 - **Entry:** `Ctrl+F` opens the prompt (prefilled with the last text); `F3` repeats forwards, `Shift+F3` backwards (or opens the prompt if there is no search yet).
+  With a selection, `F3` searches the selection itself, literal and match case, without any prompt; the selection that is the match just found
+  does not count — `F3` continues the previous search (a regex, a case-insensitive one) as before.
 - **What it does:** searches text, a glob or a regular expression, with or without case; modes are cycled with `Alt+M` and `Alt+C` in the prompt.
   The search runs on the *edited* document, unsaved changes included, in a worker thread that works on a snapshot.
 - **Expected response:** a prompt "text to search for (exact bytes)" with `mode: text | match case  (Alt+M, Alt+C)` *(observed)*; the cursor

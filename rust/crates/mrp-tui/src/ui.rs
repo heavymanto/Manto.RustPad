@@ -284,8 +284,8 @@ fn in_colonne(testo: &str, larghezza: usize) -> String {
 
 /// La colonna della timeline (se c'e'), accanto al testo: l'intestazione, e sotto una riga per periodo (la data e la barra divisa
 /// fra i livelli) o il messaggio che dice perche' non ci sono. Il filetto sta dal lato del testo ed e' in risalto dove passa il
-/// tratto di file che si legge. Le forme della barra distinguono i livelli anche senza i colori (`█` errori, `▓` avvisi, `▒`
-/// notizie, `░` dettagli, `▒` fioco quelli non ancora contati).
+/// tratto di file che si legge. La barra e' tutta di blocchi pieni (`█`): a distinguere i livelli e' il colore; fioco (`░`) restano
+/// solo le celle dei livelli non ancora contati, cosi' si vede l'avanzamento del giro.
 fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
     let larghezza = app.timeline_panel_w();
     if larghezza == 0 {
@@ -303,10 +303,10 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
     let primo_piano = |s: Style| s.fg.map_or_else(Style::default, |c| Style::default().fg(c));
     let barre: [(&str, Style); 5] = [
         ("█", primo_piano(t.log.error)),
-        ("▓", primo_piano(t.log.warn)),
-        ("▒", primo_piano(t.log.info)),
-        ("░", primo_piano(t.log.debug)),
-        ("▒", t.gutter),
+        ("█", primo_piano(t.log.warn)),
+        ("█", primo_piano(t.log.info)),
+        ("█", primo_piano(t.log.debug)),
+        ("░", t.gutter),
     ];
     let riga_periodo = |r: &RigaPannello| -> Vec<Span<'static>> {
         let stile_data = if r.in_vista { t.title } else { t.gutter };
