@@ -446,3 +446,25 @@ fn goto_a_line_needs_the_index() {
     a.handle_key(k(KeyCode::Enter));
     assert_eq!(a.cursor(), 16);
 }
+
+#[test]
+fn the_help_ends_with_who_the_program_is() {
+    let dir = TestDir::new();
+    let p = dir.file("h.txt", b"uno`ndue`n");
+    let mut a = App::open(&p, AppConfig::default()).unwrap();
+    a.resize(80, 23);
+    assert!(a.wait_idle(Duration::from_secs(20)));
+    a.handle_key(k(KeyCode::F(1)));
+    // in fondo alla tabella, dopo una riga vuota: chi e' questo programma
+    a.handle_key(KeyEvent::new(KeyCode::End, KeyModifiers::NONE));
+    let tutto = render_lines(&mut a, 80, 23).join("`n");
+    assert!(
+        tutto.contains(env!("CARGO_PKG_VERSION")),
+        "la versione: {tutto}"
+    );
+    assert!(tutto.contains("AGPL-3.0"), "la licenza: {tutto}");
+    assert!(
+        tutto.contains("github.com/heavymanto/Manto.RustPad"),
+        "il codice: {tutto}"
+    );
+}

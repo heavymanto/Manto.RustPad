@@ -813,8 +813,11 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
             // le righe che stanno nello schermo, a partire da quella scelta scorrendo; sotto, sempre, come si chiude
             let (prima, quante) = (app.help_scroll(), app.help_visible());
             // i tasti e le descrizioni stanno in due colonne: la larghezza della prima e' quella del tasto piu' lungo
-            // di tutta la tabella (non solo delle righe in vista), cosi' scorrendo la colonna non si muove
-            let tabella = app.help_rows();
+            // di tutta la tabella (non solo delle righe in vista), cosi' scorrendo la colonna non si muove. In fondo,
+            // dopo una riga vuota, chi e' questo programma: versione, licenza e codice (il tab Info della finestra)
+            let mut tabella = app.help_rows();
+            tabella.push((String::new(), String::new()));
+            tabella.extend(app.help_info());
             let larga_tasti = tabella
                 .iter()
                 .map(|(k, _)| k.chars().count())
@@ -832,7 +835,7 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                 })
                 .collect();
             let mut chiudi = cat.t("help.close").to_string();
-            if quante < HELP_KEYS.len() {
+            if quante < tabella.len() {
                 chiudi.push_str("   ");
                 chiudi.push_str(cat.t("help.scroll"));
             }

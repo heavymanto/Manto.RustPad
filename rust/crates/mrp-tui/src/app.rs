@@ -3398,16 +3398,21 @@ impl App {
         }
     }
 
+    /// Quante righe ha in tutto la tabella dell'aiuto: i tasti, una riga vuota e le informazioni di chi e' il
+    /// programma (versione, licenza, codice).
+    fn help_rows_total(&self) -> usize {
+        HELP_KEYS.len() + 1 + self.help_info().len()
+    }
+
     /// Quante righe dell'aiuto stanno nello schermo: tutte, o quante restano tolti il bordo e la riga che dice come si chiude.
     pub(crate) fn help_visible(&self) -> usize {
-        HELP_KEYS
-            .len()
+        self.help_rows_total()
             .min((self.h as usize).saturating_sub(3).max(1))
     }
 
     /// Di quante righe puo' scorrere l'aiuto (0 se sta tutto nello schermo).
     fn help_scroll_max(&self) -> usize {
-        HELP_KEYS.len() - self.help_visible()
+        self.help_rows_total() - self.help_visible()
     }
 
     /// La prima riga dell'aiuto che si vede.

@@ -9,6 +9,8 @@ Format inspired by "Keep a Changelog".
 
 ### Added
 - **F3 with a selection searches the selection** (terminal and window): select a word, press F3, and the word is already the search — no prompt, the next occurrence comes up; the F3s that follow iterate it, Shift+F3 goes back. The selection that is the occurrence just found by a previous search (a regex, a case-insensitive one) does not count: F3 continues that search, as before.
+- **The timeline turns itself off on a file with nothing to map**: when no line carries a time the mask can read, the panel that said "no times to show" (and nothing else) goes away by itself — the status line says it instead, with its advice (pick a time format by hand). The preference is not touched: it is a fact of that file, not a habit — the next file with times reopens the timeline as it was left.
+- **The help tells who the program is** (terminal and window): in the window, F1 opens two tabs — the keys, as always, and a new *Info* with the name, the version, the license (AGPL-3.0) and the code, the GitHub address as a real link (a click opens the browser). In the terminal the same three lines close the help table, after a blank row: the version is the engine's, the one that opens the file.
 
 ## [0.1.3] - 2026-11-09
 

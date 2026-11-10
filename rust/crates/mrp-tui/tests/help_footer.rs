@@ -97,8 +97,9 @@ fn on_a_short_screen_the_help_scrolls_and_always_shows_how_to_close() {
     a.handle_key(k(KeyCode::Up));
     let su = schermo(&mut a, 100, 24);
     assert_ne!(su, prima);
-    // la riga che prima era appena sopra la finestra (undo / redo) torna in cima
-    assert!(su.contains("undo / redo"), "{su}");
+    // la riga che prima era appena sopra la finestra (selezione e copia) torna in cima: in fondo alla
+    // tabella ci sono anche le informazioni del programma, quindi e' qualche riga piu' su di prima
+    assert!(su.contains("Shift+arrows, Ctrl+A"), "{su}");
     assert!(!su.contains("Arrows PgUp PgDn Home End"), "{su}");
     a.handle_key(k(KeyCode::End));
     // Home: di nuovo in cima. PgGiu salta di una pagina (20 righe) fino in fondo, PgSu torna in cima

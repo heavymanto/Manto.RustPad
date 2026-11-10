@@ -57,6 +57,8 @@ pub struct StatoDialogo {
     cal_ancora: Option<egui::Rect>,
     /// Nella finestra "Tempo": il buffer dell'esempio da cui ricavare la regola (il padrone e' l'`App`).
     esempio: String,
+    /// Nella finestra dell'aiuto: quale tab e' aperto (0 i tasti del programma, 1 le sue informazioni).
+    aiuto_scheda: u8,
     /// Un calendario da aprire appena la finestra e' disegnata (uso da sviluppatore, per le schermate).
     cal_richiesto: Option<u8>,
     /// Nella finestra "Filtri": il buffer del testo del filtro per righe (il padrone e' l'`App`).
@@ -123,6 +125,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         stato.ultima_voce = None;
         stato.personalizzato = None;
         stato.calendario = None;
+        stato.aiuto_scheda = 0;
     }
     // dei ricordi del giro scorso restano solo testo e fuoco del campo e la voce del menu: il resto si ridisegna
     stato.pulsanti.clear();
@@ -153,9 +156,11 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
     // il rettangolo della finestra: lo danno le varianti (una per una), lo legge la fine
     let rect;
     match &vista {
-        // l'aiuto: due colonne (il tasto in monospace, la descrizione), in una lista che occupa al piu' il 70% dello
-        // schermo; sotto, il pulsante che chiude
-        DialogView::Help { rows, .. } => {
+        // l'aiuto: due tab (i tasti del programma, o chi e' il programma), la tabella in due colonne (il tasto in
+        // monospace, la descrizione) in una lista che occupa al piu' il 70% dello schermo; sotto, il pulsante che chiude
+        DialogView::Help { rows, info, .. } => {
+            let t_tasti = ws.active().text("help.tab.keys").to_string();
+            let t_tab_info = ws.active().text("help.tab.info").to_string();
             rect = finestra(
                 ctx,
                 titolo.as_str(),
@@ -163,21 +168,52 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                 &mut stato.chiudi,
                 &mut stato.chiusura_richiesta,
                 |ui| {
-                    ScrollArea::vertical()
-                        .scroll_source(
-                            egui::scroll_area::ScrollSource::SCROLL_BAR
-                                | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
-                        )
-                        .max_height(altezza * 0.7)
-                        .show(ui, |ui| {
-                            egui::Grid::new("aiuto").num_columns(2).show(ui, |ui| {
-                                for (tasto, descrizione) in rows {
-                                    ui.label(RichText::new(tasto).monospace());
-                                    ui.label(descrizione);
-                                    ui.end_row();
+                    // i due tab: i tasti, o le informazioni del programma
+                    ui.horizontal(|ui| {
+                        let r = ui.selectable_label(stato.aiuto_scheda == 0, &t_tasti);
+                        stato.opzioni.push((r.rect, t_tasti.clone()));
+                        if r.clicked() {
+                            stato.aiuto_scheda = 0;
+                        }
+                        let r = ui.selectable_label(stato.aiuto_scheda == 1, &t_tab_info);
+                        stato.opzioni.push((r.rect, t_tab_info.clone()));
+                        if r.clicked() {
+                            stato.aiuto_scheda = 1;
+                        }
+                    });
+                    ui.separator();
+                    if stato.aiuto_scheda == 0 {
+                        ScrollArea::vertical()
+                            .scroll_source(
+                                egui::scroll_area::ScrollSource::SCROLL_BAR
+                                    | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+                            )
+                            .max_height(altezza * 0.7)
+                            .show(ui, |ui| {
+                                egui::Grid::new("aiuto").num_columns(2).show(ui, |ui| {
+                                    for (tasto, descrizione) in rows {
+                                        ui.label(RichText::new(tasto).monospace());
+                                        ui.label(descrizione);
+                                        ui.end_row();
+                                    }
+                                });
+                            });
+                    } else {
+                        // chi e': il nome, e sotto versione, licenza e codice (il sito e' un link vero,
+                        // il clic lo apre nel browser)
+                        ui.heading("Manto.RustPad");
+                        ui.add_space(8.0);
+                        for (etichetta, valore) in info {
+                            ui.horizontal(|ui| {
+                                ui.label(etichetta);
+                                if valore.starts_with("http") {
+                                    ui.hyperlink(valore.as_str());
+                                } else {
+                                    ui.monospace(valore.as_str());
                                 }
                             });
-                        });
+                        }
+                    }
                     if pulsanti_centrati(ui, &mut stato.pulsanti, &[t_ok.as_str()]) == Some(0) {
                         ws.active_mut().dialog_cancel();
                     }

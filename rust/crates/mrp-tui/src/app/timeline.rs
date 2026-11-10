@@ -236,6 +236,23 @@ impl App {
         self.set_timeline(!self.timeline.on);
     }
 
+    /// La timeline non ha niente da mappare: nessuna riga con un orario che la maschera legge. Invece di tenere accanto
+    /// al testo un pannello che lo dice e basta, si spegne da sola — e lo dice la riga di stato, col suo consiglio
+    /// (scegliere un formato a mano), cosi' chi l'aveva accesa sa perchE' non c'e'. La preferenza non si tocca: e' un
+    /// fatto di questo file, non un'abitudine — il prossimo file con gli orari la riapre com'era.
+    fn timeline_no_times(&mut self) {
+        self.timeline_stop();
+        self.levels_stop();
+        self.timeline.on = false;
+        self.timeline.data = None;
+        self.timeline.error = None;
+        self.timeline.levels = None;
+        self.timeline.built_len = 0;
+        self.timeline.built_window = None;
+        self.timeline.built_step = None;
+        self.flash = Some(self.text("timeline.no_times").to_string());
+    }
+
     /// Cambiata la regola del tempo (la maschera dell'orario scelta a mano): gli estremi del file cambiano con lei,
     /// quindi il passo torna all'automatico (come all'apertura di un file) e le tacche si ricalcolano sulla regola
     /// nuova.
@@ -473,8 +490,13 @@ impl App {
                         }
                         Err(BuildError::Cancelled) => {}
                         Err(e) => {
-                            self.timeline.data = None;
-                            self.timeline.error = Some(e);
+                            if matches!(e, BuildError::NoTimes) {
+                                // nemmeno il thread ha trovato orari: come sopra, la timeline si spegne
+                                self.timeline_no_times();
+                            } else {
+                                self.timeline.data = None;
+                                self.timeline.error = Some(e);
+                            }
                         }
                     }
                 }
@@ -508,11 +530,9 @@ impl App {
         }
         self.timeline.unavailable = false;
         let Some(mask) = self.time_mask.clone() else {
-            self.timeline.data = None;
-            self.timeline.error = Some(BuildError::NoTimes);
-            self.timeline.built_len = len;
-            self.timeline.built_window = finestra;
-            self.timeline.built_step = Some(passo);
+            // niente orari in questo file: invece di un pannello che lo dice e basta, la timeline si
+            // spegne da sola e lo dice la riga di stato (vedi `timeline_no_times`)
+            self.timeline_no_times();
             return false;
         };
         let (lo, hi) = (self.lo(), self.hi());

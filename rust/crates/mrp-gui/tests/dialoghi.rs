@@ -443,3 +443,59 @@ fn discarding_the_changes_asks_with_two_buttons_and_goes_back_to_the_file() {
 fn modifica() -> KeyEvent {
     KeyEvent::new(KeyCode::Char('e'), KeyModifiers::ALT)
 }
+
+/// I testi disegnati in un giro (per sapere cosa c'e' scritto sullo schermo).
+fn testi(o: &FullOutput) -> Vec<String> {
+    fn visita(s: &eframe::egui::Shape, v: &mut Vec<String>) {
+        match s {
+            eframe::egui::Shape::Text(t) => v.push(t.galley.text().to_string()),
+            eframe::egui::Shape::Vec(tutte) => tutte.iter().for_each(|x| visita(x, v)),
+            _ => {}
+        }
+    }
+    let mut v = Vec::new();
+    for c in &o.shapes {
+        visita(&c.shape, &mut v);
+    }
+    v
+}
+
+#[test]
+fn the_help_has_an_info_tab_with_the_version_the_license_and_the_code() {
+    let (mut f, ctx, p) = finestra(b"uno`n", false);
+    premi(&mut f, &ctx, Key::F1);
+    disegna(&mut f, &ctx);
+    // due tab: i tasti (quello aperto) e le info del programma
+    let tab: Vec<String> = f.dialogo_opzioni().iter().map(|(_, t)| t.clone()).collect();
+    assert_eq!(tab, vec!["Keys", "Info"], "{tab:?}");
+    // un clic sul tab Info: il nome, la versione, la licenza e il codice (il sito e' un link)
+    let pos = f.dialogo_opzioni()[1].0.center();
+    clic(&mut f, &ctx, pos);
+    let o = giro(&mut f, &ctx, vec![]);
+    let scritti = testi(&o);
+    assert!(
+        scritti.iter().any(|t| t.contains("Manto.RustPad")),
+        "il nome: {scritti:?}"
+    );
+    assert!(
+        scritti
+            .iter()
+            .any(|t| t.contains(env!("CARGO_PKG_VERSION"))),
+        "la versione: {scritti:?}"
+    );
+    assert!(
+        scritti.iter().any(|t| t.contains("AGPL-3.0")),
+        "{scritti:?}"
+    );
+    assert!(
+        scritti
+            .iter()
+            .any(|t| t.contains("github.com/heavymanto/Manto.RustPad")),
+        "il codice: {scritti:?}"
+    );
+    // e il pulsante chiude come sempre
+    let pos = bottone(&f, "OK");
+    clic(&mut f, &ctx, pos);
+    assert_eq!(f.app().dialog_kind(), None);
+    let _ = std::fs::remove_file(p);
+}

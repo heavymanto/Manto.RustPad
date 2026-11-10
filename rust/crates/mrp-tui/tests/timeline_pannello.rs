@@ -286,19 +286,22 @@ fn before_the_levels_are_counted_the_bars_are_dim_and_in_one_shape() {
 }
 
 #[test]
-fn a_file_with_no_times_says_so_in_the_panel() {
+fn a_file_with_no_times_turns_the_timeline_off_and_says_so() {
     let (mut a, p) = spenta_su("niente\nda\nvedere\n");
     a.set_timeline(true);
-    finche(&mut a, |a| a.timeline_status() == TimelineStatus::NoTimes);
-    assert_eq!(a.timeline_status(), TimelineStatus::NoTimes);
-    let righe = render_lines(&mut a, 100, 23);
-    // "No times to show: pick a time format first." spezzato a 23 colonne, con uno spazio davanti
-    assert_eq!(primi(&righe[1], 24), " No times to show: pick ");
-    assert_eq!(
-        primi(&righe[2], 24),
-        format!("{:<24}", " a time format first.")
+    finche(&mut a, |a| !a.timeline_on());
+    assert!(!a.timeline_on(), "spenta da sola: niente da mappare");
+    assert_eq!(a.timeline_status(), TimelineStatus::Off);
+    // e lo dice la riga di stato, col suo consiglio (in inglese nei test)
+    let detto = a.flash().unwrap_or_default();
+    assert!(
+        detto.contains("time format"),
+        "il flash dice perchE': {detto:?}"
     );
-    assert!(righe[3].chars().take(24).all(|c| c == ' '));
+    // il pannello non c'e' piu': il testo torna a tutto schermo (tre righe: il gutter del numero
+    // di riga e' largo due)
+    let righe = render_lines(&mut a, 100, 23);
+    assert!(righe[0].starts_with(" 1│niente"), "{:?}", righe[0]);
     let _ = std::fs::remove_file(p);
 }
 
@@ -586,13 +589,13 @@ fn waiting_for_the_background_work_waits_for_the_timeline_of_the_terminal() {
     assert!(a.wait_idle(Duration::from_secs(20)));
     assert_eq!(a.timeline_status(), TimelineStatus::Ready);
     assert!(a.timeline_levels_ready());
-    // un file senza orari: finisce subito con "niente da mostrare", non aspetta il tempo massimo
+    // un file senza orari: la timeline si spegne da sola subito, non aspetta il tempo massimo
     let (mut b, q) = spenta_su("niente\nda\nvedere\n");
     b.set_timeline(true);
     let inizio = Instant::now();
     assert!(b.wait_idle(Duration::from_secs(20)));
     assert!(inizio.elapsed() < Duration::from_secs(10));
-    assert_eq!(b.timeline_status(), TimelineStatus::NoTimes);
+    assert!(!b.timeline_on(), "spenta da sola: niente da mappare");
     let _ = std::fs::remove_file(p);
     let _ = std::fs::remove_file(q);
 }

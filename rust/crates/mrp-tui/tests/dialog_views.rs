@@ -56,7 +56,7 @@ fn help_is_a_table_of_keys_and_descriptions() {
     let (mut a, p) = app(b"uno\n", false);
     assert!(a.dialog_view().is_none());
     a.handle_key(k(KeyCode::F(1)));
-    let DialogView::Help { title, rows } = a.dialog_view().unwrap() else {
+    let DialogView::Help { title, rows, .. } = a.dialog_view().unwrap() else {
         panic!("non e' l'aiuto");
     };
     assert_eq!(title, "KEYS");

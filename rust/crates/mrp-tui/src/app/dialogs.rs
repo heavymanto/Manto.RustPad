@@ -44,10 +44,12 @@ pub struct SearchLabels {
 /// Un dialogo aperto, con i suoi testi nella lingua attiva.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DialogView {
-    /// L'aiuto: una tabella (tasti, descrizione).
+    /// L'aiuto: una tabella (tasti, descrizione) e le informazioni di chi e' questo programma (versione, licenza,
+    /// codice) per il tab Info della finestra.
     Help {
         title: String,
         rows: Vec<(String, String)>,
+        info: Vec<(String, String)>,
     },
     /// Un menu (tema, lingua, codifica): le voci, quella evidenziata e una nota (l'avviso sulle lingue tradotte da una IA).
     Menu {
@@ -282,6 +284,7 @@ impl App {
             DialogKind::Help => DialogView::Help {
                 title: t("help.title"),
                 rows: HELP_KEYS.iter().map(|k| dividi_aiuto(cat.t(k))).collect(),
+                info: self.help_info(),
             },
             DialogKind::Theme => DialogView::Menu {
                 title: t("menu.theme.title"),
@@ -511,6 +514,27 @@ impl App {
     pub fn help_rows(&self) -> Vec<(String, String)> {
         let cat = self.catalog();
         HELP_KEYS.iter().map(|k| dividi_aiuto(cat.t(k))).collect()
+    }
+
+    /// Le informazioni di chi e' questo programma (il tab Info dell'aiuto, in fondo alla tabella nel terminale):
+    /// la versione e' quella del motore (questo crate, dove vive l'App), la licenza quella del repository, il codice
+    /// dov'e' — nella finestra il sito e' un link vero.
+    pub fn help_info(&self) -> Vec<(String, String)> {
+        let cat = self.catalog();
+        vec![
+            (
+                cat.t("help.info.version").to_string(),
+                env!("CARGO_PKG_VERSION").to_string(),
+            ),
+            (
+                cat.t("help.info.license").to_string(),
+                "AGPL-3.0".to_string(),
+            ),
+            (
+                cat.t("help.info.site").to_string(),
+                "https://github.com/heavymanto/Manto.RustPad".to_string(),
+            ),
+        ]
     }
 
     /// Imposta il testo di uno dei due campi di Sostituisci (0 = cosa cercare, 1 = con cosa sostituire; un altro numero non

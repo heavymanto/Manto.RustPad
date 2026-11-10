@@ -227,7 +227,7 @@ fn a_window_restricts_the_timeline_to_its_range() {
 
 #[test]
 fn without_a_time_format_or_with_unsaved_edits_it_says_so() {
-    // senza orari
+    // senza orari: la timeline si spegne da sola e lo dice nella riga di stato
     let n = COUNTER.fetch_add(1, Ordering::SeqCst);
     let p = std::env::temp_dir().join(format!("mrp_tlapp_{}_{}.log", std::process::id(), n));
     std::fs::write(&p, "uno\ndue\ntre\n").unwrap();
@@ -238,9 +238,23 @@ fn without_a_time_format_or_with_unsaved_edits_it_says_so() {
     let mut a = App::open(&p, cfg).unwrap();
     assert!(a.wait_idle(Duration::from_secs(20)));
     a.set_timeline(true);
-    pronta(&mut a);
-    assert_eq!(a.timeline_status(), TimelineStatus::NoTimes);
+    let fine = Instant::now() + Duration::from_secs(20);
+    loop {
+        a.timeline_tick();
+        if !a.timeline_on() || Instant::now() >= fine {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(5));
+    }
+    assert!(!a.timeline_on(), "spenta da sola: niente da mappare");
+    assert_eq!(a.timeline_status(), TimelineStatus::Off);
     assert!(a.timeline_rows(100).is_empty());
+    // e lo dice, col suo consiglio (in inglese nei test)
+    let detto = a.flash().unwrap_or_default();
+    assert!(
+        detto.contains("time format"),
+        "il flash dice perchE': {detto:?}"
+    );
     let _ = std::fs::remove_file(&p);
     // un documento modificato non si calcola
     let (mut b, _, q) = app();
