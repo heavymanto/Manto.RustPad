@@ -404,8 +404,8 @@ fn the_level_buttons_toggle_the_filter_and_the_marks_show_the_counted_levels() {
     );
     clic(&mut f, &ctx, e);
     assert_eq!(f.app().timeline_filter_levels(), [false; 4]);
-    // le righe del log di prova sono tutte INFO: un segno per giorno (tre giorni), nessuno per gli altri livelli
-    assert_eq!(f.timeline_disegnata().strisce, 3);
+    // le righe del log di prova sono tutte INFO: una barra per giorno (tre giorni), divisa per livello
+    assert_eq!(f.timeline_disegnata().righe, 3);
     // il pulsante del filtro senza livelli scelti lo dice
     let filtra = f.timeline_disegnata().chip[4].0.center();
     clic(&mut f, &ctx, filtra);

@@ -18,8 +18,6 @@ const RIGA_MIN: f32 = 3.0;
 const INTESTAZIONE: f32 = 52.0;
 /// L'altezza della prima riga dell'intestazione (il menu del passo); sotto ci sono i pulsanti dei livelli.
 const RIGA_PASSO: f32 = 28.0;
-/// La larghezza di ogni segno di livello sul bordo destro della barra.
-const SEGNO: f32 = 5.0;
 /// Fra due scritte c'e' almeno questo spazio.
 const SCRITTA_ALTEZZA: f32 = 13.0;
 
@@ -37,8 +35,6 @@ pub struct StatoTimeline {
     pub passo: Option<Rect>,
     /// I pulsanti dei livelli (E, W, I, D) e quello che apre la vista filtrata, con la loro etichetta (per i test).
     pub chip: Vec<(Rect, String)>,
-    /// Quanti segni di livello si sono disegnati (uno per riga e per livello presente).
-    pub strisce: usize,
     /// Quando si e' scelto o tolto l'ultimo livello: poco dopo (se non se ne sceglie un altro) la vista filtrata si apre da sola.
     pub livelli_in_attesa: Option<std::time::Instant>,
 }
@@ -79,7 +75,6 @@ pub fn disegna(
     stato.righe = 0;
     stato.scritte = 0;
     stato.chip.clear();
-    stato.strisce = 0;
     // di fabbrica a sinistra del testo; a destra sta accanto alla scrollbar
     let lato = if ws.active().timeline_right() {
         egui::panel::Side::Right
@@ -226,48 +221,51 @@ pub fn disegna(
             let testo = tav.schermo_fg;
             let mut ultima_scritta = f32::NEG_INFINITY;
             let mut scritte: Vec<(f32, &String)> = Vec::new();
-            // il bucket con piu' righe di ogni livello: i segni si misurano su di lui
-            let massimi = [
-                righe.iter().map(|r| r.levels.error).max().unwrap_or(0),
-                righe.iter().map(|r| r.levels.warn).max().unwrap_or(0),
-                righe.iter().map(|r| r.levels.info).max().unwrap_or(0),
-                righe.iter().map(|r| r.levels.debug).max().unwrap_or(0),
-            ];
             for r in &righe {
                 let (y0, y1) = (corpo.min.y + r.y0 * altezza, corpo.min.y + r.y1 * altezza);
                 if y1 - y0 < 0.5 && modo == TimelineMode::Bytes {
                     continue;
                 }
                 let alto = (y1 - y0 - 1.0).max(1.0);
-                let lunga = (r.weight.sqrt() * (corpo.width() - 2.0)).max(if r.bytes > 0 {
-                    2.0
-                } else {
-                    0.0
-                });
+                // la lunghezza e' proporzionale, senza radice: il doppio di righe e' la barra
+                // doppia, come nella colonna del terminale — e' quello che dà il senso di densita'
+                let lunga =
+                    (r.weight * (corpo.width() - 2.0)).max(if r.bytes > 0 { 2.0 } else { 0.0 });
                 if lunga > 0.0 {
-                    ui.painter().rect_filled(
-                        Rect::from_min_size(Pos2::new(corpo.min.x, y0), Vec2::new(lunga, alto)),
-                        0.0,
-                        con_alfa(barra, 200),
-                    );
-                    stato.righe += 1;
-                }
-                // i livelli: un segno per livello sul bordo destro, piu' marcato dove ce ne sono di piu' (rispetto al bucket piu' pieno)
-                if r.levels_known && r.bytes > 0 {
                     let valori = [r.levels.error, r.levels.warn, r.levels.info, r.levels.debug];
-                    for (j, &n) in valori.iter().enumerate() {
-                        if n == 0 || massimi[j] == 0 {
-                            continue;
+                    let totale: u32 = valori.iter().sum();
+                    if r.levels_known && totale > 0 {
+                        // la barra e' divisa per livello, come nel terminale: i colori dicono quali
+                        // livelli la compongono. Un livello presente non sparisce mai (2 px) finche'
+                        // c'e' posto; se il posto manca, vince il piu' grave
+                        let mut x = corpo.min.x;
+                        let mut rimasta = lunga;
+                        for (j, &n) in valori.iter().enumerate() {
+                            if n == 0 {
+                                continue;
+                            }
+                            let seg = (lunga * n as f32 / totale as f32).max(2.0).min(rimasta);
+                            if seg <= 0.0 {
+                                break;
+                            }
+                            ui.painter().rect_filled(
+                                Rect::from_min_size(Pos2::new(x, y0), Vec2::new(seg, alto)),
+                                0.0,
+                                con_alfa(colori[j], 230),
+                            );
+                            x += seg;
+                            rimasta -= seg;
                         }
-                        let forza = (n as f32 / massimi[j] as f32).sqrt();
-                        let x1 = corpo.max.x - j as f32 * SEGNO;
+                    } else {
+                        // i livelli non ancora contati: barra neutra e fioca, come il tratteggio
+                        // del terminale mentre il giro avanza
                         ui.painter().rect_filled(
-                            Rect::from_min_max(Pos2::new(x1 - SEGNO, y0), Pos2::new(x1, y0 + alto)),
+                            Rect::from_min_size(Pos2::new(corpo.min.x, y0), Vec2::new(lunga, alto)),
                             0.0,
-                            con_alfa(colori[j], (70.0 + 185.0 * forza) as u8),
+                            con_alfa(barra, 140),
                         );
-                        stato.strisce += 1;
                     }
+                    stato.righe += 1;
                 }
                 if y0 - ultima_scritta >= SCRITTA_ALTEZZA {
                     scritte.push((y0, &r.label));
