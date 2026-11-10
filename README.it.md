@@ -31,29 +31,29 @@
 
 ## Abstract
 
-**Apri un log da 100 GB in un lampo. Guarda la sua vita intera nella timeline. E quando serve, modificalo — colonna per colonna. Il file non entra mai in RAM.**
+Un log di 100 GB si apre in pochi secondi, si scorre fluido, si naviga nella timeline e si puo' modificare. Il file non viene mai caricato in RAM.
 
 <p align="justify">
-L'idea nasce da un fastidio che conosco bene: un log di molti gigabyte e nessun tool che sapesse tenerlo. Gli editor bravi a modificare caricano tutto in RAM — e cadono. I visualizzatori bravi a scorrere non modificano — punto. E uno di loro, il piu' fidato, quello che sta su ogni macchina: al salvataggio ha troncato il file in silenzio e si e' mangiato 1,7 GB di dati senza chiedere. Quel giorno ho smesso di cercare e ho deciso di scrivermelo da solo — come avevo gia' fatto per il disco: un motore solo, due frontend, in una finestra e nel terminale.
+L'ho scritto perche' non trovavo un tool che facesse tutte queste cose insieme. Gli editor che modificano bene caricano tutto in memoria e non reggono i file grandi. I visualizzatori che reggono i file grandi non modificano. E il blocco note del sistema, su un file oltre 4 GiB, al salvataggio lo tronca senza avviso: 1,7 GB persi, ed e' un comportamento misurato, non una voce (la prova sta nella tabella più sotto). Così mi sono scritto il tool che mi serviva, con la stessa impostazione di Manto.FreeDisk: un motore solo, due interfacce, il terminale e la finestra.
 </p>
 
-**Manto.RustPad** e' quel tool. Apre il file memory-mapped e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi *Modifica* lo stesso file diventa editabile — nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.
+**Manto.RustPad** apre il file memory-mappato in sola lettura e costruisce l'indice delle righe in background. Quando premi *Modifica*, lo stesso file diventa editabile senza ricaricarlo: le modifiche stanno in una piece table accanto all'originale intatto, e il salvataggio scrive un file nuovo e lo scambia con un rename atomico.
 
-## I quattro pilastri
+## Come e' costruito
 
-Ognuno sta in piedi su un'idea ben nota — non e' invenzione, e' letteratura applicata:
+Quattro decisioni note, applicate fino in fondo:
 
-1. **Un file enorme si apre in secondi — e resta aperto.** Il file e' *memory-mappato*: il kernel consegna all'editor le pagine che chiede, quando le chiede (come fanno `less` e i grandi visualizzatori di log). L'indice delle righe si costruisce in background, e **si mette in pausa mentre salti** cosi' il disco resta tuo. Leggere 100 GB costa decine di MiB perche' nulla viene mai copiato.
+1. **Il file sta su disco, non in RAM.** E' memory-mappato in sola lettura: il kernel consegna le pagine che l'editor chiede, quando le chiede (come `less`). L'indice delle righe si costruisce in background e si mette in pausa quando l'utente salta, per non contendere il disco. Su un file da 100 GB l'editor occupa decine di MiB.
 
-2. **Nulla si perde mai — nemmeno cio' che non hai salvato, nemmeno con un crash.** Il salvataggio e' *atomico*: il file nuovo viene scritto intero accanto al vecchio, scaricato su disco, poi scambiato con un solo rename — lo stesso protocollo tutto-o-niente che SQLite usa per i suoi commit. E la sessione e' un diario delle *sole modifiche*: chiudi senza chiedere, uccidi il processo, manca la luce — riapri, e le schede, i cursori e **le modifiche non salvate** sono di nuovo li' (la piece table tiene l'originale intatto e le modifiche a parte: la struttura che Crowley ha descritto per gli editor di testo nel 1998 e che VS Code ha adottato nel 2018).
+2. **Il salvataggio e' atomico, la sessione e' un diario delle modifiche.** Il file nuovo viene scritto accanto al vecchio, scaricato su disco e scambiato con un rename: lo stesso protocollo dei commit di SQLite. La sessione registra solo le modifiche, quindi dopo un crash, o dopo aver chiuso senza salvare, schede, cursori e modifiche non salvate tornano al loro posto. La piece table e' la struttura descritta da Crowley per gli editor di testo nel 1998 e adottata da VS Code nel 2018.
 
-3. **I livelli, a colpo d'occhio.** ERROR in rosso, WARN in giallo, INFO in verde, date e orari con le loro tinte: il colore e' *preattentivo* — l'occhio lo processa prima di leggere una riga (il lavoro di Healey sul preattentive processing). Su un log con tempeste di errori, vedi la tempesta prima di trovarla.
+3. **I livelli si vedono prima di leggerli.** ERROR rosso, WARN giallo, INFO verde, date e orari colorati: il colore preattentivo viene processato dall'occhio prima della lettura della riga (il lavoro di Healey sul preattentive processing). Un picco di errori in un log di milioni di righe si nota appena entra nello schermo.
 
-4. **La timeline — unica nel suo genere.** Una colonna di periodi, ognuno lungo quanto il suo volume di righe, diviso per livello: una mappa proporzionale del file intero, dove i punti densi *sono* i problemi. Scorri, e il log si legge come una radiografia di se' stesso: dove le cose sono andate storte si vede prima di leggere una riga. I periodi si trovano per ricerca binaria, senza leggere il file.
+4. **La timeline e' una mappa proporzionale del file.** Una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello: le zone dense si vedono prima di arrivarci con lo scroll. I periodi si trovano per ricerca binaria, senza leggere il file.
 
-## Misurato, non promesso
+## Misure
 
-Su un file da 6,0 GB (60 milioni di righe), una macchina, un HDD — il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
+Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk. Il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
 
 | | Memoria | Apertura | Cosa succede |
 |---|---:|---|---|
@@ -61,15 +61,15 @@ Su un file da 6,0 GB (60 milioni di righe), una macchina, un HDD — il metodo p
 | Quello del sistema operativo | 4.100 MiB | 2,8 s | **trunca a 4 GiB — perde 1,7 GB al salvataggio** |
 | Il visualizzatore in streaming | 43 MiB | UI 0,5 s | scansione completa in background, ~86 s |
 | Quello commerciale | 19 MiB | 7,5 s | scrive una copia temporanea di 5,7 GB; `Ctrl+Fine` rilegge il file |
-| **Manto.RustPad** | **13–35 MiB** | **all'istante** | esatto, nessun troncamento, nessuna copia — l'indice si riempie dietro di te |
+| **Manto.RustPad** | **13–35 MiB** | **all'istante** | esatto, nessun troncamento, nessuna copia; l'indice si costruisce in background |
 
-La memoria cresce di circa 3,7 MB per GB di file — e non tiene mai il file. Un log da 100 GB su un hard disk si apre in 36 ms. *(Chi e' chi, con versioni e fonti: [docs/MARKET.md](docs/MARKET.md).)*
+La memoria cresce di circa 3,7 MB per GB di file; il file non viene mai caricato in memoria. Un log da 100 GB su hard disk si apre in 36 ms. *(Chi e' chi, con versioni e fonti: [docs/MARKET.md](docs/MARKET.md).)*
 
 ---
 
 ## Due frontend, un motore
 
-Il motore e' uno (`mrp-core`: documenti, schede, ricerca, modifiche, sessioni) — e due modi di guardarlo: **`mrp-tui`** per qualunque terminale, pensato per i server e per SSH; **`mrp-gui`** per il desktop, con menu' veri, barra degli strumenti, finestre di dialogo, gli appunti di sistema e il drag-and-drop. Una funzionalita' aggiunta al motore arriva in entrambi.
+Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), con due interfacce: **`mrp-tui`** per il terminale, pensato per i server e per SSH; **`mrp-gui`** per il desktop, con menu', barra degli strumenti, finestre di dialogo, appunti di sistema e drag-and-drop. Una funzionalita' aggiunta al motore arriva in entrambe.
 
 | `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
 |:---:|:---:|
@@ -84,30 +84,30 @@ Il motore e' uno (`mrp-core`: documenti, schede, ricerca, modifiche, sessioni) �
 
 ## In azione
 
-`mrp-tui` su un log: il file si apre all'istante, lo scroll gira libero, poi la timeline si accende (`Alt+B`) — ogni periodo lungo quanto il suo volume di righe, diviso per livello (ERROR, WARN, INFO, DEBUG), le tempeste di errori visibili a colpo d'occhio — e arrivano i colori dei livelli (`Alt+L`):
+`mrp-tui` su un log: apertura, scroll, timeline accesa con `Alt+B` (ogni periodo alto quanto il suo volume di righe, diviso per livello ERROR, WARN, INFO, DEBUG) e colori dei livelli con `Alt+L`:
 
 <a href="#in-azione"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: scroll, timeline, colori dei livelli" /></a>
 
-E `mrp-gui`, lo stesso motore in una finestra — il log si apre, lo scroll gira, a colori:
+`mrp-gui`, lo stesso motore in una finestra: apertura, scroll, colori:
 
 <a href="#in-azione"><img src="docs/img/gui-demo.gif" alt="mrp-gui in movimento: il log nella finestra, lo scroll" /></a>
 
 ## Cosa fa
 
-- **Un visualizzatore di log per file immensi.** Apre all'istante, scorre con rotella, scrollbar e salti di pagina (`Alt+PgSu/PgGiu'`: 10 pagine, con Shift 100, con Ctrl 1000). I numeri di riga si riempiono da un indice in background che **si mette in pausa mentre salti**. Vai a una riga (`Ctrl+G`) o a un orario, segui la coda come `tail -f` (`Alt+F`), filtra le righe come `grep` (`Alt+G`), colora i livelli (`Alt+L`).
-- **Una timeline del file.** Una colonna di periodi — un minuto, dieci minuti, un'ora, un giorno — ognuno lungo quanto il suo volume di righe e diviso per livello, cosi' dove sono gli errori si vede a colpo d'occhio. La parte che stai leggendo e' marcata; un click o un trascinamento ti porta li'. I periodi si trovano per ricerca binaria **senza leggere il file**.
-- **…e puoi modificarlo, con la modifica per colonne.** Premi `F4` e lo stesso file diventa editabile — nessun ricaricamento, nessuna copia. **La modalita' colonna (blocco)** (`F8`, o `Alt`+trascinamento col mouse): digitare, `Tab`, copia, taglia e incolla agiscono su tutte le righe del blocco in una volta, in un file di qualunque taglia.
-- **Memoria indipendente dalla taglia del file.** Decine di MiB, qualunque sia il file. Mai il file intero in memoria.
-- **Non perde mai dati.** Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore rumoroso invece del troncamento silenzioso, salvataggio a prova di crash.
-- **Schede, e chiudere non perde nulla.** Piu' file insieme; esci senza che ti venga chiesto — la volta dopo le schede, i cursori e **le modifiche non salvate** sono di nuovo li'. Si salvano solo le modifiche: su un file da 100 GB con poche correzioni, la sessione pesa pochi KB.
-- **Trova e sostituisci con glob e regex** (`Ctrl+F` / `Ctrl+H`), con una **preview** prima di toccare qualunque cosa e un solo `Ctrl+Z` che annulla tutto.
-- **Onesto con le codifiche.** UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale — su file piu' grandi della RAM.
+- Apre file di qualunque taglia all'istante e li scorre con rotella, scrollbar e salti di pagina (`Alt+PgSu/PgGiu'`: 10 pagine, con Shift 100, con Ctrl 1000). I numeri di riga arrivano dall'indice in background, che si mette in pausa quando l'utente salta. Si puo' andare a una riga (`Ctrl+G`) o a un orario, seguire la coda del file come `tail -f` (`Alt+T`), filtrare le righe come `grep` (`Alt+G`), colorare i livelli (`Alt+L`).
+- Timeline del file: una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello. Il tratto che si sta leggendo e' marcato; un click o un trascinamento porta al punto. I periodi si trovano per ricerca binaria, senza leggere il file.
+- Modifica: `F4` rende editabile lo stesso file, senza ricaricarlo e senza copie. Con la modalita' colonna (`F8`, o `Alt`+trascinamento col mouse) digitare, `Tab`, copia, taglia e incolla agiscono su tutte le righe del blocco, su file di qualunque taglia.
+- La memoria non dipende dalla taglia del file: decine di MiB in ogni caso.
+- Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore esplicito invece del troncamento silenzioso, salvataggio a prova di crash.
+- Piu' schede insieme; la sessione ripristina schede, cursori e modifiche non salvate alla riapertura. Visto che il diario contiene solo le modifiche, su un file da 100 GB con poche correzioni la sessione pesa pochi KB.
+- Trova e sostituisci (`Ctrl+F` / `Ctrl+H`) su testo, glob e regex, con preview prima di applicare e un solo `Ctrl+Z` che annulla tutto.
+- Codifiche: UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale, anche su file piu' grandi della RAM.
 
-Non-obiettivi: un analizzatore di log (gli aiuti qui sono quelli che servono a un *visualizzatore*), e una piattaforma di plugin/IDE.
+Non e' un analizzatore di log (gli aiuti alla lettura sono quelli che servono a un visualizzatore) e non e' una piattaforma di plugin o un IDE.
 
 ## Scaricalo
 
-Niente da installare: estrai ed esegui — entrambi i programmi funzionano subito, in modalita' *portabile* (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Ogni pacchetto porta `install.ps1` (Windows) o `install.sh` (Linux, macOS) se li vuoi come comandi da qualunque cartella. Quello Windows accetta anche `-Associa`: mrp-gui finisce nell'elenco "Apri con" di `.txt` e `.log` e in Impostazioni > App predefinite, solo per il tuo utente (niente admin) — il default resta un click tuo, quello che Windows firma. Su Linux `./install.sh --associa` imposta davvero il default dei file di testo.
+Niente installazione: estrai il pacchetto ed esegui. Entrambi i programmi funzionano subito in modalita' portabile (inglese incorporato, le altre sei lingue in `lang/` accanto ai programmi). Se li vuoi come comandi da qualunque cartella, c'e' `install.ps1` su Windows e `install.sh` su Linux e macOS. Su Windows, `install.ps1 -Associa` aggiunge mrp-gui all'elenco "Apri con" di `.txt` e `.log` e a Impostazioni > App predefinite, solo per l'utente corrente e senza admin: il default resta una scelta che firma Windows. Su Linux, `./install.sh --associa` imposta il default per i file di testo.
 
 <div align="center">
 <details>
@@ -132,7 +132,7 @@ Niente da installare: estrai ed esegui — entrambi i programmi funzionano subit
 </details>
 </div>
 
-Puoi anche compilarlo da fonte — due comandi, nel [Quickstart](#quickstart).
+Puoi anche compilarlo dai sorgenti: due comandi, nel [Quickstart](#quickstart).
 
 ## Quickstart
 
@@ -153,11 +153,11 @@ Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni mac
 
 ## Limiti noti
 
-- **Sviluppo iniziale.** 1.538 test automatici, ma non ancora lunghe sessioni d'uso vero. Tieni una copia di cio' che ti e' caro.
-- **Windows prima**; l'editor da terminale e il core girano anche su Linux (Debian, WSL). La CI gira tutta la suite sui tre sistemi a ogni push.
-- **La finestra (`mrp-gui`)** e' stata verificata con test automatici e screenshot, non ancora con lungo uso vero di tastiera e mouse.
+- Sviluppo iniziale: 1.538 test automatici, ma non ancora lunghe sessioni d'uso vero. Tieni una copia di cio' che ti e' caro.
+- Windows prima. L'editor da terminale e il core girano anche su Linux (Debian, WSL); la CI esegue tutta la suite sui tre sistemi a ogni push.
+- La finestra (`mrp-gui`) e' stata verificata con test automatici e screenshot, non ancora con lungo uso vero di tastiera e mouse.
 - Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
-- Le misure vengono da una macchina sola e un HDD solo: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
+- Le misure vengono da una macchina sola e un hard disk solo: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Sviluppo
 
