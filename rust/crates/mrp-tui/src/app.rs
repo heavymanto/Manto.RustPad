@@ -3222,9 +3222,17 @@ impl App {
             .map(|j| (j.progress.load(Ordering::Relaxed), j.len))
     }
 
-    /// F3 / Maiusc+F3: con un testo cercato parte subito la ricerca (avanti o indietro); senza,
-    /// si apre il prompt (e dopo Enter si cerca in avanti).
+    /// F3 / Maiusc+F3: col testo selezionato lo cerca subito, alla lettera (la classica: selezioni una parola, F3, e
+    /// la parola e' gia' la ricerca; le F3 che seguono proseguono). La selezione che e' l'occorrenza appena trovata
+    /// da una ricerca di prima non conta — F3 prosegue quella (anche regex o senza maiuscole): senza selezione utile,
+    /// con un testo cercato parte la ricerca (avanti o indietro); senza niente, si apre il prompt.
     fn find_key(&mut self, forward: bool) {
+        if let (Some(testo), Some((da, fino))) = (self.selection_as_text(), self.selection()) {
+            if self.found != Some((da, fino)) {
+                self.find_from_selection(&testo, da, forward);
+                return;
+            }
+        }
         let Some(testo) = self.last_find.clone() else {
             self.open_dialog(DialogKind::Find);
             return;

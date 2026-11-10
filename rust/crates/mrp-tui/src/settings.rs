@@ -37,7 +37,7 @@ pub struct Settings {
     pub time_rules: Vec<(String, usize, usize)>,
     /// Vero se il file ha un tema valido: l'utente ne ha scelto uno (la finestra, altrimenti, segue il sistema).
     pub theme_set: bool,
-    /// La timeline com'era quando si e' chiuso: si riapre uguale (accesa, disposizione, periodi vuoti). Il passo no: ogni file riparte da un giorno.
+    /// La timeline com'era quando si e' chiuso: si riapre uguale (accesa, disposizione, periodi vuoti). Il passo no: ogni file riparte dall'automatico.
     pub timeline: crate::app::timeline::TimelinePref,
 }
 

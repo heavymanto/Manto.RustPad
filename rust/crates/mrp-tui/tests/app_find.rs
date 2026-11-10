@@ -168,6 +168,35 @@ fn shift_f3_goes_to_the_previous_match() {
 }
 
 #[test]
+fn f3_with_a_selection_searches_the_selection_and_then_iterates_it() {
+    let dir = TestDir::new();
+    let mut a = app(&dir);
+    // seleziona "line" sulla prima riga (Maiusc+frecce): F3 la cerca subito, senza prompt
+    for _ in 0..4 {
+        a.handle_key(KeyEvent::new(KeyCode::Right, KeyModifiers::SHIFT));
+    }
+    a.handle_key(k(KeyCode::F(3)));
+    assert_eq!(
+        a.dialog_kind(),
+        None,
+        "nessun prompt: la selezione e' la ricerca"
+    );
+    assert!(a.wait_idle(Duration::from_secs(20)));
+    assert_eq!(
+        a.cursor(),
+        8,
+        "la prossima occorrenza dopo la selezione (line 02)"
+    );
+    // la selezione adesso e' l'occorrenza trovata: F3 prosegue quella, non la ricambia
+    a.handle_key(k(KeyCode::F(3)));
+    assert!(a.wait_idle(Duration::from_secs(20)));
+    assert_eq!(a.cursor(), 16, "line 03");
+    a.handle_key(shift_f3());
+    assert!(a.wait_idle(Duration::from_secs(20)));
+    assert_eq!(a.cursor(), 8, "indietro, line 02");
+}
+
+#[test]
 fn the_search_wraps_around_and_says_so() {
     let dir = TestDir::new();
     let mut a = app(&dir);

@@ -115,11 +115,13 @@ fn what_the_user_chooses_is_written_but_the_step_resets_to_a_day() {
             no_autostart: false,
         }
     );
-    // chiusa e riaperta: com'era, tranne il passo, che riparte da un giorno
-    let b = App::open(&log, cfg_gui(Some(imp.clone()), scritte.timeline)).unwrap();
+    // chiusa e riaperta: com'era, tranne il passo, che riparte dall'automatico — e per questo log
+    // (tre giorni sparsi su 39: dal 1 novembre al 10 dicembre) l'automatico sceglie il giorno
+    let mut b = App::open(&log, cfg_gui(Some(imp.clone()), scritte.timeline)).unwrap();
     assert!(b.timeline_on());
+    assert!(b.timeline_auto());
+    pronta(&mut b);
     assert_eq!(b.timeline_step(), Step::Day);
-    assert!(!b.timeline_auto());
     assert_eq!(b.timeline_mode(), TimelineMode::Bytes);
     assert!(b.timeline_show_empty());
     // nella prima scheda la scelta fine resta sua: e' del file che si sta guardando
@@ -131,8 +133,7 @@ fn what_the_user_chooses_is_written_but_the_step_resets_to_a_day() {
     assert!(!scritte.timeline.on);
     let c = App::open(&log, cfg_gui(Some(imp.clone()), scritte.timeline)).unwrap();
     assert!(!c.timeline_on());
-    assert!(!c.timeline_auto());
-    assert_eq!(c.timeline_step(), Step::Day);
+    assert!(c.timeline_auto());
     let _ = std::fs::remove_file(log);
     let _ = std::fs::remove_file(imp);
 }
@@ -180,8 +181,8 @@ fn the_switch_reaches_the_tabs_opened_later_the_step_stays_of_its_tab() {
     ws.open(&terzo).unwrap();
     assert!(ws.active().timeline_on());
     // il passo no: una scelta fine vale solo la scheda dove e' stata fatta, un file nuovo riparte
-    // da un giorno (un 10min rimasto salvato rompeva i file di mesi con "troppi periodi")
-    assert_eq!(ws.active().timeline_step(), Step::Day);
+    // dall'automatico (un 10min rimasto salvato rompeva i file di mesi con "troppi periodi")
+    assert!(ws.active().timeline_auto());
     // un'altra scheda che scrive le impostazioni (cambia la barra dei salti) non cancella la timeline
     ws.select(1);
     ws.active_mut().set_nav_bar(true, true);

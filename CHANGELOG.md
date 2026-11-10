@@ -4,6 +4,12 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+### Changed
+- **The timeline step is the automatic one again** — the longest that gives a readable bar for the file (a one-day log goes to hours, a two-week one to days, a seven-minute one to minutes). 0.1.3 had made it a fixed day while the real disease — a chosen step that stayed saved and broke longer files — was being cured; now that the choice is no longer remembered, the automatic has no contraindication left, and a fixed day was useless on short files. The reset on a time-rule change goes to the automatic too.
+
+### Added
+- **F3 with a selection searches the selection** (terminal and window): select a word, press F3, and the word is already the search — no prompt, the next occurrence comes up; the F3s that follow iterate it, Shift+F3 goes back. The selection that is the occurrence just found by a previous search (a regex, a case-insensitive one) does not count: F3 continues that search, as before.
+
 ## [0.1.3] - 2026-11-09
 
 ### Fixed

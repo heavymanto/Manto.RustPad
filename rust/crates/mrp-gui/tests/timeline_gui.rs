@@ -351,22 +351,23 @@ fn testi(o: &FullOutput) -> Vec<String> {
 }
 
 #[test]
-fn the_step_starts_at_a_day_and_the_auto_choice_says_which_one_it_took() {
+fn the_step_is_automatic_and_the_header_says_which_one_was_chosen() {
     let (mut f, ctx, p, _) = finestra();
     f.azione(Cmd::Timeline);
     pronta(&mut f, &ctx);
-    // di fabbrica (e a ogni file che si apre) il passo e' un giorno fisso: una riga per giorno
-    let o = giro(&mut f, &ctx, vec![]);
-    let scritti = testi(&o);
-    assert!(scritti.iter().any(|t| t == "1 day"), "{scritti:?}");
-    assert_eq!(f.timeline_disegnata().righe, 3);
-    // il passo automatico: tre giorni di righe, da solo sceglie l'ora e lo scrive nell'intestazione
-    f.workspace().active_mut().set_timeline_auto();
-    pronta(&mut f, &ctx);
+    // tre giorni di righe: da solo sceglie l'ora, e lo scrive nell'intestazione
     let o = giro(&mut f, &ctx, vec![]);
     let scritti = testi(&o);
     assert!(scritti.iter().any(|t| t == "Auto: 1 hour"), "{scritti:?}");
     assert_eq!(f.timeline_disegnata().righe, 72);
+    // un passo fisso: il nome del passo e basta
+    f.workspace()
+        .active_mut()
+        .set_timeline_step(mrp_core::timeline::Step::Day);
+    pronta(&mut f, &ctx);
+    let o = giro(&mut f, &ctx, vec![]);
+    let scritti = testi(&o);
+    assert!(scritti.iter().any(|t| t == "1 day"), "{scritti:?}");
     let _ = std::fs::remove_file(p);
 }
 

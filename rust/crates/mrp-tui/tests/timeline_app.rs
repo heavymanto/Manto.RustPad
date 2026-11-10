@@ -73,28 +73,28 @@ fn it_is_off_by_default_and_switches_on_and_off() {
 }
 
 #[test]
-fn the_step_is_a_fixed_day_by_default_and_the_auto_is_a_choice() {
+fn the_step_is_automatic_by_default_and_a_fixed_step_turns_it_off() {
     let (mut a, _, p) = app();
-    // di fabbrica (e a ogni file che si apre) il passo e' un giorno fisso, non l'automatico: una
-    // scelta fine che restava salvata rompeva i file piu' lunghi con "troppi periodi"
-    assert!(!a.timeline_auto());
+    // di fabbrica (e a ogni file che si apre) il passo e' l'automatico: il piu' lungo che dà una
+    // barra leggibile per il file — la scelta non si ricorda piu', quindi non c'e' niente da avvelenare
+    assert!(a.timeline_auto());
     a.set_timeline(true);
     pronta(&mut a);
-    assert!(!a.timeline_auto());
-    assert_eq!(a.timeline_step(), Step::Day);
-    assert_eq!(a.timeline_rows(1000).len(), 3);
-    // l'automatico lo sceglie da solo: tre giorni di righe, il passo e' l'ora (72 bucket)
-    a.set_timeline_auto();
-    pronta(&mut a);
+    // tre giorni di righe: il passo da solo e' l'ora (72 bucket), non il giorno
     assert!(a.timeline_auto());
     assert_eq!(a.timeline_step(), Step::Hour);
     assert_eq!(a.timeline_rows(1000).len(), 72);
-    // e un passo fisso lo riporta com'era
+    // un passo fisso lo spegne
     a.set_timeline_step(Step::Day);
     pronta(&mut a);
     assert!(!a.timeline_auto());
     assert_eq!(a.timeline_step(), Step::Day);
     assert_eq!(a.timeline_rows(1000).len(), 3);
+    // e si torna all'automatico
+    a.set_timeline_auto();
+    pronta(&mut a);
+    assert!(a.timeline_auto());
+    assert_eq!(a.timeline_step(), Step::Hour);
     let _ = std::fs::remove_file(p);
 }
 

@@ -57,12 +57,18 @@ impl App {
         let (Some(testo), Some((da, _))) = (self.selection_as_text(), self.selection()) else {
             return;
         };
+        self.find_from_selection(&testo, da, true);
+    }
+
+    /// Cerca il testo selezionato, alla lettera e maiuscole comprese: e' la ricerca nuova (F3 col testo selezionato,
+    /// il "Cerca" del menu del tasto destro). In avanti parte dall'inizio della selezione, cosi' la salta; indietro
+    /// da li', e trova quelle di prima.
+    pub(crate) fn find_from_selection(&mut self, testo: &str, da: u64, forward: bool) {
         self.search_mode = Mode::Text;
         self.search_case = true;
-        self.last_find = Some(testo.clone());
-        // la ricerca parte un byte dopo il cursore: dall'inizio della selezione salta la selezione stessa
+        self.last_find = Some(testo.to_string());
         self.anchor = None;
         self.cursor = da;
-        self.start_search(&testo, true);
+        self.start_search(testo, forward);
     }
 }
