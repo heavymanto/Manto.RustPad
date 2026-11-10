@@ -61,8 +61,12 @@ replace, `F5` go to, `F6` theme, `F7` language, `F8` column mode, `F9` encoding,
 The help has two tabs in the window (Keys, and *Info* with the version, the license and the GitHub address as a real link) and, in
 the terminal, the same three lines close the key table: version, AGPL-3.0, code.
 
+![The help window: the Keys tab](img/manual/h-aiuto.png)
+
 **The window** has a menu (File, Edit, View, Log, Help), a toolbar (New, Open, Save | Undo, Redo | Cut, Copy, Paste |
 Find, Replace, Go to | Timeline, Time filter | VIEW, EDIT, TAIL, Column mode, Jump bar | Zoom), tabs, a scrollbar and the same
+
+![The Settings window](img/manual/h-impostazioni.png)
 status row as the terminal.
 
 ---
@@ -72,6 +76,8 @@ status row as the terminal.
 ### 2.1 Opening and navigating
 
 #### N-01 Open a file from the command line
+
+![The log open in the window: the coloured text, the status row, the footer](img/manual/n01-apre.png)
 - **Entry:** `mrp-tui FILE` / `mrp-gui FILE`. With no file, the last session comes back (see C1); with none, an empty "Untitled 1".
 - **What it does:** shows the first screen at once, whatever the size. The file is mapped, not read; line numbers are counted in the
   background (see C3).
@@ -84,6 +90,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### N-02 Open another file, new document
+
+![Two files, two tabs](img/manual/n02-schede.png)
 - **Entry:** `Ctrl+O` (window: File > Open, system dialog; terminal: a prompt "path of the file to open", Enter OK, Esc cancels).
   `Ctrl+N` opens an empty document in a new tab, in EDIT mode.
 - **What it does:** opens the file in a **new tab**, or brings forward the tab that already has it. New documents are called
@@ -106,6 +114,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### N-04 Go to (`F5` / `Ctrl+G`)
+
+![The Go to prompt](img/manual/n04-vai.png)
 - **Entry:** `F5` or `Ctrl+G`; window: Edit > Go to, or the toolbar button. A prompt: "line number, @byte offset, %percent or ~time".
 - **What it does:** jumps to a line (`500`), a byte offset (`@1000000`), a percentage of the file (`%50`) or the first line at or
   after a time (`~2026-01-01 05:44`).
@@ -118,6 +128,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### N-05 Jump pages and the jump bar
+
+![The jump bar: Home, End and the page buttons](img/manual/n05-salti.png)
 - **Entry:** `Alt+PgUp`/`Alt+PgDn` jump 10 pages (`Shift` x100, `Ctrl` x1000); `Ctrl+B` shows a bar with *Home*, *End* and page-step
   buttons (the window draws it as a strip of buttons with a gear that opens the settings of the steps).
 - **What it does:** very long moves without reading the lines in between (the index is used for jumps of 5000 rows or more).
@@ -169,6 +181,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### M-02 The mode menu
+
+![The menu of the three modes](img/manual/m02-modi.png)
 - **Entry:** `Alt+M`, or a click on the mode word in the status row.
 - **What it does:** a small menu with the three modes and what each one means; the current one is highlighted.
 - **Expected response:** Up/Down move, Enter chooses, Esc closes.
@@ -226,6 +240,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### M-08 Tail (follow the end)
+
+![Tail mode: the view follows the end of the file](img/manual/m08-tail.png)
 - **Entry:** `Alt+T`; window: toolbar button / Edit menu.
 - **What it does:** read only; the view goes to the end and follows the file as it grows; the index is extended over the new bytes, not rebuilt.
   Checks twice a second. Leaving the end of the file with the cursor stops it.
@@ -238,6 +254,8 @@ status row as the terminal.
 ### 2.3 Time, timeline and filters
 
 #### T-01 Time format of the lines (`Alt+O`)
+
+![The Time window: the format of the lines](img/manual/t01-formato.png)
 - **Entry:** `Alt+O`; automatic on first use. Window: Log menu / the Time window with calendar and "example" box *(to verify by hand)*.
 - **What it does:** tells the program where the timestamp sits in each line. It recognises the format by itself from a sample of the
   head and tail of the file, once per tab. 19 formats are known (ISO with `.` or `,` milliseconds, `T` separator, `dd/MM/yyyy`,
@@ -265,6 +283,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### T-03 Time range (`Alt+I`)
+
+![The Time window with the calendar of the From field](img/manual/t03-intervallo.png)
 - **Entry:** `Alt+I`; window: Log > Time range / toolbar clock button (lit while a range is on).
 - **What it does:** limits the whole view to the lines between two times. Empty "From" = from the start, empty "To" = to the end,
   and a time written to a unit covers the whole unit (`02:30` covers that minute). The range is just two byte offsets: removing it
@@ -279,6 +299,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### T-04 Timeline (`Alt+B`)
+
+![The timeline: the file in time, next to the scrollbar](img/manual/t04-timeline.png)
 - **Entry:** `Alt+B`; window: toolbar clock button / Log > Timeline. In the window it turns itself on when a file with a recognised time is
   opened (once per tab, file up to 2 GiB, unmodified); in the terminal it never does.
 - **What it does:** a bar next to the text that shows the whole file in time: one row per period (minute, 10 minutes, hour, day), the
@@ -319,6 +341,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### T-07 Log colours (`Alt+L`)
+
+![The log with the level colours on](img/manual/t07-colori.png)
 - **Entry:** `Alt+L`; window: Log > Log colours.
 - **What it does:** colours the levels (ERROR, WARN, INFO, DEBUG and relatives), the dates with times and IPv4 addresses, in one
   linear pass per line, without regular expressions. DEBUG is blue in the Console, Dark and Light themes (grey on the two blue themes).
@@ -328,6 +352,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### F-01 Find (`F3` / `Ctrl+F`)
+
+![The Find prompt](img/manual/f01-cerca.png)
 - **Entry:** `Ctrl+F` opens the prompt (prefilled with the last text); `F3` repeats forwards, `Shift+F3` backwards (or opens the prompt if there is no search yet).
   With a selection, `F3` searches the selection itself, literal and match case, without any prompt; the selection that is the match just found
   does not count — `F3` continues the previous search (a regex, a case-insensitive one) as before.
@@ -343,6 +369,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### F-02 Replace (`F4` / `Ctrl+H`)
+
+![The Replace window](img/manual/f02-sostituisci.png)
 - **Entry:** `F4` or `Ctrl+H`; window: Edit > Replace / toolbar.
 - **What it does:** replaces text, glob or regex matches in this tab or in all tabs. Two steps: the first Enter counts and previews
   ("N occurrences in M tabs"), the second applies. Escapes `\n \t \r \\` and groups `$1`, `${name}` in regex mode.
@@ -353,6 +381,8 @@ status row as the terminal.
 - **UX check:** `[ ]`
 
 #### F-03 Line filter (`Alt+G`)
+
+![The right-click menu on a selection: filter, hide, find](img/manual/f03-filtri.png)
 - **Entry:** `Alt+G`; window: Filters window. In the prompt, `Alt+I` inverts (hide the lines that match).
 - **What it does:** like `grep`: writes the matching lines into a temporary file and opens it as a new **read-only tab** named
   `[filter] TEXT`. Each line remembers its real position in the original.
@@ -368,6 +398,8 @@ status row as the terminal.
 ### 2.4 Encodings and line endings
 
 #### E-01 Encoding: detection and change (`F9`)
+
+![The encoding menu](img/manual/e01-codifica.png)
 - **Entry:** automatic on open; `F9` (window: View > Encoding…) opens the list of 64 encodings with the current one highlighted; on the command line `--encoding NAME`.
 - **What it does:** the file's bytes are never changed: the encoding is only how they are read. Detection looks at the first 64 KiB: a BOM (UTF-32, UTF-16, UTF-8), UTF-16 without BOM (by where the zero bytes are), valid UTF-8, and otherwise falls back to windows-1252. `F9` re-reads the same bytes with another encoding on the spot.
 - **Expected response:** the text re-reads in place and the status row names the encoding (nothing is shown for plain UTF-8). Observed on 28 test files (UTF-8 with and without BOM, UTF-16/32 both byte orders, 14 single-byte code pages, 7 DOS and Mac pages, Shift-JIS, EUC-JP, GBK, GB18030, Big5, EUC-KR): with `--encoding` all 28 read exactly; with detection, the Unicode ones with BOM, UTF-8, UTF-16 without BOM and windows-1252/ISO-8859-1 are right, and every other 8-bit or Asian file opens as windows-1252 (garbled but intact), and **choosing the right encoding in `F9` fixes the text in all 21 cases tried**.
