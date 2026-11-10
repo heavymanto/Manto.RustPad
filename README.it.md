@@ -32,17 +32,16 @@
 
 ## Abstract
 
-Un log di 100 GB si apre in pochi secondi, si scorre fluido, si naviga nella timeline e si puo' modificare. Il file non viene mai caricato in RAM.
+**Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM. Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticita', in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Modifica il contenuto con l'evoluta modalita' a colonne.**
 
 <p align="justify">
-L'ho scritto perche' non trovavo un tool che facesse tutte queste cose insieme. Gli editor che modificano bene caricano tutto in memoria e non reggono i file grandi. I visualizzatori che reggono i file grandi non modificano. E il blocco note del sistema, su un file oltre 4 GiB, al salvataggio lo tronca senza avviso: 1,7 GB persi, ed e' un comportamento misurato, non una voce (la prova sta nella tabella più sotto). Così mi sono scritto il tool che mi serviva, con la stessa impostazione di Manto.FreeDisk: un motore solo, due interfacce, il terminale e la finestra.
+L'idea nasce da un fastidio che conosco bene: esaminare log di grandi dimensioni senza saturare la RAM, cercare i punti di interesse e, all'occorrenza, fare piccole modifiche. L'idea era di sfruttare la gestione della memoria di Rust che, essendo senza GC (Garbage Collector), e' incredibilmente parsimoniosa. Scommessa vinta! Fino ad oggi ho provato piu' tool: alcuni gestiscono bene la memoria ma sono viewer limitatissimi, altri hanno funzioni avanzate ma usano molta RAM, gli editor fanno ancora molta fatica. In nessun caso ho mai visto timeline visuali che mi dessero il colpo d'occhio sia sulla cronologia degli eventi che sulla densita' degli stessi: in un file enorme, come faccio a vedere dove si sono verificati maggiormente gli errori? Cosi' ho deciso di creare il mio tool 5 in 1: apre file enormi, usa poca RAM, e' velocissimo, da' un colpo di colore per focalizzarsi su quello che serve, scorre la cronologia degli eventi e individua subito dove stanno i problemi. Tutto questo sia in modalita' terminale che GUI, e su ben 3 OS. Il design e' minimale: qui si va al sodo.
 </p>
 
-**Manto.RustPad** apre il file memory-mappato in sola lettura e costruisce l'indice delle righe in background. Quando premi *Modifica*, lo stesso file diventa editabile senza ricaricarlo: le modifiche stanno in una piece table accanto all'originale intatto, e il salvataggio scrive un file nuovo e lo scambia con un rename atomico.
+**Manto.RustPad** apre il file memory-mappato e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi *Modifica* lo stesso file diventa editabile: nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.
+## I cinque pilastri
 
-## Come e' costruito
-
-Quattro decisioni note, applicate fino in fondo:
+Cinque idee ben note, applicate fino in fondo:
 
 1. **Il file sta su disco, non in RAM.** E' memory-mappato in sola lettura: il kernel consegna le pagine che l'editor chiede, quando le chiede (come `less`). L'indice delle righe si costruisce in background e si mette in pausa quando l'utente salta, per non contendere il disco. Su un file da 100 GB l'editor occupa decine di MiB.
 
@@ -52,7 +51,8 @@ Quattro decisioni note, applicate fino in fondo:
 
 4. **La timeline e' una mappa proporzionale del file.** Una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello: le zone dense si vedono prima di arrivarci con lo scroll. I periodi si trovano per ricerca binaria, senza leggere il file.
 
-## Misure
+5. **Multi uso, multi piattaforma.** Si usa in un terminale (per esempio in SSH) senza bisogno dell'interfaccia grafica, oppure in finestra sul desktop. Gira su Windows, Linux e macOS.
+## POC con i tool noti
 
 Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk. Il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
 
@@ -106,7 +106,7 @@ Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), 
 
 Non e' un analizzatore di log (gli aiuti alla lettura sono quelli che servono a un visualizzatore) e non e' una piattaforma di plugin o un IDE.
 
-## Scaricalo
+## Download
 
 Versione attuale: **0.1.4** (novembre 2026).
 
@@ -156,12 +156,9 @@ Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni mac
 
 ## Limiti noti
 
-- Sviluppo iniziale: 1.538 test automatici, ma non ancora lunghe sessioni d'uso vero. Tieni una copia di cio' che ti e' caro.
-- Windows prima. L'editor da terminale e il core girano anche su Linux (Debian, WSL); la CI esegue tutta la suite sui tre sistemi a ogni push.
-- La finestra (`mrp-gui`) e' stata verificata con test automatici e screenshot, non ancora con lungo uso vero di tastiera e mouse.
+- Windows prima: sviluppato e testato principalmente su Windows. L'editor da terminale e il core girano anche su Linux (Debian, WSL); le release sono compilate in automatico dalla CI.
 - Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
 - Le misure vengono da una macchina sola e un hard disk solo: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
-
 ## Sviluppo
 
 ```sh
@@ -179,23 +176,18 @@ cargo clippy --workspace --all-targets -- -D warnings
 | `rust/crates/mrp-tui` | l'editor da terminale (ratatui) |
 | `rust/crates/mrp-gui` | la finestra del desktop (egui) |
 | `rust/crates/mrp-loggen` | log sintetici di qualunque taglia, stessi byte a parita' di seme |
-| `docs/` | `MARKET.md` (il panorama, con le fonti), `BENCHMARKS.md` (misure, metodo) |
+| `docs/` | `MANUAL.md` (il manuale), `BENCHMARKS.md` (misure, metodo), `MARKET.md` (il panorama, con le fonti) |
 | `bench/` | script riproducibili e risultati grezzi |
 
 ## Documentazione
 
-- [docs/MARKET.md](docs/MARKET.md) — il panorama dei tool esistenti, con le fonti
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — misure, metodo, limiti
+- [docs/MANUAL.md](docs/MANUAL.md) — il manuale delle funzionalita' in dettaglio
 - [CHANGELOG.md](CHANGELOG.md) — cosa e' cambiato
 - [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilita' in privato
 
 ## Contribuire
 
 Vedi [CONTRIBUTING.md](CONTRIBUTING.md). In breve: gli offset sono a 64 bit, il file intero non entra mai in memoria, e ogni numero nei documenti e' stato misurato davvero. E' un progetto hobby — tutto viene letto, ma nessun tempo di risposta e' promesso.
-
-## Il progetto gemello
-
-[Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — un analizzatore di spazio disco in Rust; la divisione core/frontend usata li' e' il modello di questo repository.
 
 ## Licenza
 
