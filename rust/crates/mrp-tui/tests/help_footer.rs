@@ -46,6 +46,8 @@ fn the_help_lists_every_key_that_was_missing() {
         "discard unsaved changes (back to the file on disk)",
         "Ctrl+Z / Ctrl+Y",
         "undo / redo (edit mode)",
+        "Alt+H",
+        "record length check: the line lengths, which ones to see",
         "Esc closes",
     ] {
         assert!(s.contains(atteso), "manca {atteso:?}:\n{s}");
@@ -60,20 +62,22 @@ fn on_a_short_screen_the_help_scrolls_and_always_shows_how_to_close() {
     let (mut a, p) = app("uno\n", 100, 24);
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
-    // in cima: le prime 21 righe (fino a Alt+I / Alt+O), non le ultime; in fondo come si chiude e che si scorre
+    // in cima: le prime 21 righe (fino ad Alt+H, il check dei tracciati), non le ultime; in fondo come si chiude e che si scorre
     let s = schermo(&mut a, 100, 24);
     assert!(s.contains("Arrows PgUp PgDn Home End"), "{s}");
-    assert!(s.contains("Alt+I / Alt+O"), "{s}");
+    assert!(s.contains("Alt+H"), "{s}");
+    assert!(!s.contains("Alt+I / Alt+O"), "{s}");
     assert!(!s.contains("Ctrl+R"), "{s}");
     assert!(!s.contains("timeline: the file in time"), "{s}");
     assert!(s.contains("Esc closes"), "{s}");
     assert!(s.contains("Up/Down scroll"), "{s}");
-    // Giu: una riga in piu' in fondo (Alt+B), la prima sparisce
+    // Giu: una riga in piu' in fondo (Alt+I / Alt+O), la prima sparisce
     a.handle_key(k(KeyCode::Down));
     let s = schermo(&mut a, 100, 24);
     assert!(!s.contains("Arrows PgUp PgDn Home End"), "{s}");
     assert!(s.contains("Ctrl+Home / Ctrl+End"), "{s}");
-    assert!(s.contains("timeline: the file in time"), "{s}");
+    assert!(s.contains("Alt+I / Alt+O"), "{s}");
+    assert!(!s.contains("timeline: the file in time"), "{s}");
     assert!(!s.contains("Ctrl+R"), "{s}");
     // Su: com'era
     a.handle_key(k(KeyCode::Up));
@@ -97,9 +101,12 @@ fn on_a_short_screen_the_help_scrolls_and_always_shows_how_to_close() {
     a.handle_key(k(KeyCode::Up));
     let su = schermo(&mut a, 100, 24);
     assert_ne!(su, prima);
-    // la riga che prima era appena sopra la finestra (selezione e copia) torna in cima: in fondo alla
-    // tabella ci sono anche le informazioni del programma, quindi e' qualche riga piu' su di prima
-    assert!(su.contains("Shift+arrows, Ctrl+A"), "{su}");
+    // la riga che prima era appena sopra la finestra torna in cima (col check dei tracciati e' una
+    // piu' giu': F8): in fondo alla tabella ci sono anche le informazioni del programma
+    assert!(
+        su.contains("column mode (Shift+arrows/Alt+drag: block)"),
+        "{su}"
+    );
     assert!(!su.contains("Arrows PgUp PgDn Home End"), "{su}");
     a.handle_key(k(KeyCode::End));
     // Home: di nuovo in cima. PgGiu salta di una pagina (20 righe) fino in fondo, PgSu torna in cima
@@ -221,7 +228,7 @@ fn the_descriptions_in_the_help_start_all_at_the_same_column() {
         let byte = riga.find(&descrizione).unwrap();
         colonne.push((riga[..byte].chars().count(), tasti));
     }
-    assert_eq!(colonne.len(), 27);
+    assert_eq!(colonne.len(), 28);
     let prima = colonne[0].0;
     for (c, tasti) in &colonne {
         assert_eq!(
