@@ -98,6 +98,7 @@ const LOG: &[Option<Cmd>] = &[
     Some(Cmd::TimeRange),
     None,
     Some(Cmd::Timeline),
+    Some(Cmd::Lengths),
 ];
 
 const AIUTO: &[Option<Cmd>] = &[Some(Cmd::Help)];

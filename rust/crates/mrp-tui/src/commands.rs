@@ -60,6 +60,8 @@ pub enum Cmd {
     TimeFilter,
     /// La timeline: la barra mappa del file nel tempo accanto alla scrollbar (si accende e si spegne).
     Timeline,
+    /// Il check dei tracciati: l'istogramma spuntabile delle lunghezze delle righe.
+    Lengths,
     /// Scarta le modifiche non salvate e torna al file com'e' sul disco (chiede conferma).
     Revert,
 }
@@ -301,6 +303,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('b'), ALT),
         "Alt+B",
         "timeline",
+    ),
+    comando(
+        Cmd::Lengths,
+        "gui.lengths",
+        tasto(KeyCode::Char('h'), ALT),
+        "Alt+H",
+        "lengths",
     ),
     comando(
         Cmd::Revert,

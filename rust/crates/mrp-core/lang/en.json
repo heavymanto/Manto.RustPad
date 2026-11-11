@@ -243,6 +243,7 @@
   "lengths.none": "nothing to count (document without a file?)",
   "lengths.view_name": "lengths: {}",
   "lengths.invert": "Invert",
+  "gui.lengths": "Record length check",
   "help.tab.keys": "Keys",
   "help.tab.info": "Info",
   "help.info.version": "Version",

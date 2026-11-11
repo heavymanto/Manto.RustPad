@@ -244,6 +244,7 @@
   "lengths.none": "nichts zu zählen (Dokument ohne Datei?)",
   "lengths.view_name": "Längen: {}",
   "lengths.invert": "Umkehren",
+  "gui.lengths": "Datensatzprüfung",
   "help.tab.keys": "Tasten",
   "help.tab.info": "Info",
   "help.info.version": "Version",

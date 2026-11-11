@@ -243,6 +243,7 @@
   "lengths.none": "niente da contare (documento senza file?)",
   "lengths.view_name": "lunghezze: {}",
   "lengths.invert": "Inverti",
+  "gui.lengths": "Check dei tracciati",
   "help.tab.keys": "Tasti",
   "help.tab.info": "Info",
   "help.info.version": "Versione",

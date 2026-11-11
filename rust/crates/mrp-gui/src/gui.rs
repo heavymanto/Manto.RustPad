@@ -1178,6 +1178,8 @@ impl Finestra {
             Cmd::TimeFilter => self.ws.active_mut().toggle_time_filter(),
             // la timeline si accende e si spegne
             Cmd::Timeline => self.ws.active_mut().toggle_timeline(),
+            // il check dei tracciati: apre l'istogramma spuntabile delle lunghezze
+            Cmd::Lengths => self.ws.active_mut().open_lengths_dialog(),
             // i pulsanti dei modi: un clic su quello acceso lo spegne e torna in VIEW (i tasti Alt+E / Alt+T invece scelgono e basta)
             Cmd::EditMode if self.ws.active().work_mode() == Modo::Edit => {
                 self.ws.exec(Cmd::ViewMode);

@@ -244,6 +244,7 @@
   "lengths.none": "nada que contar (¿documento sin archivo?)",
   "lengths.view_name": "longitudes: {}",
   "lengths.invert": "Invertir",
+  "gui.lengths": "Verificación de registros",
   "help.tab.keys": "Teclas",
   "help.tab.info": "Info",
   "help.info.version": "Versión",
