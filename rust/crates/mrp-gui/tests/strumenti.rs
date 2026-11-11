@@ -118,7 +118,7 @@ fn a_tooltip_is_the_name_and_the_shortcut() {
         (Cmd::Replace, "Replace… (F4)"),
         (Cmd::EditMode, "Edit mode (Alt+E)"),
         (Cmd::ViewMode, "View mode (read-only) (Alt+V)"),
-        (Cmd::NavBar, "Page-jump bar (Ctrl+B)"),
+        (Cmd::NavBar, "Show page-jump bar (Ctrl+B)"),
         (Cmd::ZoomIn, "Zoom in (Ctrl++)"),
         (Cmd::Home, "Go to start (Ctrl+Home)"),
         // senza tasto: il suggerimento dice cosa fa il clic
@@ -138,7 +138,10 @@ fn a_tooltip_is_the_name_and_the_shortcut() {
     let it = lingue.into_iter().find(|l| l.code == "it").unwrap();
     let it = Catalog::with(it);
     assert_eq!(tooltip(Cmd::Save, &it), "Salva (F2)");
-    assert_eq!(tooltip(Cmd::NavBar, &it), "Barra dei salti (Ctrl+B)");
+    assert_eq!(
+        tooltip(Cmd::NavBar, &it),
+        "Mostra la barra dei salti (Ctrl+B)"
+    );
 }
 
 #[test]

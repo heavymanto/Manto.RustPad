@@ -128,17 +128,16 @@ fn pulsante(f: &Finestra, testo: &str) -> Pos2 {
 }
 
 #[test]
-fn the_log_menu_has_one_entry_for_the_time_window_and_the_filter_switch_is_the_funnel_button() {
-    let log: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
-    for c in [Cmd::TimeRange, Cmd::Timeline] {
-        assert!(log.contains(&c), "{c:?} nel menu Log");
-    }
+fn the_advanced_menu_has_one_entry_for_the_time_window_and_the_filter_switch_is_the_funnel_button()
+{
+    let avanzate: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
+    assert!(avanzate.contains(&Cmd::TimeRange), "TimeRange in Avanzate");
     // il formato e il filtro sono la stessa finestra: una voce sola (il formato resta su Alt+O e sul clic di FORMAT); l'interruttore
     // del filtro per data e' il pulsante a imbuto della barra (nel menu era una seconda voce che portava alla stessa finestra)
-    assert!(!log.contains(&Cmd::TimeMask));
+    assert!(!avanzate.contains(&Cmd::TimeMask));
     // il filtro per testo e per livello sta nella stessa finestra Filtri: niente voce "Filtra le righe" a parte
-    assert!(!log.contains(&Cmd::Filter));
-    assert!(!log.contains(&Cmd::TimeFilter));
+    assert!(!avanzate.contains(&Cmd::Filter));
+    assert!(!avanzate.contains(&Cmd::TimeFilter));
     // il filtro per data e' un interruttore: sempre disponibile, acceso quando c'e' una finestra di tempo
     let (mut f, ctx, p, _) = finestra();
     assert!(commands::enabled(f.workspace(), Cmd::TimeFilter));
@@ -541,7 +540,7 @@ fn the_log_and_special_switches_say_how_they_are_and_what_a_click_does() {
     assert!(
         scritti
             .iter()
-            .any(|t| t == "Colour log lines: off (click to turn on)"),
+            .any(|t| t == "Show colour log lines: off (click to turn on)"),
         "{scritti:?}"
     );
     let _ = std::fs::remove_file(p);

@@ -299,7 +299,7 @@ pub const COMMANDS: &[Command] = &[
     comando(Cmd::TimeFilter, "gui.time_filter", None, "", "time_filter"),
     comando(
         Cmd::Timeline,
-        "gui.timeline",
+        "gui.show_timeline",
         tasto(KeyCode::Char('b'), ALT),
         "Alt+B",
         "timeline",

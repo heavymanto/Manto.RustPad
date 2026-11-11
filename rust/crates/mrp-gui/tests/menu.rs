@@ -47,7 +47,7 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
             "gui.menu.file",
             "gui.menu.edit",
             "gui.menu.view",
-            "gui.menu.log",
+            "gui.menu.advanced",
             "gui.menu.help"
         ]
     );
@@ -56,7 +56,7 @@ fn the_menus_are_file_edit_view_help_with_every_text_in_the_catalog() {
         assert!(en.get(t).is_some(), "{t} non e' nel catalogo");
     }
     let tutte = voci();
-    assert_eq!(tutte.len(), 7 + 13 + 12 + 3 + 1);
+    assert_eq!(tutte.len(), 7 + 12 + 13 + 3 + 1);
     for v in &tutte {
         assert!(
             en.get(v.chiave).is_some(),
@@ -594,12 +594,26 @@ fn ctrl_s_on_a_normal_file_saves_without_the_dialog_and_save_as_copies_it() {
 }
 
 #[test]
-fn the_view_menu_is_about_the_current_work_and_theme_and_language_live_in_the_settings() {
+fn the_view_menu_is_what_you_see_and_the_tools_live_in_advanced() {
+    // Visualizza: le schede, gli interruttori (che dicono tutti "Mostra…"), la codifica e lo zoom
     let vista: Vec<Cmd> = MENU[2].1.iter().flatten().copied().collect();
     assert!(!vista.contains(&Cmd::Theme));
     assert!(!vista.contains(&Cmd::Language));
-    for c in [Cmd::Settings, Cmd::Encoding, Cmd::ZoomIn, Cmd::LineNumbers] {
-        assert!(vista.contains(&c), "{c:?} resta in Visualizza");
+    for c in [
+        Cmd::Encoding,
+        Cmd::ZoomIn,
+        Cmd::LineNumbers,
+        Cmd::LineIndex,
+        Cmd::Timeline,
+        Cmd::LogColors,
+    ] {
+        assert!(vista.contains(&c), "{c:?} sta in Visualizza");
+    }
+    // gli strumenti d'analisi e le impostazioni stanno in Avanzate
+    assert!(!vista.contains(&Cmd::Settings));
+    let avanzate: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
+    for c in [Cmd::Settings, Cmd::TimeRange, Cmd::Lengths] {
+        assert!(avanzate.contains(&c), "{c:?} sta in Avanzate");
     }
 }
 

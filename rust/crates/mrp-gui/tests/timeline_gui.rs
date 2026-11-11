@@ -111,12 +111,12 @@ fn pronta(f: &mut Finestra, ctx: &Context) {
 }
 
 #[test]
-fn it_is_off_by_default_and_the_log_menu_switches_it_on() {
+fn it_is_off_by_default_and_the_view_menu_switches_it_on() {
     let (mut f, ctx, p, _) = finestra();
     assert!(f.timeline_disegnata().rect.is_none());
-    // la voce e' nel menu Log e non e' accesa
-    let log: Vec<Cmd> = MENU[3].1.iter().flatten().copied().collect();
-    assert!(log.contains(&Cmd::Timeline));
+    // la voce e' nel menu Visualizza (con gli altri "Mostra…") e non e' accesa
+    let vista: Vec<Cmd> = MENU[2].1.iter().flatten().copied().collect();
+    assert!(vista.contains(&Cmd::Timeline));
     assert_eq!(menu::acceso(f.workspace(), Cmd::Timeline), Some(false));
     f.azione(Cmd::Timeline);
     pronta(&mut f, &ctx);

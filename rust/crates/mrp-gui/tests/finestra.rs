@@ -100,7 +100,7 @@ fn the_first_frame_sets_the_title_and_draws_without_panicking() {
     let (mut f, ctx, p) = finestra(b"uno\ndue\n");
     let out = giro(&mut f, &ctx, vec![]);
     let nome = p.file_name().unwrap().to_string_lossy().to_string();
-    let titolo = format!("{nome} - Manto.RustPad");
+    let titolo = format!("{nome} - Manto.RustPad {}", env!("CARGO_PKG_VERSION"));
     assert!(
         comandi(&out)
             .iter()

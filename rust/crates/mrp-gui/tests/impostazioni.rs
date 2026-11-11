@@ -137,11 +137,11 @@ fn every_setting_is_there() {
         "-",
         "+",
         "Default",
-        "Line index",
+        "Show line index",
         "Show line numbers",
         "Show special characters",
-        "Colour log lines",
-        "Page-jump bar",
+        "Show colour log lines",
+        "Show page-jump bar",
         "Change…",
     ] {
         assert!(
@@ -188,9 +188,9 @@ fn the_switches_do_what_the_keys_do_and_are_saved() {
     clic(&mut f, &ctx, pos);
     let pos = controllo(&f, "Show special characters");
     clic(&mut f, &ctx, pos);
-    let pos = controllo(&f, "Colour log lines");
+    let pos = controllo(&f, "Show colour log lines");
     clic(&mut f, &ctx, pos);
-    let pos = controllo(&f, "Page-jump bar");
+    let pos = controllo(&f, "Show page-jump bar");
     clic(&mut f, &ctx, pos);
     // finche' non si preme OK non e' cambiato niente (e niente e' stato salvato)
     assert!(f.workspace().line_numbers() && !f.workspace().special_chars());
@@ -491,7 +491,7 @@ fn the_line_index_box_is_on_and_turning_it_off_needs_a_confirmation() {
     apri(&mut f, &ctx);
     assert!(f.workspace().index_enabled());
     // tolta la spunta e premuto OK: compare il dialogo che spiega, e le impostazioni restano aperte
-    let pos = controllo(&f, "Line index");
+    let pos = controllo(&f, "Show line index");
     clic(&mut f, &ctx, pos);
     let ok = controllo(&f, "OK");
     clic(&mut f, &ctx, ok);
@@ -554,7 +554,7 @@ fn the_other_choices_are_applied_together_with_the_confirmed_index_off() {
     apri(&mut f, &ctx);
     let pos = controllo(&f, "Show special characters");
     clic(&mut f, &ctx, pos);
-    let pos = controllo(&f, "Line index");
+    let pos = controllo(&f, "Show line index");
     clic(&mut f, &ctx, pos);
     let ok = controllo(&f, "OK");
     clic(&mut f, &ctx, ok);
@@ -580,7 +580,7 @@ fn turning_the_index_on_again_from_the_settings_is_immediate() {
     let (mut f, ctx, p, _) = finestra();
     f.workspace().set_index(false);
     apri(&mut f, &ctx);
-    let pos = controllo(&f, "Line index");
+    let pos = controllo(&f, "Show line index");
     clic(&mut f, &ctx, pos);
     let ok = controllo(&f, "OK");
     clic(&mut f, &ctx, ok);

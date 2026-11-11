@@ -68,12 +68,12 @@ const MODIFICA: &[Option<Cmd>] = &[
     Some(Cmd::Find),
     Some(Cmd::Goto),
     Some(Cmd::Replace),
-    Some(Cmd::Lengths),
 ];
 
+/// Cosa si vede del lavoro attuale: le schede, gli interruttori (tutti "Mostra…"), la codifica e lo
+/// zoom. Gli interruttori che non sono di questo file (tema, lingua) stanno nella finestra delle
+/// impostazioni; gli strumenti d'analisi e le impostazioni stanno in Avanzate.
 const VISTA: &[Option<Cmd>] = &[
-    Some(Cmd::Settings),
-    None,
     Some(Cmd::NextTab),
     Some(Cmd::PrevTab),
     None,
@@ -83,6 +83,8 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::Special),
     Some(Cmd::LineNumbers),
     Some(Cmd::LineIndex),
+    Some(Cmd::Timeline),
+    Some(Cmd::LogColors),
     None,
     Some(Cmd::Encoding),
     None,
@@ -91,15 +93,14 @@ const VISTA: &[Option<Cmd>] = &[
     Some(Cmd::ZoomReset),
 ];
 
-/// Gli strumenti per i log: colorare, i filtri (la finestra Filtri comprende anche il filtro per testo: non c'e' una voce a
-/// parte), la timeline. Il tail e' una delle tre modalita' d'uso: sta nel menu Modifica. Il check dei tracciati sta in
-/// Modifica, nel gruppo degli strumenti che guardano dentro il file (Trova, Vai a, Sostituisci).
-const LOG: &[Option<Cmd>] = &[
-    Some(Cmd::LogColors),
+/// Gli strumenti d'analisi e la configurazione: la finestra Filtri (che comprende anche il filtro
+/// per testo: non c'e' una voce a parte), il check dei tracciati e le impostazioni del programma.
+/// Il tail e' una delle tre modalita' d'uso: sta nel menu Modifica.
+const AVANZATO: &[Option<Cmd>] = &[
+    Some(Cmd::Settings),
     None,
     Some(Cmd::TimeRange),
-    None,
-    Some(Cmd::Timeline),
+    Some(Cmd::Lengths),
 ];
 
 const AIUTO: &[Option<Cmd>] = &[Some(Cmd::Help)];
@@ -109,7 +110,7 @@ pub const MENU: [Menu; 5] = [
     ("gui.menu.file", FILE),
     ("gui.menu.edit", MODIFICA),
     ("gui.menu.view", VISTA),
-    ("gui.menu.log", LOG),
+    ("gui.menu.advanced", AVANZATO),
     ("gui.menu.help", AIUTO),
 ];
 
