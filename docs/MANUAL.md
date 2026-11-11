@@ -373,7 +373,7 @@ status row as the terminal.
 - **Auto tests:** yes (`filter_view`, `filters_app`).
 
 #### F-04 Record length check (`Alt+H`)
-- **Entry:** `Alt+H`; window: Edit > Record length check (in the Find / Go to / Replace group). In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
+- **Entry:** `Alt+H`; window: Advanced > Record length check. In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
 - **What it does:** a background pass over the document counts how many lines have each content length (bytes, without the line ending and a trailing `\r`); the dialog lists them **by count — the dominant formats first, the anomalies at the bottom** — so a fixed-format file shows its record length and its outliers at a glance. Tick the lengths to see: all ticked means no filter, a few mean a new **read-only tab** with only those lines (named `lengths: 120 B`), composed with the other conditions of a filtered view when opened inside one (they are redone from the original file, together). The selection starts from the filter in force, or all ticked.
 - **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once; `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
 - **Must not:** modify the original. With nothing ticked: "no line matches", no tab. With no lines at all: "nothing to count". `Esc` leaves everything as it was, and the aborted selection is not remembered.
