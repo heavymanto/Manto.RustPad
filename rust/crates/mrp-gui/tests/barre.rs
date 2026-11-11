@@ -582,3 +582,15 @@ fn shift_wheel_scrolls_the_window_horizontally() {
     assert_eq!(f.app().hscroll(), 8, "uno scatto = 8 celle");
     let _ = std::fs::remove_file(p);
 }
+
+#[test]
+fn the_window_title_says_the_file_and_the_version() {
+    let (mut f, ctx, p) = finestra(b"uno\n", false);
+    disegna(&mut f, &ctx);
+    let nome = p.file_name().unwrap().to_string_lossy();
+    assert_eq!(
+        f.titolo_finestra(),
+        format!("{nome} - Manto.RustPad {}", env!("CARGO_PKG_VERSION"))
+    );
+    let _ = std::fs::remove_file(p);
+}

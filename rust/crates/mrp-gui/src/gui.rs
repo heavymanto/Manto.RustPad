@@ -1165,6 +1165,11 @@ impl Finestra {
         self.rettangolo_hbar
     }
 
+    /// Il titolo della finestra nell'ultimo disegno (per i test).
+    pub fn titolo_finestra(&self) -> &str {
+        &self.titolo
+    }
+
     /// I testi dell'ultima barra di stato disegnata (per i test); `None` se non c'e'.
     pub fn stato_disegnato(&self) -> Option<&TestiStato> {
         self.testi.as_ref()
@@ -1299,14 +1304,15 @@ impl Finestra {
         }
     }
 
-    /// Il titolo della finestra: il nome del file della scheda attiva, un asterisco se e' modificata.
+    /// Il titolo della finestra: il nome del file della scheda attiva, un asterisco se e' modificata,
+    /// e la versione (si vede subito quale gira, senza aprire l'aiuto).
     fn titolo(&mut self, ctx: &Context) {
         let a = self.ws.active();
         let mut t = a.file_name().to_string();
         if a.is_modified() {
             t.push_str(" *");
         }
-        t.push_str(" - Manto.RustPad");
+        t.push_str(concat!(" - Manto.RustPad ", env!("CARGO_PKG_VERSION")));
         if t != self.titolo {
             ctx.send_viewport_cmd(ViewportCommand::Title(t.clone()));
             self.titolo = t;

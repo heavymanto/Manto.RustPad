@@ -160,7 +160,7 @@ fn run() -> i32 {
         .with_inner_size([1000.0, 700.0])
         .with_min_inner_size([320.0, 200.0])
         .with_drag_and_drop(true)
-        .with_title("Manto.RustPad");
+        .with_title(concat!("Manto.RustPad ", env!("CARGO_PKG_VERSION")));
     // l'icona del progetto nella barra del titolo e in quella delle applicazioni
     if let Some(icona) = mrp_gui::icona::icona_finestra() {
         viewport = viewport.with_icon(std::sync::Arc::new(icona));
