@@ -230,6 +230,7 @@
   "filter.done": "{} righe: Invio su una riga ci porta nel file",
   "filter.truncated": "solo le prime {} righe (limite): Invio su una riga ci porta nel file",
   "help.l22": "Alt+G                      filtra le righe come grep (Invio su un risultato ci va)",
+  "help.l29": "Alt+H                      check dei tracciati: le lunghezze delle righe, quali vedere",
   "help.l23": "Alt+I / Alt+O              intervallo di tempo / formato dell'orario",
   "help.l24": "Alt+B                      timeline: il file nel tempo, accanto al testo",
   "help.l27": "Alt+P / Alt+S              timeline: passo dei periodi / filtro dei livelli",

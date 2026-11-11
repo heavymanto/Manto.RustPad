@@ -230,6 +230,7 @@
   "filter.done": "{} lines: Enter on a line goes to it in the file",
   "filter.truncated": "only the first {} lines (limit): Enter on a line goes to it",
   "help.l22": "Alt+G                      filter lines like grep (Enter on a result goes to it)",
+  "help.l29": "Alt+H                      record length check: the line lengths, which ones to see",
   "help.l23": "Alt+I / Alt+O              time range / time format of the lines",
   "help.l24": "Alt+B                      timeline: the file in time, next to the text",
   "help.l27": "Alt+P / Alt+S              timeline: step of the periods / filter by level",

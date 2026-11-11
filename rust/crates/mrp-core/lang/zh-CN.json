@@ -231,6 +231,7 @@
   "filter.done": "{} 行:在某行按 Enter 跳到文件中的该处",
   "filter.truncated": "仅前 {} 行(上限):在某行按 Enter 跳到该处",
   "help.l22": "Alt+G                      像 grep 一样筛选行(在结果上按 Enter 跳转)",
+  "help.l29": "Alt+H                      记录长度检查(选择要查看的行长度)",
   "help.l23": "Alt+I / Alt+O              时间范围 / 时间格式",
   "help.l24": "Alt+B                      时间线(文件按时间排列,显示在文本旁)",
   "help.l27": "Alt+P / Alt+S              时间线(时间间隔 / 按级别过滤)",

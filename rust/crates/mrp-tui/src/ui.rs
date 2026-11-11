@@ -17,13 +17,13 @@ use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Borders, Clear, Paragraph};
 use ratatui::{Frame, Terminal};
 
-/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l28` (senza la 21) (l'ultima e' sempre Esc, `help.l10`). L'aiuto
+/// Le righe dell'aiuto, in ordine: le chiavi `help.l1`..`help.l29` (senza la 21) (l'ultima e' sempre Esc, `help.l10`). L'aiuto
 /// scorre quando lo schermo e' piu' basso (`App::help_scroll`).
-pub(crate) const HELP_KEYS: [&str; 27] = [
+pub(crate) const HELP_KEYS: [&str; 28] = [
     "help.l1", "help.l2", "help.l3", "help.l4", "help.l5", "help.l6", "help.l7", "help.l8",
     "help.l9", "help.l11", "help.l12", "help.l13", "help.l14", "help.l15", "help.l16", "help.l17",
-    "help.l18", "help.l19", "help.l20", "help.l22", "help.l23", "help.l24", "help.l27", "help.l28",
-    "help.l25", "help.l26", "help.l10",
+    "help.l18", "help.l19", "help.l20", "help.l22", "help.l29", "help.l23", "help.l24", "help.l27",
+    "help.l28", "help.l25", "help.l26", "help.l10",
 ];
 
 /// Disegna tutto lo schermo e ricorda dove sta il cursore (`App::cursor_xy`).

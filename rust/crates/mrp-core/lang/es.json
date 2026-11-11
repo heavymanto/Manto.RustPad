@@ -231,6 +231,7 @@
   "filter.done": "{} líneas: Intro sobre una línea va a ella en el archivo",
   "filter.truncated": "solo las primeras {} líneas (límite): Intro va a la línea",
   "help.l22": "Alt+G                      filtrar líneas como grep (Intro en un resultado va a él)",
+  "help.l29": "Alt+H                      verificación de registros: las longitudes de línea, cuáles ver",
   "help.l23": "Alt+I / Alt+O              intervalo de tiempo / formato de la hora",
   "help.l24": "Alt+B                      línea de tiempo: el archivo en el tiempo, junto al texto",
   "help.l27": "Alt+P / Alt+S              línea de tiempo: paso de los periodos / filtro por nivel",

@@ -60,7 +60,7 @@ fn help_is_a_table_of_keys_and_descriptions() {
         panic!("non e' l'aiuto");
     };
     assert_eq!(title, "KEYS");
-    assert_eq!(rows.len(), 27, "una riga per ogni riga dell'aiuto");
+    assert_eq!(rows.len(), 28, "una riga per ogni riga dell'aiuto");
     assert_eq!(
         rows[0],
         ("Arrows PgUp PgDn Home End".to_string(), "move".to_string())
@@ -68,6 +68,10 @@ fn help_is_a_table_of_keys_and_descriptions() {
     assert!(rows.contains(&(
         "F4 / Ctrl+H".to_string(),
         "replace (text, glob, regex; this or all tabs)".to_string()
+    )));
+    assert!(rows.contains(&(
+        "Alt+H".to_string(),
+        "record length check: the line lengths, which ones to see".to_string()
     )));
     assert!(rows.contains(&(
         "Alt+T".to_string(),

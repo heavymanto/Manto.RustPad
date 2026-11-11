@@ -231,6 +231,7 @@
   "filter.done": "{} Zeilen: Eingabe auf einer Zeile springt zu ihr in der Datei",
   "filter.truncated": "nur die ersten {} Zeilen (Grenze): Eingabe springt zur Zeile",
   "help.l22": "Alt+G                      Zeilen filtern wie grep (Eingabe springt zum Treffer)",
+  "help.l29": "Alt+H                      Datensatzprüfung: die Zeilenlängen, welche man sieht",
   "help.l23": "Alt+I / Alt+O              Zeitraum / Zeitformat der Zeilen",
   "help.l24": "Alt+B                      Zeitleiste: die Datei über die Zeit, neben dem Text",
   "help.l27": "Alt+P / Alt+S              Zeitleiste: Zeitschritt / Filter nach Log-Level",
