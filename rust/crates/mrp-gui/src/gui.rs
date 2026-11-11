@@ -58,6 +58,23 @@ enum Scheda {
     Chiudi(usize),
 }
 
+/// Uso da sviluppatore (`MRPG_FILM`): il filmato della finestra — un fotogramma ogni tanto, con una rotella
+/// in giu' fra l'uno e l'altro (lo scroll), finche' non ce ne sono quanti servono; poi esce.
+struct Film {
+    /// Dove si scrivono i fotogrammi: `frame_000.png`, `frame_001.png`, ...
+    dir: std::path::PathBuf,
+    /// Quanti fotogrammi in tutto.
+    n: u32,
+    /// L'intervallo fra due fotogrammi.
+    ogni: Duration,
+    /// Quando si scatta il prossimo.
+    prossima: Instant,
+    /// Quanti sono fatti.
+    fatti: u32,
+    /// Il comando di scatto e' gia' partito (aspetta l'evento che lo consegna).
+    chiesto: bool,
+}
+
 /// La finestra dell'editor.
 pub struct Finestra {
     /// Le schede (la barra la disegna questa finestra, non il `Workspace`).
@@ -72,6 +89,8 @@ pub struct Finestra {
     chiusura: bool,
     /// Uso da sviluppatore: salva la schermata in questo file dopo qualche giro ed esce.
     scatto: Option<std::path::PathBuf>,
+    /// Uso da sviluppatore: il filmato della finestra (vedi `Film`).
+    film: Option<Film>,
     giri: u32,
     scatto_chiesto: bool,
     /// Non prima di quando si scatta (uso da sviluppatore: `MRPG_ATTESA_MS`, per vedere un lavoro lungo a meta').
@@ -194,6 +213,7 @@ impl Finestra {
             ultimo_input: Instant::now(),
             chiusura: false,
             scatto: None,
+            film: None,
             giri: 0,
             scatto_chiesto: false,
             scatto_dopo: Instant::now(),
@@ -261,6 +281,20 @@ impl Finestra {
     /// Lo scatto aspetta almeno `ms` millisecondi dall'avvio (per vedere, per esempio, la barra di avanzamento di un file grande).
     pub fn con_attesa_scatto(mut self, ms: u64) -> Finestra {
         self.scatto_dopo = Instant::now() + Duration::from_millis(ms);
+        self
+    }
+
+    /// Uso da sviluppatore (`MRPG_FILM`): fotografa la finestra `n` volte, una ogni `ogni_ms` millisecondi,
+    /// con una rotella in giu' fra un fotogramma e l'altro (il filmato dello scroll), e esce.
+    pub fn con_film(mut self, dir: std::path::PathBuf, n: u32, ogni_ms: u64) -> Finestra {
+        self.film = Some(Film {
+            dir,
+            n,
+            ogni: Duration::from_millis(ogni_ms),
+            prossima: Instant::now(),
+            fatti: 0,
+            chiesto: false,
+        });
         self
     }
 
@@ -414,7 +448,23 @@ impl Finestra {
                     }
                 }
                 Event::Screenshot { image, .. } => {
-                    if let Some(percorso) = &self.scatto {
+                    if let Some(f) = self.film.as_mut() {
+                        let percorso = f.dir.join(format!("frame_{:03}.png", f.fatti));
+                        if let Err(e) = salva_png(&percorso, &image) {
+                            crate::console::scrivi(&e.to_string());
+                        }
+                        f.fatti += 1;
+                        let finito = f.fatti >= f.n;
+                        f.chiesto = false;
+                        f.prossima = Instant::now() + f.ogni;
+                        if finito {
+                            self.chiusura = true;
+                            ctx.send_viewport_cmd(ViewportCommand::Close);
+                        } else {
+                            // la rotella in giu' che scorre il filmato
+                            self.rotella(MouseEventKind::ScrollDown);
+                        }
+                    } else if let Some(percorso) = &self.scatto {
                         if let Err(e) = salva_png(percorso, &image) {
                             crate::console::scrivi(&e.to_string());
                         }
@@ -1399,7 +1449,15 @@ impl Finestra {
         let cella = Vec2::new(larga.max(1.0), alta.ceil().max(1.0));
         self.file_trascinato(ctx);
         self.giri += 1;
-        if self.scatto.is_some() && self.giri >= 8 && !self.scatto_chiesto {
+        // il filmato: un fotogramma ogni tanto (la rotella in giu' la manda l'evento dello scatto)
+        if let Some(f) = &mut self.film {
+            if self.giri >= 8 && !f.chiesto && Instant::now() >= f.prossima {
+                f.chiesto = true;
+                ctx.send_viewport_cmd(ViewportCommand::Screenshot(egui::UserData::default()));
+            } else if !f.chiesto {
+                ctx.request_repaint_after(Duration::from_millis(50));
+            }
+        } else if self.scatto.is_some() && self.giri >= 8 && !self.scatto_chiesto {
             if Instant::now() >= self.scatto_dopo {
                 self.scatto_chiesto = true;
                 ctx.send_viewport_cmd(ViewportCommand::Screenshot(egui::UserData::default()));

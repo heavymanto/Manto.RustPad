@@ -210,6 +210,7 @@ fn run() -> i32 {
                     "salti" => Some(Cmd::NavBar),
                     "aiuto" => Some(Cmd::Help),
                     "codifica" => Some(Cmd::Encoding),
+                    "lunghezze" => Some(Cmd::Lengths),
                     "nuovo" => Some(Cmd::New),
                     "salva_come" => Some(Cmd::SaveAs),
                     _ => None,
@@ -248,6 +249,23 @@ fn run() -> i32 {
                 }
                 _ => {}
             }
+            // uso da sviluppatore: MRPG_FILM=dir fotografa la finestra MRPG_FILM_N volte (predefinito 50),
+            // una ogni MRPG_FILM_MS millisecondi (predefinito 120), con una rotella in giu' fra l'una e
+            // l'altra (il filmato dello scroll), e esce: i fotogrammi sono dir/frame_000.png, ...
+            let finestra = match std::env::var_os("MRPG_FILM") {
+                Some(dir) => {
+                    let n = std::env::var("MRPG_FILM_N")
+                        .ok()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(50);
+                    let ms = std::env::var("MRPG_FILM_MS")
+                        .ok()
+                        .and_then(|v| v.parse().ok())
+                        .unwrap_or(120);
+                    finestra.con_film(dir.into(), n, ms)
+                }
+                None => finestra,
+            };
             // uso da sviluppatore: MRPG_SCREENSHOT=file.png salva la schermata ed esce (MRPG_ATTESA_MS: non prima di tanto)
             Ok(Box::new(match std::env::var_os("MRPG_SCREENSHOT") {
                 Some(p) => {
