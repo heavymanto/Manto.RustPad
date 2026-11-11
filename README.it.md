@@ -31,13 +31,14 @@
 
 ## Abstract
 
-**Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM. Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticita', in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Modifica il contenuto anche con la modalita' a colonne avanzata.**
+<p align="justify"><strong>Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM. Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticita', in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Modifica il contenuto anche con la modalita' a colonne avanzata.</strong></p>
 
 <p align="justify">
 L'idea nasce da un fastidio che conosco bene: esaminare log di grandi dimensioni senza saturare la RAM, cercare i punti di interesse e, all'occorrenza, fare piccole modifiche. L'idea era di sfruttare la gestione della memoria di Rust che, essendo senza GC (Garbage Collector), e' incredibilmente parsimoniosa. Scommessa vinta! Fino ad oggi ho provato piu' tool: alcuni gestiscono bene la memoria ma sono viewer limitatissimi, altri hanno funzioni avanzate ma usano molta RAM, gli editor fanno ancora molta fatica. In nessun caso ho mai visto timeline visuali che mi dessero il colpo d'occhio sia sulla cronologia degli eventi che sulla densita' degli stessi: in un file enorme, come faccio a vedere dove si sono verificati maggiormente gli errori? Cosi' ho deciso di creare il mio tool 5 in 1: apre file enormi, usa poca RAM, e' velocissimo, da' un colpo di colore per focalizzarsi su quello che serve, scorre la cronologia degli eventi e individua subito dove stanno i problemi. Tutto questo sia in modalita' terminale che GUI, e su ben 3 OS. Il design e' minimale: qui si va al sodo.
 </p>
 
-**Manto.RustPad** apre il file memory-mappato e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi *Modifica* lo stesso file diventa editabile: nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.
+<p align="justify"><strong>Manto.RustPad</strong> apre il file memory-mappato e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi <em>Modifica</em> lo stesso file diventa editabile: nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.</p>
+
 ## I cinque pilastri
 
 Cinque idee ben note, applicate fino in fondo:

@@ -31,13 +31,13 @@
 
 ## Abstract
 
-A 100 GB log opens in a few seconds, scrolls smoothly, navigates in a timeline and can be edited. The file is never loaded into RAM.
+<p align="justify">A 100 GB log opens in a few seconds, scrolls smoothly, navigates in a timeline and can be edited. The file is never loaded into RAM.</p>
 
 <p align="justify">
 I wrote it because I could not find a tool that did all of these things together. The editors that edit well load everything into memory and cannot hold large files. The viewers that hold large files cannot edit. And the text editor that ships with the OS, on a file above 4 GiB, truncates it on save without warning: 1.7 GB lost, and that is measured behaviour, not a rumour (the proof is in the table below). So I wrote the tool I needed, with the same layout as Manto.FreeDisk: one engine, two interfaces, the terminal and the window.
 </p>
 
-**Manto.RustPad** opens the file memory-mapped and read-only, and builds the line index in the background. When you press *Edit*, the same file becomes editable without reloading it: the edits live in a piece table next to the untouched original, and saving writes a new file and swaps it in with an atomic rename.
+<p align="justify"><strong>Manto.RustPad</strong> opens the file memory-mapped and read-only, and builds the line index in the background. When you press <em>Edit</em>, the same file becomes editable without reloading it: the edits live in a piece table next to the untouched original, and saving writes a new file and swaps it in with an atomic rename.</p>
 
 ## How it's built
 
