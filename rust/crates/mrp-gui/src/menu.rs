@@ -68,6 +68,7 @@ const MODIFICA: &[Option<Cmd>] = &[
     Some(Cmd::Find),
     Some(Cmd::Goto),
     Some(Cmd::Replace),
+    Some(Cmd::Lengths),
 ];
 
 const VISTA: &[Option<Cmd>] = &[
@@ -91,14 +92,14 @@ const VISTA: &[Option<Cmd>] = &[
 ];
 
 /// Gli strumenti per i log: colorare, i filtri (la finestra Filtri comprende anche il filtro per testo: non c'e' una voce a
-/// parte), la timeline. Il tail e' una delle tre modalita' d'uso: sta nel menu Modifica.
+/// parte), la timeline. Il tail e' una delle tre modalita' d'uso: sta nel menu Modifica. Il check dei tracciati sta in
+/// Modifica, nel gruppo degli strumenti che guardano dentro il file (Trova, Vai a, Sostituisci).
 const LOG: &[Option<Cmd>] = &[
     Some(Cmd::LogColors),
     None,
     Some(Cmd::TimeRange),
     None,
     Some(Cmd::Timeline),
-    Some(Cmd::Lengths),
 ];
 
 const AIUTO: &[Option<Cmd>] = &[Some(Cmd::Help)];
