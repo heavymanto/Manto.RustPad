@@ -4,6 +4,8 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-11-11
+
 ### Added
 - **The horizontal scrollbar** (terminal and window): a line wider than the window no longer keeps its right part behind the cursor — under the text there is now a bar with a thumb that says where the window sits on the widest visible line. Click or drag it (the thumb follows the pointer as grabbed, a click on the track centers it there) and the window moves without touching the cursor; in the window `Shift`+wheel scrolls too, eight cells per notch. The bar appears only when needed (a line wider than the window, or already scrolled) and takes one row from the text; `«` and `»` still mark the cut sides of a line, and for a line beyond the reading limit the world of the bar is an honest lower bound that grows as you scroll.
 - **The record length check (`Alt+H`)** (terminal and window): a background pass counts how many lines have each content length (bytes, line ending and trailing `\r` excluded) and a checkable histogram lists them by count — the dominant formats first, the anomalies at the bottom, where the eye catches them. `SPACE` ticks, `A` inverts (the shortest way to "only the anomalous ones"), `Enter` applies, `Esc` cancels; all ticked means no filter, a few mean a read-only view with only those lines, and inside a filtered view the new lengths are redone from the original file together with the view's other conditions (the tab is named after them: `lengths: 120 B`). The pass reports its progress while counting, can be cancelled, and sees unsaved edits. In the Edit menu (in the Find / Go to / Replace group), seven languages, a line in the `F1` help.
