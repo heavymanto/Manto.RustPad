@@ -2133,6 +2133,7 @@ impl App {
             Some(DialogKind::TimelineStep) => TIMELINE_STEP_CHOICES,
             Some(DialogKind::TimelineLevels) => TIMELINE_LEVELS_CHOICES,
             Some(DialogKind::Mode) => MODI_VOCI,
+            Some(DialogKind::Lengths) => self.lengths_menu_len(),
             _ => 0,
         }
     }
@@ -3692,7 +3693,8 @@ impl App {
             | Some(DialogKind::SaveEncoding)
             | Some(DialogKind::TimelineStep)
             | Some(DialogKind::TimelineLevels)
-            | Some(DialogKind::Mode) => Some(self.menu_index),
+            | Some(DialogKind::Mode)
+            | Some(DialogKind::Lengths) => Some(self.menu_index),
             _ => None,
         }
     }
