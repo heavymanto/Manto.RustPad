@@ -57,7 +57,10 @@ pub struct FilterConditions {
 impl FilterConditions {
     /// Nessuna condizione: il file si vede intero.
     pub(crate) fn is_empty(&self) -> bool {
-        !self.levels.contains(&true) && self.text.is_empty() && !self.has_time()
+        !self.levels.contains(&true)
+            && self.text.is_empty()
+            && !self.has_time()
+            && self.lengths.is_none()
     }
 
     /// C'e' un filtro per data con almeno un estremo.
@@ -429,12 +432,13 @@ impl App {
         let livelli = self.timeline_filter_levels();
         let con_livelli = livelli.iter().any(|&x| x);
         let con_testo = !self.fl_text.is_empty();
+        let con_lunghezze = self.lengths_filter.is_some();
         // in una vista filtrata le condizioni non si applicano alle sue righe (sono gia' quelle filtrate): le rifa' il file originale
         let in_vista = self.filter_view.is_some();
-        // livelli e/o testo: una vista filtrata sola con tutte le condizioni (anche il tempo, come intervallo); la finestra di tempo di
-        // questa scheda non cambia. Senza: il filtro per data restringe la vista di adesso
+        // livelli e/o testo e/o lunghezze: una vista filtrata sola con tutte le condizioni (anche il tempo, come intervallo); la finestra di
+        // tempo di questa scheda non cambia. Senza: il filtro per data restringe la vista di adesso
         let mut vista = None;
-        if con_livelli || con_testo {
+        if con_livelli || con_testo || con_lunghezze {
             let pattern = if con_testo {
                 match Pattern::new(&self.fl_text, self.fl_mode, self.fl_case) {
                     Ok(p) => Some(p),
@@ -541,6 +545,9 @@ impl App {
             };
             parti.push(self.cat.tf(chiave, &[&self.fl_text]));
         }
+        if self.lengths_filter.is_some() {
+            parti.push(self.nome_vista_lunghezze());
+        }
         if con_date {
             parti.push(self.cat.tf("filters.part.time", &[&punti(da), &punti(a)]));
         }
@@ -579,6 +586,16 @@ impl App {
             };
             parti.push(format!("{}{modo}", cat.tf(chiave, &[&c.text])));
         }
+        if let Some(lunghezze) = &c.lengths {
+            let mut v: Vec<u64> = lunghezze.iter().copied().collect();
+            v.sort_unstable();
+            let elenco = v
+                .iter()
+                .map(|l| format!("{l} B"))
+                .collect::<Vec<_>>()
+                .join(", ");
+            parti.push(cat.tf("lengths.view_name", &[&elenco]));
+        }
         if parti.is_empty() {
             cat.t("filters.sum.none").to_string()
         } else {
@@ -610,6 +627,8 @@ impl App {
         self.fl_mode = c.mode;
         self.fl_case = c.case;
         self.fl_invert = c.invert;
+        // anche le lunghezze del check dei tracciati: una vista le rifà dal file originale come le altre condizioni
+        self.lengths_filter = c.lengths.clone();
         if con_date {
             self.range_text = [c.from.clone(), c.to.clone()];
         }

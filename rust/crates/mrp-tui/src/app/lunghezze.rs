@@ -25,12 +25,13 @@ impl App {
                 self.lengths_job = Some(super::spawn_lengths_job(snap, &cancel, &progress));
             }
         }
-        // la selezione del dialogo: il filtro com'e', oppure tutte (l'informazione pura)
-        self.lengths_checked = Some(match (&self.lengths_filter, &self.lengths_hist) {
-            (Some(attuale), _) => attuale.clone(),
-            (None, Some(hist)) => hist.iter().map(|(l, _)| *l).collect(),
-            (None, None) => HashSet::new(),
-        });
+        // la selezione del dialogo: il filtro com'e', oppure tutte (l'informazione pura); se l'istogramma deve ancora
+        // arrivare lo decide la passata quando lo consegna (`lengths_tick`): finche' conta, la lista non si vede
+        self.lengths_checked = match (&self.lengths_filter, &self.lengths_hist) {
+            (Some(attuale), _) => Some(attuale.clone()),
+            (None, Some(hist)) => Some(hist.iter().map(|(l, _)| *l).collect()),
+            (None, None) => None,
+        };
         self.menu_index = 0;
         self.open_dialog(DialogKind::Lengths);
     }
@@ -47,6 +48,17 @@ impl App {
                 let mut v: Vec<(u64, u64)> = hist.into_iter().collect();
                 v.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
                 self.lengths_hist = Some(Arc::new(v));
+                // il dialogo era aperto in attesa dell'istogramma: la selezione parte adesso, tutta spuntata
+                if self.dialog == Some(DialogKind::Lengths) && self.lengths_checked.is_none() {
+                    let tutte: HashSet<u64> = self
+                        .lengths_hist
+                        .as_ref()
+                        .unwrap()
+                        .iter()
+                        .map(|(l, _)| *l)
+                        .collect();
+                    self.lengths_checked = Some(tutte);
+                }
             }
             Ok(Err(_)) => {
                 // annullata: si riparte alla prossima apertura
@@ -103,6 +115,10 @@ impl App {
     /// `INVIO`: applica la selezione. Tutte spuntate = nessun filtro (si torna al file, se la vista era solo
     /// lunghezze); qualcuna spuntata = la vista filtrata con quelle righe, composta con le altre condizioni.
     pub(crate) fn lengths_apply(&mut self) {
+        if self.lengths_hist.is_none() {
+            // la passata sta ancora contando: niente da applicare, il dialogo resta aperto
+            return;
+        }
         let sel = self.lengths_selection().clone();
         let tutte = self.lengths_menu_len() > 0 && sel.len() >= self.lengths_menu_len();
         self.lengths_filter = if tutte { None } else { Some(sel) };
@@ -151,7 +167,7 @@ impl App {
     }
 
     /// Il nome della vista filtrata: "lunghezze: 120, 350 B".
-    fn nome_vista_lunghezze(&self) -> String {
+    pub(crate) fn nome_vista_lunghezze(&self) -> String {
         let mut v: Vec<u64> = self.lengths_filter.iter().flatten().copied().collect();
         v.sort_unstable();
         let elenco = v
