@@ -243,6 +243,9 @@ pub struct LineFilter {
     pub invert: bool,
     /// I livelli ammessi, nell'ordine ERROR, WARN, INFO, DEBUG; tutti falsi: nessuna condizione sul livello.
     pub levels: [bool; 4],
+    /// Le lunghezze (byte di contenuto, a-capo escluso) ammesse: il check dei tracciati a lunghezza fissa.
+    /// `None`: nessuna condizione sulla lunghezza.
+    pub lengths: Option<std::collections::HashSet<u64>>,
 }
 
 impl LineFilter {
@@ -250,6 +253,13 @@ impl LineFilter {
     fn accetta(&self, riga: &[u8]) -> bool {
         if let Some(p) = &self.pattern {
             if p.in_riga(riga).next().is_some() == self.invert {
+                return false;
+            }
+        }
+        if let Some(lunghezze) = &self.lengths {
+            // la lunghezza del record e' il contenuto senza l'a-capo: neanche il `\r` finale e' del record
+            let senza_cr = riga.strip_suffix(b"\r").unwrap_or(riga);
+            if !lunghezze.contains(&(senza_cr.len() as u64)) {
                 return false;
             }
         }
@@ -553,6 +563,50 @@ impl Snapshot {
             lines: scritte,
             truncated: troncato,
         })
+    }
+
+    /// L'istogramma delle lunghezze delle righe: per ogni lunghezza di contenuto (byte, a-capo escluso) quante righe ce l'hanno.
+    /// E' la passata del check dei tracciati: una lettura sequenziale a blocchi, annullabile, col progresso in byte. Il risultato
+    /// e' ordinato per conteggio decrescente (i formati dominanti prima, le anomalie in fondo).
+    pub fn count_lengths(
+        &self,
+        cancel: &AtomicBool,
+        progress: &AtomicU64,
+    ) -> Result<std::collections::HashMap<u64, u64>, SearchError> {
+        let len = self.len();
+        let mut conteggio: std::collections::HashMap<u64, u64> = std::collections::HashMap::new();
+        if cancel.load(Ordering::Relaxed) {
+            return Err(SearchError::Cancelled);
+        }
+        let mut pos = 0u64;
+        let blocco_max = self.chunk_size() as u64;
+        while pos < len {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(SearchError::Cancelled);
+            }
+            // un blocco di righe intere: fino a `blocco_max` byte e fino alla fine della riga
+            let tentativo = pos.saturating_add(blocco_max).min(len);
+            let fine = if tentativo >= len {
+                len
+            } else {
+                (fine_riga(self, tentativo) + 1).min(len)
+            };
+            let dati = self.read_range(pos, fine - pos);
+            let mut riga_da = 0usize;
+            while riga_da < dati.len() {
+                let riga_fine = memchr(b'\n', &dati[riga_da..]).map_or(dati.len(), |i| riga_da + i);
+                // il contenuto senza l'a-capo e senza il `\r` finale: la lunghezza del record, non della riga su disco
+                let mut fine_contenuto = riga_fine;
+                if fine_contenuto > riga_da && dati[fine_contenuto - 1] == b'\r' {
+                    fine_contenuto -= 1;
+                }
+                *conteggio.entry((fine_contenuto - riga_da) as u64).or_insert(0) += 1;
+                riga_da = riga_fine + 1;
+            }
+            progress.fetch_add(fine - pos, Ordering::Relaxed);
+            pos = fine;
+        }
+        Ok(conteggio)
     }
 
     /// La vista filtrata con piu' condizioni (`LineFilter`: testo, livelli) sulle sole righe che cominciano in `[lo, hi)` (`hi` oltre

@@ -50,6 +50,8 @@ pub struct FilterConditions {
     pub time: bool,
     pub from: String,
     pub to: String,
+    /// Le lunghezze (byte di contenuto) ammesse dal check dei tracciati; `None`: nessuna condizione.
+    pub lengths: Option<std::collections::HashSet<u64>>,
 }
 
 impl FilterConditions {
@@ -468,6 +470,7 @@ impl App {
                 pattern,
                 invert: self.fl_invert,
                 levels: livelli,
+                lengths: self.lengths_filter.clone(),
             };
             let nome = self.nome_vista_filtri(&da, &a, con_date);
             vista = Some((filtro, intervallo, nome));
@@ -594,6 +597,7 @@ impl App {
             time: self.time_check,
             from: self.range_text[0].clone(),
             to: self.range_text[1].clone(),
+            lengths: self.lengths_filter.clone(),
         }
     }
 
@@ -626,6 +630,7 @@ impl App {
                 time: true,
                 from: self.range_text[0].clone(),
                 to: self.range_text[1].clone(),
+                lengths: None,
             }
         } else {
             return None;

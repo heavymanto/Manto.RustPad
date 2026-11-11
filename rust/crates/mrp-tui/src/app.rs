@@ -336,6 +336,37 @@ fn spawn_filter_job(
     }
 }
 
+/// La passata delle lunghezze in corso: il canale col thread che conta, i byte gia' esaminati e il freno.
+struct LengthsJob {
+    /// Il risultato del thread: l'istogramma (per ogni lunghezza, quante righe).
+    rx: Receiver<Result<std::collections::HashMap<u64, u64>, SearchError>>,
+    /// Byte gia' esaminati, per la percentuale nella riga di stato.
+    progress: Arc<AtomicU64>,
+    /// Chiede al thread di fermarsi (lo fa chiudere il dialogo o cambiare documento).
+    cancel: Arc<AtomicBool>,
+    /// La lunghezza della fotografia quando la passata e' partita: il totale della percentuale.
+    len: u64,
+}
+
+/// Fa partire il thread del check dei tracciati: conta quante righe hanno ogni lunghezza di contenuto
+/// (una lettura sequenziale sulla fotografia, il meccanismo della ricerca: cancel e progress condivisi).
+fn spawn_lengths_job(snap: Snapshot, cancel: &Arc<AtomicBool>, progress: &Arc<AtomicU64>) -> LengthsJob {
+    let (tx, rx) = mpsc::channel();
+    let cancel_thread = Arc::clone(cancel);
+    let progress_thread = Arc::clone(progress);
+    let len = snap.len();
+    std::thread::spawn(move || {
+        let esito = snap.count_lengths(&cancel_thread, &progress_thread);
+        let _ = tx.send(esito);
+    });
+    LengthsJob {
+        rx,
+        progress: Arc::clone(progress),
+        cancel: Arc::clone(cancel),
+        len,
+    }
+}
+
 /// Configurazione di partenza dell'app (i test la costruiscono a mano, il binario la ricava da argomenti e profilo).
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -870,6 +901,13 @@ pub struct App {
     fl_mode: Mode,
     fl_case: bool,
     fl_invert: bool,
+    /// Il filtro per lunghezza del check dei tracciati (Alt+H): le lunghezze ammesse, in byte di contenuto.
+    /// None: nessun filtro. Vive fuori dalla finestra Filtri perche' ha il suo dialogo (l'istogramma spuntabile),
+    /// ma si compone con le altre condizioni quando la vista si costruisce.
+    lengths_filter: Option<std::collections::HashSet<u64>>,
+    /// L'istogramma delle lunghezze: la passata in background del check dei tracciati (vedi lengths_tick).
+    lengths_job: Option<LengthsJob>,
+    lengths_hist: Option<Arc<Vec<(u64, u64)>>>,
     /// Le condizioni dell'ultima volta che la finestra Filtri e' stata confermata: la finestra le ripropone, e una vista filtrata le
     /// mostra nella barra di stato (sono quelle che l'hanno fatta).
     last_filters: Option<FilterConditions>,
@@ -1128,6 +1166,9 @@ impl App {
             fl_mode: Mode::Text,
             fl_case: false,
             fl_invert: false,
+            lengths_filter: None,
+            lengths_job: None,
+            lengths_hist: None,
             last_filters: None,
             refilter: None,
             job_conditions: None,
@@ -5274,9 +5315,11 @@ impl App {
             pattern: Some(pattern),
             invert: self.find_invert,
             levels: [false; 4],
+        lengths: None,
         };
         let condizioni = FilterConditions {
             levels: [false; 4],
+        lengths: None,
             text: testo.to_string(),
             mode: self.search_mode,
             case: self.search_case,

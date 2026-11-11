@@ -90,6 +90,7 @@ fn filtro(testo: Option<&str>, modo: Mode, invert: bool, livelli: [bool; 4]) -> 
         pattern: testo.map(|t| Pattern::new(t, modo, true).unwrap()),
         invert,
         levels: livelli,
+        lengths: None,
     }
 }
 

@@ -42,6 +42,7 @@ impl App {
                 time: self.window.is_some(),
                 from: self.range_text[0].clone(),
                 to: self.range_text[1].clone(),
+                lengths: None,
             },
         };
         c.text = testo;
