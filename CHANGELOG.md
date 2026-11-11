@@ -4,6 +4,9 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+### Added
+- **The record length check (`Alt+H`)** (terminal and window): a background pass counts how many lines have each content length (bytes, line ending and trailing `\r` excluded) and a checkable histogram lists them by count — the dominant formats first, the anomalies at the bottom, where the eye catches them. `SPACE` ticks, `A` inverts (the shortest way to "only the anomalous ones"), `Enter` applies, `Esc` cancels; all ticked means no filter, a few mean a read-only view with only those lines, and inside a filtered view the new lengths are redone from the original file together with the view's other conditions (the tab is named after them: `lengths: 120 B`). The pass reports its progress while counting, can be cancelled, and sees unsaved edits. In the Log menu, seven languages, a line in the `F1` help.
+
 ## [0.1.4] - 2026-11-09
 
 ### Changed

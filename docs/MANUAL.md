@@ -365,6 +365,14 @@ status row as the terminal.
   system temporary folder and is deleted when the tab closes or the program exits.
 - **Auto tests:** yes (`filter_view`, `filters_app`).
 
+#### F-04 Record length check (`Alt+H`)
+- **Entry:** `Alt+H`; window: Log > Record length check. In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
+- **What it does:** a background pass over the document counts how many lines have each content length (bytes, without the line ending and a trailing `\r`); the dialog lists them **by count — the dominant formats first, the anomalies at the bottom** — so a fixed-format file shows its record length and its outliers at a glance. Tick the lengths to see: all ticked means no filter, a few mean a new **read-only tab** with only those lines (named `lengths: 120 B`), composed with the other conditions of a filtered view when opened inside one (they are redone from the original file, together). The selection starts from the filter in force, or all ticked.
+- **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once; `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
+- **Must not:** modify the original. With nothing ticked: "no line matches", no tab. With no lines at all: "nothing to count". `Esc` leaves everything as it was, and the aborted selection is not remembered.
+- **Limits and edge cases:** the lengths are content bytes: CRLF lines count without the `\r`, the last line without a newline is a line, an empty line has length 0. The pass sees unsaved edits (it reads the snapshot) and is cancelled by closing (it restarts at the next opening). In the window the boxes are clickable and Invert / OK / Cancel are buttons.
+- **Auto tests:** yes (`lengths` in the core, `lengths_app`, `lengths_view`).
+
 ### 2.4 Encodings and line endings
 
 #### E-01 Encoding: detection and change (`F9`)
@@ -705,6 +713,7 @@ One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 
 | F-01 | Find | NOTE: raw regex error text | NOTE: label says "(exact bytes)" | yes |
 | F-02 | Replace | NOTE: switches to EDIT silently; hint cut | DEFECT: after the preview, Enter does not apply; only the button does | yes |
 | F-03 | Line filter | NOTE: raw regex error text | OK | yes |
+| F-04 | Record length check | OK | not tested | yes |
 | E-01 | Encoding: detection and change | OK: 28/28 explicit, 21/21 fixed with F9; NOTE: a guess is not flagged | not tested | yes |
 | E-02 | Save as with another encoding | OK: 17/17 byte-exact; NOTE: pre-filled path with `\\?\` | not tested | yes |
 | E-03 | Editing keeps encoding and line ending | OK (CRLF defect fixed) | not tested | yes |
