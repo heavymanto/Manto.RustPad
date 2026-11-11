@@ -102,9 +102,16 @@ status row as the terminal.
 - **What it does:** moves the cursor and the view; `Ctrl+Home`/`End` jump to the start/end of the file.
 - **Expected response:** the position in the status row follows; the view scrolls when the cursor leaves the screen.
 - **Must not:** read the whole file to move; stall on a very long line.
+- **The horizontal scrollbar (added 2026-11-11):** a line wider than the window shows a bar under the text (one row,
+  only when needed: a line wider than the window, or already scrolled) with a thumb that says where the window sits on
+  the widest visible line — before, the only way to scroll was walking the cursor through the line. Click or drag the
+  thumb (it follows the pointer as grabbed; a click on the track centers it there): the window moves and the cursor
+  stays where it is (the next cursor move recentres the view on it). In the window, `Shift`+wheel scrolls too, eight
+  cells per notch. `«` and `»` still mark the cut sides of a line; for a line beyond the reading limit the world of the
+  bar is an honest lower bound that grows as you scroll.
 - **Limits and edge cases:** on a file still being indexed, jumps work by byte and percentage, not by line (N-04); jumping pauses
   the indexer's disk reads for 400 ms (C3).
-- **Auto tests:** yes (`app_view`, `app_jump`, `app_mouse`).
+- **Auto tests:** yes (`app_view`, `app_jump`, `app_mouse`, `hbar`; in the window: `barre`).
 
 #### N-04 Go to (`F5` / `Ctrl+G`)
 
@@ -366,7 +373,7 @@ status row as the terminal.
 - **Auto tests:** yes (`filter_view`, `filters_app`).
 
 #### F-04 Record length check (`Alt+H`)
-- **Entry:** `Alt+H`; window: Log > Record length check. In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
+- **Entry:** `Alt+H`; window: Edit > Record length check (in the Find / Go to / Replace group). In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
 - **What it does:** a background pass over the document counts how many lines have each content length (bytes, without the line ending and a trailing `\r`); the dialog lists them **by count — the dominant formats first, the anomalies at the bottom** — so a fixed-format file shows its record length and its outliers at a glance. Tick the lengths to see: all ticked means no filter, a few mean a new **read-only tab** with only those lines (named `lengths: 120 B`), composed with the other conditions of a filtered view when opened inside one (they are redone from the original file, together). The selection starts from the filter in force, or all ticked.
 - **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once; `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
 - **Must not:** modify the original. With nothing ticked: "no line matches", no tab. With no lines at all: "nothing to count". `Esc` leaves everything as it was, and the aborted selection is not remembered.
