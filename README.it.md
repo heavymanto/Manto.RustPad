@@ -176,7 +176,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ## Documentazione
 
-- [docs/MANUAL.md](docs/MANUAL.md) — il manuale delle funzionalita' in dettaglio
+- [docs/MANUAL.it.md](docs/MANUAL.it.md) — il manuale delle funzionalita' in dettaglio, in italiano
 - [CHANGELOG.md](CHANGELOG.md) — cosa e' cambiato
 - [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilita' in privato
 
