@@ -39,9 +39,9 @@ L'idea nasce da un fastidio che conosco bene: esaminare log di grandi dimensioni
 
 <p align="justify"><strong>Manto.RustPad</strong> apre il file memory-mappato e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi <em>Modifica</em> lo stesso file diventa editabile: nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.</p>
 
-## I cinque pilastri
+## I sei pilastri
 
-Cinque idee ben note, applicate fino in fondo:
+Sei idee ben note, applicate fino in fondo:
 
 1. **Il file sta su disco, non in RAM.** E' memory-mappato in sola lettura: il kernel consegna le pagine che l'editor chiede, quando le chiede (come `less`). L'indice delle righe si costruisce in background e si mette in pausa quando l'utente salta, per non contendere il disco. Su un file da 100 GB l'editor occupa decine di MiB.
 
@@ -52,6 +52,8 @@ Cinque idee ben note, applicate fino in fondo:
 4. **La timeline e' una mappa proporzionale del file.** Una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello: le zone dense si vedono prima di arrivarci con lo scroll. I periodi si trovano per ricerca binaria, senza leggere il file.
 
 5. **Multi uso, multi piattaforma.** Si usa in un terminale (per esempio in SSH) senza bisogno dell'interfaccia grafica, oppure in finestra sul desktop. Gira su Windows, Linux e macOS.
+
+6. **Il check dei tracciati trova le anomalie a colpo d'occhio.** `Alt+H` conta quante righe hanno ogni lunghezza (byte di contenuto, a-capo escluso) e le mette in un istogramma spuntabile: i formati dominanti prima, le righe fuori misura in fondo, dove l'occhio le becca. Spunta le lunghezze da vedere e la vista si rifà con solo quelle righe: in un file a record fissi le anomalie saltano fuori da sole.
 ## POC con i tool noti
 
 Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:

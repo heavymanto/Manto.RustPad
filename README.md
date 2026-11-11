@@ -41,7 +41,7 @@ I wrote it because I could not find a tool that did all of these things together
 
 ## How it's built
 
-Four well-known decisions, applied all the way:
+Five well-known decisions, applied all the way:
 
 1. **The file stays on disk, not in RAM.** It is memory-mapped read-only: the kernel hands over the pages the editor asks for, when it asks for them (the way `less` works). The line index builds in the background and pauses when the user jumps, so it does not compete for the disk. On a 100 GB file the editor uses tens of MiB.
 
@@ -50,6 +50,8 @@ Four well-known decisions, applied all the way:
 3. **The levels show before you read them.** ERROR red, WARN yellow, INFO green, dates and times in colour: preattentive colour is processed by the eye before the line is read (Healey's work on preattentive processing). A spike of errors in a log of millions of lines is noticed as soon as it enters the screen.
 
 4. **The timeline is a proportional map of the file.** A column of periods (minute, ten minutes, hour, day), each as tall as its volume of lines and split by level: the dense zones show before you reach them by scrolling. The periods are found by binary search, without reading the file.
+
+5. **The record length check spots the outliers at a glance.** `Alt+H` counts how many lines have each content length (bytes, line ending excluded) and lays them out in a checkable histogram: the dominant formats first, the out-of-size lines at the bottom, where the eye catches them. Tick the lengths to see and the view is remade with only those lines — in a fixed-record file, the anomalies stand out on their own.
 
 ## Measurements
 
