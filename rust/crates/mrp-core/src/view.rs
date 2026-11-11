@@ -67,6 +67,10 @@ pub struct Row {
     pub more_left: bool,
     /// La riga ha piu' di `hscroll + cols` celle, oppure e' stata tagliata (continua nella riga successiva).
     pub more_right: bool,
+    /// Le celle contate della riga, fino al limite di lettura: la larghezza vera quando la lettura ha coperto la
+    /// riga intera; oltre il limite (righe piu' lunghe di ~4 finestre in byte) e' un limite inferiore onesto, che
+    /// cresce mentre si scorre. Lo legge la barra orizzontale.
+    pub width: usize,
     /// Vero se `start` e' l'inizio di una riga vera (la prima riga della camminata: `top == 0` o l'unita'
     /// prima e' un a-capo).
     pub starts_line: bool,
@@ -133,10 +137,8 @@ pub fn rows_from(
                     testo.push_str(&" ".repeat(fino - da));
                 }
             }
-            // lettura troncata: oltre la finestra non serve piu' nulla (more_right e' gia' vero)
-            if troncato && colonna > 0 && colonna >= hscroll + cols {
-                break;
-            }
+            // niente interruzione oltre la finestra: il tetto resta la lettura (il limite di sicurezza in
+            // byte), e le celle contate fino in fondo servono alla barra orizzontale (`Row::width`)
         }
         // il segno di fine riga: solo dove la riga finisce davvero (un a-capo, non un taglio) e la sua cella e' nella finestra
         if opts.special && a_capo && !troncato && colonna >= hscroll && colonna < hscroll + cols {
@@ -149,6 +151,7 @@ pub fn rows_from(
             more_left: hscroll > 0 && colonna > 0,
             more_right: tagliata || troncato || colonna > hscroll + cols,
             starts_line,
+            width: colonna,
         });
         match prossima {
             Some(n) => {
@@ -175,6 +178,7 @@ pub fn rows_from(
             more_left: false,
             more_right: false,
             starts_line: true,
+            width: 0,
         });
     }
     rows

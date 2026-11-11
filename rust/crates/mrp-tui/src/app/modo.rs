@@ -121,7 +121,9 @@ impl App {
         {
             return false;
         }
-        let riga = self.top_offset() + u16::try_from(self.text_rows()).unwrap_or(u16::MAX);
+        // il modo sta a destra della riga di stato (che con la barra orizzontale e' una riga piu' in basso
+        // della fine del testo: la riga giusta e' sempre l'ultima prima dei tasti)
+        let riga = self.h.saturating_sub(2);
         let larghezza = u16::try_from(self.mode_text().chars().count()).unwrap_or(u16::MAX);
         let da = self.w.saturating_sub(larghezza + 1);
         if m.row != riga || m.column < da || m.column >= self.w.saturating_sub(1) {

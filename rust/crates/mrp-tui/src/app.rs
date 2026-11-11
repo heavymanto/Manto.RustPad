@@ -4,6 +4,7 @@
 mod avanzamento;
 mod da_selezione;
 pub mod dialogs;
+mod hbar;
 mod lunghezze;
 mod modo;
 mod tempo;
@@ -794,6 +795,12 @@ pub struct App {
     want_col: u64,
     /// La prima colonna visibile (scorrimento orizzontale).
     hscroll: usize,
+    /// La larghezza (celle) della riga piu' larga dell'ultimo disegno (`Row::width`): il mondo della barra orizzontale
+    /// (vedi `app/hbar.rs`); per una riga oltre il limite di lettura e' un limite inferiore onesto.
+    hbar_max: usize,
+    /// La presa del pollice della barra orizzontale mentre si trascina: quanto il clic sta dentro il pollice (celle
+    /// della pista); `None`: non si sta trascinando.
+    hbar_grab: Option<usize>,
     /// Dimensioni dello schermo in celle.
     w: u16,
     h: u16,
@@ -1116,6 +1123,8 @@ impl App {
             cursor: 0,
             want_col: 0,
             hscroll: 0,
+            hbar_max: 0,
+            hbar_grab: None,
             w: 80,
             h: 24,
             edit: false,
@@ -1438,6 +1447,10 @@ impl App {
         }
         // il pannello della timeline ha i suoi clic: il testo non li vede
         if self.timeline_panel_mouse(m) {
+            return;
+        }
+        // la barra orizzontale ha i suoi clic e i suoi trascinamenti
+        if self.hbar_mouse(&m) {
             return;
         }
         match m.kind {
@@ -4580,12 +4593,14 @@ impl App {
     // ----- geometria dello schermo -----
 
     /// Le righe di testo dello schermo (con la cornice le altre due sono lo stato e la barra dei tasti; senza, sono tutte).
-    fn text_rows(&self) -> usize {
-        if self.chrome {
+    pub(crate) fn text_rows(&self) -> usize {
+        let righe = if self.chrome {
             (self.h as usize).saturating_sub(2)
         } else {
             self.h as usize
-        }
+        };
+        // la barra orizzontale, quando serve, prende l'ultima riga del testo (vedi `app/hbar.rs`)
+        righe.saturating_sub(usize::from(self.chrome && self.hbar_needed()))
     }
 
     /// La riga dello schermo da cui comincia il testo: sempre la prima (il nome del file e il modo stanno nella riga di stato).

@@ -96,6 +96,10 @@ pub struct Finestra {
     testi: Option<TestiStato>,
     /// Dove si e' afferrato il pollice della scrollbar (dalla sua cima), mentre si preme sulla pista.
     presa_scroll: Option<f32>,
+    /// Il rettangolo della pista della barra orizzontale nell'ultimo disegno (`None`: non serve, o cornice del terminale).
+    rettangolo_hbar: Option<Rect>,
+    /// Dove si e' afferrato il pollice della barra orizzontale (dalla sua sinistra), mentre si preme sulla pista.
+    presa_hbar: Option<f32>,
     /// I pulsanti della barra degli strumenti nell'ultimo disegno, nell'ordine di disegno (vuoti: l'`App` ha la
     /// cornice del terminale).
     pulsanti: Vec<Pulsante>,
@@ -203,6 +207,8 @@ impl Finestra {
             timeline: crate::timeline::StatoTimeline::default(),
             testi: None,
             presa_scroll: None,
+            rettangolo_hbar: None,
+            presa_hbar: None,
             pulsanti: Vec::new(),
             rettangolo_strumenti: None,
             pulsanti_salti_v: Vec::new(),
@@ -544,11 +550,21 @@ impl Finestra {
                             (su, giu)
                         }
                     };
-                    for _ in 0..su {
-                        self.rotella(MouseEventKind::ScrollUp);
-                    }
-                    for _ in 0..giu {
-                        self.rotella(MouseEventKind::ScrollDown);
+                    // Maiusc+rotella: la finestra orizzontale scorre (la barra sotto il testo)
+                    if modifiers.shift {
+                        if su > 0 {
+                            self.ws.active_mut().hbar_wheel(false, su as usize);
+                        }
+                        if giu > 0 {
+                            self.ws.active_mut().hbar_wheel(true, giu as usize);
+                        }
+                    } else {
+                        for _ in 0..su {
+                            self.rotella(MouseEventKind::ScrollUp);
+                        }
+                        for _ in 0..giu {
+                            self.rotella(MouseEventKind::ScrollDown);
+                        }
                     }
                     tocco = tocco || su + giu > 0;
                 }
@@ -1010,6 +1026,73 @@ impl Finestra {
         );
     }
 
+    /// La barra orizzontale (BUG 1 dell'utente, 11 nov 2026): sotto il testo, sopra la barra di stato, la pista col
+    /// pollice che dice dov'e' la finestra sulla riga piu' larga. Come la scrollbar: premere e trascinare muove la
+    /// finestra (il pollice segue il puntatore per come lo si e' afferrato; un clic sulla pista lo centra), e la
+    /// Maiusc+rotella la scorre. C'e' solo quando una riga e' piu' larga della finestra (o si e' gia' scorsi).
+    fn hbar(&mut self, ctx: &Context) {
+        self.rettangolo_hbar = None;
+        if !self.ws.active().hbar_needed() {
+            return;
+        }
+        self.rettangolo_hbar = Some(
+            egui::TopBottomPanel::bottom("scorrimento_orizzontale")
+                .exact_height(14.0)
+                .frame(Frame::NONE)
+                .show(ctx, |ui| {
+                    let pista = ui.max_rect();
+                    let (sinistra, largo) = barre::pollice(
+                        self.ws.active().hscroll_info(),
+                        pista.width(),
+                        POLLICE_MINIMO,
+                    );
+                    let pollice = Rect::from_min_size(
+                        Pos2::new(pista.min.x + sinistra, pista.min.y),
+                        Vec2::new(largo, pista.height()),
+                    );
+                    // la pista e' un colore tenue del tema; il pollice e' piu' marcato, e ancora di piu' al
+                    // passaggio o mentre lo si trascina (come la scrollbar)
+                    let tenue = ui.style().visuals.faint_bg_color;
+                    let marcato = ui.style().visuals.weak_text_color();
+                    let vivo = ui.style().visuals.strong_text_color();
+                    ui.painter().rect_filled(pista, 0.0, tenue);
+                    let risposta =
+                        ui.interact(pista, ui.id().with("pista_o"), Sense::click_and_drag());
+                    let colore = if risposta.hovered() || risposta.dragged() {
+                        vivo
+                    } else {
+                        marcato
+                    };
+                    ui.painter().rect_filled(pollice, 4.0, colore);
+                    // dove si e' afferrato il pollice si decide quando si preme e resta per tutto il trascinamento;
+                    // fuori dal pollice, il pollice si centra sul puntatore
+                    if risposta.is_pointer_button_down_on() && self.presa_hbar.is_none() {
+                        self.presa_hbar = Some(match risposta.interact_pointer_pos() {
+                            Some(p) if pollice.contains(p) => p.x - (pista.min.x + sinistra),
+                            _ => largo / 2.0,
+                        });
+                    }
+                    if risposta.is_pointer_button_down_on() || risposta.clicked() {
+                        if let (Some(p), Some(presa)) =
+                            (risposta.interact_pointer_pos(), self.presa_hbar)
+                        {
+                            let f = barre::frazione_da_posizione(
+                                p.x - pista.min.x,
+                                presa,
+                                pista.width(),
+                            );
+                            self.ws.active_mut().hscroll_to_fraction(f);
+                        }
+                    }
+                    if !risposta.is_pointer_button_down_on() {
+                        self.presa_hbar = None;
+                    }
+                    pista
+                })
+                .inner,
+        );
+    }
+
     /// Cambia il corpo del testo: `Cmd::ZoomIn`, `ZoomOut` o `ZoomReset`.
     fn zoom(&mut self, a: Cmd) {
         self.corpo = match a {
@@ -1075,6 +1158,11 @@ impl Finestra {
     /// Il rettangolo della pista della scrollbar nell'ultimo disegno (per i test); `None` se non c'e'.
     pub fn scrollbar_rect(&self) -> Option<Rect> {
         self.rettangolo_scroll
+    }
+
+    /// Il rettangolo della pista della barra orizzontale nell'ultimo disegno (per i test); `None` se non c'e'.
+    pub fn hbar_rect(&self) -> Option<Rect> {
+        self.rettangolo_hbar
     }
 
     /// I testi dell'ultima barra di stato disegnata (per i test); `None` se non c'e'.
@@ -1354,6 +1442,7 @@ impl Finestra {
         if !self.ws.active().chrome() {
             self.barra_stato(ctx);
             self.scrollbar(ctx);
+            self.hbar(ctx);
             // la timeline sta a sinistra della scrollbar; le tacche le cerca un thread, finche' lavora si ridisegna
             if self.ws.active_mut().timeline_tick() {
                 ctx.request_repaint_after(Duration::from_millis(150));
@@ -1366,6 +1455,8 @@ impl Finestra {
             self.rettangolo_scroll = None;
             self.testi = None;
             self.presa_scroll = None;
+            self.rettangolo_hbar = None;
+            self.presa_hbar = None;
         }
         egui::CentralPanel::default()
             .frame(Frame::NONE.fill(paint::colore(self.fondo)))

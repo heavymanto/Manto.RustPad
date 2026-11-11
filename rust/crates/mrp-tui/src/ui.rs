@@ -41,7 +41,8 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     }
     draw_text(f, app, &t, w, h);
     if app.chrome() {
-        draw_timeline(f, app, &t, h);
+        draw_timeline(f, app, &t);
+        draw_hbar(f, app, &t, h);
         draw_status(f, app, &t, w, h);
         draw_footer(f, app, &t, w, h);
     }
@@ -55,14 +56,11 @@ pub fn draw(f: &mut Frame, app: &mut App) {
 /// La parte trovata dalla ricerca si disegna con lo stile `found` e la selezione con lo stile `selection`,
 /// che vince sul trovato (in entrambi i casi solo le celle visibili, mai il gutter). Senza documento (un
 /// salvataggio lo tiene nel suo thread) ridisegna le righe dell'ultimo disegno.
-fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
-    // la riga da cui comincia il testo e quante ne sono (con la cornice le altre due sono stato e tasti)
+fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, _h: u16) {
+    // la riga da cui comincia il testo e quante ne sono (con la cornice le altre due sono stato e tasti; la barra
+    // orizzontale, quando serve, ne prende una — la decide il disegno di prima, `app/hbar.rs`)
     let sopra = app.top_offset();
-    let text_rows = if app.chrome() {
-        (h as usize).saturating_sub(2)
-    } else {
-        h as usize
-    };
+    let text_rows = app.text_rows();
     let gutter_w = app.gutter_w();
     // la timeline prende una colonna di schermo (a sinistra o a destra): il testo sta nel resto, da `x0`
     let (x0, larghezza) = (app.text_x0(), w - app.timeline_panel_w());
@@ -79,6 +77,9 @@ fn draw_text(f: &mut Frame, app: &mut App, t: &Theme, w: u16, h: u16) {
         ),
         None => (Vec::new(), false),
     };
+    // la barra orizzontale: la larghezza della riga piu' larga di questo disegno (`Row::width` — per una riga oltre
+    // il limite di lettura e' un limite inferiore onesto) dice se serve e quanto e' largo il suo mondo
+    app.note_hbar(rows.iter().map(|r| r.width).max().unwrap_or(0));
     // La riga e la colonna del cursore, per il cursore del terminale. In modalita' colonna la colonna
     // e' quella virtuale (del blocco, o del cursore), anche oltre la fine della riga.
     let cursor_row = app.cursor_row();
@@ -286,7 +287,7 @@ fn in_colonne(testo: &str, larghezza: usize) -> String {
 /// fra i livelli) o il messaggio che dice perche' non ci sono. Il filetto sta dal lato del testo ed e' in risalto dove passa il
 /// tratto di file che si legge. La barra e' tutta di blocchi pieni (`█`): a distinguere i livelli e' il colore; fioco (`░`) restano
 /// solo le celle dei livelli non ancora contati, cosi' si vede l'avanzamento del giro.
-fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
+fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme) {
     let larghezza = app.timeline_panel_w();
     if larghezza == 0 {
         return;
@@ -296,7 +297,8 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
     };
     let x = app.timeline_panel_x();
     let sopra = app.top_offset();
-    let alte = usize::from(h).saturating_sub(2);
+    // alto come il testo: con la barra orizzontale il testo finisce una riga prima
+    let alte = app.text_rows();
     let dentro = usize::from(larghezza) - 1;
     let titolo = app.timeline_panel_title();
     // dei colori dei livelli si tiene il primo piano: lo sfondo e' quello dello schermo
@@ -379,6 +381,29 @@ fn draw_timeline(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
 
 /// Gli spazi che restano almeno fra la sinistra e la destra della riga di stato.
 const GAP_STATO: usize = 3;
+
+/// Riga h-3, quando serve (vedi `app/hbar.rs`): la barra orizzontale — la pista e il pollice dicono dov'e' la finestra
+/// sulla riga piu' larga. Il pollice copre la parte di riga che si vede (i blocchi pieni come le barre della timeline,
+/// il colore della selezione); la pista e' il colore dei "c'e' altro" (gli stessi « » del testo). Il clic e il
+/// trascinamento li prende `App::hbar_mouse`.
+fn draw_hbar(f: &mut Frame, app: &mut App, t: &Theme, h: u16) {
+    let Some((x0, cells)) = app.hbar_geometry() else {
+        return;
+    };
+    let (inizio, pollice) = app.hbar_pollice(cells);
+    let mut spans: Vec<Span<'static>> = Vec::with_capacity(cells);
+    for i in 0..cells {
+        spans.push(if i >= inizio && i < inizio + pollice {
+            Span::styled("█", t.selected)
+        } else {
+            Span::styled("░", t.more)
+        });
+    }
+    f.render_widget(
+        Paragraph::new(Line::from(spans)),
+        Rect::new(x0, h - 3, cells as u16, 1),
+    );
+}
 
 /// Riga h-2: a sinistra il messaggio transitorio (con uno spazio davanti) o la posizione del cursore; a destra, separati
 /// da due spazi e con uno spazio finale: il lavoro in corso (`status.saving`, `status.searching` o `status.indexing` con la

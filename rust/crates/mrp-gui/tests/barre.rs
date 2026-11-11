@@ -502,3 +502,83 @@ fn the_wheel_moves_the_thumb_too() {
     assert!((f.app().scroll_info().start - 0.4).abs() < 0.01);
     let _ = std::fs::remove_file(p);
 }
+
+// ---- la barra orizzontale (BUG 1 dell'utente, 11 nov 2026) ----
+
+/// Una riga da 400 celle: piu' larga della griglia di qualunque finestra di prova, e dentro il limite
+/// di lettura (circa quattro finestre in byte): la larghezza e' esatta e il mondo della barra non cresce.
+fn riga_lunga() -> Vec<u8> {
+    let mut v = b"ab\n".to_vec();
+    v.extend(vec![b'x'; 400]);
+    v.extend(b"\ncd\n");
+    v
+}
+
+#[test]
+fn the_horizontal_bar_appears_only_when_a_line_is_wider_than_the_window() {
+    let (mut f, ctx, p) = finestra(&riga_lunga(), false);
+    disegna(&mut f, &ctx);
+    let hbar = f.hbar_rect().expect("la riga da 400 celle non entra");
+    // sta sopra la barra di stato, a sinistra della scrollbar, bassa come lei
+    let stato = f.barra_stato_rect().unwrap();
+    let vbar = f.scrollbar_rect().unwrap();
+    assert!(hbar.max.y <= stato.min.y + 0.5, "{hbar:?} {stato:?}");
+    assert!(hbar.max.x <= vbar.min.x + 0.5, "{hbar:?} {vbar:?}");
+    assert!(hbar.height() >= 8.0 && hbar.height() <= 20.0, "{hbar:?}");
+    // righe corte: niente barra; con la cornice del terminale nemmeno (la disegna l'App a celle)
+    let (mut g, ctx2, q) = finestra(b"uno\ndue\n", false);
+    disegna(&mut g, &ctx2);
+    assert!(g.hbar_rect().is_none());
+    let (mut h, ctx3, r) = finestra(&riga_lunga(), true);
+    disegna(&mut h, &ctx3);
+    assert!(h.hbar_rect().is_none());
+    let _ = std::fs::remove_file(p);
+    let _ = std::fs::remove_file(q);
+    let _ = std::fs::remove_file(r);
+}
+
+#[test]
+fn a_drag_on_the_horizontal_bar_moves_the_window() {
+    let (mut f, ctx, p) = finestra(&riga_lunga(), false);
+    disegna(&mut f, &ctx);
+    let barra = f.hbar_rect().unwrap();
+    // il pollice e' all'inizio: si afferra al centro e si trascina a destra di 200 px
+    let (sinistra, largo) = pollice(f.app().hscroll_info(), barra.width(), POLLICE_MINIMO);
+    let presa = Pos2::new(barra.min.x + sinistra + largo / 2.0, barra.center().y);
+    let arrivo = Pos2::new(presa.x + 200.0, presa.y);
+    giro(
+        &mut f,
+        &ctx,
+        vec![Event::PointerMoved(presa), pigia(presa, true)],
+    );
+    giro(&mut f, &ctx, vec![Event::PointerMoved(arrivo)]);
+    giro(&mut f, &ctx, vec![pigia(arrivo, false)]);
+    disegna(&mut f, &ctx);
+    let atteso = f64::from(sinistra + 200.0) / f64::from(barra.width());
+    let s = f.app().hscroll_info();
+    assert!(
+        (s.start - atteso).abs() < 0.01,
+        "start {} atteso {atteso}",
+        s.start
+    );
+    assert!(f.app().hscroll() > 0);
+    let _ = std::fs::remove_file(p);
+}
+
+#[test]
+fn shift_wheel_scrolls_the_window_horizontally() {
+    let (mut f, ctx, p) = finestra(&riga_lunga(), false);
+    disegna(&mut f, &ctx);
+    assert_eq!(f.app().hscroll(), 0);
+    giro(
+        &mut f,
+        &ctx,
+        vec![Event::MouseWheel {
+            unit: eframe::egui::MouseWheelUnit::Line,
+            delta: Vec2::new(0.0, -1.0),
+            modifiers: Modifiers::SHIFT,
+        }],
+    );
+    assert_eq!(f.app().hscroll(), 8, "uno scatto = 8 celle");
+    let _ = std::fs::remove_file(p);
+}
