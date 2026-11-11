@@ -242,6 +242,7 @@
   "lengths.hint": "SPACE toggles - A inverts - ENTER applies - ESC cancels",
   "lengths.none": "nothing to count (document without a file?)",
   "lengths.view_name": "lengths: {}",
+  "lengths.invert": "Invert",
   "help.tab.keys": "Keys",
   "help.tab.info": "Info",
   "help.info.version": "Version",

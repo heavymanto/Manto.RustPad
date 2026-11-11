@@ -243,6 +243,7 @@
   "lengths.hint": "ESPACO marca - A inverte - ENTER aplica - ESC cancela",
   "lengths.none": "nada a contar (documento sem arquivo?)",
   "lengths.view_name": "comprimentos: {}",
+  "lengths.invert": "Inverter",
   "help.tab.keys": "Teclas",
   "help.tab.info": "Info",
   "help.info.version": "Versão",

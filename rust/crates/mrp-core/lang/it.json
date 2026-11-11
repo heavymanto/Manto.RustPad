@@ -242,6 +242,7 @@
   "lengths.hint": "SPAZIO spunta · A inverti · INVIO applica · ESC annulla",
   "lengths.none": "niente da contare (documento senza file?)",
   "lengths.view_name": "lunghezze: {}",
+  "lengths.invert": "Inverti",
   "help.tab.keys": "Tasti",
   "help.tab.info": "Info",
   "help.info.version": "Versione",

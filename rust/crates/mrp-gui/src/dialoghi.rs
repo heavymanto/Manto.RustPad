@@ -151,11 +151,74 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
         | DialogView::TimeMask { title, .. }
         | DialogView::Time { title, .. }
         | DialogView::IndexOff { title, .. }
+        | DialogView::Lengths { title, .. }
         | DialogView::Saving { title, .. } => title.clone(),
     };
     // il rettangolo della finestra: lo danno le varianti (una per una), lo legge la fine
     let rect;
     match &vista {
+        // il check dei tracciati: le caselle delle lunghezze (il click spunta), l'inversione, OK e Annulla.
+        // Mentre la passata conta: la percentuale. La lista scorre se e' lunga.
+        DialogView::Lengths {
+            items,
+            progress,
+            hint,
+            ..
+        } => {
+            let t_inverti = ws.active().text("lengths.invert").to_string();
+            let t_none = ws.active().text("lengths.none").to_string();
+            rect = finestra(
+                ctx,
+                titolo.as_str(),
+                340.0,
+                &mut stato.chiudi,
+                &mut stato.chiusura_richiesta,
+                |ui| {
+                    if let Some(pct) = progress {
+                        ui.label(format!("{pct}%"));
+                    } else if items.is_empty() {
+                        ui.label(t_none.as_str());
+                    } else {
+                        // la barra: proporzionale al conteggio rispetto al massimo
+                        let massimo = items.iter().map(|&(_, n, _)| n).max().unwrap_or(1).max(1);
+                        ScrollArea::vertical()
+                            .scroll_source(
+                                egui::scroll_area::ScrollSource::SCROLL_BAR
+                                    | egui::scroll_area::ScrollSource::MOUSE_WHEEL,
+                            )
+                            .max_height(altezza * 0.6)
+                            .show(ui, |ui| {
+                                egui::Grid::new("lunghezze").num_columns(3).show(ui, |ui| {
+                                    for &(len, count, spuntata) in items {
+                                        let mut c = spuntata;
+                                        if ui.checkbox(&mut c, format!("{len} B")).changed() {
+                                            ws.active_mut().lengths_toggle_value(len);
+                                        }
+                                        ui.monospace(format!("{count:>12}"));
+                                        let quante =
+                                            ((count as usize * 14) / massimo as usize).min(14);
+                                        ui.label(RichText::new("#".repeat(quante)).weak());
+                                        ui.end_row();
+                                    }
+                                });
+                            });
+                    }
+                    ui.separator();
+                    ui.horizontal(|ui| {
+                        if ui.button(t_inverti.as_str()).clicked() {
+                            ws.active_mut().lengths_invert_pub();
+                        }
+                        if ui.button(t_ok.as_str()).clicked() {
+                            ws.active_mut().lengths_apply_pub();
+                        }
+                        if ui.button(t_cancel.as_str()).clicked() {
+                            ws.active_mut().lengths_cancel_pub();
+                        }
+                    });
+                    ui.label(RichText::new(hint.as_str()).small().weak());
+                },
+            );
+        }
         // l'aiuto: due tab (i tasti del programma, o chi e' il programma), la tabella in due colonne (il tasto in
         // monospace, la descrizione) in una lista che occupa al piu' il 70% dello schermo; sotto, il pulsante che chiude
         DialogView::Help { rows, info, .. } => {

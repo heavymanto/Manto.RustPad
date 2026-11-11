@@ -51,6 +51,13 @@ pub enum DialogView {
         rows: Vec<(String, String)>,
         info: Vec<(String, String)>,
     },
+    /// Il check dei tracciati: le lunghezze `(valore, conteggio, spuntata)` e, mentre la passata conta, la percentuale.
+    Lengths {
+        title: String,
+        hint: String,
+        items: Vec<(u64, u64, bool)>,
+        progress: Option<u8>,
+    },
     /// Un menu (tema, lingua, codifica): le voci, quella evidenziata e una nota (l'avviso sulle lingue tradotte da una IA).
     Menu {
         title: String,
@@ -250,7 +257,8 @@ impl App {
         matches!(
             self.dialog,
             Some(
-                DialogKind::Help
+                DialogKind::Lengths
+                    | DialogKind::Help
                     | DialogKind::Theme
                     | DialogKind::Lang
                     | DialogKind::Encoding
@@ -281,8 +289,21 @@ impl App {
         let cat = self.catalog();
         let t = |k: &str| cat.t(k).to_string();
         Some(match self.dialog? {
-            // Il check dei tracciati: ancora solo terminale (la finestra lo disegnern piu` avanti)
-            DialogKind::Lengths => return None,
+            DialogKind::Lengths => DialogView::Lengths {
+                title: t("lengths.title"),
+                hint: t("lengths.hint"),
+                items: self
+                    .lengths_hist()
+                    .map(|h| {
+                        h.iter()
+                            .map(|&(l, c)| (l, c, self.lengths_selection().contains(&l)))
+                            .collect()
+                    })
+                    .unwrap_or_default(),
+                progress: self
+                    .lengths_in_corso()
+                    .map(|(f, tot)| (f * 100 / tot.max(1)).min(100) as u8),
+            },
             DialogKind::Help => DialogView::Help {
                 title: t("help.title"),
                 rows: HELP_KEYS.iter().map(|k| dividi_aiuto(cat.t(k))).collect(),

@@ -243,6 +243,7 @@
   "lengths.hint": "スペース 選択 · A 反転 · Enter 適用 · Esc 取り消し",
   "lengths.none": "数えるものがない（ファイルのない文書？）",
   "lengths.view_name": "長さ: {}",
+  "lengths.invert": "反転",
   "help.tab.keys": "キー",
   "help.tab.info": "情報",
   "help.info.version": "バージョン",

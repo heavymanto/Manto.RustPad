@@ -176,3 +176,29 @@ impl App {
             .map(|j| (j.progress.load(std::sync::atomic::Ordering::Relaxed), j.len))
     }
 }
+
+impl App {
+    /// Spunta o toglie la lunghezza `len` (il click di una casella nella finestra).
+    pub fn lengths_toggle_value(&mut self, len: u64) {
+        if let Some(sel) = &mut self.lengths_checked {
+            if !sel.insert(len) {
+                sel.remove(&len);
+            }
+        }
+    }
+
+    /// Inverte la selezione (il pulsante della finestra).
+    pub fn lengths_invert_pub(&mut self) {
+        self.lengths_invert();
+    }
+
+    /// Invio: applica (il pulsante OK della finestra).
+    pub fn lengths_apply_pub(&mut self) {
+        self.lengths_apply();
+    }
+
+    /// Esc: chiude (il pulsante Annulla della finestra).
+    pub fn lengths_cancel_pub(&mut self) {
+        self.lengths_cancel();
+    }
+}

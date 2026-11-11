@@ -243,6 +243,7 @@
   "lengths.hint": "ESPACIO marca - A invierte - ENTER aplica - ESC cancela",
   "lengths.none": "nada que contar (¿documento sin archivo?)",
   "lengths.view_name": "longitudes: {}",
+  "lengths.invert": "Invertir",
   "help.tab.keys": "Teclas",
   "help.tab.info": "Info",
   "help.info.version": "Versión",

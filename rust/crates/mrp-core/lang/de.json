@@ -243,6 +243,7 @@
   "lengths.hint": "LEERTASTE markiert - A invertiert - ENTER übernimmt - ESC bricht ab",
   "lengths.none": "nichts zu zählen (Dokument ohne Datei?)",
   "lengths.view_name": "Längen: {}",
+  "lengths.invert": "Umkehren",
   "help.tab.keys": "Tasten",
   "help.tab.info": "Info",
   "help.info.version": "Version",

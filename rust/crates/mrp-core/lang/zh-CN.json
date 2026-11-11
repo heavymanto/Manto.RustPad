@@ -243,6 +243,7 @@
   "lengths.hint": "空格 勾选 · A 反选 · 回车 应用 · Esc 取消",
   "lengths.none": "无可计数（无文件的文档？）",
   "lengths.view_name": "长度: {}",
+  "lengths.invert": "反选",
   "help.tab.keys": "按键",
   "help.tab.info": "信息",
   "help.info.version": "版本",
