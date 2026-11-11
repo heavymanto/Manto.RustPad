@@ -60,6 +60,8 @@ pub fn glifo(icona: &str) -> &'static str {
         "time_filter" => "⏷",
         // la timeline ha l'orologio
         "timeline" => "🕒",
+        // il check dei tracciati ha il righello: le lunghezze delle righe
+        "lengths" => "📏",
         "calendar" => "📅",
         _ => "?",
     }

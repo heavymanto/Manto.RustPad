@@ -137,6 +137,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::TimeMask, Some(k(KeyCode::Char('o'), ALT)), "Alt+O"),
         (Cmd::TimeFilter, None, ""),
         (Cmd::Timeline, Some(k(KeyCode::Char('b'), ALT)), "Alt+B"),
+        (Cmd::Lengths, Some(k(KeyCode::Char('h'), ALT)), "Alt+H"),
         (Cmd::LineIndex, Some(k(KeyCode::Char('x'), ALT)), "Alt+X"),
         (Cmd::Revert, Some(k(KeyCode::Char('r'), CTRL)), "Ctrl+R"),
     ];

@@ -62,6 +62,7 @@ fn every_icon_of_the_registry_has_its_glyph_and_they_are_all_different() {
         ("time_mask", "🕘"),
         ("time_filter", "⏷"),
         ("timeline", "🕒"),
+        ("lengths", "📏"),
         ("line_index", "☰"),
         ("revert", "🗑"),
     ];
