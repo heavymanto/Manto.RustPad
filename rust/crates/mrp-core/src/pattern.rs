@@ -600,7 +600,9 @@ impl Snapshot {
                 if fine_contenuto > riga_da && dati[fine_contenuto - 1] == b'\r' {
                     fine_contenuto -= 1;
                 }
-                *conteggio.entry((fine_contenuto - riga_da) as u64).or_insert(0) += 1;
+                *conteggio
+                    .entry((fine_contenuto - riga_da) as u64)
+                    .or_insert(0) += 1;
                 riga_da = riga_fine + 1;
             }
             progress.fetch_add(fine - pos, Ordering::Relaxed);

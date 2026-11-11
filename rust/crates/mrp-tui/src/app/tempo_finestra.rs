@@ -56,7 +56,7 @@ pub struct FilterConditions {
 
 impl FilterConditions {
     /// Nessuna condizione: il file si vede intero.
-    fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         !self.levels.contains(&true) && self.text.is_empty() && !self.has_time()
     }
 

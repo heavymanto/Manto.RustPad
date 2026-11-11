@@ -643,12 +643,12 @@ impl App {
             pattern: None,
             invert: false,
             levels: livelli,
-        lengths: None,
+            lengths: None,
         };
         let con_date = self.window.is_some();
         let condizioni = FilterConditions {
             levels: livelli,
-        lengths: None,
+            lengths: None,
             text: String::new(),
             mode: Mode::Text,
             case: false,

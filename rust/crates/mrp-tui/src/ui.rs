@@ -777,6 +777,70 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
         // Il menu delle codifiche: la lista e' quella di `Encoding::all()` (nomi canonici) e scorre:
         // la finestra mostra al piu' quante righe stanno nello schermo meno bordo e suggerimento, e
         // tiene sempre visibile la voce scelta (evidenziata come negli altri menu).
+        // Il check dei tracciati: l'istogramma spuntabile delle lunghezze. La lista scorre come le codifiche
+        // (tiene visibile la voce scelta); ogni riga: la casella, la lunghezza, la barra proporzionale al conteggio,
+        // il conteggio. Mentre la passata gira: la percentuale. Sotto, i tasti.
+        DialogKind::Lengths => {
+            let selezione = app.menu_index().unwrap_or(0);
+            if let Some((fatti, totale)) = app.lengths_in_corso() {
+                let pct = (fatti * 100 / totale.max(1)).min(100) as u8;
+                ContenutoDialogo {
+                    titolo: cat.t("lengths.title").to_string(),
+                    righe: vec![
+                        (format!("{} {}%", cat.t("lengths.counting"), pct), t.dialog),
+                        (cat.t("lengths.hint").to_string(), t.hint),
+                    ],
+                    cursore: None,
+                }
+            } else if let Some(hist) = app.lengths_hist() {
+                let selezionato = app.lengths_selection();
+                let altezza = (h as usize).saturating_sub(3);
+                let quante = hist.len().min(altezza);
+                let prima = if hist.len() > altezza {
+                    selezione
+                        .saturating_sub(altezza.saturating_sub(1))
+                        .min(hist.len() - quante)
+                } else {
+                    0
+                };
+                let massimo = hist.first().map(|&(_, n)| n).unwrap_or(1).max(1);
+                let mut righe: Vec<(String, Style)> = hist[prima..prima + quante]
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &(lunghezza, conteggio))| {
+                        let stile = if prima + i == selezione {
+                            t.selected
+                        } else {
+                            t.dialog
+                        };
+                        let casella = if selezionato.contains(&lunghezza) {
+                            "[x]"
+                        } else {
+                            "[ ]"
+                        };
+                        // la barra: 20 celle proporzionali al conteggio rispetto al massimo
+                        let piene = ((conteggio as usize * 20) / massimo as usize).min(20);
+                        let barra = format!("{:<20}", "#".repeat(piene));
+                        (
+                            format!("{casella} {lunghezza:>6} B {barra} {conteggio:>12}"),
+                            stile,
+                        )
+                    })
+                    .collect();
+                righe.push((cat.t("lengths.hint").to_string(), t.hint));
+                ContenutoDialogo {
+                    titolo: cat.t("lengths.title").to_string(),
+                    righe,
+                    cursore: None,
+                }
+            } else {
+                ContenutoDialogo {
+                    titolo: cat.t("lengths.title").to_string(),
+                    righe: vec![(cat.t("lengths.none").to_string(), t.hint)],
+                    cursore: None,
+                }
+            }
+        }
         DialogKind::Encoding => {
             let selezione = app.menu_index().unwrap_or(0);
             let tutte = Encoding::all();

@@ -281,6 +281,8 @@ impl App {
         let cat = self.catalog();
         let t = |k: &str| cat.t(k).to_string();
         Some(match self.dialog? {
+            // Il check dei tracciati: ancora solo terminale (la finestra lo disegnern piu` avanti)
+            DialogKind::Lengths => return None,
             DialogKind::Help => DialogView::Help {
                 title: t("help.title"),
                 rows: HELP_KEYS.iter().map(|k| dividi_aiuto(cat.t(k))).collect(),

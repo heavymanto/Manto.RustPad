@@ -4,6 +4,7 @@
 mod avanzamento;
 mod da_selezione;
 pub mod dialogs;
+mod lunghezze;
 mod modo;
 mod tempo;
 mod tempo_esempio;
@@ -337,6 +338,7 @@ fn spawn_filter_job(
 }
 
 /// La passata delle lunghezze in corso: il canale col thread che conta, i byte gia' esaminati e il freno.
+#[allow(dead_code)] // il freno della passata: servira' a chi la dovra' fermare (l'istogramma e' per scheda)
 struct LengthsJob {
     /// Il risultato del thread: l'istogramma (per ogni lunghezza, quante righe).
     rx: Receiver<Result<std::collections::HashMap<u64, u64>, SearchError>>,
@@ -350,7 +352,11 @@ struct LengthsJob {
 
 /// Fa partire il thread del check dei tracciati: conta quante righe hanno ogni lunghezza di contenuto
 /// (una lettura sequenziale sulla fotografia, il meccanismo della ricerca: cancel e progress condivisi).
-fn spawn_lengths_job(snap: Snapshot, cancel: &Arc<AtomicBool>, progress: &Arc<AtomicU64>) -> LengthsJob {
+fn spawn_lengths_job(
+    snap: Snapshot,
+    cancel: &Arc<AtomicBool>,
+    progress: &Arc<AtomicU64>,
+) -> LengthsJob {
     let (tx, rx) = mpsc::channel();
     let cancel_thread = Arc::clone(cancel);
     let progress_thread = Arc::clone(progress);
@@ -484,6 +490,8 @@ pub enum DialogKind {
     TimelineLevels,
     /// Alt+M (o un clic sul modo nella riga di stato): il menu dei tre modi, VIEW, EDIT e TAIL.
     Mode,
+    /// Alt+H: il check dei tracciati — l'istogramma spuntabile delle lunghezze delle righe.
+    Lengths,
 }
 
 /// Il lavoro in background che si vede nella riga di stato.
@@ -593,6 +601,7 @@ struct ConvertPlan {
 }
 
 /// L'esito della ricerca in background, consegnato dal thread su `tick`.
+#[allow(clippy::large_enum_variant)] // Filtered porta la vista (offsets, nome, condizioni): la differenza di taglia e' il prezzo del design
 enum SearchOutcome {
     /// Trovata: l'inizio dell'occorrenza e se l'ha raggiunta solo dopo il giro completo del
     /// documento.
@@ -908,6 +917,8 @@ pub struct App {
     /// L'istogramma delle lunghezze: la passata in background del check dei tracciati (vedi lengths_tick).
     lengths_job: Option<LengthsJob>,
     lengths_hist: Option<Arc<Vec<(u64, u64)>>>,
+    /// La selezione del dialogo delle lunghezze mentre e' aperto (le voci spuntate); None: chiuso.
+    lengths_checked: Option<std::collections::HashSet<u64>>,
     /// Le condizioni dell'ultima volta che la finestra Filtri e' stata confermata: la finestra le ripropone, e una vista filtrata le
     /// mostra nella barra di stato (sono quelle che l'hanno fatta).
     last_filters: Option<FilterConditions>,
@@ -1169,6 +1180,7 @@ impl App {
             lengths_filter: None,
             lengths_job: None,
             lengths_hist: None,
+            lengths_checked: None,
             last_filters: None,
             refilter: None,
             job_conditions: None,
@@ -1370,6 +1382,8 @@ impl App {
             KeyCode::Char('o') | KeyCode::Char('O') if alt && !ctrl => {
                 self.open_time_dialog_for_mode(false)
             }
+            // Alt+H: il check dei tracciati (l'istogramma spuntabile delle lunghezze)
+            KeyCode::Char('h') | KeyCode::Char('H') if alt && !ctrl => self.open_lengths_dialog(),
             // Alt+G: filtra le righe (come `grep`): una vista nuova con solo quelle che corrispondono
             KeyCode::Char('g') | KeyCode::Char('G') if alt && !ctrl => self.open_filter_dialog(),
             // I tre modi: Alt+V sola lettura (VIEW), Alt+E modifica (EDIT), Alt+T segui la coda (TAIL, come `tail -f`);
@@ -1864,6 +1878,22 @@ impl App {
                 KeyCode::End => self.menu_index = self.menu_len().saturating_sub(1),
                 KeyCode::Enter => self.menu_apply(),
                 KeyCode::Esc => self.dialog = None,
+                _ => {}
+            },
+            // Il check dei tracciati: le frecce scelgono, SPAZIO spunta, A inverte, Invio applica, Esc annulla
+            DialogKind::Lengths => match key.code {
+                KeyCode::Up => self.menu_index = self.menu_index.saturating_sub(1),
+                KeyCode::Down => {
+                    if self.menu_index + 1 < self.lengths_menu_len() {
+                        self.menu_index += 1;
+                    }
+                }
+                KeyCode::Home => self.menu_index = 0,
+                KeyCode::End => self.menu_index = self.lengths_menu_len().saturating_sub(1),
+                KeyCode::Char(' ') => self.lengths_toggle(),
+                KeyCode::Char('a') | KeyCode::Char('A') if !ctrl && !alt => self.lengths_invert(),
+                KeyCode::Enter => self.lengths_apply(),
+                KeyCode::Esc => self.lengths_cancel(),
                 _ => {}
             },
             // I salti: tre numeri; Tab e le frecce cambiano campo, le cifre si scrivono, Enter conferma se sono validi
@@ -3519,6 +3549,7 @@ impl App {
     /// Raccoglie i lavori in background: prima il salvataggio (quando torna rimette il documento al suo
     /// posto e, dopo uno riuscito, puo' ripartire l'indice), poi la ricerca e l'indice righe.
     pub fn tick(&mut self) {
+        self.lengths_tick();
         if self.follow && self.follow_checked.elapsed() >= FOLLOW_EVERY {
             self.follow_poll();
         }
@@ -5315,11 +5346,11 @@ impl App {
             pattern: Some(pattern),
             invert: self.find_invert,
             levels: [false; 4],
-        lengths: None,
+            lengths: None,
         };
         let condizioni = FilterConditions {
             levels: [false; 4],
-        lengths: None,
+            lengths: None,
             text: testo.to_string(),
             mode: self.search_mode,
             case: self.search_case,
