@@ -20,7 +20,6 @@
         <img src="https://img.shields.io/badge/stato-sviluppo%20iniziale-orange" alt="sviluppo iniziale" />
       </p>
       <p>
-        <a href="docs/BENCHMARKS.md"><img src="https://img.shields.io/badge/%F0%9F%93%96-MISURE-007ec6?style=flat-square" alt="Misure" /></a>
         <a href="#quickstart"><img src="https://img.shields.io/badge/%F0%9F%94%A7-QUICKSTART-007ec6?style=flat-square" alt="Quickstart" /></a>
         <a href="README.md"><img src="https://img.shields.io/badge/%F0%9F%87%AC%F0%9F%87%A7-READ%20IN%20ENGLISH-007ec6?style=flat-square" alt="Read it in English" /></a>
       </p>
@@ -54,7 +53,7 @@ Cinque idee ben note, applicate fino in fondo:
 5. **Multi uso, multi piattaforma.** Si usa in un terminale (per esempio in SSH) senza bisogno dell'interfaccia grafica, oppure in finestra sul desktop. Gira su Windows, Linux e macOS.
 ## POC con i tool noti
 
-Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk. Il metodo per intero in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
+Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:
 
 | | Memoria | Apertura | Cosa succede |
 |---|---:|---|---|
@@ -156,7 +155,6 @@ Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni mac
 
 - Windows prima: sviluppato e testato principalmente su Windows. L'editor da terminale e il core girano anche su Linux (Debian, WSL); le release sono compilate in automatico dalla CI.
 - Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
-- Le misure vengono da una macchina sola e un hard disk solo: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 ## Sviluppo
 
 ```sh
@@ -174,7 +172,6 @@ cargo clippy --workspace --all-targets -- -D warnings
 | `rust/crates/mrp-tui` | l'editor da terminale (ratatui) |
 | `rust/crates/mrp-gui` | la finestra del desktop (egui) |
 | `rust/crates/mrp-loggen` | log sintetici di qualunque taglia, stessi byte a parita' di seme |
-| `docs/` | `MANUAL.md` (il manuale), `BENCHMARKS.md` (misure, metodo) |
 | `bench/` | script riproducibili e risultati grezzi |
 
 ## Documentazione

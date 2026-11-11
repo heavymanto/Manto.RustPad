@@ -20,7 +20,6 @@
         <img src="https://img.shields.io/badge/status-early%20development-orange" alt="early development" />
       </p>
       <p>
-        <a href="docs/BENCHMARKS.md"><img src="https://img.shields.io/badge/%F0%9F%93%96-MEASUREMENTS-007ec6?style=flat-square" alt="Measurements" /></a>
         <a href="#quickstart"><img src="https://img.shields.io/badge/%F0%9F%94%A7-QUICKSTART-007ec6?style=flat-square" alt="Quickstart" /></a>
         <a href="README.it.md"><img src="https://img.shields.io/badge/%F0%9F%87%AE%F0%9F%87%B9-LEGGILO%20IN%20ITALIANO-007ec6?style=flat-square" alt="Leggilo in italiano" /></a>
       </p>
@@ -54,7 +53,7 @@ Four well-known decisions, applied all the way:
 
 ## Measurements
 
-A 6.0 GB file (60 million lines), one machine, one hard disk. The whole method in [docs/BENCHMARKS.md](docs/BENCHMARKS.md):
+A 6.0 GB file (60 million lines), one machine, one hard disk:
 
 | | Memory | Open | What happens |
 |---|---:|---|---|
@@ -158,7 +157,6 @@ No log at hand? Make one, any size, same bytes on every machine:
 - Windows first. The terminal editor and the core also run on Linux (Debian, WSL); the CI runs the whole suite on all three systems at every push.
 - The window (`mrp-gui`) has been checked with automated tests and screenshots, not yet with long real keyboard and mouse use.
 - Regex, glob and ignore-case work on UTF-8 documents only; plain-text search works in every encoding.
-- Measurements are from one machine and one hard disk: [docs/BENCHMARKS.md](docs/BENCHMARKS.md).
 
 ## Development
 
@@ -177,12 +175,10 @@ cargo clippy --workspace --all-targets -- -D warnings
 | `rust/crates/mrp-tui` | the terminal editor (ratatui) |
 | `rust/crates/mrp-gui` | the desktop window (egui) |
 | `rust/crates/mrp-loggen` | synthetic logs of any size, same bytes for the same seed |
-| `docs/` | `MANUAL.md` (the manual), `BENCHMARKS.md` (measurements, method) |
 | `bench/` | reproducible scripts and raw results |
 
 ## Documentation
 
-- [docs/BENCHMARKS.md](docs/BENCHMARKS.md) — measurements, method, limitations
 - [CHANGELOG.md](CHANGELOG.md) — what changed
 - [SECURITY.md](SECURITY.md) — how to report a vulnerability privately
 
