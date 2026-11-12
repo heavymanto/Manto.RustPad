@@ -4,6 +4,16 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-11-12
+
+### Changed
+- **The record length histogram with percentages** (terminal and window): every row now shows its percentage of the total records next to the count, the bar uses full/light blocks like the timeline instead of `#`, and the dialog says at the bottom how many records and how many lengths it found. In the window the checkboxes are clickable and the dialog is slightly wider (420 px) to fit the percentage.
+
+### Fixed
+- **The filtered view showed only the already-filtered lengths** (terminal): reopening the record length check from a filtered view recomputed the histogram on the filtered content — you could see only the lengths you had already selected and could not get back to the original. The Workspace now copies the histogram from the original tab when creating the view, and the selection starts from the view's conditions.
+- **The record length dialog stole a row from the view** (terminal): the total row added in the percentage update made the dialog one line taller than the screen — the status bar (file name, mode) was pushed off view. The dialog now reserves one more row (h-4 instead of h-3).
+- **The filtered view tab name was enormous** on a file with many different line lengths: it listed every selected length (thousands of items). It now shows at most three and adds `+N`.
+
 ## [0.1.5] - 2026-11-11
 
 ### Changed
