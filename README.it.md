@@ -44,7 +44,7 @@ Per risolverlo ho puntato su Rust: niente GC, prestazioni eccellenti e consumo d
 - Gestisce file enormi con un consumo di RAM minimo.
 - E' velocissimo.
 - Usa i colori per focalizzare l'attenzione su quello che conta.
-- Ha una timeline per muoversi tra gli eventi e scovare i guai.
+- Ha una timeline per muoversi tra gli eventi e scovare le problematiche.
 - Include un istogramma spuntabile per isolare i record fuori misura.
 - Il tutto disponibile sia da terminale, TUI, che in versione desktop GUI — cross-platform su 3 OS.
 
