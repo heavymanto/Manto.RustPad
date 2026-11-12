@@ -829,6 +829,7 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                     0
                 };
                 let massimo = hist.first().map(|&(_, n)| n).unwrap_or(1).max(1);
+                let totale: u64 = hist.iter().map(|&(_, n)| n).sum();
                 let mut righe: Vec<(String, Style)> = hist[prima..prima + quante]
                     .iter()
                     .enumerate()
@@ -843,15 +844,26 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                         } else {
                             "[ ]"
                         };
-                        // la barra: 20 celle proporzionali al conteggio rispetto al massimo
+                        // la barra a blocchi pieni (come la timeline): 20 celle proporzionali al massimo
                         let piene = ((conteggio as usize * 20) / massimo as usize).min(20);
-                        let barra = format!("{:<20}", "#".repeat(piene));
+                        let barra = format!(
+                            "{}{}",
+                            "\u{2588}".repeat(piene),
+                            "\u{2591}".repeat(20 - piene)
+                        );
+                        // la percentuale sul totale dei record
+                        let pct = (conteggio * 100 / totale.max(1)).min(100);
                         (
-                            format!("{casella} {lunghezza:>6} B {barra} {conteggio:>12}"),
+                            format!("{casella} {lunghezza:>6} B {barra} {conteggio:>8}  {pct:>3}%"),
                             stile,
                         )
                     })
                     .collect();
+                // il totale in fondo: quanti record, quante lunghezze
+                righe.push((
+                    format!("  {} records \u{b7} {} lengths", totale, hist.len()),
+                    t.hint,
+                ));
                 righe.push((cat.t("lengths.hint").to_string(), t.hint));
                 ContenutoDialogo {
                     titolo: cat.t("lengths.title").to_string(),

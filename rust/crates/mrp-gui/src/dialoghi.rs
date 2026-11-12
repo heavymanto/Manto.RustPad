@@ -170,7 +170,7 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
             rect = finestra(
                 ctx,
                 titolo.as_str(),
-                340.0,
+                420.0,
                 &mut stato.chiudi,
                 &mut stato.chiusura_richiesta,
                 |ui| {
@@ -179,8 +179,9 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                     } else if items.is_empty() {
                         ui.label(t_none.as_str());
                     } else {
-                        // la barra: proporzionale al conteggio rispetto al massimo
+                        // il totale dei record e la barra: proporzionale al conteggio rispetto al massimo
                         let massimo = items.iter().map(|&(_, n, _)| n).max().unwrap_or(1).max(1);
+                        let totale: u64 = items.iter().map(|&(_, n, _)| n).sum();
                         ScrollArea::vertical()
                             .scroll_source(
                                 egui::scroll_area::ScrollSource::SCROLL_BAR
@@ -188,20 +189,39 @@ pub fn disegna(ctx: &egui::Context, ws: &mut Workspace, stato: &mut StatoDialogo
                             )
                             .max_height(altezza * 0.6)
                             .show(ui, |ui| {
-                                egui::Grid::new("lunghezze").num_columns(3).show(ui, |ui| {
+                                egui::Grid::new("lunghezze").num_columns(4).show(ui, |ui| {
                                     for &(len, count, spuntata) in items {
                                         let mut c = spuntata;
                                         if ui.checkbox(&mut c, format!("{len} B")).changed() {
                                             ws.active_mut().lengths_toggle_value(len);
                                         }
-                                        ui.monospace(format!("{count:>12}"));
-                                        let quante =
+                                        ui.monospace(format!("{count:>8}"));
+                                        // la barra a blocchi pieni (come la timeline)
+                                        let piene =
                                             ((count as usize * 14) / massimo as usize).min(14);
-                                        ui.label(RichText::new("#".repeat(quante)).weak());
+                                        let barra = format!(
+                                            "{}{}",
+                                            "\u{2588}".repeat(piene),
+                                            "\u{2591}".repeat(14 - piene)
+                                        );
+                                        ui.monospace(RichText::new(barra).weak());
+                                        // la percentuale sul totale
+                                        let pct = (count * 100 / totale.max(1)).min(100);
+                                        ui.monospace(format!("{pct:>3}%"));
                                         ui.end_row();
                                     }
                                 });
                             });
+                        // il totale in fondo: quanti record, quante lunghezze
+                        ui.label(
+                            RichText::new(format!(
+                                "{} records \u{b7} {} lengths",
+                                totale,
+                                items.len()
+                            ))
+                            .small()
+                            .weak(),
+                        );
                     }
                     ui.separator();
                     ui.horizontal(|ui| {
