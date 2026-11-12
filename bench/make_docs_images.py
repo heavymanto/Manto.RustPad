@@ -31,7 +31,7 @@ SCATTI = [
     ('n04-vai', ['goto'], [], 0),
     ('n05-salti', ['salti'], [], 0),
     ('m02-modi', ['modi'], [], 0),
-    ('m08-tail', ['tail'], [], 0),
+    ('m08-tail', ['tail'], [], 600),
     ('t01-formato', ['formato'], [], 0),
     ('t03-intervallo', ['calendario'], [], 0),
     ('t04-timeline', ['timeline'], [], 1500),
@@ -63,6 +63,16 @@ def ambiente(**variabili):
     return env
 
 
+def percorso_impostazioni():
+    """A portable settings path with no user name in it (it shows in the Settings screenshot)."""
+    base = r'C:\temp' if os.name == 'nt' else '/tmp'
+    try:
+        os.makedirs(os.path.join(base, 'mrp-manuale-gui'), exist_ok=True)
+        return os.path.join(base, 'mrp-manuale-gui', 'settings.json')
+    except OSError:
+        return os.path.join(tempfile.gettempdir(), 'mrp-manuale-gui-settings.json')
+
+
 def scatta(nome, azioni, extra, attesa, cartella):
     """One screenshot: MRPG_SCREENSHOT saves it and exits after a few frames."""
     file = [scompatta('epoch', cartella)] + [scompatta(e, cartella) for e in extra]
@@ -73,7 +83,14 @@ def scatta(nome, azioni, extra, attesa, cartella):
         env['MRPG_IMPOSTAZIONI'] = '1'
     elif azioni:
         env['MRPG_AZIONE'] = ','.join(azioni)
-    subprocess.run([EXE, '--theme', 'dark'] + file, env=env, check=True, timeout=120)
+    # --settings su un percorso che non c'e': impostazioni pulite (inglese, niente memoria della
+    # macchina) — le schermate del manuale sono deterministiche e nella lingua del manuale
+    subprocess.run(
+        [EXE, '--theme', 'dark', '--settings', percorso_impostazioni()] + file,
+        env=env,
+        check=True,
+        timeout=120,
+    )
     print('scatto:', nome)
 
 
@@ -87,7 +104,14 @@ def filmato(cartella):
         MRPG_FILM_MS='140',
     )
     subprocess.run(
-        [EXE, '--theme', 'dark', scompatta('epoch', cartella)],
+        [
+            EXE,
+            '--theme',
+            'dark',
+            '--settings',
+            percorso_impostazioni(),
+            scompatta('epoch', cartella),
+        ],
         env=env,
         check=True,
         timeout=180,
