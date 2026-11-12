@@ -34,7 +34,7 @@
 <p align="justify"><strong>Apri un log da 100 GB in pochi secondi, con pochi mega di RAM. Scorri la sua cronologia con una timeline, colora i livelli, spunta le lunghezze dei record per isolare le righe fuori misura. E all'occorrenza modifichi, anche a colonne.</strong></p>
 
 <p align="justify">
-L'idea e' nata da un fastidio personale: analizzare log enormi senza saturare la RAM, beccare i punti critici e poterli correggere al volo. Fino ad oggi ero costretto a destreggiarmi tra piu' tool — una soluzione scomoda, piena di limiti e senza niente che ti aiutasse davvero a individuare le problematiche a colpo d'occhio.
+L'idea e' nata da un fastidio personale: analizzare log enormi senza saturare la RAM e beccare al volo i punti critici per risolvere i problemi in fretta, oppure scorrere grandi tracciati per correggere piccole anomalie sul momento. Fino ad oggi ero costretto a destreggiarmi tra piu' tool — una soluzione scomoda, piena di limiti e senza niente che ti aiutasse davvero a individuare i guai a colpo d'occhio.
 </p>
 
 <p align="justify">
