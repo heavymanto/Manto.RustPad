@@ -45,7 +45,7 @@ Six well-known decisions, applied all the way:
 
 2. **Saving is atomic, the session is a journal of the edits.** The new file is written next to the old one, flushed to disk and swapped in with a rename: the same protocol SQLite uses for its commits. The session records only the edits, so after a crash, or after closing without saving, tabs, cursors and unsaved edits are back in place. The piece table is the structure Crowley described for text editors in 1998 and VS Code adopted in 2018.
 
-3. **The levels show before you read them.** ERROR/WARN/INFO/DEBUG in colour, dates and times in colour: preattentive colour is processed by the eye before the line is read (Healey's work on preattentive processing). A spike of errors in a log of millions of lines is noticed as soon as it enters the screen.
+3. **The levels show before you read them.** ERROR/WARN/INFO/DEBUG in colour, like dates and times: preattentive colour is processed by the eye before the line is read (Healey's work on preattentive processing). A spike of errors in a log of millions of lines is noticed as soon as it enters the screen.
 
 4. **The timeline is a proportional map of the file.** A column of periods (minute, ten minutes, hour, day), each as tall as its volume of lines and split by level: the dense zones show before you reach them by scrolling. The periods are found by binary search, without reading the file.
 

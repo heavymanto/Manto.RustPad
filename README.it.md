@@ -58,7 +58,7 @@ Sei idee ben note, applicate fino in fondo:
 
 2. **Il salvataggio e' atomico, la sessione e' un diario delle modifiche.** Il file nuovo viene scritto accanto al vecchio, scaricato su disco e scambiato con un rename: lo stesso protocollo dei commit di SQLite. La sessione registra solo le modifiche, quindi dopo un crash, o dopo aver chiuso senza salvare, schede, cursori e modifiche non salvate tornano al loro posto. La piece table e' la struttura descritta da Crowley per gli editor di testo nel 1998 e adottata da VS Code nel 2018.
 
-3. **I livelli si vedono prima di leggerli.** ERROR/WARN/INFO/DEBUG colorati, date e orari colorati: il colore preattentivo viene processato dall'occhio prima della lettura della riga (il lavoro di Healey sul preattentive processing). Un picco di errori in un log di milioni di righe si nota appena entra nello schermo.
+3. **I livelli si vedono prima di leggerli.** ERROR/WARN/INFO/DEBUG colorati, come date e orari: il colore preattentivo viene processato dall'occhio prima della lettura della riga (il lavoro di Healey sul preattentive processing). Un picco di errori in un log di milioni di righe si nota appena entra nello schermo.
 
 4. **La timeline e' una mappa proporzionale del file.** Una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello: le zone dense si vedono prima di arrivarci con lo scroll. I periodi si trovano per ricerca binaria, senza leggere il file.
 
