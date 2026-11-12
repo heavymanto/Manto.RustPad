@@ -17,7 +17,6 @@ Ogni funzionalita' ha una **carta** con gli stessi campi:
 | Campo | Significato |
 |---|---|
 | **Ingresso** | Come la raggiungi: tasto, menu', click. *Terminale* e *Finestra* quando differiscono. |
-| **Cosa fa** | Il comportamento in parole semplici. |
 | **Risposta attesa** | Cosa l'interfaccia deve mostrare o fare. |
 | **Non deve** | Cosa non deve mai succedere (perdita di dati, blocchi, un modo sbagliato...). |
 | **Limiti e casi limite** | File grandi, permessi mancanti, modifiche non salvate, schermi stretti. |

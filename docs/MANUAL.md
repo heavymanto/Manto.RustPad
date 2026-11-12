@@ -15,7 +15,6 @@ Every feature has a **card** with the same fields:
 | Field | Meaning |
 |---|---|
 | **Entry** | How you reach it: key, menu, click. *Terminal* and *Window* when they differ. |
-| **What it does** | The behaviour in plain words. |
 | **Expected response** | What the interface must show or do. This is what a tester checks. |
 | **Must not** | What must never happen (data loss, freezes, a wrong mode...). |
 | **Limits and edge cases** | Big files, missing permissions, unsaved changes, narrow screens. |

@@ -31,7 +31,7 @@
 
 ## Abstract
 
-<p align="justify">A 100 GB log opens in a few seconds, scrolls smoothly, navigates in a timeline and can be edited. The file is never loaded into RAM.</p>
+<p align="justify">A 100 GB log opens in a few seconds, scrolls smoothly, navigates in a timeline, lays its record lengths out in a checkable histogram and can be edited. The file is never loaded into RAM.</p>
 
 <p align="justify">
 I wrote it because I could not find a tool that did all of these things together. The editors that edit well load everything into memory and cannot hold large files. The viewers that hold large files cannot edit. And the text editor that ships with the OS, on a file above 4 GiB, truncates it on save without warning: 1.7 GB lost, and that is measured behaviour, not a rumour (the proof is in the table below). So I wrote the tool I needed, with the same layout as Manto.FreeDisk: one engine, two interfaces, the terminal and the window.
@@ -41,7 +41,7 @@ I wrote it because I could not find a tool that did all of these things together
 
 ## How it's built
 
-Five well-known decisions, applied all the way:
+Six well-known decisions, applied all the way:
 
 1. **The file stays on disk, not in RAM.** It is memory-mapped read-only: the kernel hands over the pages the editor asks for, when it asks for them (the way `less` works). The line index builds in the background and pauses when the user jumps, so it does not compete for the disk. On a 100 GB file the editor uses tens of MiB.
 
@@ -51,7 +51,9 @@ Five well-known decisions, applied all the way:
 
 4. **The timeline is a proportional map of the file.** A column of periods (minute, ten minutes, hour, day), each as tall as its volume of lines and split by level: the dense zones show before you reach them by scrolling. The periods are found by binary search, without reading the file.
 
-5. **The record length check spots the outliers at a glance.** `Alt+H` counts how many lines have each content length (bytes, line ending excluded) and lays them out in a checkable histogram: the dominant formats first, the out-of-size lines at the bottom, where the eye catches them. Tick the lengths to see and the view is remade with only those lines — in a fixed-record file, the anomalies stand out on their own.
+5. **Multi use, multi platform.** It runs in a terminal (over SSH, for instance) with no graphical interface needed, or in a window on the desktop. It works on Windows, Linux and macOS.
+
+6. **The record length check spots the outliers at a glance.** `Alt+H` counts how many lines have each content length (bytes, line ending excluded) and lays them out in a checkable histogram: the dominant formats first, the out-of-size lines at the bottom, where the eye catches them. Tick the lengths to see and the view is remade with only those lines — in a fixed-record file, the anomalies stand out on their own.
 
 ## Measurements
 
@@ -92,10 +94,11 @@ The engine is one, `mrp-core` (documents, tabs, search, edits, sessions), with t
 
 <a href="#in-action"><img src="docs/img/gui-demo.gif" alt="mrp-gui in motion: the log in the window, the scroll" /></a>
 
-## What it does
+## Features
 
 - Opens files of any size instantly and scrolls them with wheel, scrollbar and page jumps (`Alt+PgUp/PgDn`: 10 pages, with Shift 100, with Ctrl 1000). Line numbers come from the background index, which pauses when the user jumps. You can go to a line (`Ctrl+G`) or to a time, follow the end of the file like `tail -f` (`Alt+T`), filter lines like `grep` (`Alt+G`), colour the levels (`Alt+L`).
 - A timeline of the file: a column of periods (minute, ten minutes, hour, day), each as tall as its volume of lines and split by level. The part being read is marked; a click or a drag takes you there. The periods are found by binary search, without reading the file.
+- Record length check (`Alt+H`): counts how many lines have each content length (bytes, line ending excluded) and lays them out in a checkable histogram with percentages: the dominant formats first, the out-of-size lines at the bottom. Tick the lengths to see and the view is remade with only those lines.
 - Editing: `F4` makes the same file editable, without reloading it and without copies. In column mode (`F8`, or `Alt`+drag with the mouse) typing, `Tab`, copy, cut and paste act on every row of the block, on files of any size.
 - Memory does not depend on file size: tens of MiB in every case.
 - 64-bit offsets throughout, tests on files above 4 GiB, a loud error instead of silent truncation, crash-safe saving.
