@@ -819,7 +819,7 @@ fn contenuto_dialogo(app: &App, t: &Theme, kind: DialogKind, h: u16) -> Contenut
                 }
             } else if let Some(hist) = app.lengths_hist() {
                 let selezionato = app.lengths_selection();
-                let altezza = (h as usize).saturating_sub(3);
+                let altezza = (h as usize).saturating_sub(4);
                 let quante = hist.len().min(altezza);
                 let prima = if hist.len() > altezza {
                     selezione

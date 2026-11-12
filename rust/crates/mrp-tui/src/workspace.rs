@@ -687,6 +687,11 @@ impl Workspace {
                 // livelli scelti (le sue righe sono quelle del file, quindi valgono ancora)
                 if let Some(da) = self.tabs.get_mut(origine) {
                     app.inherit_time_view(da);
+                    // l'istogramma delle lunghezze passa alla vista: riaprire il check dalla vista filtrata
+                    // mostra le lunghezze del file originale, non solo quelle gia' filtrate
+                    if let Some(hist) = da.lengths_hist_clone() {
+                        app.set_lengths_hist(hist);
+                    }
                     // i livelli passano alla vista che li mostra: la scheda di partenza torna senza (mostra tutto)
                     da.clear_timeline_filter_levels();
                 }

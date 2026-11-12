@@ -17,6 +17,17 @@ impl App {
     /// Alt+H: apre il dialogo del check dei tracciati. La passata parte qui se l'istogramma non c'e' ancora;
     /// la selezione parte dal filtro attuale (o tutta spuntata, se non c'e' filtro).
     pub fn open_lengths_dialog(&mut self) {
+        // se siamo in una vista filtrata, la selezione parte dalle condizioni della vista
+        // (non da tutte spuntate: si vede cosa si era scelto)
+        if self.lengths_filter.is_none() {
+            if let Some(v) = &self.filter_view {
+                if let Some(c) = &v.conditions {
+                    if let Some(lens) = &c.lengths {
+                        self.lengths_filter = Some(lens.clone());
+                    }
+                }
+            }
+        }
         if self.lengths_job.is_none() && self.lengths_hist.is_none() {
             if let Some(snap) = self.doc.as_ref().and_then(Document::snapshot) {
                 let snap = snap.with_boundary(self.enc);
@@ -183,6 +194,17 @@ impl App {
     /// L'istogramma delle lunghezze, se la passata e' finita: `(lunghezza, conteggio)` per conteggio decrescente.
     pub(crate) fn lengths_hist(&self) -> Option<&[(u64, u64)]> {
         self.lengths_hist.as_ref().map(|v| v.as_slice())
+    }
+
+    /// L'istogramma come clone (il Workspace la usa per copiarlo nella vista filtrata).
+    pub(crate) fn lengths_hist_clone(&self) -> Option<Vec<(u64, u64)>> {
+        self.lengths_hist.as_ref().map(|v| v.as_ref().clone())
+    }
+
+    /// Copia l'istogramma da un'altra scheda (il Workspace la chiama quando apre una vista filtrata,
+    /// cosi' il dialogo riaperto dalla vista mostra le lunghezze del file originale, non solo quelle filtrate).
+    pub fn set_lengths_hist(&mut self, hist: Vec<(u64, u64)>) {
+        self.lengths_hist = Some(Arc::new(hist));
     }
 
     /// La passata e' in corso: `(byte letti, totale)` per la percentuale; `None` se non gira.
