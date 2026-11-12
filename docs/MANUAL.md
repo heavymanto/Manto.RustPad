@@ -21,11 +21,12 @@ Every feature has a **card** with the same fields:
 | **Limits and edge cases** | Big files, missing permissions, unsaved changes, narrow screens. |
 | **Auto tests** | The automated tests that already cover it, or *none*. |
 
-
 Keys are written for Windows, Linux and macOS alike (`Ctrl`, `Alt`). In the terminal, `Alt+letter` needs a terminal that sends
 Alt as an escape prefix (most do).
 
 ---
+
+> **Two faces on the same engine:** [the terminal (mrp-tui)](img/tui/n01-apre.png) · [the window (mrp-gui)](img/manual/n01-apre.png) — screenshots of both are in every card.
 
 ## 1. The product in one page
 
@@ -58,6 +59,7 @@ The help has two tabs in the window (Keys, and *Info* with the version, the lice
 the terminal, the same three lines close the key table: version, AGPL-3.0, code.
 
 ![The help window: the Keys tab](img/manual/h-aiuto.png)
+![The help terminal: the Keys tab](img/tui/h-aiuto.png)
 
 **The window** has a menu (File, Edit, View, Log, Help), a toolbar (New, Open, Save | Undo, Redo | Cut, Copy, Paste |
 Find, Replace, Go to | Timeline, Time filter | VIEW, EDIT, TAIL, Column mode, Jump bar | Zoom), tabs, a scrollbar and the same
@@ -74,9 +76,8 @@ status row as the terminal.
 #### N-01 Open a file from the command line
 
 ![The log open in the window: the coloured text, the status row, the footer](img/manual/n01-apre.png)
+![The log open in the terminal: the coloured text, the status row, the footer](img/tui/n01-apre.png)
 - **Entry:** `mrp-tui FILE` / `mrp-gui FILE`. With no file, the last session comes back (see C1); with none, an empty "Untitled 1".
-- **What it does:** shows the first screen at once, whatever the size. The file is mapped, not read; line numbers are counted in the
-  background (see C3).
 - **Expected response:** first screen immediately, mode `VIEW`, position `Ln 1  Col 1  byte 0  0%`, file name and size on the right.
   While the index is being built: `indexing N%` on the right, `Ln ?` on the left, and a blank line-number gutter *(observed on a 6 GB file)*.
 - **Must not:** load the whole file; freeze the screen while indexing; ask anything.
@@ -89,9 +90,6 @@ status row as the terminal.
 ![Two files, two tabs](img/manual/n02-schede.png)
 - **Entry:** `Ctrl+O` (window: File > Open, system dialog; terminal: a prompt "path of the file to open", Enter OK, Esc cancels).
   `Ctrl+N` opens an empty document in a new tab, in EDIT mode.
-- **What it does:** opens the file in a **new tab**, or brings forward the tab that already has it. New documents are called
-  "Untitled 1", "Untitled 2"... (the smallest free number) and take the line ending of the system: `CRLF` on Windows, shown in the
-  status row.
 - **Expected response:** a new tab appears and is active; opening an already open file does not duplicate it.
 - **Must not:** replace a tab that has unsaved changes.
 - **Limits and edge cases:** opening while the active tab has unsaved changes keeps those changes (a new tab is used).
@@ -99,7 +97,6 @@ status row as the terminal.
 
 #### N-03 Move around
 - **Entry:** arrows, `PgUp`/`PgDn`, `Home`/`End`, `Ctrl+Home`/`Ctrl+End`, mouse wheel, scrollbar (window).
-- **What it does:** moves the cursor and the view; `Ctrl+Home`/`End` jump to the start/end of the file.
 - **Expected response:** the position in the status row follows; the view scrolls when the cursor leaves the screen.
 - **Must not:** read the whole file to move; stall on a very long line.
 - **The horizontal scrollbar (added 2026-11-11):** a line wider than the window shows a bar under the text (one row,
@@ -116,9 +113,8 @@ status row as the terminal.
 #### N-04 Go to (`F5` / `Ctrl+G`)
 
 ![The Go to prompt](img/manual/n04-vai.png)
+![The Go to prompt](img/tui/n04-vai.png)
 - **Entry:** `F5` or `Ctrl+G`; window: Edit > Go to, or the toolbar button. A prompt: "line number, @byte offset, %percent or ~time".
-- **What it does:** jumps to a line (`500`), a byte offset (`@1000000`), a percentage of the file (`%50`) or the first line at or
-  after a time (`~2026-01-01 05:44`).
 - **Expected response:** the cursor goes there and the target is shown near the middle of the screen *(observed: `500` -> `Ln 500`,
   `%50` -> `49%`, `@1000000` -> `byte 1000000`)*. `0` -> "not a valid position: 0"; a line past the end -> "line N is beyond the end (M lines)".
 - **Must not:** move the cursor on an invalid target; land inside a multi-byte character (it snaps back to its start).
@@ -129,32 +125,27 @@ status row as the terminal.
 #### N-05 Jump pages and the jump bar
 
 ![The jump bar: Home, End and the page buttons](img/manual/n05-salti.png)
+![The jump bar: Home, End and the page buttons](img/tui/n05-salti.png)
 - **Entry:** `Alt+PgUp`/`Alt+PgDn` jump 10 pages (`Shift` x100, `Ctrl` x1000); `Ctrl+B` shows a bar with *Home*, *End* and page-step
   buttons (the window draws it as a strip of buttons with a gear that opens the settings of the steps).
-- **What it does:** very long moves without reading the lines in between (the index is used for jumps of 5000 rows or more).
 - **Expected response:** the view lands where the step says; the status row shows the new position.
 - **Must not:** freeze on a huge file.
 - **Auto tests:** yes (`jump_config`, `app_jump`, `pausa_indice`).
 
 #### N-06 Line numbers and the line index
 - **Entry:** `Alt+N` shows/hides line numbers; `Alt+X` turns the line index on/off (window: View menu).
-- **What it does:** the index is what makes line numbers and "go to line" possible on a big file. Off = no counting and no numbers.
 - **Expected response:** turning the index **off** first asks "TURN OFF THE LINE INDEX?", listing what is lost (line numbers, go to a line, the total of lines, fast page jumps, the line count of a selection) and what keeps working; Enter confirms and the numbers disappear (`Ln ?`), Esc cancels. Turning it on again restarts the count from zero without asking.
 - **Must not:** change the file.
 - **Auto tests:** yes (`line_numbers`, `pausa_indice`).
 
 #### N-07 Tabs
 - **Entry:** `Ctrl+PgDn`/`Ctrl+PgUp`, `Alt+←`/`Alt+→`, `Alt+1`..`9`, `Ctrl+W` closes; window: click on a tab.
-- **What it does:** several documents open together, each with its own index, search, history and mode.
 - **Expected response:** the active tab changes at once; closing a tab with unsaved changes asks first.
 - **Must not:** close a modified tab silently when there is no session (with a session the changes are kept, see C1).
 - **Auto tests:** yes (`workspace`, `chrome`).
 
 #### N-08 Progress of long jobs on big files
 - **Entry:** automatic, for indexing, search and saving.
-- **What it does:** after 2 seconds of work, and only for a file of 64 MiB or more, a bar appears in the status row with the time left;
-  on wider screens also the bytes done over the total and the speed. The estimate uses the last 3 seconds, so it follows the disk
-  going from cache to real reads.
 - **Expected response:** from 60 columns `indexing 61% #######.....`; from 90 also `0:01 left`; from 140 also
   `3.45 GiB / 5.59 GiB  1.67 GiB/s`. Below 2 s, or under 64 MiB, only the percentage. The bar is a rainbow
   (themes with colours) *(observed in the escape codes)*.
@@ -167,8 +158,6 @@ status row as the terminal.
 #### M-01 The three modes
 - **Entry:** `Alt+V` VIEW, `Alt+E` EDIT, `Alt+T` TAIL; `F4` is *not* a mode (it is Replace). Window: three toolbar buttons and the
   Edit menu entries with a tick.
-- **What it does:** chooses what the file does. The keys *choose* a mode: pressed in the mode you are already in they do nothing
-  (`Alt+V` is how you go back). In the window a click on the lit EDIT or TAIL button switches it off (back to VIEW).
 - **Expected response:** the last word of the status row changes; the footer lights the current one; a message explains the change
   ("edit mode: the file is not touched until you save", "TAIL: following the end of the file", "view mode").
 - **Must not:** be in two modes at once; start TAIL on a modified document (see M-08).
@@ -177,17 +166,14 @@ status row as the terminal.
 #### M-02 The mode menu
 
 ![The menu of the three modes](img/manual/m02-modi.png)
+![The menu of the three modes](img/tui/m02-modi.png)
 - **Entry:** `Alt+M`, or a click on the mode word in the status row.
-- **What it does:** a small menu with the three modes and what each one means; the current one is highlighted.
 - **Expected response:** Up/Down move, Enter chooses, Esc closes.
 - **Must not:** change the mode without Enter.
 - **Auto tests:** yes (`modi`, `dialog_views`); the click in a real terminal is only tested at the app level *(to verify by hand)*.
 
 #### M-03 Typing and editing
 - **Entry:** in EDIT: characters, `Enter`, `Tab`, `Backspace`, `Delete`; selection with `Shift`+arrows or the mouse; `Ctrl+C`/`X`/`V`.
-- **What it does:** changes the document in memory (see C2). A selection is replaced by what you type.
-  Copy (`Ctrl+C`) also puts the text in the system clipboard (through OSC 52, so it works over SSH). Paste (`Ctrl+V`) uses the program's own
-  clipboard; to paste text from another program use the terminal's own paste (`Ctrl+Shift+V` in Windows Terminal, which sends it as typed text).
 - **Expected response:** the status row shows ` *` after the file name; the text changes at once.
 - **AltGr (Windows, fixed 2026-11-08):** on keyboards that use AltGr (Italian, German, Spanish, French, Portuguese...) the characters `@ [ ] { } ~ # ` \ |` and `€` reach the terminal as Ctrl+Alt+character; the program turns them back into plain text (Ctrl+Alt+letter or digit, Alt+key and Ctrl+key stay shortcuts). It works in every text field (edit, Find, Replace, Filter, Go to `@byte`). Before the fix they were dropped: `a@b{c}[d]` gave `abcd`.
 - **Must not:** touch the file on disk before a save. In VIEW, typing is refused with the hint **"read-only: press Alt+E to edit"**.
@@ -195,7 +181,6 @@ status row as the terminal.
 
 #### M-04 Undo and redo
 - **Entry:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Shift+Z`); window: Edit menu, toolbar.
-- **What it does:** undoes/redoes the last step. A run of typing is one step; `Enter` closes a step; any other key or a click closes it.
 - **Expected response:** the text goes back/forward by whole steps.
 - **Must not:** work in VIEW (refused with the same hint as typing, "read-only: press Alt+E to edit"); survive a save (after a save the history is empty).
 - **Limits and edge cases:** the history is not kept in the session: a restored tab can be saved but not undone (C1).
@@ -203,8 +188,6 @@ status row as the terminal.
 
 #### M-05 Save and Save as
 - **Entry:** `F2` / `Ctrl+S`; `Ctrl+Shift+S` Save as (asks the name, then the encoding). Both work in VIEW too when there are changes.
-- **What it does:** writes the document to disk safely (see C2); the saved file becomes the document. Save as makes the document
-  *be* the new file; the old one is not touched.
 - **Expected response:** the message "saved: NAME" and no ` *`. On a big file a dialog with a progress bar, Esc cancels *(observed: `saved: ux_copy.log`)*.
 - **Must not:** leave a half-written file, ever, whatever the interruption; overwrite a file another program has changed since you opened it.
 - **Limits and edge cases:** nothing to save -> the message "nothing to save"; file changed on disk -> refused with the reason, edits stay;
@@ -213,15 +196,12 @@ status row as the terminal.
 
 #### M-06 Discard changes (`Ctrl+R`)
 - **Entry:** `Ctrl+R` (or `Alt+R`); window: File > Revert.
-- **What it does:** throws away the unsaved changes and shows the file as it is on disk. Asks once.
 - **Expected response:** a question naming the file; Enter/S/Y confirms and the tab reopens in VIEW near the old position; Esc/N keeps the edits.
 - **Must not:** touch the file on disk. With nothing to discard: the message **"no unsaved changes to discard"** and no dialog.
 - **Auto tests:** yes (`revert`).
 
 #### M-07 Quit with unsaved changes
 - **Entry:** `F10` / `Ctrl+Q`; window: close the window.
-- **What it does:** with a session (the normal case) it writes the session and exits **without asking**: the changes come back at the next start (C1).
-  Without a session it asks, tab by tab.
 - **Expected response (no session):** a window "UNSAVED CHANGES": `S` Save and quit, `D` Discard changes, `C` Cancel.
   "Save and quit" exits only if the save succeeded.
 - **Must not:** lose changes silently.
@@ -231,8 +211,6 @@ status row as the terminal.
 
 ![Tail mode: the view follows the end of the file](img/manual/m08-tail.png)
 - **Entry:** `Alt+T`; window: toolbar button / Edit menu.
-- **What it does:** read only; the view goes to the end and follows the file as it grows; the index is extended over the new bytes, not rebuilt.
-  Checks twice a second. Leaving the end of the file with the cursor stops it.
 - **Expected response:** `TAIL` in the status row and "TAIL: following the end of the file".
 - **Must not:** start on a document with unsaved changes: it stays where it is and says **"save or discard the changes (F2, Ctrl+R) before TAIL"**.
 - **Limits and edge cases:** from EDIT without changes it switches straight to TAIL; a file that shrinks stops following with a message.
@@ -243,12 +221,8 @@ status row as the terminal.
 #### T-01 Time format of the lines (`Alt+O`)
 
 ![The Time window: the format of the lines](img/manual/t01-formato.png)
+![The Time terminal: the format of the lines](img/tui/t01-formato.png)
 - **Entry:** `Alt+O`; automatic on first use. Window: Log menu / the Time window with calendar and "example" box *(to verify by hand)*.
-- **What it does:** tells the program where the timestamp sits in each line. It recognises the format by itself from a sample of the
-  head and tail of the file, once per tab. 19 formats are known (ISO with `.` or `,` milliseconds, `T` separator, `dd/MM/yyyy`,
-  Apache `[01/Nov/2026:02:00:00 +0100]`, syslog `Nov  1 02:00:00`, time only, `epoch_s`, `epoch_ms`, date only). You can type
-  your own (`yyyy MM dd HH mm ss SSS MMM epoch_s ...`), pick a known one with `Alt+N`/`Alt+P`, re-detect with `Alt+A`, or *teach by
-  example* by selecting a piece of a line.
 - **Expected response:** a window "TIME FORMAT" with the format, how many characters from the start to look within, the known
   formats with a sample, and a preview of the first lines as `text => 2026-01-01 00:00:28`. Everything that depends on
   time (status-row time, timeline, go to a time, time range, colours) follows the chosen format.
@@ -260,7 +234,6 @@ status row as the terminal.
 
 #### T-02 Go to a time (`F5`, then `~time`)
 - **Entry:** the go-to prompt with a `~` before the time: `~03:20`, `~2026-10-31 05:00:00`.
-- **What it does:** jumps to the first line whose time is at or after the one you wrote (binary search, no scan).
 - **Expected response:** the cursor and the view land there *(observed: `~03:20` on a log with times from 00:00 lands on the 03:22:55 line, `Ln 283`)*.
   A target before everything stays on the first line.
 - **Must not:** read the file linearly; land on a line with a smaller time.
@@ -270,10 +243,8 @@ status row as the terminal.
 #### T-03 Time range (`Alt+I`)
 
 ![The Time window with the calendar of the From field](img/manual/t03-intervallo.png)
+![The Time terminal with the calendar of the From field](img/tui/t03-intervallo.png)
 - **Entry:** `Alt+I`; window: Log > Time range / toolbar clock button (lit while a range is on).
-- **What it does:** limits the whole view to the lines between two times. Empty "From" = from the start, empty "To" = to the end,
-  and a time written to a unit covers the whole unit (`02:30` covers that minute). The range is just two byte offsets: removing it
-  restores the whole file at once, and the dates you wrote are remembered.
 - **Expected response:** a prompt "Dates like 2026-11-01 02:30, or only 02:30 (the day of the file). Empty = no limit.", with the
   first time of the file prefilled in "From". After Enter the view shows only that interval and the status row says
   `Time range: 2026-01-01 00:00:28 to 2026-01-01 00:10:00`.
@@ -285,11 +256,9 @@ status row as the terminal.
 #### T-04 Timeline (`Alt+B`)
 
 ![The timeline: the file in time, next to the scrollbar](img/manual/t04-timeline.png)
+![The timeline: the file in time, next to the scrollbar](img/tui/t04-timeline.png)
 - **Entry:** `Alt+B`; window: toolbar clock button / Log > Timeline. In the window it turns itself on when a file with a recognised time is
   opened (once per tab, file up to 2 GiB, unmodified); in the terminal it never does.
-- **What it does:** a bar next to the text that shows the whole file in time: one row per period (minute, 10 minutes, hour, day), the
-  length of the bar is the volume of that period, and each bar is split by level (ERROR, WARN, INFO, DEBUG) in proportion to how many
-  lines of each level start in it. A click or a drag jumps to that period.
 - **Expected response:** a 25-column panel with a header (`~1 hour`, the `~` meaning the step is automatic, then the legend `E W I D`)
   and one row per period like `01-01 04:00 █████`: the bar is all solid blocks, the colour tells the level (ERROR red,
   WARN yellow, INFO green, DEBUG grey); the cells not yet counted stay faint. A level that is present always gets at least one cell,
@@ -304,7 +273,6 @@ status row as the terminal.
 
 #### T-05 Timeline step (`Alt+P`)
 - **Entry:** `Alt+P`, or a click on the timeline header (only while it is on).
-- **What it does:** chooses the size of the period.
 - **Expected response:** a menu "TIMELINE: PERIOD": *Auto (chosen from the length of the log)*, 1 minute, 10 minutes, 1 hour, 1 day.
   Auto picks the longest of day / hour / 10 minutes that still gives at least 12 periods, else the minute.
 - **The choice is of the tab, not an habit:** it is not remembered between files — every file starts from Auto, and changing the time
@@ -314,7 +282,6 @@ status row as the terminal.
 
 #### T-06 Level filter (`Alt+S`)
 - **Entry:** `Alt+S` (timeline on); also the level flags in the Filters window.
-- **What it does:** opens a *filtered view* (see F-03) with only the lines of the levels you choose, keeping the time range.
 - **Expected response:** a menu "TIMELINE: SHOW ONLY": *All the lines*, *Errors only*, *Errors and warnings*, *Errors, warnings and info*.
   The choice opens a new read-only tab named with the levels.
 - **Must not:** change the original file or tab. The match is the whole level word, exact case.
@@ -324,9 +291,8 @@ status row as the terminal.
 #### T-07 Log colours (`Alt+L`)
 
 ![The log with the level colours on](img/manual/t07-colori.png)
+![The log with the level colours on](img/tui/t07-colori.png)
 - **Entry:** `Alt+L`; window: Log > Log colours.
-- **What it does:** colours the levels (ERROR, WARN, INFO, DEBUG and relatives), the dates with times and IPv4 addresses, in one
-  linear pass per line, without regular expressions. DEBUG is blue in the Console, Dark and Light themes (grey on the two blue themes).
 - **Expected response:** the colours appear at once and follow the theme; times are coloured only where the current format can read them.
 - **Must not:** slow scrolling; colour inside a word (the level must be a whole word).
 - **Auto tests:** yes (`logcolors`, core `loghl*`).
@@ -334,11 +300,10 @@ status row as the terminal.
 #### F-01 Find (`F3` / `Ctrl+F`)
 
 ![The Find prompt](img/manual/f01-cerca.png)
+![The Find prompt](img/tui/f01-cerca.png)
 - **Entry:** `Ctrl+F` opens the prompt (prefilled with the last text); `F3` repeats forwards, `Shift+F3` backwards (or opens the prompt if there is no search yet).
   With a selection, `F3` searches the selection itself, literal and match case, without any prompt; the selection that is the match just found
   does not count — `F3` continues the previous search (a regex, a case-insensitive one) as before.
-- **What it does:** searches text, a glob or a regular expression, with or without case; modes are cycled with `Alt+M` and `Alt+C` in the prompt.
-  The search runs on the *edited* document, unsaved changes included, in a worker thread that works on a snapshot.
 - **Expected response:** a prompt "text to search for (exact bytes)" with `mode: text | match case  (Alt+M, Alt+C)`; the cursor
   goes to the next match; past the end it wraps with a notice. On a big file a progress bar after 2 s and `Esc` cancels ("cancelled", cursor unmoved).
 - **Must not:** freeze on a huge file; hang on any regular expression (the engine has no backtracking and a size limit of 8 MiB).
@@ -350,9 +315,8 @@ status row as the terminal.
 #### F-02 Replace (`F4` / `Ctrl+H`)
 
 ![The Replace window](img/manual/f02-sostituisci.png)
+![The Replace terminal](img/tui/f02-sostituisci.png)
 - **Entry:** `F4` or `Ctrl+H`; window: Edit > Replace / toolbar.
-- **What it does:** replaces text, glob or regex matches in this tab or in all tabs. Two steps: the first Enter counts and previews
-  ("N occurrences in M tabs"), the second applies. Escapes `\n \t \r \\` and groups `$1`, `${name}` in regex mode.
 - **Expected response:** typing anything resets the preview; after applying, the tab is marked modified and **one** `Ctrl+Z` undoes the whole run.
 - **Must not:** touch the files on disk; apply anything when cancelled with `Esc`, or when over 2,000,000 occurrences ("too many").
 - **Limits and edge cases:** all-tabs skips the tabs that cannot take it (non-UTF-8 with a regex, for example) and says how many; tabs cannot be opened or closed while it runs.
@@ -362,8 +326,6 @@ status row as the terminal.
 
 ![The right-click menu on a selection: filter, hide, find](img/manual/f03-filtri.png)
 - **Entry:** `Alt+G`; window: Filters window. In the prompt, `Alt+I` inverts (hide the lines that match).
-- **What it does:** like `grep`: writes the matching lines into a temporary file and opens it as a new **read-only tab** named
-  `[filter] TEXT`. Each line remembers its real position in the original.
 - **Expected response:** the new tab with the matching lines and a message like `297 lines: Enter on a line goes to it in the file`;
   `Enter` on a line brings forward the original file (reopening it if closed) with the cursor on that exact line.
 - **Must not:** modify the original. Editing in the view is refused ("a filtered view is read-only: edit the original file"). With no match:
@@ -375,8 +337,8 @@ status row as the terminal.
 #### F-04 Record length check (`Alt+H`)
 
 ![The record length check: the checkable histogram of the line lengths](img/manual/f04-lunghezze.png)
+![The record length check: the checkable histogram of the line lengths](img/tui/f04-lunghezze.png)
 - **Entry:** `Alt+H`; window: Advanced > Record length check. In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
-- **What it does:** a background pass over the document counts how many lines have each content length (bytes, without the line ending and a trailing `\r`); the dialog lists them **by count — the dominant formats first, the anomalies at the bottom** — so a fixed-format file shows its record length and its outliers at a glance. Tick the lengths to see: all ticked means no filter, a few mean a new **read-only tab** with only those lines (named `lengths: 120 B`), composed with the other conditions of a filtered view when opened inside one (they are redone from the original file, together). The selection starts from the filter in force, or all ticked.
 - **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once; `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
 - **Must not:** modify the original. With nothing ticked: "no line matches", no tab. With no lines at all: "nothing to count". `Esc` leaves everything as it was, and the aborted selection is not remembered.
 - **Limits and edge cases:** the lengths are content bytes: CRLF lines count without the `\r`, the last line without a newline is a line, an empty line has length 0. The pass sees unsaved edits (it reads the snapshot) and is cancelled by closing (it restarts at the next opening). In the window the boxes are clickable and Invert / OK / Cancel are buttons.
@@ -387,8 +349,8 @@ status row as the terminal.
 #### E-01 Encoding: detection and change (`F9`)
 
 ![The encoding menu](img/manual/e01-codifica.png)
+![The encoding menu](img/tui/e01-codifica.png)
 - **Entry:** automatic on open; `F9` (window: View > Encoding…) opens the list of 64 encodings with the current one highlighted; on the command line `--encoding NAME`.
-- **What it does:** the file's bytes are never changed: the encoding is only how they are read. Detection looks at the first 64 KiB: a BOM (UTF-32, UTF-16, UTF-8), UTF-16 without BOM (by where the zero bytes are), valid UTF-8, and otherwise falls back to windows-1252. `F9` re-reads the same bytes with another encoding on the spot.
 - **Expected response:** the text re-reads in place and the status row names the encoding (nothing is shown for plain UTF-8). Observed on 28 test files (UTF-8 with and without BOM, UTF-16/32 both byte orders, 14 single-byte code pages, 7 DOS and Mac pages, Shift-JIS, EUC-JP, GBK, GB18030, Big5, EUC-KR): with `--encoding` all 28 read exactly; with detection, the Unicode ones with BOM, UTF-8, UTF-16 without BOM and windows-1252/ISO-8859-1 are right, and every other 8-bit or Asian file opens as windows-1252 (garbled but intact), and **choosing the right encoding in `F9` fixes the text in all 21 cases tried**.
 - **Must not:** change the file; lose or hide a byte that is not valid (it shows as one replacement character per byte and is written back unchanged).
 - **Limits and edge cases:** switching between UTF-16/32 and the other encodings is refused while the document is modified ("save before switching to/from UTF-16/32"). The status row does not say that the encoding was *guessed*.
@@ -396,7 +358,6 @@ status row as the terminal.
 
 #### E-02 Save as with another encoding (`Ctrl+Shift+S`)
 - **Entry:** `Ctrl+Shift+S`: first the path, then a list of encodings (the current one highlighted, `Tab` = write a BOM, `Enter` saves).
-- **What it does:** writes the whole document (unsaved edits included) in the chosen encoding, block by block, to a temporary file renamed over the target.
 - **Expected response:** "Saved NAME as ENCODING"; the document becomes the new file. Observed: 17 conversions from UTF-8 (UTF-16/32 both orders with and without BOM, ISO and Windows code pages, KOI8-R, CP866, Shift-JIS, EUC-JP, GBK, Big5, EUC-KR) gave **byte-exact files** with the right BOM and read back correctly; cp1251 → UTF-8 → cp1251 gave the identical file. A character the target cannot hold stops the save with a precise message ("Cannot write U+1F600 in windows-1252 (at byte 5): nothing was saved") and no file is created.
 - **Must not:** write a partial file; touch the source.
 - **Limits and edge cases:** the path field is pre-filled with the folder of the file: type only the new name (typing a full path appends to it and fails with the raw system error 123).
@@ -404,7 +365,6 @@ status row as the terminal.
 
 #### E-03 Editing keeps the encoding and the line ending
 - **Entry:** automatic.
-- **What it does:** what you type is encoded in the file's own encoding; the BOM stays; the line ending (LF, CRLF, CR) is detected from the first 64 KiB and `Enter` writes the same style.
 - **Expected response:** observed: typing `é`, `ж`, `あ`, `好`, `가` in windows-1252, windows-1251, UTF-16, Shift-JIS, GBK and EUC-KR files and saving gave exactly the right bytes; a BOM and invalid UTF-8 bytes are kept; typing a character the encoding cannot hold is refused at once ("cannot write '日' in windows-1252") and nothing is inserted.
 - **Must not:** break a line ending.
 - **CRLF (fixed 2026-11-08):** in a CRLF file (UTF-8, UTF-16 LE/BE, UTF-32) the `\r\n` is one line end: `End` and `Shift+End` stop before the `\r`, typing and `Enter` at the end of a line go before it, `Right`/`Left`/`Backspace`/`Delete` step over the pair as one character, and `Down` from the end of a line lands at the end of the next. Before the fix the cursor could sit between `\r` and `\n` and typing there saved `ab\rX\ncd\r\n`.
