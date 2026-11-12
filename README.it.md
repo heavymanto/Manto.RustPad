@@ -34,8 +34,21 @@
 <p align="justify"><strong>Apri un log da 100 GB in pochi secondi, con pochi mega di RAM. Scorri la sua cronologia con una timeline, colora i livelli, spunta le lunghezze dei record per isolare le righe fuori misura. E all'occorrenza modifichi, anche a colonne.</strong></p>
 
 <p align="justify">
-L'idea nasce da un fastidio che conosco bene: esaminare log enormi senza saturare la RAM, trovare i punti di interesse e, ogni tanto, correggere. I tool che ho provato o tengono la memoria e non fanno altro, o fanno tutto e non la tengono; e delle timeline visuali, nessuno. Cosi' ho scommesso sulla memoria di Rust, che senza garbage collector e' incredibilmente parsimoniosa, e ho fatto il mio tool 6 in 1: apre file enormi, usa poca RAM, e' velocissimo, da' un colpo di colore per focalizzarsi su quello che serve, scorre la cronologia degli eventi e individua subito dove stanno i problemi, e mette le lunghezze dei record in un istogramma spuntabile per beccare le righe fuori misura. Tutto in terminale e in GUI, su tre OS. Il design e' minimale: qui si va al sodo.
+L'idea e' nata da un fastidio personale: analizzare log enormi senza saturare la RAM, beccare i punti critici e poterli correggere al volo. Fino ad oggi ero costretto a destreggiarmi tra piu' tool — una soluzione scomoda, piena di limiti e senza niente che ti aiutasse davvero a individuare le problematiche a colpo d'occhio.
 </p>
+
+<p align="justify">
+Per risolverlo ho puntato su Rust: niente GC, prestazioni eccellenti e consumo di RAM ridotto all'osso. Ne e' uscito fuori un tool 6-in-1 che fa tutto:
+</p>
+
+- Gestisce file enormi con un consumo di RAM minimo.
+- E' velocissimo.
+- Usa i colori per focalizzare l'attenzione su quello che conta.
+- Ha una timeline per muoversi tra gli eventi e scovare i guai.
+- Include un istogramma spuntabile per isolare i record fuori misura.
+- Il tutto disponibile sia da terminale, TUI, che in versione desktop GUI — cross-platform su 3 OS.
+
+<p align="justify">Interfaccia essenziale, zero fronzoli.</p>
 
 ## I sei pilastri
 
