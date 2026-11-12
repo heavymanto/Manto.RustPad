@@ -34,10 +34,8 @@
 <p align="justify">A 100 GB log opens in a few seconds, scrolls smoothly, navigates in a timeline, lays its record lengths out in a checkable histogram and can be edited. The file is never loaded into RAM.</p>
 
 <p align="justify">
-I wrote it because I could not find a tool that did all of these things together. The editors that edit well load everything into memory and cannot hold large files. The viewers that hold large files cannot edit. And the text editor that ships with the OS, on a file above 4 GiB, truncates it on save without warning: 1.7 GB lost, and that is measured behaviour, not a rumour (the proof is in the table below). So I wrote the tool I needed, with the same layout as Manto.FreeDisk: one engine, two interfaces, the terminal and the window.
+I wrote it because I could not find a tool that did all of these things together: the editors that edit well load everything into memory, the viewers that hold large files cannot edit, and no one had a visual timeline. And the OS text editor, on a file above 4 GiB, truncates it on save without warning — 1.7 GB lost, measured, not a rumour (the proof is in the table below). So I wrote the tool I needed, with the same layout as Manto.FreeDisk: one engine, two interfaces, the terminal and the window.
 </p>
-
-<p align="justify"><strong>Manto.RustPad</strong> opens the file memory-mapped and read-only, and builds the line index in the background. When you press <em>Edit</em>, the same file becomes editable without reloading it: the edits live in a piece table next to the untouched original, and saving writes a new file and swaps it in with an atomic rename.</p>
 
 ## How it's built
 
@@ -84,27 +82,16 @@ The engine is one, `mrp-core` (documents, tabs, search, edits, sessions), with t
 | **Timeline** | `Alt+B`, a column next to the text | the same, or a bar next to the scrollbar |
 | **Menus** | the function keys | real menus, toolbar, status bar, scrollbar |
 
-## In action
-
-`mrp-tui` on a log: opening, scrolling, the timeline on with `Alt+B` (each period as tall as its volume of lines, split by level ERROR, WARN, INFO, DEBUG) and the level colours with `Alt+L`:
-
-<a href="#in-action"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in motion: scroll, timeline, level colours" /></a>
-
-`mrp-gui`, the same engine in a window: opening, scrolling, colours:
-
-<a href="#in-action"><img src="docs/img/gui-demo.gif" alt="mrp-gui in motion: the log in the window, the scroll" /></a>
-
 ## Features
 
-- Opens files of any size instantly and scrolls them with wheel, scrollbar and page jumps (`Alt+PgUp/PgDn`: 10 pages, with Shift 100, with Ctrl 1000). Line numbers come from the background index, which pauses when the user jumps. You can go to a line (`Ctrl+G`) or to a time, follow the end of the file like `tail -f` (`Alt+T`), filter lines like `grep` (`Alt+G`), colour the levels (`Alt+L`).
-- A timeline of the file: a column of periods (minute, ten minutes, hour, day), each as tall as its volume of lines and split by level. The part being read is marked; a click or a drag takes you there. The periods are found by binary search, without reading the file.
-- Record length check (`Alt+H`): counts how many lines have each content length (bytes, line ending excluded) and lays them out in a checkable histogram with percentages: the dominant formats first, the out-of-size lines at the bottom. Tick the lengths to see and the view is remade with only those lines.
-- Editing: `F4` makes the same file editable, without reloading it and without copies. In column mode (`F8`, or `Alt`+drag with the mouse) typing, `Tab`, copy, cut and paste act on every row of the block, on files of any size.
-- Memory does not depend on file size: tens of MiB in every case.
-- 64-bit offsets throughout, tests on files above 4 GiB, a loud error instead of silent truncation, crash-safe saving.
-- Several tabs at once; the session restores tabs, cursors and unsaved edits on reopen. Since the journal holds only the edits, on a 100 GB file with a few corrections the session weighs a few KB.
-- Find and replace (`Ctrl+F` / `Ctrl+H`) on text, glob and regex, with a preview before applying and one `Ctrl+Z` that undoes the whole thing.
-- Encodings: UTF-8/16/32, 53 single-byte code pages, the East-Asian multi-byte ones, also on files larger than RAM.
+- Any file opens instantly; scroll with wheel, scrollbar and page jumps (`Alt+PgUp/PgDn`: 10 pages, Shift 100, Ctrl 1000).
+- Go to a line (`Ctrl+G`) or to a time; follow the end of the file like `tail -f` (`Alt+T`).
+- `grep`-style filters (`Alt+G`), level colours (`Alt+L`), timeline (`Alt+B`), record length check (`Alt+H`).
+- Edit without reloading (`F4`); column mode (`F8` or `Alt`+drag): typing, `Tab`, copy, cut and paste on every row of the block.
+- Find and replace (`Ctrl+F` / `Ctrl+H`) on text, glob and regex, with a preview and one `Ctrl+Z` that undoes the whole thing.
+- Several tabs at once; the session restores tabs, cursors and unsaved edits (on a 100 GB file with a few corrections it weighs a few KB).
+- Encodings: UTF-8/16/32, 53 single-byte code pages, the East-Asian multi-byte ones, beyond RAM.
+- 64-bit offsets, tests above 4 GiB, a loud error instead of silent truncation; memory stays tens of MiB whatever the size.
 
 It is not a log analyser (the reading aids here are what a viewer needs) and it is not a plugin platform or an IDE.
 

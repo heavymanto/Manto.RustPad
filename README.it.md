@@ -31,13 +31,11 @@
 
 ## Abstract
 
-<p align="justify"><strong>Apri un log da 100 GB in pochi secondi, utilizzando pochi mega di RAM. Scorri la sua cronologia con una timeline visuale. Individua immediatamente dove si addensano le criticita', in un solo colpo d'occhio. Usa filtri avanzati per concentrarti solo su quello che interessa. Spunta le lunghezze dei record in un istogramma per isolare le righe fuori misura. Modifica il contenuto anche con la modalita' a colonne avanzata.</strong></p>
+<p align="justify"><strong>Apri un log da 100 GB in pochi secondi, con pochi mega di RAM. Scorri la sua cronologia con una timeline, colora i livelli, spunta le lunghezze dei record per isolare le righe fuori misura. E all'occorrenza modifichi, anche a colonne.</strong></p>
 
 <p align="justify">
-L'idea nasce da un fastidio che conosco bene: esaminare log di grandi dimensioni senza saturare la RAM, cercare i punti di interesse e, all'occorrenza, fare piccole modifiche. L'idea era di sfruttare la gestione della memoria di Rust che, essendo senza GC (Garbage Collector), e' incredibilmente parsimoniosa. Scommessa vinta! Fino ad oggi ho provato piu' tool: alcuni gestiscono bene la memoria ma sono viewer limitatissimi, altri hanno funzioni avanzate ma usano molta RAM, gli editor fanno ancora molta fatica. In nessun caso ho mai visto timeline visuali che mi dessero il colpo d'occhio sia sulla cronologia degli eventi che sulla densita' degli stessi: in un file enorme, come faccio a vedere dove si sono verificati maggiormente gli errori? Cosi' ho deciso di creare il mio tool 6 in 1: apre file enormi, usa poca RAM, e' velocissimo, da' un colpo di colore per focalizzarsi su quello che serve, scorre la cronologia degli eventi e individua subito dove stanno i problemi, e mette le lunghezze dei record in un istogramma spuntabile per beccare le righe fuori misura. Tutto questo sia in modalita' terminale che GUI, e su ben 3 OS. Il design e' minimale: qui si va al sodo.
+L'idea nasce da un fastidio che conosco bene: esaminare log enormi senza saturare la RAM, trovare i punti di interesse e, ogni tanto, correggere. I tool che ho provato o tengono la memoria e non fanno altro, o fanno tutto e non la tengono; e delle timeline visuali, nessuno. Cosi' ho scommesso sulla memoria di Rust, che senza garbage collector e' incredibilmente parsimoniosa, e ho fatto il mio tool 6 in 1: apre file enormi, usa poca RAM, e' velocissimo, da' un colpo di colore per focalizzarsi su quello che serve, scorre la cronologia degli eventi e individua subito dove stanno i problemi, e mette le lunghezze dei record in un istogramma spuntabile per beccare le righe fuori misura. Tutto in terminale e in GUI, su tre OS. Il design e' minimale: qui si va al sodo.
 </p>
-
-<p align="justify"><strong>Manto.RustPad</strong> apre il file memory-mappato e in sola lettura, costruisce un indice sparso delle righe in background, e appena premi <em>Modifica</em> lo stesso file diventa editabile: nessun ricaricamento, nessuna copia. Le modifiche vivono in una piccola piece table accanto all'originale intatto; il salvataggio scrive in streaming un file nuovo e lo scambia in modo atomico.</p>
 
 ## I sei pilastri
 
@@ -83,27 +81,16 @@ Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), 
 | **Timeline** | `Alt+B`, una colonna accanto al testo | lo stesso, o una barra accanto alla scrollbar |
 | **Menu'** | i tasti funzione | menu' veri, barra strumenti, barra di stato, scrollbar |
 
-## In azione
-
-`mrp-tui` su un log: apertura, scroll, timeline accesa con `Alt+B` (ogni periodo alto quanto il suo volume di righe, diviso per livello ERROR, WARN, INFO, DEBUG) e colori dei livelli con `Alt+L`:
-
-<a href="#in-azione"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: scroll, timeline, colori dei livelli" /></a>
-
-`mrp-gui`, lo stesso motore in una finestra: apertura, scroll, colori:
-
-<a href="#in-azione"><img src="docs/img/gui-demo.gif" alt="mrp-gui in movimento: il log nella finestra, lo scroll" /></a>
-
 ## Funzioni
 
-- Apre file di qualunque taglia all'istante e li scorre con rotella, scrollbar e salti di pagina (`Alt+PgSu/PgGiu'`: 10 pagine, con Shift 100, con Ctrl 1000). I numeri di riga arrivano dall'indice in background, che si mette in pausa quando l'utente salta. Si puo' andare a una riga (`Ctrl+G`) o a un orario, seguire la coda del file come `tail -f` (`Alt+T`), filtrare le righe come `grep` (`Alt+G`), colorare i livelli (`Alt+L`).
-- Timeline del file: una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello. Il tratto che si sta leggendo e' marcato; un click o un trascinamento porta al punto. I periodi si trovano per ricerca binaria, senza leggere il file.
-- Check dei tracciati (`Alt+H`): conta quante righe hanno ogni lunghezza (byte di contenuto, a-capo escluso) e le mette in un istogramma spuntabile con le percentuali: i formati dominanti prima, le righe fuori misura in fondo. Spunta le lunghezze da vedere e la vista si rifà con solo quelle righe.
-- Modifica: `F4` rende editabile lo stesso file, senza ricaricarlo e senza copie. Con la modalita' colonna (`F8`, o `Alt`+trascinamento col mouse) digitare, `Tab`, copia, taglia e incolla agiscono su tutte le righe del blocco, su file di qualunque taglia.
-- La memoria non dipende dalla taglia del file: decine di MiB in ogni caso.
-- Offset a 64 bit ovunque, test su file oltre i 4 GiB, errore esplicito invece del troncamento silenzioso, salvataggio a prova di crash.
-- Piu' schede insieme; la sessione ripristina schede, cursori e modifiche non salvate alla riapertura. Visto che il diario contiene solo le modifiche, su un file da 100 GB con poche correzioni la sessione pesa pochi KB.
-- Trova e sostituisci (`Ctrl+F` / `Ctrl+H`) su testo, glob e regex, con preview prima di applicare e un solo `Ctrl+Z` che annulla tutto.
-- Codifiche: UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale, anche su file piu' grandi della RAM.
+- Apertura all'istante di file di qualunque taglia; scroll con rotella, scrollbar e salti di pagina (`Alt+PgSu/PgGiu'`: 10 pagine, Shift 100, Ctrl 1000).
+- Vai a una riga (`Ctrl+G`) o a un orario; coda del file come `tail -f` (`Alt+T`).
+- Filtri stile `grep` (`Alt+G`), colori dei livelli (`Alt+L`), timeline (`Alt+B`), check dei tracciati (`Alt+H`).
+- Modifica senza ricaricare (`F4`); modalita' colonna (`F8` o `Alt`+trascinamento): digitare, `Tab`, copia, taglia e incolla su tutte le righe del blocco.
+- Trova e sostituisci (`Ctrl+F` / `Ctrl+H`) su testo, glob e regex, con preview e un solo `Ctrl+Z` che annulla tutto.
+- Piu' schede insieme; la sessione ripristina schede, cursori e modifiche non salvate (su un file da 100 GB con poche correzioni pesa pochi KB).
+- Codifiche: UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale, oltre la RAM.
+- Offset a 64 bit, test oltre i 4 GiB, errore esplicito invece del troncamento silenzioso; la memoria resta decine di MiB qualunque sia la taglia.
 
 Non e' un analizzatore di log (gli aiuti alla lettura sono quelli che servono a un visualizzatore) e non e' una piattaforma di plugin o un IDE.
 
