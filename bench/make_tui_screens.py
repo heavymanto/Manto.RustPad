@@ -51,10 +51,13 @@ def scompatta(nome, cartella):
 
 
 def dump(chiavi, file):
-    """One --dump run: the screen as a list of text lines."""
+    """One --dump run: the screen as a list of text lines. Ctrl+B always first, so the jump
+    bar is visible in every screenshot (the user expects to see it, like the GUI toolbar)."""
     cmd = [EXE, '--dump', f'{COLONNE}x{RIGHE}', '--theme', 'dark', '--settings', SETTINGS, file]
     if chiavi:
-        cmd += ['--keys', chiavi]
+        cmd += ['--keys', f'Ctrl+B,{chiavi}']
+    else:
+        cmd += ['--keys', 'Ctrl+B']
     r = subprocess.run(cmd, capture_output=True, timeout=30)
     if r.returncode != 0:
         sys.exit('mrp-tui failed: ' + r.stderr.decode('utf-8', errors='replace'))
