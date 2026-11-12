@@ -177,15 +177,17 @@ impl App {
         self.lengths_checked = None;
     }
 
-    /// Il nome della vista filtrata: "lunghezze: 120, 350 B".
+    /// Il nome della vista filtrata: "lunghezze: 120 B, 350 B +47" — al piu' tre, poi "+N", cosi'
+    /// il nome della scheda resta corto anche con un file di migliaia di lunghezze diverse.
     pub(crate) fn nome_vista_lunghezze(&self) -> String {
         let mut v: Vec<u64> = self.lengths_filter.iter().flatten().copied().collect();
         v.sort_unstable();
-        let elenco = v
-            .iter()
-            .map(|l| format!("{l} B"))
-            .collect::<Vec<_>>()
-            .join(", ");
+        let visibili: Vec<String> = v.iter().take(3).map(|l| format!("{l} B")).collect();
+        let elenco = if v.len() > 3 {
+            format!("{} +{}", visibili.join(", "), v.len() - 3)
+        } else {
+            visibili.join(", ")
+        };
         self.cat.tf("lengths.view_name", &[&elenco])
     }
 }
