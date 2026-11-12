@@ -221,7 +221,7 @@ status row as the terminal.
 
 ![The Time window: the format of the lines](img/manual/t01-formato.png)
 ![The Time terminal: the format of the lines](img/tui/t01-formato.png)
-- **Entry:** `Alt+O`; automatic on first use. Window: Log menu / the Time window with calendar and "example" box *(to verify by hand)*.
+- **Entry:** `Alt+O`; automatic on first use. Window: Advanced menu / the Time window with calendar and "example" box *(to verify by hand)*.
 - **Expected response:** a window "TIME FORMAT" with the format, how many characters from the start to look within, the known
   formats with a sample, and a preview of the first lines as `text => 2026-01-01 00:00:28`. Everything that depends on
   time (status-row time, timeline, go to a time, time range, colours) follows the chosen format.
@@ -243,7 +243,7 @@ status row as the terminal.
 
 ![The Time window with the calendar of the From field](img/manual/t03-intervallo.png)
 ![The Time terminal with the calendar of the From field](img/tui/t03-intervallo.png)
-- **Entry:** `Alt+I`; window: Log > Time range / toolbar clock button (lit while a range is on).
+- **Entry:** `Alt+I`; window: Advanced > Time range / toolbar clock button (lit while a range is on).
 - **Expected response:** a prompt "Dates like 2026-11-01 02:30, or only 02:30 (the day of the file). Empty = no limit.", with the
   first time of the file prefilled in "From". After Enter the view shows only that interval and the status row says
   `Time range: 2026-01-01 00:00:28 to 2026-01-01 00:10:00`.
@@ -256,7 +256,7 @@ status row as the terminal.
 
 ![The timeline: the file in time, next to the scrollbar](img/manual/t04-timeline.png)
 ![The timeline: the file in time, next to the scrollbar](img/tui/t04-timeline.png)
-- **Entry:** `Alt+B`; window: toolbar clock button / Log > Timeline. In the window it turns itself on when a file with a recognised time is
+- **Entry:** `Alt+B`; window: toolbar clock button / View > Show timeline. In the window it turns itself on when a file with a recognised time is
   opened (once per tab, file up to 2 GiB, unmodified); in the terminal it never does.
 - **Expected response:** a 25-column panel with a header (`~1 hour`, the `~` meaning the step is automatic, then the legend `E W I D`)
   and one row per period like `01-01 04:00 █████`: the bar is all solid blocks, the colour tells the level (ERROR red,
@@ -291,7 +291,7 @@ status row as the terminal.
 
 ![The log with the level colours on](img/manual/t07-colori.png)
 ![The log with the level colours on](img/tui/t07-colori.png)
-- **Entry:** `Alt+L`; window: Log > Log colours.
+- **Entry:** `Alt+L`; window: View > Show colour log lines.
 - **Expected response:** the colours appear at once and follow the theme; times are coloured only where the current format can read them.
 - **Must not:** slow scrolling; colour inside a word (the level must be a whole word).
 - **Auto tests:** yes (`logcolors`, core `loghl*`).
@@ -338,7 +338,7 @@ status row as the terminal.
 ![The record length check: the checkable histogram of the line lengths](img/manual/f04-lunghezze.png)
 ![The record length check: the checkable histogram of the line lengths](img/tui/f04-lunghezze.png)
 - **Entry:** `Alt+H`; window: Advanced > Record length check. In the histogram `SPACE` ticks the length under the cursor, `A` inverts the whole selection, `Enter` applies, `Esc` cancels.
-- **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once; `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
+- **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once: each row says its count, bar and percentage of the total, and at the bottom the total (`2,202 records · 3 lengths`); `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
 - **Must not:** modify the original. With nothing ticked: "no line matches", no tab. With no lines at all: "nothing to count". `Esc` leaves everything as it was, and the aborted selection is not remembered.
 - **Limits and edge cases:** the lengths are content bytes: CRLF lines count without the `\r`, the last line without a newline is a line, an empty line has length 0. The pass sees unsaved edits (it reads the snapshot) and is cancelled by closing (it restarts at the next opening). In the window the boxes are clickable and Invert / OK / Cancel are buttons.
 - **Auto tests:** yes (`lengths` in the core, `lengths_app`, `lengths_view`).

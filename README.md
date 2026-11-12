@@ -31,11 +31,24 @@
 
 ## Abstract
 
-<p align="justify">A 100 GB log opens in a few seconds, scrolls smoothly, navigates in a timeline, lays its record lengths out in a checkable histogram and can be edited. The file is never loaded into RAM.</p>
+<p align="justify"><strong>A 100 GB log opens in a few seconds, with a few MB of RAM. Scroll its history on a timeline, colour the levels, tick the record lengths to isolate the out-of-size lines. And when needed, you edit — even in columns.</strong></p>
 
 <p align="justify">
-I wrote it because I could not find a tool that did all of these things together: the editors that edit well load everything into memory, the viewers that hold large files cannot edit, and no one had a visual timeline. And the OS text editor, on a file above 4 GiB, truncates it on save without warning — 1.7 GB lost, measured, not a rumour (the proof is in the table below). So I wrote the tool I needed, with the same layout as Manto.FreeDisk: one engine, two interfaces, the terminal and the window.
+The idea was born from a personal annoyance: analysing huge logs without filling the RAM and catching the critical points on the fly to solve the problems fast, or scanning large record files to fix small anomalies on the spot. Until today I had to juggle several tools — an awkward solution, full of limits, with nothing that really helped you spot the issues at a glance.
 </p>
+
+<p align="justify">
+To solve it I bet on Rust: no GC, excellent performance and RAM consumption cut to the bone. Out of it came a 6-in-1 tool that does everything:
+</p>
+
+- Handles enormous files with minimal RAM.
+- It is fast.
+- Uses colour to focus attention on what counts.
+- Has a timeline to move between the events and hunt down the issues.
+- Includes a checkable histogram to isolate the out-of-size records.
+- All of it available from the terminal, TUI, and as a desktop GUI — cross-platform on 3 OSs.
+
+<p align="justify">Essential interface, zero frills.</p>
 
 ## How it's built
 

@@ -59,7 +59,7 @@ L'aiuto ha due tab nella finestra (Tasti, e *Info* con la versione, la licenza e
 terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0, codice.
 
 ![La finestra dell'aiuto: il tab Tasti](img/manual/h-aiuto.png)
-![La terminale dell'aiuto: il tab Tasti](img/tui/h-aiuto.png)
+![Il terminale dell'aiuto: il tab Tasti](img/tui/h-aiuto.png)
 
 **La finestra** ha un menu' (File, Modifica, Visualizza, Avanzate, Aiuto), una barra degli strumenti (Nuovo, Apri, Salva | Annulla, Ripeti | Taglia, Copia, Incolla |
 Cerca, Sostituisci, Vai a | Timeline, Filtro tempo | VIEW, EDIT, TAIL, Modalita' colonna, Barra salti | Zoom), le schede, una scrollbar e la stessa
@@ -76,7 +76,7 @@ riga di stato del terminale.
 #### N-01 Aprire un file dalla riga di comando
 
 ![Il log aperto nella finestra: il testo colorato, la riga di stato, il footer](img/manual/n01-apre.png)
-![Il log aperto nella terminale: il testo colorato, la riga di stato, il footer](img/tui/n01-apre.png)
+![Il log aperto nel terminale: il testo colorato, la riga di stato, il footer](img/tui/n01-apre.png)
 - **Ingresso:** `mrp-tui FILE` / `mrp-gui FILE`. Senza file, torna l'ultima sessione (vedi C1); senza sessione, un "Untitled 1" vuoto.
 - **Risposta attesa:** prima schermata immediata, modo `VIEW`, posizione `Ln 1  Col 1  byte 0  0%`, nome e dimensione del file a destra.
   Mentre l'indice si costruisce: `indexing N%` a destra, `Ln ?` a sinistra, e il margine dei numeri di riga vuoto.
@@ -227,7 +227,7 @@ riga di stato del terminale.
 #### T-01 Formato dell'orario delle righe (`Alt+O`)
 
 ![La finestra Tempo: il formato delle righe](img/manual/t01-formato.png)
-![La terminale Tempo: il formato delle righe](img/tui/t01-formato.png)
+![Il terminale Tempo: il formato delle righe](img/tui/t01-formato.png)
 - **Ingresso:** `Alt+O`; automatico al primo uso. Finestra: menu Avanzate / la finestra Tempo con calendario e riquadro "esempio" *(da verificare a mano)*.
 - **Risposta attesa:** una finestra "TIME FORMAT" col formato, entro quanti caratteri dall'inizio cercare, i formati
   noti con un esempio, e un'anteprima delle prime righe come `testo => 2026-01-01 00:00:28`. Tutto cio' che dipende
@@ -249,7 +249,7 @@ riga di stato del terminale.
 #### T-03 Intervallo di tempo (`Alt+I`)
 
 ![La finestra Tempo col calendario del campo Dal](img/manual/t03-intervallo.png)
-![La terminale Tempo col calendario del campo Dal](img/tui/t03-intervallo.png)
+![Il terminale Tempo col calendario del campo Dal](img/tui/t03-intervallo.png)
 - **Ingresso:** `Alt+I`; finestra: Avanzate > Intervallo di tempo / pulsante dell'orologio nella barra (acceso mentre c'e' un intervallo).
 - **Risposta attesa:** le righe fuori non si vedono; la riga di stato dice l'intervallo; la timeline lo mostra.
 - **Non deve:** cambiare il file; confondersi con la finestra di tempo della scheda (sono due cose: quella e' un filtro, questa limita la vista della scheda).
@@ -314,7 +314,7 @@ riga di stato del terminale.
 #### F-02 Sostituisci (`F4` / `Ctrl+H`)
 
 ![La finestra Sostituisci](img/manual/f02-sostituisci.png)
-![La terminale Sostituisci](img/tui/f02-sostituisci.png)
+![Il terminale Sostituisci](img/tui/f02-sostituisci.png)
 - **Ingresso:** `F4` o `Ctrl+H`; finestra: Modifica > Sostituisci / barra.
 - **Risposta attesa:** digitare qualsiasi cosa azzera l'anteprima; dopo l'applicazione, la scheda e' modificata e **un** `Ctrl+Z` annulla
   tutta la corsa.
@@ -340,7 +340,7 @@ riga di stato del terminale.
 ![Il check dei tracciati: l'istogramma spuntabile delle lunghezze delle righe](img/manual/f04-lunghezze.png)
 ![Il check dei tracciati: l'istogramma spuntabile delle lunghezze delle righe](img/tui/f04-lunghezze.png)
 - **Ingresso:** `Alt+H`; finestra: Avanzate > Check dei tracciati. Nell'istogramma `SPAZIO` spunta la lunghezza sotto il cursore, `A` inverte tutta la selezione, `Invio` applica, `Esc` annulla.
-- **Risposta attesa:** mentre la passata conta il dialogo dice la percentuale; poi la lista, scorrevole, risponde subito a `SPAZIO`/`A`; `Invio` apre la vista con un messaggio come
+- **Risposta attesa:** mentre la passata conta il dialogo dice la percentuale; poi la lista, scorrevole, risponde subito a `SPAZIO`/`A`: ogni riga dice conteggio, barra e percentuale sul totale, e in fondo il totale (`2,202 records · 3 lengths`); `Invio` apre la vista con un messaggio come
   `2 lines: Enter on a line goes to it in the file` (e `Invio` su una riga della vista porta a quella riga nell'originale, come in F-03).
 - **Non deve:** modificare l'originale. Con niente spuntato: "no line matches", nessuna scheda. Senza righe: "nothing to count". `Esc` lascia tutto com'era, e la selezione abortita non si ricorda.
 - **Limiti e casi limite:** le lunghezze sono byte di contenuto: le righe CRLF contano senza il `\r`, l'ultima riga senza a-capo e' una riga, una riga vuota ha lunghezza 0. La passata vede le modifiche non salvate (legge la fotografia) e si annulla chiudendo (riparte alla prossima apertura). Nella finestra le caselle sono cliccabili e Inverti / OK / Annulla sono pulsanti.
