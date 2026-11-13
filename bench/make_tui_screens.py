@@ -51,9 +51,9 @@ def scompatta(nome, cartella):
 
 
 def dump(chiavi, file):
-    """One --dump run: the screen as a list of text lines. Ctrl+B always first, so the jump
-    bar is visible in every screenshot (the user expects to see it, like the GUI toolbar)."""
-    cmd = [EXE, '--dump', f'{COLONNE}x{RIGHE}', '--theme', 'dark', '--settings', SETTINGS, file]
+    """Una corsa di --dump-colori: lo schermo come celle, ognuna con colonna, riga, colore di primo piano e di
+    sfondo (esadecimale) e carattere. Ctrl+B sempre per primo, cosi' la barra dei salti si vede in ogni scatto."""
+    cmd = [EXE, '--dump', f'{COLONNE}x{RIGHE}', '--theme', 'dark', '--settings', SETTINGS, '--dump-colori', file]
     if chiavi:
         cmd += ['--keys', f'Ctrl+B,{chiavi}']
     else:
@@ -61,12 +61,20 @@ def dump(chiavi, file):
     r = subprocess.run(cmd, capture_output=True, timeout=30)
     if r.returncode != 0:
         sys.exit('mrp-tui failed: ' + r.stderr.decode('utf-8', errors='replace'))
-    testo = r.stdout.decode('utf-8', errors='replace')
-    return testo.splitlines()
+    celle = {}
+    for riga in r.stdout.decode('utf-8', errors='replace').splitlines():
+        # colonna riga fg bg carattere: il carattere puo' essere uno spazio, quindi si separa solo sui primi 4 campi
+        x, y, fg, bg, carattere = riga.split(' ', 4)
+        celle[(int(x), int(y))] = (fg, bg, carattere)
+    return celle
 
 
-def render(righe, percorso):
-    """Renders the text lines as a PNG that looks like a terminal."""
+def colore(esadecimale):
+    return tuple(int(esadecimale[i:i + 2], 16) for i in (0, 2, 4))
+
+
+def render(celle, percorso):
+    """Disegna lo schermo come un terminale a colori: ogni cella col suo sfondo e il suo primo piano."""
     from PIL import Image, ImageDraw, ImageFont
 
     # un font monospace: Consolas su Windows, fallback a quello di PIL
@@ -85,13 +93,15 @@ def render(righe, percorso):
     cella_w = bb[2] - bb[0]
     cella_h = 20  # le righe del terminale sono alte
 
-    img = Image.new('RGB', (cella_w * COLONNE, cella_h * len(righe)), (30, 30, 30))
+    img = Image.new('RGB', (cella_w * COLONNE, cella_h * RIGHE), (30, 30, 30))
     disegno = ImageDraw.Draw(img)
 
-    for i, riga in enumerate(righe):
-        y = i * cella_h
-        # il testo principale: grigio chiaro
-        disegno.text((2, y), riga, fill=(212, 212, 212), font=font)
+    for (x, y), (fg, bg, carattere) in celle.items():
+        px, py = x * cella_w, y * cella_h
+        # lo sfondo della cella, poi il carattere nel suo colore
+        disegno.rectangle([px, py, px + cella_w - 1, py + cella_h - 1], fill=colore(bg))
+        if carattere.strip():
+            disegno.text((px, py + 2), carattere, fill=colore(fg), font=font)
 
     img.save(percorso)
 

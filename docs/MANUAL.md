@@ -1,8 +1,6 @@
 # Manto.RustPad — Manual
 
-> **Status: first draft.** Written so far: the product overview, the cards for opening and navigating, modes and saving, time and
-> filters, and the "under the hood" notes for autosave, saving, the line index, time, encodings, search and caches. Still to do: the
-> remaining cards (encodings and columns, tab details, settings, themes, help). Features are frozen for the first release. This
+> This document describes what the product does today. The English version (`MANUAL.md`) is the source; the Italian one is its translation.
 
 ## 0. How to read this document
 
@@ -376,7 +374,7 @@ status row as the terminal.
 These chapters explain how the parts work, where they keep their data and what they guarantee. Constants are from the source
 and are checked by tests where noted.
 
-### C1. Autosave and session: how unsaved work survives
+###  Autosave and session: how unsaved work survives
 
 **What it is.** A small folder of files that remembers your open tabs and, for each tab with unsaved changes, those changes. It is
 what lets you press `F10` without a question and find everything again at the next start.
@@ -427,7 +425,7 @@ mistaken for a scratch file. Developer runs with `--dump`, or with `MRP_NO_PROFI
 
 **Tests that cover it:** `mrp-tui/tests/session.rs`, `untitled.rs`.
 
-### C2. Editing and saving: piece table and safe write
+###  Editing and saving: piece table and safe write
 
 **Editing without copying.** A document is a read-only memory map of the file plus a **piece table**: an ordered list of pieces, each
 pointing either into the original file or into a small append-only buffer that collects everything you type. Memory depends on the
@@ -466,7 +464,7 @@ conversion step with its own temporary file (`<name>.<pid>.<n>.mrp-conv`) in the
 
 **Tests that cover it:** `mrp-core` document tests, `mrp-tui/tests/app_edit.rs`, `revert.rs`, `save_encoding.rs`.
 
-### C3. Line index and navigation without loading the file
+###  Line index and navigation without loading the file
 
 **The idea.** Opening is instant because nothing is read up front: the file is memory-mapped and the screen asks only for the bytes
 it shows. Line numbers need the index, which is built in the background.
@@ -501,7 +499,7 @@ risk of memory mapping.
 
 **Tests that cover it:** `mrp-core/tests` (index and encodings), `mrp-tui/tests/pausa_indice.rs`, `avanzamento.rs`.
 
-### C4. Time: formats, jump to a time, range, timeline
+###  Time: formats, jump to a time, range, timeline
 
 **The idea.** A log is almost always sorted by time and the time is at the head of each line. So the program never needs an index of
 times: it can find any time with a binary search over the bytes of the file, reading only the first few hundred bytes of a handful
@@ -546,7 +544,7 @@ file; UTF-16/32 has no time features at all.
 
 **Tests that cover it:** core `timemask*`, `timesearch*`, `timekey*`, `timeline*`, `loghl*`; terminal `goto_time`, `time_*`, `timeline_*`.
 
-### C5. Encodings, line endings, column mode
+###  Encodings, line endings, column mode
 
 **The idea.** A document is always a sequence of bytes; the encoding is only the lens that says how those bytes read as characters
 (display, cursor, column widths) and how a typed character becomes bytes. Position, line counts and searches stay aligned to the
@@ -583,7 +581,7 @@ the block if it *starts* inside the columns; the hidden `\r` and the `\n` never 
 
 **Tests that cover it:** `app_bom`, `app_lineending`, `eol_option`, `save_encoding`, `app_column`, core encoding tests.
 
-### C6. Search, replace and the line filter
+###  Search, replace and the line filter
 
 **Searching the edited document.** A search does not run on the file: it takes a *snapshot* of the edited document (a shared
 read of the mapped file plus a copy of the piece table) and runs on a worker thread, in 1 MiB blocks with overlap, checking the cancel flag before every block.
@@ -606,7 +604,7 @@ tab closes or the program exits; a filter that finds nothing, fails or is cancel
 
 **Tests that cover it:** core `pattern`, `docsearch`; terminal `dialog_search`, `replace`, `filter_view`, `filters_app`.
 
-### C7. Caches: what is remembered, and when it is thrown away
+###  Caches: what is remembered, and when it is thrown away
 
 **The principle.** Nothing is persisted: every cache lives in RAM inside the process and disappears when it exits (the only things
 written to disk are the saved document, the settings and the session). The big one is not ours: the file is memory-mapped, so its

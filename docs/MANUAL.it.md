@@ -1,10 +1,6 @@
 # Manto.RustPad — Manuale
 
-> **Stato: traduzione completa.** Tutte le carte (apertura e navigazione, modi e salvataggio, tempo, timeline e filtri,
-> codifiche), i capitoli "sotto il cofano" (salvataggio automatico e sessione, salvataggio, indice delle righe, tempo,
-> codifiche, ricerca, cache) e la tabella dei test UX. Le funzionalita' sono congelate per la prima release. Questo
-> documento descrive cio' che il prodotto fa oggi. La versione inglese (`MANUAL.md`) e' la fonte; questa e' la sua
-> traduzione, mantenuta in passo con lei.
+> Questo documento descrive cio' che il prodotto fa oggi. La versione inglese (`MANUAL.md`) e' la fonte; questa e' la sua traduzione.
 
 ## 0. Come si legge questo documento
 
@@ -391,7 +387,7 @@ riga di stato del terminale.
 Questi capitoli spiegano come funzionano le parti, dove tengono i loro dati e cosa garantiscono. Le costanti vengono dal sorgente
 e sono controllate dai test dove indicato.
 
-### C1. Salvataggio automatico e sessione: come sopravvive il lavoro non salvato
+###  Salvataggio automatico e sessione: come sopravvive il lavoro non salvato
 
 **Cos'e'.** Una piccola cartella di file che ricorda le schede aperte e, per ogni scheda con modifiche non salvate, quelle modifiche. E'
 quello che ti lascia premere `F10` senza domande e ritrovare tutto alla prossima partenza.
@@ -442,7 +438,7 @@ viene mai scambiato per un file di lavoro. Le esecuzioni di sviluppo con `--dump
 
 **Test che la coprono:** `mrp-tui/tests/session.rs`, `untitled.rs`.
 
-### C2. Modifica e salvataggio: piece table e scrittura sicura
+###  Modifica e salvataggio: piece table e scrittura sicura
 
 **Modificare senza copiare.** Un documento e' una mappatura in sola lettura del file piu' una **piece table**: un elenco ordinato di pezzi, ognuno
 dei quali punta nel file originale oppure in un piccolo buffer solo-aggiunto che raccoglie tutto quello che digiti. La memoria dipende dalla
@@ -483,7 +479,7 @@ conversione col suo file temporaneo (`<nome>.<pid>.<n>.mrp-conv`) nella cartella
 
 **Test che la coprono:** test dei documenti di `mrp-core`, `mrp-tui/tests/app_edit.rs`, `revert.rs`, `save_encoding.rs`.
 
-### C3. Indice delle righe e navigazione senza leggere il file
+###  Indice delle righe e navigazione senza leggere il file
 
 **L'idea.** L'apertura e' immediata perche' nulla si legge in anticipo: il file e' memory-mappato e lo schermo chiede solo i byte che
 mostra. I numeri di riga servono l'indice, che si costruisce in background.
@@ -519,7 +515,7 @@ mapping.
 
 **Test che la coprono:** `mrp-core/tests` (indice e codifiche), `mrp-tui/tests/pausa_indice.rs`, `avanzamento.rs`.
 
-### C4. Tempo: formati, salto a un orario, intervallo, timeline
+###  Tempo: formati, salto a un orario, intervallo, timeline
 
 **L'idea.** Un log e' quasi sempre ordinato per tempo e il tempo sta in testa a ogni riga. Quindi il programma non ha mai bisogno di un indice
 dei tempi: trova qualunque orario con una ricerca binaria sui byte del file, leggendo solo i primi cento byte di una manciata di righe. E'
@@ -565,7 +561,7 @@ file; UTF-16/32 non ha funzioni del tempo.
 
 **Test che la coprono:** core `timemask*`, `timesearch*`, `timekey*`, `timeline*`, `loghl*`; terminale `goto_time`, `time_*`, `timeline_*`.
 
-### C5. Codifiche, fine riga, modalita' colonna
+###  Codifiche, fine riga, modalita' colonna
 
 **L'idea.** Un documento e' sempre una sequenza di byte; la codifica e' solo la lente che dice come quei byte si leggono come caratteri
 (schermo, cursore, larghezze di colonna) e come un carattere digitato diventa byte. Posizione, conteggi di riga e ricerche restano allineati
@@ -602,7 +598,7 @@ blocco se *comincia* dentro le colonne; il `\r` nascosto e il `\n` mai. Ogni azi
 
 **Test che la coprono:** `app_bom`, `app_lineending`, `eol_option`, `save_encoding`, `app_column`, test di codifica del core.
 
-### C6. Ricerca, sostituzione e filtro per righe
+###  Ricerca, sostituzione e filtro per righe
 
 **Cercare sul documento modificato.** Una ricerca non gira sul file: prende una *fotografia* del documento modificato (una lettura condivisa
 del file mappato piu' una copia della piece table) e gira in un thread, in blocchi da 1 MiB con sovrapposizione, controllando il flag di annullamento prima di ogni blocco.
@@ -625,7 +621,7 @@ scheda si chiude o il programma esce; un filtro che non trova niente, fallisce o
 
 **Test che la coprono:** core `pattern`, `docsearch`; terminale `dialog_search`, `replace`, `filter_view`, `filters_app`.
 
-### C7. Cache: cosa si ricorda, e quando si butta
+###  Cache: cosa si ricorda, e quando si butta
 
 **Il principio.** Niente si rende persistente: ogni cache vive in RAM dentro il processo e sparisce quando esce (le uniche cose
 scritte su disco sono il documento salvato, le impostazioni e la sessione). La piu' grande non e' nostra: il file e' memory-mappato, quindi le sue

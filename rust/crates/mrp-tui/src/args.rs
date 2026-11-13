@@ -30,6 +30,8 @@ pub struct Args {
     pub settings: Option<PathBuf>,
     /// `--dump WxH` (sviluppatore): lo schermo come testo, senza terminale.
     pub dump: Option<String>,
+    /// `--dump-colori` (sviluppatore): con `--dump`, ogni cella come `colonna riga fg bg carattere`, per disegnare i colori.
+    pub dump_colori: bool,
     /// `--keys LISTA` (sviluppatore): i tasti che `--dump` applica uno alla volta.
     pub keys: Option<String>,
     /// `-h` / `--help`.
@@ -62,6 +64,7 @@ pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> 
             "--lang-dir" => args.lang_dir = Some(percorso(&mut resto, "--lang-dir")?),
             "--settings" => args.settings = Some(percorso(&mut resto, "--settings")?),
             "--dump" => args.dump = Some(testo(&mut resto, "--dump")?),
+            "--dump-colori" => args.dump_colori = true,
             "--keys" => args.keys = Some(testo(&mut resto, "--keys")?),
             _ => return Err(arg.to_string_lossy().into_owned()),
         }

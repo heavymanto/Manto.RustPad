@@ -8,6 +8,7 @@ use mrp_core::encoding::Encoding;
 use mrp_core::lang::Catalog;
 use mrp_tui::app::{App, AppConfig};
 use mrp_tui::args;
+use mrp_tui::cells;
 use mrp_tui::keys;
 use mrp_tui::term;
 use mrp_tui::workspace::Workspace;
@@ -178,7 +179,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
     };
     match dump {
         // --dump: niente terminale, lo schermo come testo
-        Some((w, h)) => match dump_run(&mut ws, w, h, &tasti) {
+        Some((w, h)) => match dump_run(&mut ws, w, h, &tasti, a.dump_colori) {
             Ok(()) => 0,
             Err(e) => {
                 eprintln!("{}", e);
@@ -196,8 +197,9 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
 }
 
 /// La modalita' `--dump`: ridimensiona l'app a W x H, applica i tasti (un `tick` dopo ognuno), aspetta che i
-/// lavori in background finiscano e stampa lo schermo, una riga per riga.
-fn dump_run(app: &mut Workspace, w: u16, h: u16, tasti: &[KeyEvent]) -> io::Result<()> {
+/// lavori in background finiscano e stampa lo schermo, una riga per riga. Con `--dump-colori` stampa invece ogni cella
+/// come `colonna riga fg bg carattere` (colori RGB in esadecimale), per disegnare lo schermo a colori.
+fn dump_run(app: &mut Workspace, w: u16, h: u16, tasti: &[KeyEvent], colori: bool) -> io::Result<()> {
     app.resize(w, h);
     for tasto in tasti {
         app.handle_key(*tasto);
@@ -210,8 +212,32 @@ fn dump_run(app: &mut Workspace, w: u16, h: u16, tasti: &[KeyEvent]) -> io::Resu
     }
     let _ = app.wait_idle(ATTESA_DUMP);
     let mut out = io::stdout().lock();
-    for riga in app.render_lines(w, h) {
-        writeln!(out, "{}", riga)?;
+    if colori {
+        let g = cells::render_grid_workspace(app, w, h);
+        for y in 0..g.h {
+            for x in 0..g.w {
+                if let Some(c) = g.cella(x, y) {
+                    let s = if c.simbolo.is_empty() { " " } else { c.simbolo.as_str() };
+                    writeln!(
+                        out,
+                        "{} {} {:02x}{:02x}{:02x} {:02x}{:02x}{:02x} {}",
+                        x,
+                        y,
+                        c.fg[0],
+                        c.fg[1],
+                        c.fg[2],
+                        c.bg[0],
+                        c.bg[1],
+                        c.bg[2],
+                        s
+                    )?;
+                }
+            }
+        }
+    } else {
+        for riga in app.render_lines(w, h) {
+            writeln!(out, "{}", riga)?;
+        }
     }
     out.flush()
 }
