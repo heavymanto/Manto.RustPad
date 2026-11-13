@@ -54,7 +54,7 @@ An ultra-fast viewer and editor written in Rust — available both in the termin
 
 This project was born from a daily annoyance: analysing huge logs without saturating the system's memory, or scanning large fixed-record files to fix small anomalies on the fly.
 
-Until today you had to juggle `less`, `grep`, hex editors and custom scripts — awkward solutions that do not help you spot the problems at a glance.
+Until now I have used several tools: log viewers that use little RAM but are limited in features and cannot edit; editors that sometimes crash on very large files. In short, none of them did it all.
 
 **Manto.RustPad** brings it all together in an essential interface, no frills: open the file instantly, isolate the anomalies visually and, when needed, edit in place.
 

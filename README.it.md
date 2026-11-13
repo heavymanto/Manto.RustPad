@@ -54,7 +54,7 @@ Un visualizzatore ed editor ultraveloce scritto in Rust — disponibile sia da t
 
 Questo progetto nasce da un fastidio quotidiano: dover analizzare log enormi senza saturare la memoria del sistema, oppure scorrere grandi tracciati a record fissi per correggere al volo piccole anomalie.
 
-Fino ad oggi bisognava destreggiarsi tra `less`, `grep`, editor esadecimali e script custom — soluzioni scomode che non aiutano a individuare i problemi a colpo d'occhio.
+Fino adesso utilizzavo piu' tool: log viewer che usano poca RAM ma sono limitati nelle funzioni e non editano; editor che a volte crashano con file molto grandi. Insomma, nessuno che facesse tutto.
 
 **Manto.RustPad** riunisce tutto in un'interfaccia essenziale, senza fronzoli: apri il file all'istante, isoli visivamente le anomalie e, se serve, modifichi sul posto.
 
