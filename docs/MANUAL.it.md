@@ -1,21 +1,22 @@
-# Manto.RustPad — Manuale
-
-## Come si legge questo documento
-
-| Campo | Significato |
-|---|---|
-| **Ingresso** | Come la raggiungi: tasto, menu', click. *Terminale* e *Finestra* quando differiscono. |
-| **Risposta attesa** | Cosa l'interfaccia deve mostrare o fare. |
-| **Non deve** | Cosa non deve mai succedere (perdita di dati, blocchi, un modo sbagliato...). |
-| **Limiti e casi limite** | File grandi, permessi mancanti, modifiche non salvate, schermi stretti. |
-| **Test automatici** | I test automatici che gia' la coprono, o *nessuno*. |
+# Manto.RustPad — Manuale
 
 I tasti sono scritti uguali per Windows, Linux e macOS (`Ctrl`, `Alt`). Nel terminale, `Alt+lettera` richiede un terminale che invii
 Alt come prefisso di escape (la maggior parte lo fa).
 
----
+## Indice
 
-> **Due facce sullo stesso motore:** [il terminale (mrp-tui)](img/tui/n01-apre.png) · [la finestra (mrp-gui)](img/manual/n01-apre.png) — le schermate di entrambe sono in ogni carta.
+- [Il prodotto in una pagina](#il-prodotto-in-una-pagina)
+- **[Parte prima — Il terminale (TUI)](#parte-prima--il-terminale-tui)**
+  - [Apertura e navigazione](#apertura-e-navigazione)
+  - [Modi, modifica e salvataggio](#modi-modifica-e-salvataggio)
+  - [Tempo, timeline e filtri](#tempo-timeline-e-filtri)
+  - [Codifiche e fine riga](#codifiche-e-fine-riga)
+- **[Parte seconda — La finestra (GUI)](#parte-seconda--la-finestra-gui)**
+  - [Apertura e navigazione](#apertura-e-navigazione-1)
+  - [Modi, modifica e salvataggio](#modi-modifica-e-salvataggio-1)
+  - [Tempo, timeline e filtri](#tempo-timeline-e-filtri-1)
+  - [Codifiche e fine riga](#codifiche-e-fine-riga-1)
+- [Sotto il cofano](#sotto-il-cofano)
 
 ## Il prodotto in una pagina
 
@@ -28,8 +29,17 @@ Alt come prefisso di escape (la maggior parte lo fa).
 | **TAIL** | `Alt+T` | Sola lettura, e la vista segue la fine del file mentre cresce (`tail -f`). |
 
 Il modo corrente e' sempre l'ultima parola della riga di stato (`VIEW`, `EDIT`, `TAIL`, con `COL` dopo in modalita' colonna) ed e'
-acceso nel footer. Un click sulla parola, o `Alt+M`, apre un piccolo menu' dei tre modi. Nella finestra la barra degli strumenti ha
-tre pulsanti adiacenti, uno acceso.
+acceso nel footer. Un click sulla parola, o `Alt+M`, apre un piccolo menu' dei tre modi.
+
+**Tasti standard, gli stessi nel terminale e nella finestra:** `F1` aiuto, `F2` salva, `F3` cerca (`Shift+F3` precedente), `F4`
+sostituisci, `F5` vai a, `F6` tema, `F7` lingua, `F8` modalita' colonna, `F9` codifica, `F10` esci, `Esc` chiude una finestra.
+`Ctrl+Z`/`Ctrl+Y` annulla/ripeti, `Ctrl+C`/`X`/`V` appunti, `Ctrl+A` seleziona tutto, `Ctrl+O` apri, `Ctrl+N` nuovo, `Ctrl+W` chiudi scheda.
+L'aiuto ha due tab nella finestra (Tasti, e *Info* con la versione, la licenza e l'indirizzo GitHub come link vero) e, nel
+terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0, codice.
+
+---
+
+## Parte prima — Il terminale (TUI)
 
 **Lo schermo del terminale**, dall'alto in basso:
 
@@ -40,100 +50,73 @@ tre pulsanti adiacenti, uno acceso.
    non e' LF, e il modo;
 4. il **footer**: `Alt+V View  Alt+E Edit  Alt+T Tail  F1 Help  F2 Save  F3 Find  F4 Repl  F5 Go ...  F10 Quit`. Su un terminale
    stretto i tasti F meno usati cedono per primi (F6, F7, F8, F9, poi F5); i tre modi mai.
-**Tasti standard, gli stessi nel terminale e nella finestra:** `F1` aiuto, `F2` salva, `F3` cerca (`Shift+F3` precedente), `F4`
-sostituisci, `F5` vai a, `F6` tema, `F7` lingua, `F8` modalita' colonna, `F9` codifica, `F10` esci, `Esc` chiude una finestra.
-`Ctrl+Z`/`Ctrl+Y` annulla/ripeti, `Ctrl+C`/`X`/`V` appunti, `Ctrl+A` seleziona tutto, `Ctrl+O` apri, `Ctrl+N` nuovo, `Ctrl+W` chiudi scheda.
-L'aiuto ha due tab nella finestra (Tasti, e *Info* con la versione, la licenza e l'indirizzo GitHub come link vero) e, nel
-terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0, codice.
 
-![La finestra dell'aiuto: il tab Tasti](img/manual/h-aiuto.png)
 ![Il terminale dell'aiuto: il tab Tasti](img/tui/h-aiuto.png)
-
-**La finestra** ha un menu' (File, Modifica, Visualizza, Avanzate, Aiuto), una barra degli strumenti (Nuovo, Apri, Salva | Annulla, Ripeti | Taglia, Copia, Incolla |
-Cerca, Sostituisci, Vai a | Timeline, Filtro tempo | VIEW, EDIT, TAIL, Modalita' colonna, Barra salti | Zoom), le schede, una scrollbar e la stessa
-
-![La finestra delle impostazioni](img/manual/h-impostazioni.png)
-riga di stato del terminale.
-
----
-
-## Le carte delle funzionalita'
 
 ### Apertura e navigazione
 
 #### N-01 Aprire un file dalla riga di comando
 
-![Il log aperto nella finestra: il testo colorato, la riga di stato, il footer](img/manual/n01-apre.png)
 ![Il log aperto nel terminale: il testo colorato, la riga di stato, il footer](img/tui/n01-apre.png)
-- **Ingresso:** `mrp-tui FILE` / `mrp-gui FILE`. Senza file, torna l'ultima sessione (vedi C1); senza sessione, un "Untitled 1" vuoto.
+- **Ingresso:** `mrp-tui FILE`. Senza file, torna l'ultima sessione (vedi *Salvataggio automatico e sessione*); senza sessione, un "Untitled 1" vuoto.
 - **Risposta attesa:** prima schermata immediata, modo `VIEW`, posizione `Ln 1  Col 1  byte 0  0%`, nome e dimensione del file a destra.
   Mentre l'indice si costruisce: `indexing N%` a destra, `Ln ?` a sinistra, e il margine dei numeri di riga vuoto.
 - **Non deve:** caricare il file intero; bloccare lo schermo durante l'indicizzazione; chiedere alcunche'.
 - **Limiti e casi limite:** **su Windows, mentre un file e' aperto qui, altri programmi possono aggiungerci dati, rinominarlo o cancellarlo, ma non troncarlo** (aprirlo in scrittura con troncamento, o accorciarlo, fallisce con un errore di sistema: il file e' memory-mappato). Un servizio che azzera il suo log ricevera' quell'errore mentre qualcuno lo sta guardando; aggiungere, ruotare con un rename e cancellare vanno bene (testato). Un file mancante da' un errore e nessuna finestra; un file vuoto si apre con 0 righe; un file che e' una sola
   riga enorme scorre lo stesso (le righe si tagliano a 128 KiB); un file di 64 MiB o piu' mostra una barra di avanzamento dopo 2 s (N-08).
-- **Test automatici:** si' (`app_view`, `cli`, `pausa_indice`, `utf16_core`...).
 
 #### N-02 Aprire un altro file, documento nuovo
 
-![Due file, due schede](img/manual/n02-schede.png)
-- **Ingresso:** `Ctrl+O` (finestra: File > Apri, dialogo di sistema; terminale: un prompt "percorso del file da aprire", Invio conferma, Esc annulla).
+- **Ingresso:** `Ctrl+O`: un prompt "percorso del file da aprire", Invio conferma, Esc annulla.
   `Ctrl+N` apre un documento vuoto in una scheda nuova, in modalita' EDIT.
 - **Risposta attesa:** compare una scheda nuova ed e' attiva; aprire un file gia' aperto non lo duplica.
 - **Non deve:** sostituire una scheda che ha modifiche non salvate.
 - **Limiti e casi limite:** aprire mentre la scheda attiva ha modifiche non salvate conserva quelle modifiche (si usa una scheda nuova).
-- **Test automatici:** si' (`workspace`, `untitled`, `menu`).
 
 #### N-03 Muoversi
-- **Ingresso:** frecce, `PgSu`/`PgGiu`, `Home`/`Fine`, `Ctrl+Home`/`Ctrl+Fine`, rotella del mouse, scrollbar (finestra).
+- **Ingresso:** frecce, `PgSu`/`PgGiu`, `Home`/`Fine`, `Ctrl+Home`/`Ctrl+Fine`, rotella del mouse.
 - **Risposta attesa:** la posizione nella riga di stato segue; la vista scorre quando il cursore esce dallo schermo.
 - **Non deve:** leggere il file intero per muoversi; bloccarsi su una riga lunghissima.
 - **La barra orizzontale (aggiunta l'11/11/2026):** una riga piu' larga della finestra mostra una barra sotto il testo (una riga,
   solo quando serve: una riga piu' larga della finestra, o gia' scorreta) col pollice che dice dov'e' la finestra sulla riga piu'
   larga visibile — prima, l'unico modo di scorrere era camminarci col cursore. Clicca o trascina il pollice (segue il puntatore
   per come lo si e' afferrato; un clic sulla pista lo centra li'): la finestra si muove e il cursore resta dov'e' (il prossimo
-  movimento del cursore riporta la vista su di lui). Nella finestra anche `Maiusc`+rotella scorre, otto celle a scatto. `«` e `»`
+  movimento del cursore riporta la vista su di lui). `«` e `»`
   segnalano ancora i lati tagliati di una riga; per una riga oltre il limite di lettura il mondo della barra e' un limite
   inferiore onesto che cresce scorrendo.
 - **Limiti e casi limite:** su un file ancora in indicizzazione, i salti funzionano per byte e percentuale, non per riga (N-04); saltare
-  mette in pausa le letture su disco dell'indicizzatore per 400 ms (C3).
-- **Test automatici:** si' (`app_view`, `app_jump`, `app_mouse`, `hbar`; nella finestra: `barre`).
+  mette in pausa le letture su disco dell'indicizzatore per 400 ms (*Indice delle righe*).
 
 #### N-04 Vai a (`F5` / `Ctrl+G`)
 
-![Il prompt Vai a](img/manual/n04-vai.png)
 ![Il prompt Vai a](img/tui/n04-vai.png)
-- **Ingresso:** `F5` o `Ctrl+G`; finestra: Modifica > Vai a, o il pulsante nella barra. Un prompt: "numero di riga, @byte, %percentuale o ~orario".
+- **Ingresso:** `F5` o `Ctrl+G`. Un prompt: "numero di riga, @byte, %percentuale o ~orario".
 - **Risposta attesa:** il cursore va li' e il bersaglio sta verso il mezzo dello schermo *(osservato: `500` -> `Ln 500`,
   `%50` -> `49%`, `@1000000` -> `byte 1000000`)*. `0` -> "not a valid position: 0"; una riga oltre la fine -> "line N is beyond the end (M lines)".
 - **Non deve:** muovere il cursore su un bersaglio non valido; fermarsi dentro un carattere multibyte (torna al suo inizio).
 - **Limiti e casi limite:** la `@` di `@byte` si digita con AltGr su molte tastiere (italiana, tedesca, spagnola, francese...): funziona
   anche nel terminale su Windows (vedi M-03). Per riga serve l'indice (mentre si costruisce: un messaggio dice di aspettare e niente si muove);
-  `@` e `%` non serve l'indice; `~orario` serve un formato del tempo riconosciuto (vedi C4).
-- **Test automatici:** si' (`app_jump`, `time_dialogs`).
+  `@` e `%` non serve l'indice; `~orario` serve un formato del tempo riconosciuto (vedi *Tempo*).
 
 #### N-05 Salti di pagine e barra dei salti
 
-![La barra dei salti: Home, Fine e i pulsanti delle pagine](img/manual/n05-salti.png)
 ![La barra dei salti: Home, Fine e i pulsanti delle pagine](img/tui/n05-salti.png)
 - **Ingresso:** `Alt+PgSu`/`Alt+PgGiu` saltano 10 pagine (`Maiusc` x100, `Ctrl` x1000); `Ctrl+B` mostra una barra con *Home*, *Fine* e i pulsanti
-  dei passi di pagina (la finestra la disegna come una striscia di pulsanti con un ingranaggio che apre le impostazioni dei passi).
+  dei passi di pagina.
 - **Risposta attesa:** la vista arriva dove il passo dice; la riga di stato mostra la nuova posizione.
 - **Non deve:** bloccarsi su un file enorme.
-- **Test automatici:** si' (`jump_config`, `app_jump`, `pausa_indice`).
 
 #### N-06 Numeri di riga e indice delle righe
-- **Ingresso:** `Alt+N` mostra/nasconde i numeri di riga; `Alt+X` accende/spegne l'indice delle righe (finestra: menu Visualizza).
+- **Ingresso:** `Alt+N` mostra/nasconde i numeri di riga; `Alt+X` accende/spegne l'indice delle righe.
 - **Risposta attesa:** spegnere l'indice chiede prima "SPEGNERE L'INDICE DELLE RIGHE?", elencando cosa si perde (numeri di riga, vai a una riga,
   il totale delle righe, i salti veloci di pagina, il conteggio delle righe di una selezione) e cosa continua a funzionare; Invio conferma e i numeri
   spariscono (`Ln ?`), Esc annulla. Riaccenderlo fa ripartire il conteggio da zero senza chiedere.
 - **Non deve:** cambiare il file.
-- **Test automatici:** si' (`line_numbers`, `pausa_indice`).
 
 #### N-07 Schede
-- **Ingresso:** `Ctrl+PgGiu`/`Ctrl+PgSu`, `Alt+←`/`Alt+→`, `Alt+1`..`9`, `Ctrl+W` chiude; finestra: clic su una scheda.
+- **Ingresso:** `Ctrl+PgGiu`/`Ctrl+PgSu`, `Alt+←`/`Alt+→`, `Alt+1`..`9`, `Ctrl+W` chiude.
 - **Risposta attesa:** la scheda attiva cambia subito; chiudere una scheda con modifiche non salvate chiede prima.
-- **Non deve:** chiudere in silenzio una scheda modificata senza sessione (con la sessione le modifiche restano, vedi C1).
-- **Test automatici:** si' (`workspace`, `chrome`).
+- **Non deve:** chiudere in silenzio una scheda modificata senza sessione (con la sessione le modifiche restano, vedi *Salvataggio automatico e sessione*).
 
 #### N-08 Avanzamento dei lavori lunghi sui file grandi
 - **Ingresso:** automatico, per indicizzazione, ricerca e salvataggio.
@@ -142,26 +125,22 @@ riga di stato del terminale.
   (temi a colori) *(osservato nei codici di escape)*.
 - **Non deve:** bloccare lo schermo; mostrare una stima assurda (resta in silenzio quando il lavoro e' in pausa o non ha ancora una velocita').
 - **Limiti e casi limite:** il tempo che resta si nasconde sopra le 99 ore.
-- **Test automatici:** si' (`avanzamento`).
 
 ### Modi, modifica e salvataggio
 
 #### M-01 I tre modi
-- **Ingresso:** `Alt+V` VIEW, `Alt+E` EDIT, `Alt+T` TAIL; `F4` *non* e' un modo (e' Sostituisci). Finestra: tre pulsanti nella barra e le
-  voci col segno di spunta nel menu Modifica.
+- **Ingresso:** `Alt+V` VIEW, `Alt+E` EDIT, `Alt+T` TAIL; `F4` *non* e' un modo (e' Sostituisci).
+
 - **Risposta attesa:** l'ultima parola della riga di stato cambia; il footer accende quella corrente; un messaggio spiega il cambio
   ("edit mode: the file is not touched until you save", "TAIL: following the end of the file", "view mode").
 - **Non deve:** stare in due modi insieme; avviare TAIL su un documento modificato (vedi M-08).
-- **Test automatici:** si' (`modi`, `follow`, `commands`, `strumenti`).
 
 #### M-02 Il menu dei modi
 
-![Il menu dei tre modi](img/manual/m02-modi.png)
 ![Il menu dei tre modi](img/tui/m02-modi.png)
 - **Ingresso:** `Alt+M`, o un clic sulla parola del modo nella riga di stato.
 - **Risposta attesa:** Su/Giu muovono, Invio sceglie, Esc chiude.
 - **Non deve:** cambiare modo senza Invio.
-- **Test automatici:** si' (`modi`, `dialog_views`); il clic in un terminale vero e' provato solo a livello di app *(da verificare a mano)*.
 
 #### M-03 Digitare e modificare
 - **Ingresso:** in EDIT: caratteri, `Invio`, `Tab`, `Backspace`, `Canc`; selezione con `Maiusc`+frecce o il mouse; `Ctrl+C`/`X`/`V`.
@@ -171,14 +150,12 @@ riga di stato del terminale.
   Alt+tasto e Ctrl+tasto restano scorciatoie). Funziona in ogni campo di testo (modifica, Cerca, Sostituisci, Filtri, Vai a `@byte`). Prima della correzione
   venivano scartati: `a@b{c}[d]` dava `abcd`.
 - **Non deve:** toccare il file su disco prima di un salvataggio. In VIEW, digitare e' rifiutato col suggerimento **"read-only: press Alt+E to edit"**.
-- **Test automatici:** si' (`app_edit`, `app_select`, `app_multibyte`).
 
 #### M-04 Annulla e ripeti
-- **Ingresso:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Maiusc+Z`); finestra: menu Modifica, barra.
+- **Ingresso:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Maiusc+Z`).
 - **Risposta attesa:** il testo torna/avanza a passi interi.
 - **Non deve:** funzionare in VIEW (rifiutato col suggerimento di digitare, "read-only: press Alt+E to edit"); sopravvivere a un salvataggio (dopo un salvataggio la storia e' vuota).
-- **Limiti e casi limite:** la storia non si tiene nella sessione: una scheda ripristinata si puo' salvare ma non annullare (C1).
-- **Test automatici:** si' (`app_edit`, `commands`).
+- **Limiti e casi limite:** la storia non si tiene nella sessione: una scheda ripristinata si puo' salvare ma non annullare (*Salvataggio automatico e sessione*).
 
 #### M-05 Salva e Salva con nome
 - **Ingresso:** `F2` / `Ctrl+S`; `Ctrl+Maiusc+S` Salva con nome (chiede il nome, poi la codifica). Entrambi funzionano anche in VIEW quando ci sono modifiche.
@@ -186,45 +163,38 @@ riga di stato del terminale.
 - **Non deve:** lasciare un file scritto a meta', mai, qualunque l'interruzione; sovrascrivere un file che un altro programma ha cambiato da quando l'hai aperto.
 - **Limiti e casi limite:** niente da salvare -> il messaggio "nothing to save"; file cambiato su disco -> rifiutato col motivo, le modifiche restano;
   cartella di sola lettura o disco pieno -> un errore, l'originale intatto, nessun temporaneo lasciato.
-- **Test automatici:** si' (`app_edit`, `save_encoding`, `session`).
 
 #### M-06 Scarta le modifiche (`Ctrl+R`)
-- **Ingresso:** `Ctrl+R` (o `Alt+R`); finestra: File > Ripristina.
+- **Ingresso:** `Ctrl+R` (o `Alt+R`).
 - **Risposta attesa:** una domanda che nomina il file; Invio/S/Y conferma e la scheda si riapre in VIEW vicino alla vecchia posizione; Esc/N tiene le modifiche.
 - **Non deve:** toccare il file su disco. Con niente da scartare: il messaggio **"no unsaved changes to discard"** e nessun dialogo.
-- **Test automatici:** si' (`revert`).
 
 #### M-07 Uscire con modifiche non salvate
-- **Ingresso:** `F10` / `Ctrl+Q`; finestra: chiudi la finestra.
+- **Ingresso:** `F10` / `Ctrl+Q`.
 - **Risposta attesa (senza sessione):** una finestra "UNSAVED CHANGES": `S` Salva ed esci, `D` Scarta le modifiche, `C` Annulla.
   "Salva ed esci" esce solo se il salvataggio e' riuscito.
 - **Non deve:** perdere modifiche in silenzio.
-- **Test automatici:** si' (`session`, `app_edit`).
 
 #### M-08 Tail (segue la fine)
 
-![Modalita' Tail: la vista segue la fine del file](img/manual/m08-tail.png)
-- **Ingresso:** `Alt+T`; finestra: pulsante nella barra / menu Modifica.
+- **Ingresso:** `Alt+T`.
 - **Risposta attesa:** `TAIL` nella riga di stato e "TAIL: following the end of the file".
 - **Non deve:** partire su un documento con modifiche non salvate: resta dov'e' e dice **"save or discard the changes (F2, Ctrl+R) before TAIL"**.
 - **Limiti e casi limite:** da EDIT senza modifiche passa direttamente a TAIL; un file che si accorcia smette di seguire, con un messaggio.
-- **Test automatici:** si' (`follow`, `modi`).
 
 ### Tempo, timeline e filtri
 
 #### T-01 Formato dell'orario delle righe (`Alt+O`)
 
-![La finestra Tempo: il formato delle righe](img/manual/t01-formato.png)
 ![Il terminale Tempo: il formato delle righe](img/tui/t01-formato.png)
-- **Ingresso:** `Alt+O`; automatico al primo uso. Finestra: menu Avanzate / la finestra Tempo con calendario e riquadro "esempio" *(da verificare a mano)*.
+- **Ingresso:** `Alt+O`; automatico al primo uso.
 - **Risposta attesa:** una finestra "TIME FORMAT" col formato, entro quanti caratteri dall'inizio cercare, i formati
   noti con un esempio, e un'anteprima delle prime righe come `testo => 2026-01-01 00:00:28`. Tutto cio' che dipende
   dal tempo (orario in riga di stato, timeline, vai a un orario, intervallo, colori) segue il formato scelto.
 - **Non deve:** leggere il file intero (il rilevamento usa al piu' 64 KiB di testa e 64 KiB di coda); cambiare il file.
   Un token sbagliato (`yyyyy`) dà un errore "bad token" e lascia il formato com'era.
 - **Limiti e casi limite:** i file UTF-16/UTF-32 non vengono mai riconosciuti, quindi non hanno funzioni del tempo. Le maschere senza anno (syslog)
-  usano l'anno 2000. Orari che tornano indietro rompono l'assunzione dietro le ricerche (vedi C4).
-- **Test automatici:** si' (`time_range`, `time_dialogs`, core `timemask*`).
+  usano l'anno 2000. Orari che tornano indietro rompono l'assunzione dietro le ricerche (vedi *Tempo*).
 
 #### T-02 Vai a un orario (`F5`, poi `~orario`)
 - **Ingresso:** il prompt di vai a con un `~` davanti all'orario: `~03:20`, `~2026-10-31 05:00:00`.
@@ -232,31 +202,26 @@ riga di stato del terminale.
   Un bersaglio prima di tutto resta sulla prima riga.
 - **Non deve:** leggere il file linearmente; fermarsi su una riga con un orario piu' piccolo.
 - **Limiti e casi limite:** serve un formato riconosciuto e orari che non tornano mai indietro; le righe senza orario si saltano.
-- **Test automatici:** si' (`goto_time`).
 
 #### T-03 Intervallo di tempo (`Alt+I`)
 
-![La finestra Tempo col calendario del campo Dal](img/manual/t03-intervallo.png)
 ![Il terminale Tempo col calendario del campo Dal](img/tui/t03-intervallo.png)
-- **Ingresso:** `Alt+I`; finestra: Avanzate > Intervallo di tempo / pulsante dell'orologio nella barra (acceso mentre c'e' un intervallo).
+- **Ingresso:** `Alt+I`.
 - **Risposta attesa:** le righe fuori non si vedono; la riga di stato dice l'intervallo; la timeline lo mostra.
 - **Non deve:** cambiare il file; confondersi con la finestra di tempo della scheda (sono due cose: quella e' un filtro, questa limita la vista della scheda).
 - **Limiti e casi limite:** un intervallo scritto a mano con orari che il file non copre viene rifiutato dicendo il primo e l'ultimo orario
   del file.
-- **Test automatici:** si' (`time_window`, `time_range`).
 
 #### T-04 Timeline (`Alt+B`)
 
-![La timeline: il file nel tempo, accanto alla scrollbar](img/manual/t04-timeline.png)
 ![La timeline: il file nel tempo, accanto alla scrollbar](img/tui/t04-timeline.png)
-- **Ingresso:** `Alt+B` (la scelta si ricorda); finestra: Visualizza > Mostra la timeline / pulsante.
+- **Ingresso:** `Alt+B` (la scelta si ricorda).
 - **Non deve:** leggere il file intero per ogni periodo (galoppa in avanti e bisetta); bloccare lo schermo (si costruisce in un thread in background
   che apre una sua copia del file); lavorare su un documento modificato (dice "unavailable").
 - **Limiti e casi limite:** servono almeno 40 colonne di testo; al piu' 20.000 periodi (forzare 1 minuto su un log di piu' giorni dà
   "too many buckets" col conteggio, in rosso e grassetto); i documenti UTF-16/32 non hanno timeline. Su un file senza orari la timeline
   si spegne da sola e la riga di stato dice perche', col suo consiglio (scegli un formato a mano): la preferenza non si tocca, il prossimo
   file con orari la riapre com'era.
-- **Test automatici:** si' (`timeline_*`, core `timeline*`).
 
 #### T-05 Passo della timeline (`Alt+P`)
 - **Ingresso:** `Alt+P`, o un clic sull'intestazione della timeline (solo mentre e' accesa).
@@ -265,28 +230,23 @@ riga di stato del terminale.
 - **La scelta e' della scheda, non un'abitudine:** non si ricorda fra i file — ogni file parte da Auto, e cambiare il formato
   dell'orario riporta ad Auto pure lui (le estremita' del file cambiano con quello). Un passo fine rimasto salvato rompeva i file piu' lunghi.
 - **Non deve:** cambiare il file o l'intervallo.
-- **Test automatici:** si' (`timeline_tasti`, `timeline_pref`).
 
 #### T-06 Filtro dei livelli (`Alt+S`)
-- **Ingresso:** `Alt+S` (timeline accesa); anche le bandierine dei livelli nella finestra Filtri.
+- **Ingresso:** `Alt+S` (timeline accesa).
 - **Risposta attesa:** un menu' "TIMELINE: SHOW ONLY": *Tutte le righe*, *Solo gli errori*, *Errori e avvisi*, *Errori, avvisi e informazioni*.
   La scelta apre una scheda nuova di sola lettura col nome dei livelli.
 - **Non deve:** cambiare il file o la scheda originali. Il confronto e' la parola intera del livello, maiuscole esatte.
 - **Limiti e casi limite:** rifiutato sui documenti non UTF-8, con un messaggio.
-- **Test automatici:** si' (`timeline_levels_app`).
 
 #### T-07 Colori dei log (`Alt+L`)
 
-![Il log coi colori dei livelli accesi](img/manual/t07-colori.png)
 ![Il log coi colori dei livelli accesi](img/tui/t07-colori.png)
-- **Ingresso:** `Alt+L`; finestra: Visualizza > Mostra i colori dei log.
+- **Ingresso:** `Alt+L`.
 - **Risposta attesa:** i colori compaiono subito e seguono il tema; gli orari sono colorati solo dove il formato corrente li legge.
 - **Non deve:** rallentare lo scroll; colorare dentro una parola (il livello deve essere una parola intera).
-- **Test automatici:** si' (`logcolors`, core `loghl*`).
 
 #### F-01 Cerca (`F3` / `Ctrl+F`)
 
-![Il prompt Cerca](img/manual/f01-cerca.png)
 ![Il prompt Cerca](img/tui/f01-cerca.png)
 - **Ingresso:** `Ctrl+F` apre il prompt (precompilato col testo dell'ultima volta); `F3` ripete in avanti, `Maiusc+F3` indietro (o apre il prompt se non c'e' ancora una ricerca).
   Con una selezione, `F3` cerca la selezione stessa, letterale e distinguendo le maiuscole, senza prompt; la selezione che e' la corrispondenza appena trovata
@@ -297,50 +257,42 @@ riga di stato del terminale.
 - **Limiti e casi limite:** i modelli confrontano per riga (mai attraverso un a-capo); glob, regex e senza-maiuscole servono un documento UTF-8
   (altrimenti un messaggio lo dice); il testo semplice in una code page il cui ago non si puo' codificare e' semplicemente "not found"; le corrispondenze
   nelle codifiche asiatiche multibyte contano solo all'inizio di un carattere.
-- **Test automatici:** si' (`dialog_search`, core `pattern`).
 
 #### F-02 Sostituisci (`F4` / `Ctrl+H`)
 
-![La finestra Sostituisci](img/manual/f02-sostituisci.png)
 ![Il terminale Sostituisci](img/tui/f02-sostituisci.png)
-- **Ingresso:** `F4` o `Ctrl+H`; finestra: Modifica > Sostituisci / barra.
+- **Ingresso:** `F4` o `Ctrl+H`.
 - **Risposta attesa:** digitare qualsiasi cosa azzera l'anteprima; dopo l'applicazione, la scheda e' modificata e **un** `Ctrl+Z` annulla
   tutta la corsa.
 - **Non deve:** toccare i file su disco; applicare alcche' quando si annulla con `Esc`, o oltre le 2.000.000 di occorrenze ("too many").
 - **Limiti e casi limite:** tutte-le-schede salta le schede che non lo permettono (non UTF-8 con una regex, per esempio) e dice quante; le schede non si possono
   aprire o chiudere mentre gira.
-- **Test automatici:** si' (`replace`).
 
 #### F-03 Filtro per righe (`Alt+G`)
 
-![Il menu contestuale su una selezione: filtra, nascondi, cerca](img/manual/f03-filtri.png)
-- **Ingresso:** `Alt+G`; finestra: finestra Filtri. Nel prompt, `Alt+I` inverte (nasconde le righe che corrispondono).
+- **Ingresso:** `Alt+G`. Nel prompt, `Alt+I` inverte (nasconde le righe che corrispondono).
 - **Risposta attesa:** la scheda nuova con le righe trovate e un messaggio come `297 lines: Enter on a line goes to it in the file`;
   `Invio` su una riga porta avanti il file originale (riaprendolo se chiuso) col cursore su quella riga precisa.
 - **Non deve:** modificare l'originale. Modificare nella vista e' rifiutato ("a filtered view is read-only: edit the original file"). Senza corrispondenze:
   "no line matches", nessuna scheda e nessun temporaneo lasciato.
 - **Limiti e casi limite:** al piu' 20.000.000 righe per vista (si ferma e dice che e' stata tagliata); il file temporaneo `mrp-filter-<pid>-<n>.log` sta nella
   cartella temporanea di sistema e si cancella quando la scheda si chiude o il programma esce.
-- **Test automatici:** si' (`filter_view`, `filters_app`).
 
 #### F-04 Check dei tracciati (`Alt+H`)
 
-![Il check dei tracciati: l'istogramma spuntabile delle lunghezze delle righe](img/manual/f04-lunghezze.png)
 ![Il check dei tracciati: l'istogramma spuntabile delle lunghezze delle righe](img/tui/f04-lunghezze.png)
-- **Ingresso:** `Alt+H`; finestra: Avanzate > Check dei tracciati. Nell'istogramma `SPAZIO` spunta la lunghezza sotto il cursore, `A` inverte tutta la selezione, `Invio` applica, `Esc` annulla.
+- **Ingresso:** `Alt+H`. Nell'istogramma `SPAZIO` spunta la lunghezza sotto il cursore, `A` inverte tutta la selezione, `Invio` applica, `Esc` annulla.
 - **Risposta attesa:** mentre la passata conta il dialogo dice la percentuale; poi la lista, scorrevole, risponde subito a `SPAZIO`/`A`: ogni riga dice conteggio, barra e percentuale sul totale, e in fondo il totale (`2,202 records · 3 lengths`); `Invio` apre la vista con un messaggio come
   `2 lines: Enter on a line goes to it in the file` (e `Invio` su una riga della vista porta a quella riga nell'originale, come in F-03).
 - **Non deve:** modificare l'originale. Con niente spuntato: "no line matches", nessuna scheda. Senza righe: "nothing to count". `Esc` lascia tutto com'era, e la selezione abortita non si ricorda.
 - **Limiti e casi limite:** le lunghezze sono byte di contenuto: le righe CRLF contano senza il `\r`, l'ultima riga senza a-capo e' una riga, una riga vuota ha lunghezza 0. La passata vede le modifiche non salvate (legge la fotografia) e si annulla chiudendo (riparte alla prossima apertura). Nella finestra le caselle sono cliccabili e Inverti / OK / Annulla sono pulsanti.
-- **Test automatici:** si' (`lengths` nel core, `lengths_app`, `lengths_view`).
 
 ### Codifiche e fine riga
 
 #### E-01 Codifica: rilevamento e cambio (`F9`)
 
-![Il menu delle codifiche](img/manual/e01-codifica.png)
 ![Il menu delle codifiche](img/tui/e01-codifica.png)
-- **Ingresso:** automatico all'apertura; `F9` (finestra: Visualizza > Codifica…) apre l'elenco delle 64 codifiche con quella corrente evidenziata; sulla riga di comando `--encoding NOME`.
+- **Ingresso:** automatico all'apertura; `F9` apre l'elenco delle 64 codifiche con quella corrente evidenziata; sulla riga di comando `--encoding NOME`.
 - **Risposta attesa:** il testo si rilegge senza muoversi e la riga di stato nomina la codifica (niente per UTF-8 semplice). Osservato su 28 file di prova (UTF-8 con e senza
   BOM, UTF-16/32 in entrambi gli ordini, 14 code page a byte singolo, 7 pagine DOS e Mac, Shift-JIS, EUC-JP, GBK, GB18030, Big5, EUC-KR): con `--encoding` tutti e 28 letti
   esatti; col rilevamento, gli Unicode con BOM, UTF-8, UTF-16 senza BOM e windows-1252/ISO-8859-1 sono giusti, ogni altro file a 8 bit o asiatico si apre come
@@ -348,7 +300,6 @@ riga di stato del terminale.
 - **Non deve:** cambiare il file; perdere o nascondere un byte non valido (compare un carattere di sostituzione per byte e si riscrive uguale).
 - **Limiti e casi limite:** il passaggio fra UTF-16/32 e le altre codifiche e' rifiutato mentre il documento e' modificato ("save before switching to/from UTF-16/32").
   La riga di stato non dice che la codifica e' stata *indovinata*.
-- **Test automatici:** si' (`app_encoding`, `app_utf16`, `app_utf32`, `app_multibyte`, test di codifica del core).
 
 #### E-02 Salva con nome in un'altra codifica (`Ctrl+Maiusc+S`)
 - **Ingresso:** `Ctrl+Maiusc+S`: prima il percorso, poi un elenco di codifiche (quella corrente evidenziata, `Tab` = scrivi un BOM, `Invio` salva).
@@ -359,7 +310,6 @@ riga di stato del terminale.
 - **Non deve:** scrivere un file parziale; toccare la sorgente.
 - **Limiti e casi limite:** il campo del percorso e' precompilato con la cartella del file: scrivi solo il nome nuovo (scrivere un percorso intero ci si aggiunge e fallisce
   con l'errore grezzo di sistema 123).
-- **Test automatici:** si' (`save_encoding`).
 
 #### E-03 La modifica mantiene la codifica e il fine riga
 - **Ingresso:** automatico.
@@ -370,7 +320,136 @@ riga di stato del terminale.
 - **CRLF (corretto l'8/11/2026):** in un file CRLF (UTF-8, UTF-16 LE/BE, UTF-32) lo `\r\n` e' un fine riga solo: `Fine` e `Maiusc+Fine` si fermano prima del `\r`, digitare e
   `Invio` a fine riga vanno prima di lui, `Destra`/`Sinistra`/`Backspace`/`Canc` scavalcano la coppia come un carattere solo, e `Giu` da fine riga arriva a fine riga
   successiva. Prima della correzione il cursore poteva stare fra `\r` e `\n` e digitare li' salvava `ab\rX\ncd\r\n`.
-- **Test automatici:** si' (`app_lineending`, `eol_option`, `app_bom`, `app_crlf` per la modifica a fine riga CRLF in UTF-8 e UTF-16, `altgr`).
+
+---
+
+## Parte seconda — La finestra (GUI)
+
+**La finestra** ha un menu' (File, Modifica, Visualizza, Avanzate, Aiuto), una barra degli strumenti (Nuovo, Apri, Salva | Annulla,
+Ripeti | Taglia, Copia, Incolla | Cerca, Sostituisci, Vai a | Timeline, Filtro tempo | VIEW, EDIT, TAIL, Modalta' colonna, Barra
+salti | Zoom), le schede, una scrollbar e la stessa riga di stato del terminale. Nella barra degli strumenti i tre modi sono tre
+pulsanti adiacenti, uno acceso. Il titolo della finestra dice il nome del file — ` *` quando e' modificato — e la versione.
+
+![La finestra dell'aiuto: il tab Tasti](img/manual/h-aiuto.png)
+![La finestra delle impostazioni](img/manual/h-impostazioni.png)
+
+Le carte della parte prima valgono anche qui: stesso motore, stesse risposte, stessi limiti. Ogni carta che segue dice solo come si
+raggiunge la funzione dalla finestra — menu', pulsante, dialogo — e cosa cambia rispetto al terminale.
+
+### Apertura e navigazione
+
+#### N-01 Aprire un file
+![Il log aperto nella finestra: il testo colorato, la riga di stato](img/manual/n01-apre.png)
+- **Dalla finestra:** File > Apri (il dialogo di sistema), oppure `mrp-gui FILE` dalla riga di comando.
+- Come nel terminale: senza file torna l'ultima sessione, senza sessione un "Untitled 1" vuoto.
+
+#### N-02 Aprire un altro file, documento nuovo
+![Due file, due schede](img/manual/n02-schede.png)
+- **Dalla finestra:** File > Apri e File > Nuovo; `Ctrl+O` e `Ctrl+N` come nel terminale. Le schede si scelgono con un clic.
+
+#### N-03 Muoversi
+- **Dalla finestra:** rotella del mouse, trascinamento della scrollbar, clic sulla timeline. `Maiusc`+rotella scorre in orizzontale, otto celle a scatto.
+- La barra orizzontale sotto il testo funziona come nel terminale: clic e trascinamento del pollice.
+
+#### N-04 Vai a
+![Il dialogo Vai a](img/manual/n04-vai.png)
+- **Dalla finestra:** Modifica > Vai a, o il pulsante nella barra. Accetta numero di riga, `@byte`, `%percentuale`, `~orario` come il prompt del terminale.
+
+#### N-05 Salti di pagine e barra dei salti
+![La barra dei salti](img/manual/n05-salti.png)
+- **Dalla finestra:** la barra dei salti e' una striscia di pulsanti (*Home*, i passi di pagina, *Fine*); l'ingranaggio apre le impostazioni dei passi. `Alt+PgSu`/`Alt+PgGiu` e i modificatori (`Maiusc` x100, `Ctrl` x1000) sono gli stessi.
+
+#### N-06 Numeri di riga e indice delle righe
+- **Dalla finestra:** menu Visualizza > Mostra i numeri di riga / Mostra l'indice delle righe.
+
+#### N-07 Schede
+- **Dalla finestra:** un clic su una scheda la porta davanti; `Ctrl+W` chiude quella davanti; `Alt+1`..`9` e `Alt+freccia` come nel terminale.
+
+#### N-08 Avanzamento dei lavori lunghi
+- Automatico, come nel terminale: la riga di stato dice il lavoro in corso e quanto ne manca.
+
+### Modi, modifica e salvataggio
+
+#### M-01 I tre modi
+![Il menu dei tre modi](img/manual/m02-modi.png)
+- **Dalla finestra:** tre pulsanti adiacenti nella barra degli strumenti, uno acceso; le voci col segno di spunta nel menu Modifica. I tasti `Alt+V`/`Alt+E`/`Alt+T` sono gli stessi.
+
+#### M-02 Il menu dei modi
+- **Dalla finestra:** il menu' dei modi sta nel menu Modifica e nei tre pulsanti della barra.
+
+#### M-03 Digitare e modificare
+- Come nel terminale: in EDIT caratteri, `Invio`, `Tab`, `Backspace`, `Canc`; selezione con `Maiusc`+frecce o il mouse; `Ctrl+C`/`X`/`V`.
+
+#### M-04 Annulla e ripeti
+- **Dalla finestra:** menu Modifica / i pulsanti Annulla e Ripeti nella barra. `Ctrl+Z` e `Ctrl+Y` come nel terminale.
+
+#### M-05 Salva e Salva con nome
+- **Dalla finestra:** File > Salva / File > Salva con nome; il percorso si sceglie col dialogo di sistema. Su un file grande il salvataggio mostra una barra di avanzamento e si puo' annullare.
+
+#### M-06 Scarta le modifiche
+- **Dalla finestra:** File > Ripristina. La domanda di conferma e' quella del terminale.
+
+#### M-07 Uscire con modifiche non salvate
+- **Dalla finestra:** chiudi la finestra; il dialogo "UNSAVED CHANGES" offre Salva ed esci, Scarta le modifiche, Annulla.
+
+#### M-08 Tail
+![Modalita' Tail: la vista segue la fine del file](img/manual/m08-tail.png)
+- **Dalla finestra:** il pulsante TAIL nella barra / menu Modifica. `Alt+T` come nel terminale.
+
+### Tempo, timeline e filtri
+
+#### T-01 Formato dell'orario
+![La finestra Tempo: il formato delle righe](img/manual/t01-formato.png)
+- **Dalla finestra:** menu Avanzate; la finestra Tempo ha il calendario per i campi e il riquadro "esempio" con l'anteprima delle prime righe.
+
+#### T-02 Vai a un orario
+- Come nel terminale: `F5` (o Modifica > Vai a) con `~orario` nel dialogo.
+
+#### T-03 Intervallo di tempo
+![La finestra Tempo col calendario del campo Dal](img/manual/t03-intervallo.png)
+- **Dalla finestra:** Avanzate > Intervallo di tempo, o il pulsante dell'orologio nella barra (acceso mentre c'e' un intervallo). I campi Dal e Al hanno il calendario.
+
+#### T-04 Timeline
+![La timeline: il file nel tempo, accanto alla scrollbar](img/manual/t04-timeline.png)
+- **Dalla finestra:** Visualizza > Mostra la timeline, o il pulsante nella barra. Un clic sulla timeline porta li'.
+
+#### T-05 Passo della timeline
+- Come nel terminale: un clic sull'intestazione della timeline (solo mentre e' accesa) apre il menu' del passo.
+
+#### T-06 Filtro dei livelli
+- **Dalla finestra:** le bandierine dei livelli nella finestra Filtri; la scheda di sola lettura che ne esce e' la stessa del terminale.
+
+#### T-07 Colori dei log
+![Il log coi colori dei livelli accesi](img/manual/t07-colori.png)
+- **Dalla finestra:** Visualizza > Mostra i colori dei log. `Alt+L` come nel terminale.
+
+#### F-01 Cerca
+![La finestra Cerca](img/manual/f01-cerca.png)
+- **Dalla finestra:** Modifica > Trova o `Ctrl+F`; `F3` e `Maiusc+F3` iterano come nel terminale.
+
+#### F-02 Sostituisci
+![La finestra Sostituisci](img/manual/f02-sostituisci.png)
+- **Dalla finestra:** Modifica > Sostituisci o il pulsante nella barra. L'anteprima e l'annullamento globale sono gli stessi.
+
+#### F-03 Filtro per righe
+![Il menu contestuale su una selezione: filtra, nascondi, cerca](img/manual/f03-filtri.png)
+- **Dalla finestra:** la finestra Filtri (Avanzate > Filtri…); il menu contestuale su una selezione offre filtra, nascondi, cerca.
+
+#### F-04 Check dei tracciati
+![Il check dei tracciati: l'istogramma spuntabile delle lunghezze delle righe](img/manual/f04-lunghezze.png)
+- **Dalla finestra:** Avanzate > Check dei tracciati. Le caselle dell'istogramma si spuntano col clic; la griglia mostra casella, conteggio, barra e percentuale per ogni lunghezza, e il totale in fondo.
+
+### Codifiche e fine riga
+
+#### E-01 Codifica
+![Il menu delle codifiche](img/manual/e01-codifica.png)
+- **Dalla finestra:** Visualizza > Codifica… apre l'elenco delle 64 codifiche con quella corrente evidenziata.
+
+#### E-02 Salva con nome in un'altra codifica
+- Come nel terminale: `Ctrl+Maiusc+S`; il percorso si sceglie col dialogo di sistema, poi l'elenco delle codifiche (quella corrente evidenziata, la spunta per il BOM).
+
+#### E-03 La modifica mantiene la codifica e il fine riga
+- Automatico, uguale al terminale.
 
 ---
 
@@ -414,7 +493,7 @@ sostituita da quella ripristinata). La riga di stato dice "restored N tab(s) wit
 
 | Situazione | Cosa succede |
 |---|---|
-| Il file e' cambiato su disco | La scheda si ripristina lo stesso; al primo salvataggio il conflitto emerge (vedi C2). |
+| Il file e' cambiato su disco | La scheda si ripristina lo stesso; al primo salvataggio il conflitto emerge (vedi *Modifica e salvataggio*). |
 | Il file e' stato cancellato | La scheda si salta; con modifiche, la copia va in `stale/` e un avviso la nomina; una scheda pulita sparisce in silenzio. |
 | Un file di scheda e' corrotto | Il checksum o la decodifica fallisce: quella scheda si salta, il suo file va in `stale/`, la riga di stato lo dice. |
 | `manifest.txt` e' corrotto | Tutta la sessione si ignora e si apre "Untitled 1". Nessun crash. |
@@ -427,8 +506,6 @@ Cancellare tutta la cartella dimentica solo schede, cursori e modifiche non salv
 **Da sapere.** Anche i documenti senza nome sopravvivono ai riavvii (stanno su file di lavoro in `untitled/`; salvarne uno con un nome vero
 lo trasforma in una scheda normale e toglie il file di lavoro). Un file dell'utente che per caso sta in una cartella chiamata `untitled` non
 viene mai scambiato per un file di lavoro. Le esecuzioni di sviluppo con `--dump`, o con `MRP_NO_PROFILE=1`, non tengono sessione.
-
-**Test che la coprono:** `mrp-tui/tests/session.rs`, `untitled.rs`.
 
 ### Modifica e salvataggio: piece table e scrittura sicura
 
@@ -469,8 +546,6 @@ e' concluso.
 Un documento modificato non viene seguito in TAIL (mescolerebbe due contenuti). Salvare in una codifica diversa passa da un passo di
 conversione col suo file temporaneo (`<nome>.<pid>.<n>.mrp-conv`) nella cartella di destinazione.
 
-**Test che la coprono:** test dei documenti di `mrp-core`, `mrp-tui/tests/app_edit.rs`, `revert.rs`, `save_encoding.rs`.
-
 ### Indice delle righe e navigazione senza leggere il file
 
 **L'idea.** L'apertura e' immediata perche' nulla si legge in anticipo: il file e' memory-mappato e lo schermo chiede solo i byte che
@@ -504,8 +579,6 @@ rinominare e cancellare si puo'.) Un file che il lavoro in background non riesce
 numero, ma tutto il resto continua. Un file accorciato durante l'indicizzazione fa rifare il blocco toccato attraverso la mappatura. Un file
 troncato da un altro processo sotto una mappatura viva puo' alzare un errore di accesso dal sistema: rischio noto e accettato del memory
 mapping.
-
-**Test che la coprono:** `mrp-core/tests` (indice e codifiche), `mrp-tui/tests/pausa_indice.rs`, `avanzamento.rs`.
 
 ### Tempo: formati, salto a un orario, intervallo, timeline
 
@@ -551,8 +624,6 @@ suo intervallo.
 documento modificato o senza nome non ha timeline ("unavailable"); un intervallo sbagliato e' rifiutato col primo e l'ultimo orario veri del
 file; UTF-16/32 non ha funzioni del tempo.
 
-**Test che la coprono:** core `timemask*`, `timesearch*`, `timekey*`, `timeline*`, `loghl*`; terminale `goto_time`, `time_*`, `timeline_*`.
-
 ### Codifiche, fine riga, modalita' colonna
 
 **L'idea.** Un documento e' sempre una sequenza di byte; la codifica e' solo la lente che dice come quei byte si leggono come caratteri
@@ -588,8 +659,6 @@ raggiunge la colonna; copia unisce le righe con l'a-capo del documento; incolla 
 blocco se *comincia* dentro le colonne; il `\r` nascosto e il `\n` mai. Ogni azione di colonna e' un passo di annulla solo. Limiti: 200.000 righe,
 64 MiB di testo copiato, un tetto di colonna virtuale a 4096. Un incolla che chiedesse piu' righe di quante ne ha il documento e' rifiutato per intero.
 
-**Test che la coprono:** `app_bom`, `app_lineending`, `eol_option`, `save_encoding`, `app_column`, test di codifica del core.
-
 ### Ricerca, sostituzione e filtro per righe
 
 **Cercare sul documento modificato.** Una ricerca non gira sul file: prende una *fotografia* del documento modificato (una lettura condivisa
@@ -610,8 +679,6 @@ per questo che `Invio` su una riga arriva esattamente su quella riga dell'origin
 scheda si chiude o il programma esce; un filtro che non trova niente, fallisce o viene annullato non lascia file.
 
 **Le stesse impostazioni di ricerca** (testo, modo, maiuscole) sono condivise da Cerca, Filtro e Sostituisci, e i prompt sono precompilati col testo dell'ultima volta.
-
-**Test che la coprono:** core `pattern`, `docsearch`; terminale `dialog_search`, `replace`, `filter_view`, `filters_app`.
 
 ### Cache: cosa si ricorda, e quando si butta
 
@@ -651,45 +718,4 @@ prossima ricostruzione riconta tutto una volta.
 **Da sapere.** Spegnere la timeline butta i suoi periodi; riaccenderla ricalcola gli stessi periodi. Un log con una
 intestazione lunga senza orari riceve comunque il formato riconosciuto, perche' il campione comprende la coda. La preferenza della timeline e'
 l'unica cosa "ricordata" di questo capitolo che arriva nel file delle impostazioni.
-
-**Test che la coprono:** core `linechunks` (riconta per modifica), terminale `timeline_tasti`, `time_format`.
-
----
-
-## Scheda dei test UX
-
-Una riga per carta. `Terminale` e' l'esito dei giri sul terminale del 7/11/2026 (circa 130 scenari guidati sul programma installato con tasti simulati, poi circa 45 con console vera, tastiera e mouse); `Finestra` e' l'esito dei giri sulla finestra dello stesso giorno: schermate prodotte dagli hook di sviluppo di `mrp-gui`, poi la finestra vera guidata con tastiera e mouse. Un difetto che vale per tutta la finestra: con `--theme light` e un file con orari riconosciuti, il pannello della timeline resta scuro.
-
-| ID | Funzione | Terminale | Finestra | Test automatici |
-|---|---|---|---|---|
-| N-01 | Aprire dalla riga di comando | NOTA: footer tagliato sotto le 40 colonne; errore in lingua mista; `--help` elenca 4 dei 6 temi | OK | si' |
-| N-02 | Aprire un altro file, documento nuovo | OK | NOTA: i dialoghi nativi Apri / Salva con nome partono dalla cartella di lavoro | si' |
-| N-03 | Muoversi | OK (anche col mouse vero: rotella, trascinamento, pulsanti della barra dei salti) | OK (rotella, trascinamento della scrollbar, clic sulla timeline, selezione col mouse) | si' |
-| N-04 | Vai a (riga, @byte, %percentuale, ~orario) | NOTA: gli errori non dicono cosa e' valido | OK | si' |
-| N-05 | Salti di pagine, barra dei salti | OK | OK | si' |
-| N-06 | Numeri di riga, indice delle righe | DIFETTO: il pulsante del dialogo dice "Replace"; nota lunga tagliata | DIFETTO: `Alt+X`, mostrato nel menu, non fa niente nella finestra | si' |
-| N-07 | Schede | DIFETTO: chiudere una scheda dice "Save and quit"; il clic su una scheda funziona | OK | si' |
-| N-08 | Avanzamento dei lavori lunghi | OK (6 GB) | OK (5,6 GB: barra, byte, velocita', ETA) | si' |
-| M-01 | I tre modi | OK | OK | si' |
-| M-02 | Il menu dei modi | NOTA: il clic apre il menu' ma le voci non si cliccano | OK (clic sulla parola del modo) | si' |
-| M-03 | Digitare e modificare | NOTA: `Ctrl+V` incolla solo testo copiato nel programma ("clipboard is empty") | OK | si' |
-| M-04 | Annulla e ripeti | OK | OK (Ctrl+Z toglie la parola intera digitata) | si' |
-| M-05 | Salva e Salva con nome | DIFETTO: Salva con nome mostra il prefisso interno di Windows e un campo di ~20 caratteri | OK: "saved: NOME", il titolo perde l'asterisco; NOTA: il dialogo parte dalla cartella di lavoro | si' |
-| M-06 | Scarta le modifiche | DIFETTO: "This cannot be undone" tagliato | OK (testo intero, a capo) | si' |
-| M-07 | Uscire con modifiche non salvate | OK | NOTA: chiudere una scheda dice "Save and quit" | si' |
-| M-08 | Tail | OK | OK (dal vivo: le righe aggiunte vengono seguite) | si' |
-| T-01 | Formato dell'orario delle righe | OK | NOTA: `Alt+O` non fa niente nella finestra (la finestra Filtri funziona) | si' |
-| T-02 | Vai a un orario | NOTA: "no line with that time" su un file senza orari | non provato | si' |
-| T-03 | Intervallo di tempo | DIFETTO: digitare si accoda al "Dal" precompilato; spazzatura accettata | DIFETTO: `Alt+I`, mostrato nel menu, non fa niente; la finestra in se' va bene | si' |
-| T-04 | Timeline | NOTA: silenziosa quando troppo stretta; nomina un menu che il terminale non ha; il clic sul pannello funziona | DIFETTO: `Alt+B`, mostrato nel menu, non fa niente; clic e trascinamento funzionano | si' |
-| T-05 | Passo della timeline | NOTA: silenziosa con la timeline spenta | NOTA: `Alt+P` non fa niente nella finestra | si' |
-| T-06 | Filtro dei livelli | NOTA: silenzioso con la timeline spenta | NOTA: `Alt+S` non fa niente nella finestra | si' |
-| T-07 | Colori dei log | NOTA: nessun riscontro; colori non visibili nel dump | OK | si' |
-| F-01 | Cerca | NOTA: testo grezzo degli errori regex | NOTA: l'etichetta dice "(exact bytes)" | si' |
-| F-02 | Sostituisci | NOTA: passa a EDIT in silenzio; suggerimento tagliato | DIFETTO: dopo l'anteprima, Invio non applica; solo il pulsante lo fa | si' |
-| F-03 | Filtro per righe | NOTA: testo grezzo degli errori regex | OK | si' |
-| F-04 | Check dei tracciati | OK | non provato | si' |
-| E-01 | Codifica: rilevamento e cambio | OK: 28/28 espliciti, 21/21 sistemati con F9; NOTA: un'ipotesi non viene segnalata | non provato | si' |
-| E-02 | Salva con nome in un'altra codifica | OK: 17/17 esatti al byte; NOTA: percorso precompilato con `\\?\` | non provato | si' |
-| E-03 | La modifica mantiene codifica e fine riga | OK (difetto CRLF corretto) | non provato | si' |
 
