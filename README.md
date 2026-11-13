@@ -57,31 +57,6 @@ To guarantee high performance and data safety even on gigantic files, **Manto.Ru
 4. **64-bit offsets.** Past the limits, the tool returns explicit errors instead of silently truncating the data.
 5. **Natively cross-platform (TUI + GUI).** Written in Rust without a garbage collector: it runs in a window on the desktop or over SSH, straight in the terminal.
 
-## Measurements
-
-A 6.0 GB file (60 million lines), one machine, one hard disk:
-
-| | Memory | Open | What happens |
-|---|---:|---|---|
-| The editor everyone uses | 6,288 MiB | 7 s warm / 26–30 s cold | holds everything in RAM |
-| The one from the OS | 4,100 MiB | 2.8 s | **truncates at 4 GiB — loses 1.7 GB on save** |
-| The streaming viewer | 43 MiB | UI 0.5 s | full scan in the background, ~86 s |
-| The commercial one | 19 MiB | 7.5 s | writes a 5.7 GB temp copy; `Ctrl+End` re-reads the file |
-| **Manto.RustPad** | **13–35 MiB** | **instantly** | exact, no truncation, no copy; the index builds in the background |
-
----
-
-## Two frontends, one engine
-
-The engine is one, `mrp-core` (documents, tabs, search, edits, sessions), with two interfaces: **`mrp-tui`** for the terminal, made for servers and SSH; **`mrp-gui`** for the desktop, with menus, toolbar, dialogs, system clipboard and drag-and-drop. A feature added to the engine is in both.
-
-| | `mrp-tui` | `mrp-gui` |
-| --- | --- | --- |
-| **Start it** | `mrp-tui file...` | `mrp-gui file...` |
-| **Look** | six terminal themes | Blue (Total Commander style), Debian, Dark, Light — or Automatic, which follows the system |
-| **Timeline** | `Alt+B`, a column next to the text | the same, or a bar next to the scrollbar |
-| **Menus** | the function keys | real menus, toolbar, status bar, scrollbar |
-
 ## Main features
 
 ### Instant navigation and exploration
@@ -111,6 +86,31 @@ To keep the tool fast and focused, some choices are deliberate:
 
 - **It is not a full log analyser:** it offers visual aids for reading and quick debugging, not query engines or aggregation dashboards.
 - **It is not an IDE or a plugin platform:** no third-party extensions or endless configuration; it is a tool ready to use.
+
+## Two frontends, one engine
+
+The engine is one, `mrp-core` (documents, tabs, search, edits, sessions), with two interfaces: **`mrp-tui`** for the terminal, made for servers and SSH; **`mrp-gui`** for the desktop, with menus, toolbar, dialogs, system clipboard and drag-and-drop. A feature added to the engine is in both.
+
+| | `mrp-tui` | `mrp-gui` |
+| --- | --- | --- |
+| **Start it** | `mrp-tui file...` | `mrp-gui file...` |
+| **Look** | six terminal themes | Blue (Total Commander style), Debian, Dark, Light — or Automatic, which follows the system |
+| **Timeline** | `Alt+B`, a column next to the text | the same, or a bar next to the scrollbar |
+| **Menus** | the function keys | real menus, toolbar, status bar, scrollbar |
+
+## Measurements
+
+A 6.0 GB file (60 million lines), one machine, one hard disk:
+
+| | Memory | Open | What happens |
+|---|---:|---|---|
+| The editor everyone uses | 6,288 MiB | 7 s warm / 26–30 s cold | holds everything in RAM |
+| The one from the OS | 4,100 MiB | 2.8 s | **truncates at 4 GiB — loses 1.7 GB on save** |
+| The streaming viewer | 43 MiB | UI 0.5 s | full scan in the background, ~86 s |
+| The commercial one | 19 MiB | 7.5 s | writes a 5.7 GB temp copy; `Ctrl+End` re-reads the file |
+| **Manto.RustPad** | **13–35 MiB** | **instantly** | exact, no truncation, no copy; the index builds in the background |
+
+---
 
 ## Get it
 

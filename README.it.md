@@ -57,31 +57,6 @@ Per garantire prestazioni elevate e sicurezza dei dati anche su file giganteschi
 4. **Offset a 64 bit.** Superati i limiti, il tool restituisce errori espliciti anziche' troncare silenziosamente i dati.
 5. **Cross-platform nativo (TUI + GUI).** Scritto in Rust senza garbage collector: gira in finestra sul desktop o via SSH direttamente nel terminale.
 
-## POC con i tool noti
-
-Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:
-
-| | Memoria | Apertura | Cosa succede |
-|---|---:|---|---|
-| L'editor che tutti usano | 6.288 MiB | 7 s a caldo / 26–30 s a freddo | tiene tutto in RAM |
-| Quello del sistema operativo | 4.100 MiB | 2,8 s | **trunca a 4 GiB — perde 1,7 GB al salvataggio** |
-| Il visualizzatore in streaming | 43 MiB | UI 0,5 s | scansione completa in background, ~86 s |
-| Quello commerciale | 19 MiB | 7,5 s | scrive una copia temporanea di 5,7 GB; `Ctrl+Fine` rilegge il file |
-| **Manto.RustPad** | **13–35 MiB** | **all'istante** | esatto, nessun troncamento, nessuna copia; l'indice si costruisce in background |
-
----
-
-## Due frontend, un motore
-
-Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), con due interfacce: **`mrp-tui`** per il terminale, pensato per i server e per SSH; **`mrp-gui`** per il desktop, con menu', barra degli strumenti, finestre di dialogo, appunti di sistema e drag-and-drop. Una funzionalita' aggiunta al motore arriva in entrambe.
-
-| | `mrp-tui` | `mrp-gui` |
-| --- | --- | --- |
-| **Si avvia** | `mrp-tui file...` | `mrp-gui file...` |
-| **Look** | sei temi da terminale | Blu (stile Total Commander), Debian, Scuro, Chiaro — o Automatico, che segue il sistema |
-| **Timeline** | `Alt+B`, una colonna accanto al testo | lo stesso, o una barra accanto alla scrollbar |
-| **Menu'** | i tasti funzione | menu' veri, barra strumenti, barra di stato, scrollbar |
-
 ## Funzionalita' principali
 
 ### Navigazione ed esplorazione istantanea
@@ -111,6 +86,31 @@ Per mantenere il tool veloce e focalizzato, alcune scelte sono intenzionali:
 
 - **Non e' un log analyzer completo:** offre ausili visivi per la lettura e il debug rapido, non query engine o dashboard di aggregazione.
 - **Non e' un IDE o una piattaforma a plugin:** niente estensioni di terze parti o configurazioni infinite; e' uno strumento pronto all'uso.
+
+## Due frontend, un motore
+
+Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), con due interfacce: **`mrp-tui`** per il terminale, pensato per i server e per SSH; **`mrp-gui`** per il desktop, con menu', barra degli strumenti, finestre di dialogo, appunti di sistema e drag-and-drop. Una funzionalita' aggiunta al motore arriva in entrambe.
+
+| | `mrp-tui` | `mrp-gui` |
+| --- | --- | --- |
+| **Si avvia** | `mrp-tui file...` | `mrp-gui file...` |
+| **Look** | sei temi da terminale | Blu (stile Total Commander), Debian, Scuro, Chiaro — o Automatico, che segue il sistema |
+| **Timeline** | `Alt+B`, una colonna accanto al testo | lo stesso, o una barra accanto alla scrollbar |
+| **Menu'** | i tasti funzione | menu' veri, barra strumenti, barra di stato, scrollbar |
+
+## POC con i tool noti
+
+Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:
+
+| | Memoria | Apertura | Cosa succede |
+|---|---:|---|---|
+| L'editor che tutti usano | 6.288 MiB | 7 s a caldo / 26–30 s a freddo | tiene tutto in RAM |
+| Quello del sistema operativo | 4.100 MiB | 2,8 s | **trunca a 4 GiB — perde 1,7 GB al salvataggio** |
+| Il visualizzatore in streaming | 43 MiB | UI 0,5 s | scansione completa in background, ~86 s |
+| Quello commerciale | 19 MiB | 7,5 s | scrive una copia temporanea di 5,7 GB; `Ctrl+Fine` rilegge il file |
+| **Manto.RustPad** | **13–35 MiB** | **all'istante** | esatto, nessun troncamento, nessuna copia; l'indice si costruisce in background |
+
+---
 
 ## Download
 
