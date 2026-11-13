@@ -12,7 +12,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/version-0.1.6-blue" alt="version 0.1.6" />
+        <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/v/release/heavymanto/Manto.RustPad?label=version" alt="version" /></a>
         <img src="https://img.shields.io/badge/tests-1674-brightgreen" alt="1674 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
@@ -31,7 +31,7 @@
 
 ## Abstract
 
-**Open logs and record files of 100 GB in seconds, using very little RAM.**
+**Open logs and record files of 100 GB in seconds, using a few dozen MB of RAM.**
 
 An ultra-fast viewer and editor written in Rust — available both in the terminal (**TUI**) and on the desktop (**GUI**), for Windows, Linux and macOS.
 
@@ -73,12 +73,18 @@ To guarantee high performance and data safety even on gigantic files, **Manto.Ru
 - **Record length check (`Alt+H`):** counts the bytes of every line (line ending excluded) and builds an interactive histogram with percentages. The dominant formats sit on top, the out-of-size lines at the bottom: tick the lengths you want and the view filters instantly. Ideal for spotting corrupted records in fixed-format files.
 - **`grep`-style filters (`Alt+G`):** quickly isolate only the lines you care about.
 
+| The proportional timeline (`Alt+B`) | The record length check (`Alt+H`) |
+|:---:|:---:|
+| <img src="docs/img/manual/t04-timeline.png" alt="The timeline: a column of periods, each as tall as its volume of lines, split by level" /> | <img src="docs/img/manual/f04-lunghezze.png" alt="The record length check: the checkable histogram of the line lengths with percentages" /> |
+
 ### Advanced editing (without reloading)
 
 - **In-place editing (`F4`):** from read-only to editing without reloading the file and without copies.
 - **Column mode (`F8` or `Alt`+drag):** select vertical blocks to type, tab, copy, cut or paste on many rows at once.
 - **Find and replace (`Ctrl+F` / `Ctrl+H`):** plain text, *glob* and *regex* with a preview of the changes and **global undo** (one `Ctrl+Z` undoes the whole replacement).
 - **Extended encoding support:** UTF-8, UTF-16, UTF-32, 53 single-byte code pages and the East-Asian multi-byte sets, also on files larger than RAM.
+
+Every feature has a card in the manual — entry, expected response, what it must never do: [docs/MANUAL.md](docs/MANUAL.md).
 
 ## What it is NOT
 

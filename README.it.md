@@ -12,7 +12,7 @@
       </p>
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
-        <img src="https://img.shields.io/badge/versione-0.1.6-blue" alt="versione 0.1.6" />
+        <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/v/release/heavymanto/Manto.RustPad?label=versione" alt="versione" /></a>
         <img src="https://img.shields.io/badge/test-1674-brightgreen" alt="1674 test" />
         <img src="https://img.shields.io/badge/frontend-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
@@ -31,7 +31,7 @@
 
 ## Abstract
 
-**Apri log e tracciati da 100 GB in pochi secondi, usando pochissima RAM.**
+**Apri log e tracciati da 100 GB in pochi secondi, usando poche decine di MB di RAM.**
 
 Un visualizzatore ed editor ultraveloce scritto in Rust — disponibile sia da terminale (**TUI**) che su desktop (**GUI**) per Windows, Linux e macOS.
 
@@ -73,12 +73,18 @@ Per garantire prestazioni elevate e sicurezza dei dati anche su file giganteschi
 - **Check dei tracciati (`Alt+H`):** conta i byte di ogni riga (a-capo escluso) e genera un istogramma interattivo con le percentuali. I formati dominanti stanno in alto, le righe fuori misura in fondo: spuntando le lunghezze desiderate filtri la vista all'istante. Ideale per scovare record corrotti nei file a tracciato fisso.
 - **Filtri stile `grep` (`Alt+G`):** isola rapidamente solo le righe che ti interessano.
 
+| La timeline proporzionale (`Alt+B`) | Il check dei tracciati (`Alt+H`) |
+|:---:|:---:|
+| <img src="docs/img/manual/t04-timeline.png" alt="La timeline: una colonna di periodi alta quanto il volume delle righe, divisa per livello" /> | <img src="docs/img/manual/f04-lunghezze.png" alt="Il check dei tracciati: l'istogramma spuntabile delle lunghezze con le percentuali" /> |
+
 ### Editing avanzato (senza ricaricare)
 
 - **Modifica in-place (`F4`):** passa dalla sola lettura alla modifica senza ricaricare il file e senza copie.
 - **Modalita' colonna (`F8` o `Alt`+trascinamento):** seleziona blocchi verticali per digitare, tabulare, copiare, tagliare o incollare contemporaneamente su piu' righe.
 - **Trova e sostituisci (`Ctrl+F` / `Ctrl+H`):** testo semplice, *glob* e *regex* con anteprima delle modifiche e **annullamento globale** (un solo `Ctrl+Z` annulla l'intera sostituzione).
 - **Supporto codifiche esteso:** UTF-8, UTF-16, UTF-32, 53 codifiche a byte singolo e set multi-byte dell'Asia orientale, anche su file piu' grandi della RAM.
+
+Ogni funzione ha una carta nel manuale — ingresso, risposta attesa, cosa non deve fare: [docs/MANUAL.it.md](docs/MANUAL.it.md).
 
 ## Cosa NON e'
 
@@ -98,7 +104,7 @@ Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), 
 | **Timeline** | `Alt+B`, una colonna accanto al testo | lo stesso, o una barra accanto alla scrollbar |
 | **Menu'** | i tasti funzione | menu' veri, barra strumenti, barra di stato, scrollbar |
 
-## POC con i tool noti
+## La prova coi tool noti
 
 Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:
 
