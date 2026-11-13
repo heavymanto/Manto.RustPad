@@ -22,6 +22,9 @@
       <p>
         <a href="#quickstart"><img src="https://img.shields.io/badge/%F0%9F%94%A7-QUICKSTART-007ec6?style=flat-square" alt="Quickstart" /></a>
         <a href="README.it.md"><img src="https://img.shields.io/badge/%F0%9F%87%AE%F0%9F%87%B9-LEGGILO%20IN%20ITALIANO-007ec6?style=flat-square" alt="Leggilo in italiano" /></a>
+        <a href="docs/MANUAL.md"><img src="https://img.shields.io/badge/%F0%9F%93%96-MANUAL-007ec6?style=flat-square" alt="Manual" /></a>
+        <a href="#frequently-asked-questions"><img src="https://img.shields.io/badge/%E2%9D%93-FAQ-007ec6?style=flat-square" alt="FAQ" /></a>
+        <a href="ARCHITECTURE.md"><img src="https://img.shields.io/badge/%E2%9A%99%EF%B8%8F-ARCHITECTURE-007ec6?style=flat-square" alt="Architecture" /></a>
       </p>
     </td>
   </tr>
