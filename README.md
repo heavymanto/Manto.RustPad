@@ -79,7 +79,7 @@ To guarantee high performance and data safety even on gigantic files, **Manto.Ru
 <p align="center"><em>The proportional timeline (<code>Alt+B</code>): each period is as tall as its volume of lines, split by level.</em></p>
 
 <p align="center">
-  <img src="docs/img/manual/f04-lunghezze.png" alt="The record length check: the checkable histogram of the line lengths with percentages" />
+  <img src="docs/img/gui-checkdata.png" alt="The record length check in the window: the checkable histogram of the line lengths with percentages" />
 </p>
 <p align="center"><em>The record length check (<code>Alt+H</code>): the checkable histogram of lengths with percentages — the out-of-size lines at the bottom, where the eye catches them.</em></p>
 
