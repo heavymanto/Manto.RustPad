@@ -13,7 +13,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <img src="https://img.shields.io/badge/version-0.1.6-blue" alt="version 0.1.6" />
-        <img src="https://img.shields.io/badge/tests-1673-brightgreen" alt="1673 tests" />
+        <img src="https://img.shields.io/badge/tests-1674-brightgreen" alt="1674 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -158,7 +158,7 @@ No log at hand? Make one, any size, same bytes on every machine:
 
 ## Known limitations
 
-- Early development: 1,538 automated tests, but not yet long sessions of real use. Keep a backup of anything precious.
+- Early development: 1,674 automated tests, but not yet long sessions of real use. Keep a backup of anything precious.
 - Windows first. The terminal editor and the core also run on Linux (Debian, WSL); the CI runs the whole suite on all three systems at every push.
 - The window (`mrp-gui`) has been checked with automated tests and screenshots, not yet with long real keyboard and mouse use.
 - Regex, glob and ignore-case work on UTF-8 documents only; plain-text search works in every encoding.
@@ -184,16 +184,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 
 ## Documentation
 
+- [docs/MANUAL.md](docs/MANUAL.md) — the feature manual in detail
 - [CHANGELOG.md](CHANGELOG.md) — what changed
 - [SECURITY.md](SECURITY.md) — how to report a vulnerability privately
+- [Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — the sibling project: a Rust disk-space analyzer whose core/frontend split is the model for this repository
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: offsets are 64-bit, the whole file is never held in memory, and every number in the docs was really measured. This is a hobby project — everything gets read, but no response times are promised.
-
-## Sibling project
-
-[Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — a Rust disk-space analyzer; the core/frontend split used there is the model for this repository.
 
 ## License
 

@@ -13,7 +13,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <img src="https://img.shields.io/badge/versione-0.1.6-blue" alt="versione 0.1.6" />
-        <img src="https://img.shields.io/badge/test-1673-brightgreen" alt="1673 test" />
+        <img src="https://img.shields.io/badge/test-1674-brightgreen" alt="1674 test" />
         <img src="https://img.shields.io/badge/frontend-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -157,7 +157,9 @@ Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni mac
 
 ## Limiti noti
 
-- Windows prima: sviluppato e testato principalmente su Windows. L'editor da terminale e il core girano anche su Linux (Debian, WSL); le release sono compilate in automatico dalla CI.
+- Sviluppo iniziale: 1.674 test automatici, ma non ancora lunghe sessioni d'uso vero. Tieni una copia di quello che ti preme.
+- Windows prima. L'editor da terminale e il core girano anche su Linux (Debian, WSL); la CI gira tutta la suite sui tre sistemi a ogni push.
+- La finestra (mrp-gui) e' stata controllata con test automatici e schermate, non ancora con lungo uso vero di tastiera e mouse.
 - Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
 ## Sviluppo
 
@@ -183,6 +185,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 - [docs/MANUAL.it.md](docs/MANUAL.it.md) — il manuale delle funzionalita' in dettaglio, in italiano
 - [CHANGELOG.md](CHANGELOG.md) — cosa e' cambiato
 - [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilita' in privato
+- [Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — il progetto fratello: un analizzatore di spazio disco in Rust, la cui separazione motore/frontend e' il modello di questo repository
 
 ## Contribuire
 
