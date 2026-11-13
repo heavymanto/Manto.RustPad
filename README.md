@@ -187,11 +187,14 @@ cargo clippy --workspace --all-targets -- -D warnings
 - [docs/MANUAL.md](docs/MANUAL.md) — the feature manual in detail
 - [CHANGELOG.md](CHANGELOG.md) — what changed
 - [SECURITY.md](SECURITY.md) — how to report a vulnerability privately
-- [Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — the sibling project: a Rust disk-space analyzer whose core/frontend split is the model for this repository
 
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md). The short version: offsets are 64-bit, the whole file is never held in memory, and every number in the docs was really measured. This is a hobby project — everything gets read, but no response times are promised.
+
+## Related projects
+
+- [Manto.FreeDisk](https://github.com/heavymanto/Manto.FreeDisk) — "Where did my disk space go?": the Rust disk-space analyzer whose core/frontend split this repository is built on
 
 ## License
 
