@@ -57,6 +57,8 @@ Per garantire prestazioni elevate e sicurezza dei dati anche su file giganteschi
 4. **Offset a 64 bit.** Superati i limiti, il tool restituisce errori espliciti anziche' troncare silenziosamente i dati.
 5. **Cross-platform nativo (TUI + GUI).** Scritto in Rust senza garbage collector: gira in finestra sul desktop o via SSH direttamente nel terminale.
 
+I dettagli — la sessione che sopravvive ai crash, l'indice delle righe, le codifiche, le cache — stanno in **[ARCHITECTURE.it.md](ARCHITECTURE.it.md)**.
+
 ## Funzionalita' principali
 
 ### Navigazione ed esplorazione istantanea
@@ -178,6 +180,39 @@ Nessun log sottomano? Creane uno, della taglia che vuoi, stessi byte su ogni mac
 - Windows prima. L'editor da terminale e il core girano anche su Linux (Debian, WSL); la CI gira tutta la suite sui tre sistemi a ogni push.
 - La finestra (mrp-gui) e' stata controllata con test automatici e schermate, non ancora con lungo uso vero di tastiera e mouse.
 - Regex, glob e ignore-case funzionano solo su documenti UTF-8; la ricerca di testo semplice funziona in ogni codifica.
+
+## Domande frequenti
+
+**Apre davvero file piu' grandi della RAM?**
+Si' — il file sta su disco, memory-mappato in sola lettura: un log da 100 GB si apre in pochi secondi con poche decine di MB. ([architettura](ARCHITECTURE.it.md))
+
+**Posso anche modificare, o e' solo un visualizzatore?**
+Entrambi: `F4` / `Alt+E` passa in EDIT, e il salvataggio e' atomico. ([manuale](docs/MANUAL.it.md))
+
+**Se il programma crasha mentre salvo, perdo il file?**
+No: il nuovo file si scrive accanto all'originale e prende il suo posto solo con un rename atomico. ([architettura](ARCHITECTURE.it.md))
+
+**E le modifiche non salvate, se crasha?**
+La sessione le ricorda e le riporta alla prossima partenza (fino a ~6 secondi di lavoro). ([architettura](ARCHITECTURE.it.md))
+
+**Perche' su Windows non posso troncare il log mentre lo guardo?**
+Il file e' memory-mappato: il troncamento e' rifiutato per proteggerlo. Aggiungere, rinominare e cancellare restano possibili.
+
+**TUI o GUI: quale uso?**
+Lo stesso motore: il terminale via SSH, la finestra sul desktop. File e sessioni sono condivisi.
+
+**Legge UTF-16? E le codifiche asiatiche?**
+64 codifiche: UTF-8/16/32, le code page occidentali, Shift-JIS, EUC-JP, GBK, Big5, EUC-KR... ([manuale](docs/MANUAL.it.md))
+
+**Cerca dentro un file da 100 GB?**
+Si': la ricerca scorre il file a blocchi senza caricarlo, e la regex non ha backtracking — non si impalla mai. ([manuale](docs/MANUAL.it.md))
+
+**Quanto costa? Che licenza e'?**
+Gratis, AGPL-3.0, codice aperto.
+
+**Come contribuisco?**
+Vedi [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Sviluppo
 
 ```sh
@@ -200,6 +235,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 ## Documentazione
 
 - [docs/MANUAL.it.md](docs/MANUAL.it.md) — il manuale delle funzionalita' in dettaglio, in italiano
+- [ARCHITECTURE.it.md](ARCHITECTURE.it.md) — come funziona dentro, in dettaglio
 - [CHANGELOG.md](CHANGELOG.md) — cosa e' cambiato
 - [SECURITY.md](SECURITY.md) — come segnalare una vulnerabilita' in privato
 

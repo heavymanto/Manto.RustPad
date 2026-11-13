@@ -57,6 +57,8 @@ To guarantee high performance and data safety even on gigantic files, **Manto.Ru
 4. **64-bit offsets.** Past the limits, the tool returns explicit errors instead of silently truncating the data.
 5. **Natively cross-platform (TUI + GUI).** Written in Rust without a garbage collector: it runs in a window on the desktop or over SSH, straight in the terminal.
 
+The details — the session that survives crashes, the line index, the encodings, the caches — are in **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
 ## Main features
 
 ### Instant navigation and exploration
@@ -179,6 +181,38 @@ No log at hand? Make one, any size, same bytes on every machine:
 - The window (`mrp-gui`) has been checked with automated tests and screenshots, not yet with long real keyboard and mouse use.
 - Regex, glob and ignore-case work on UTF-8 documents only; plain-text search works in every encoding.
 
+## Frequently asked questions
+
+**Does it really open files bigger than RAM?**
+Yes — the file stays on disk, memory-mapped read-only: a 100 GB log opens in seconds on a few dozen MB. ([architecture](ARCHITECTURE.md))
+
+**Can I edit too, or is it just a viewer?**
+Both: `F4` / `Alt+E` switches to EDIT, and saving is atomic. ([manual](docs/MANUAL.md))
+
+**If the program crashes while saving, do I lose the file?**
+No: the new file is written next to the original and takes its place only via an atomic rename. ([architecture](ARCHITECTURE.md))
+
+**And my unsaved edits, if it crashes?**
+The session remembers them and brings them back at the next start (up to ~6 seconds of work). ([architecture](ARCHITECTURE.md))
+
+**Why can't I truncate the log on Windows while watching it?**
+The file is memory-mapped: truncation is refused to protect it. Appending, renaming and deleting still work.
+
+**TUI or GUI: which one?**
+The same engine: the terminal over SSH, the window on the desktop. Files and sessions are shared.
+
+**Does it read UTF-16? And the Asian encodings?**
+64 encodings: UTF-8/16/32, the Western code pages, Shift-JIS, EUC-JP, GBK, Big5, EUC-KR... ([manual](docs/MANUAL.md))
+
+**Does it search inside a 100 GB file?**
+Yes: the search streams the file in blocks without loading it, and the regex engine has no backtracking — it can never hang. ([manual](docs/MANUAL.md))
+
+**How much does it cost? What license is it?**
+Free, AGPL-3.0, open source.
+
+**How do I contribute?**
+See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Development
 
 ```sh
@@ -201,6 +235,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 ## Documentation
 
 - [docs/MANUAL.md](docs/MANUAL.md) — the feature manual in detail
+- [ARCHITECTURE.md](ARCHITECTURE.md) — how it works inside, in detail
 - [CHANGELOG.md](CHANGELOG.md) — what changed
 - [SECURITY.md](SECURITY.md) — how to report a vulnerability privately
 
