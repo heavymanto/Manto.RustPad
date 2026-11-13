@@ -73,9 +73,15 @@ Per garantire prestazioni elevate e sicurezza dei dati anche su file giganteschi
 - **Check dei tracciati (`Alt+H`):** conta i byte di ogni riga (a-capo escluso) e genera un istogramma interattivo con le percentuali. I formati dominanti stanno in alto, le righe fuori misura in fondo: spuntando le lunghezze desiderate filtri la vista all'istante. Ideale per scovare record corrotti nei file a tracciato fisso.
 - **Filtri stile `grep` (`Alt+G`):** isola rapidamente solo le righe che ti interessano.
 
-| La timeline proporzionale (`Alt+B`) | Il check dei tracciati (`Alt+H`) |
-|:---:|:---:|
-| <img src="docs/img/manual/t04-timeline.png" alt="La timeline: una colonna di periodi alta quanto il volume delle righe, divisa per livello" /> | <img src="docs/img/manual/f04-lunghezze.png" alt="Il check dei tracciati: l'istogramma spuntabile delle lunghezze con le percentuali" /> |
+<p align="center">
+  <img src="docs/img/manual/t04-timeline.png" alt="La timeline: una colonna di periodi alta quanto il volume delle righe, divisa per livello" />
+</p>
+<p align="center"><em>La timeline proporzionale (<code>Alt+B</code>): ogni periodo e' alto quanto il volume delle sue righe, diviso per livello.</em></p>
+
+<p align="center">
+  <img src="docs/img/manual/f04-lunghezze.png" alt="Il check dei tracciati: l'istogramma spuntabile delle lunghezze con le percentuali" />
+</p>
+<p align="center"><em>Il check dei tracciati (<code>Alt+H</code>): l'istogramma spuntabile delle lunghezze con le percentuali — le righe fuori misura in fondo, dove l'occhio le becca.</em></p>
 
 ### Editing avanzato (senza ricaricare)
 

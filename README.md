@@ -73,9 +73,15 @@ To guarantee high performance and data safety even on gigantic files, **Manto.Ru
 - **Record length check (`Alt+H`):** counts the bytes of every line (line ending excluded) and builds an interactive histogram with percentages. The dominant formats sit on top, the out-of-size lines at the bottom: tick the lengths you want and the view filters instantly. Ideal for spotting corrupted records in fixed-format files.
 - **`grep`-style filters (`Alt+G`):** quickly isolate only the lines you care about.
 
-| The proportional timeline (`Alt+B`) | The record length check (`Alt+H`) |
-|:---:|:---:|
-| <img src="docs/img/manual/t04-timeline.png" alt="The timeline: a column of periods, each as tall as its volume of lines, split by level" /> | <img src="docs/img/manual/f04-lunghezze.png" alt="The record length check: the checkable histogram of the line lengths with percentages" /> |
+<p align="center">
+  <img src="docs/img/manual/t04-timeline.png" alt="The timeline: a column of periods, each as tall as its volume of lines, split by level" />
+</p>
+<p align="center"><em>The proportional timeline (<code>Alt+B</code>): each period is as tall as its volume of lines, split by level.</em></p>
+
+<p align="center">
+  <img src="docs/img/manual/f04-lunghezze.png" alt="The record length check: the checkable histogram of the line lengths with percentages" />
+</p>
+<p align="center"><em>The record length check (<code>Alt+H</code>): the checkable histogram of lengths with percentages — the out-of-size lines at the bottom, where the eye catches them.</em></p>
 
 ### Advanced editing (without reloading)
 
