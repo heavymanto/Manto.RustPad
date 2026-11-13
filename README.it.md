@@ -31,40 +31,32 @@
 
 ## Abstract
 
-<p align="justify"><strong>Apri un log da 100 GB in pochi secondi, con pochi mega di RAM. Scorri la sua cronologia con una timeline, colora i livelli, spunta le lunghezze dei record per isolare le righe fuori misura. E all'occorrenza modifichi, anche a colonne.</strong></p>
+**Apri log e tracciati da 100 GB in pochi secondi, usando pochissima RAM.**
 
-<p align="justify">
-L'idea e' nata da un fastidio personale: analizzare log enormi senza saturare la RAM e beccare al volo i punti critici per risolvere i problemi in fretta, oppure scorrere grandi tracciati per correggere piccole anomalie sul momento. Fino ad oggi ero costretto a destreggiarmi tra piu' tool — una soluzione scomoda, piena di limiti e senza niente che ti aiutasse davvero a individuare le problematiche a colpo d'occhio.
-</p>
+Un visualizzatore ed editor ultraveloce scritto in Rust — disponibile sia da terminale (**TUI**) che su desktop (**GUI**) per Windows, Linux e macOS.
 
-<p align="justify">
-Per risolverlo ho puntato su Rust: niente GC, prestazioni eccellenti e consumo di RAM ridotto all'osso. Ne e' uscito fuori un tool 6-in-1 che fa tutto:
-</p>
+| `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
+|:---:|:---:|
+| <a href="#due-frontend-un-motore"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: il log, lo scroll, la timeline che si accende, i colori dei livelli" /></a> | <a href="#due-frontend-un-motore"><img src="docs/img/gui-demo.gif" alt="mrp-gui in movimento: il log colorato nella finestra, lo scroll" /></a> |
 
-- Gestisce file enormi con un consumo di RAM minimo.
-- E' velocissimo.
-- Usa i colori per focalizzare l'attenzione su quello che conta.
-- Ha una timeline per muoversi tra gli eventi e scovare le problematiche.
-- Include un istogramma spuntabile per isolare i record fuori misura.
-- Il tutto disponibile sia da terminale, TUI, che in versione desktop GUI — cross-platform su 3 OS.
+## Perche' esiste
 
-<p align="justify">Interfaccia essenziale, zero fronzoli.</p>
+Questo progetto nasce da un fastidio quotidiano: dover analizzare log enormi senza saturare la memoria del sistema, oppure scorrere grandi tracciati a record fissi per correggere al volo piccole anomalie.
 
-## I sei pilastri
+Fino ad oggi bisognava destreggiarsi tra `less`, `grep`, editor esadecimali e script custom — soluzioni scomode che non aiutano a individuare i problemi a colpo d'occhio.
 
-Sei idee ben note, applicate fino in fondo:
+**Manto.RustPad** riunisce tutto in un'interfaccia essenziale, senza fronzoli: apri il file all'istante, isoli visivamente le anomalie e, se serve, modifichi sul posto.
 
-1. **Il file sta su disco, non in RAM.** E' memory-mappato in sola lettura: il kernel consegna le pagine che l'editor chiede, quando le chiede (come `less`). L'indice delle righe si costruisce in background e si mette in pausa quando l'utente salta, per non contendere il disco. Su un file da 100 GB l'editor occupa decine di MiB.
+## Sotto il cofano (Architettura)
 
-2. **Il salvataggio e' atomico, la sessione e' un diario delle modifiche.** Il file nuovo viene scritto accanto al vecchio, scaricato su disco e scambiato con un rename: lo stesso protocollo dei commit di SQLite. La sessione registra solo le modifiche, quindi dopo un crash, o dopo aver chiuso senza salvare, schede, cursori e modifiche non salvate tornano al loro posto. La piece table e' la struttura descritta da Crowley per gli editor di testo nel 1998 e adottata da VS Code nel 2018.
+Per garantire prestazioni elevate e sicurezza dei dati anche su file giganteschi, **Manto.RustPad** si basa su scelte architetturali precise:
 
-3. **I livelli si vedono prima di leggerli.** ERROR/WARN/INFO/DEBUG colorati, come date e orari: il colore preattentivo viene processato dall'occhio prima della lettura della riga (il lavoro di Healey sul preattentive processing). Un picco di errori in un log di milioni di righe si nota appena entra nello schermo.
+1. **Memory-mapped I/O e indicizzazione non bloccante.** Il file resta su disco in sola lettura; il kernel carica solo le pagine richieste a schermo. L'indice delle righe viene costruito in background e si mette automaticamente in pausa quando l'utente naviga, evitando contese sul disco.
+2. **Salvataggio atomico e piece table.** Le modifiche sono gestite tramite *piece table* (la stessa struttura dati di VS Code). Al salvataggio, il nuovo file viene scritto accanto all'originale, sincronizzato su disco e sostituito tramite `rename` atomico — il protocollo stile SQLite — per prevenire corruzioni.
+3. **Ricerca binaria sulla timeline.** Gli intervalli temporali della timeline vengono calcolati tramite ricerca binaria direttamente sul file, senza scansionarlo linearmente.
+4. **Offset a 64 bit.** Superati i limiti, il tool restituisce errori espliciti anziche' troncare silenziosamente i dati.
+5. **Cross-platform nativo (TUI + GUI).** Scritto in Rust senza garbage collector: gira in finestra sul desktop o via SSH direttamente nel terminale.
 
-4. **La timeline e' una mappa proporzionale del file.** Una colonna di periodi (minuto, dieci minuti, ora, giorno), ognuno alto quanto il suo volume di righe e diviso per livello: le zone dense si vedono prima di arrivarci con lo scroll. I periodi si trovano per ricerca binaria, senza leggere il file.
-
-5. **Multi uso, multi piattaforma.** Si usa in un terminale (per esempio in SSH) senza bisogno dell'interfaccia grafica, oppure in finestra sul desktop. Gira su Windows, Linux e macOS.
-
-6. **Il check dei tracciati trova le anomalie a colpo d'occhio.** `Alt+H` conta quante righe hanno ogni lunghezza (byte di contenuto, a-capo escluso) e le mette in un istogramma spuntabile: i formati dominanti prima, le righe fuori misura in fondo, dove l'occhio le becca. Spunta le lunghezze da vedere e la vista si rifà con solo quelle righe: in un file a record fissi le anomalie saltano fuori da sole.
 ## POC con i tool noti
 
 Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:
@@ -83,10 +75,6 @@ Un file da 6,0 GB (60 milioni di righe), una macchina, un hard disk:
 
 Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), con due interfacce: **`mrp-tui`** per il terminale, pensato per i server e per SSH; **`mrp-gui`** per il desktop, con menu', barra degli strumenti, finestre di dialogo, appunti di sistema e drag-and-drop. Una funzionalita' aggiunta al motore arriva in entrambe.
 
-| `mrp-tui` — nel terminale | `mrp-gui` — in una finestra |
-|:---:|:---:|
-| <a href="#due-frontend-un-motore"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in movimento: il log, lo scroll, la timeline che si accende, i colori dei livelli" /></a> | <a href="#due-frontend-un-motore"><img src="docs/img/gui-demo.gif" alt="mrp-gui in movimento: il log colorato nella finestra, lo scroll" /></a> |
-
 | | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
 | **Si avvia** | `mrp-tui file...` | `mrp-gui file...` |
@@ -94,18 +82,35 @@ Il motore e' uno, `mrp-core` (documenti, schede, ricerca, modifiche, sessioni), 
 | **Timeline** | `Alt+B`, una colonna accanto al testo | lo stesso, o una barra accanto alla scrollbar |
 | **Menu'** | i tasti funzione | menu' veri, barra strumenti, barra di stato, scrollbar |
 
-## Funzioni
+## Funzionalita' principali
 
-- Apertura all'istante di file di qualunque taglia; scroll con rotella, scrollbar e salti di pagina (`Alt+PgSu/PgGiu'`: 10 pagine, Shift 100, Ctrl 1000).
-- Vai a una riga (`Ctrl+G`) o a un orario; coda del file come `tail -f` (`Alt+T`).
-- Filtri stile `grep` (`Alt+G`), colori dei livelli (`Alt+L`), timeline (`Alt+B`), check dei tracciati (`Alt+H`).
-- Modifica senza ricaricare (`F4`); modalita' colonna (`F8` o `Alt`+trascinamento): digitare, `Tab`, copia, taglia e incolla su tutte le righe del blocco.
-- Trova e sostituisci (`Ctrl+F` / `Ctrl+H`) su testo, glob e regex, con preview e un solo `Ctrl+Z` che annulla tutto.
-- Piu' schede insieme; la sessione ripristina schede, cursori e modifiche non salvate (su un file da 100 GB con poche correzioni pesa pochi KB).
-- Codifiche: UTF-8/16/32, 53 tabelle a byte singolo, le multi-byte dell'Asia orientale, oltre la RAM.
-- Offset a 64 bit, test oltre i 4 GiB, errore esplicito invece del troncamento silenzioso; la memoria resta decine di MiB qualunque sia la taglia.
+### Navigazione ed esplorazione istantanea
 
-Non e' un analizzatore di log (gli aiuti alla lettura sono quelli che servono a un visualizzatore) e non e' una piattaforma di plugin o un IDE.
+- **Zero attese su file enormi:** apertura immediata indipendentemente dalla dimensione del file (testato oltre i 4 GiB e fino a centinaia di GB).
+- **Spostamenti rapidi:** scroll fluido, salti di pagina scalabili (`Alt+PgSu/PgGiu'`: 10 pagine, `Shift` 100, `Ctrl` 1000) e salto diretto a un numero di riga (`Ctrl+G`) o a un orario.
+- **Monitoraggio live:** modalita' *follow* stile `tail -f` (`Alt+T`) per seguire i log in tempo reale.
+- **Piu' schede e sessioni persistenti:** piu' file insieme; dopo un crash o una chiusura accidentale, schede, cursori e modifiche non salvate vengono ripristinate (su un file da 100 GB la sessione pesa pochi KB).
+
+### Analisi visiva a colpo d'occhio
+
+- **Colori preattentivi (`Alt+L`):** livelli `ERROR`, `WARN`, `INFO`, `DEBUG`, date e orari colorati per essere intercettati dall'occhio prima ancora di leggere la riga.
+- **Timeline proporzionale (`Alt+B`):** una mappa laterale suddivisa per intervalli temporali (minuto, dieci minuti, ora, giorno). L'altezza di ogni blocco riflette il volume delle righe e la distribuzione dei livelli: i picchi di errore saltano fuori prima ancora di arrivarci con lo scroll.
+- **Check dei tracciati (`Alt+H`):** conta i byte di ogni riga (a-capo escluso) e genera un istogramma interattivo con le percentuali. I formati dominanti stanno in alto, le righe fuori misura in fondo: spuntando le lunghezze desiderate filtri la vista all'istante. Ideale per scovare record corrotti nei file a tracciato fisso.
+- **Filtri stile `grep` (`Alt+G`):** isola rapidamente solo le righe che ti interessano.
+
+### Editing avanzato (senza ricaricare)
+
+- **Modifica in-place (`F4`):** passa dalla sola lettura alla modifica senza ricaricare il file e senza copie.
+- **Modalita' colonna (`F8` o `Alt`+trascinamento):** seleziona blocchi verticali per digitare, tabulare, copiare, tagliare o incollare contemporaneamente su piu' righe.
+- **Trova e sostituisci (`Ctrl+F` / `Ctrl+H`):** testo semplice, *glob* e *regex* con anteprima delle modifiche e **annullamento globale** (un solo `Ctrl+Z` annulla l'intera sostituzione).
+- **Supporto codifiche esteso:** UTF-8, UTF-16, UTF-32, 53 codifiche a byte singolo e set multi-byte dell'Asia orientale, anche su file piu' grandi della RAM.
+
+## Cosa NON e'
+
+Per mantenere il tool veloce e focalizzato, alcune scelte sono intenzionali:
+
+- **Non e' un log analyzer completo:** offre ausili visivi per la lettura e il debug rapido, non query engine o dashboard di aggregazione.
+- **Non e' un IDE o una piattaforma a plugin:** niente estensioni di terze parti o configurazioni infinite; e' uno strumento pronto all'uso.
 
 ## Download
 

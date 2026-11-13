@@ -31,40 +31,31 @@
 
 ## Abstract
 
-<p align="justify"><strong>A 100 GB log opens in a few seconds, with a few MB of RAM. Scroll its history on a timeline, colour the levels, tick the record lengths to isolate the out-of-size lines. And when needed, you edit — even in columns.</strong></p>
+**Open logs and record files of 100 GB in seconds, using very little RAM.**
 
-<p align="justify">
-The idea was born from a personal annoyance: analysing huge logs without filling the RAM and catching the critical points on the fly to solve the problems fast, or scanning large record files to fix small anomalies on the spot. Until today I had to juggle several tools — an awkward solution, full of limits, with nothing that really helped you spot the issues at a glance.
-</p>
+An ultra-fast viewer and editor written in Rust — available both in the terminal (**TUI**) and on the desktop (**GUI**), for Windows, Linux and macOS.
 
-<p align="justify">
-To solve it I bet on Rust: no GC, excellent performance and RAM consumption cut to the bone. Out of it came a 6-in-1 tool that does everything:
-</p>
+| `mrp-tui` — in the terminal | `mrp-gui` — in a window |
+|:---:|:---:|
+| <a href="#two-frontends-one-engine"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in motion: the log, the scroll, the timeline that lights up, the level colours" /></a> | <a href="#two-frontends-one-engine"><img src="docs/img/gui-demo.gif" alt="mrp-gui in motion: the coloured log in the window, the scroll" /></a> |
 
-- Handles enormous files with minimal RAM.
-- It is fast.
-- Uses colour to focus attention on what counts.
-- Has a timeline to move between the events and hunt down the issues.
-- Includes a checkable histogram to isolate the out-of-size records.
-- All of it available from the terminal, TUI, and as a desktop GUI — cross-platform on 3 OSs.
+## Why it exists
 
-<p align="justify">Essential interface, zero frills.</p>
+This project was born from a daily annoyance: analysing huge logs without saturating the system's memory, or scanning large fixed-record files to fix small anomalies on the fly.
 
-## How it's built
+Until today you had to juggle `less`, `grep`, hex editors and custom scripts — awkward solutions that do not help you spot the problems at a glance.
 
-Six well-known decisions, applied all the way:
+**Manto.RustPad** brings it all together in an essential interface, no frills: open the file instantly, isolate the anomalies visually and, when needed, edit in place.
 
-1. **The file stays on disk, not in RAM.** It is memory-mapped read-only: the kernel hands over the pages the editor asks for, when it asks for them (the way `less` works). The line index builds in the background and pauses when the user jumps, so it does not compete for the disk. On a 100 GB file the editor uses tens of MiB.
+## Under the hood (Architecture)
 
-2. **Saving is atomic, the session is a journal of the edits.** The new file is written next to the old one, flushed to disk and swapped in with a rename: the same protocol SQLite uses for its commits. The session records only the edits, so after a crash, or after closing without saving, tabs, cursors and unsaved edits are back in place. The piece table is the structure Crowley described for text editors in 1998 and VS Code adopted in 2018.
+To guarantee high performance and data safety even on gigantic files, **Manto.RustPad** rests on precise architectural choices:
 
-3. **The levels show before you read them.** ERROR/WARN/INFO/DEBUG in colour, like dates and times: preattentive colour is processed by the eye before the line is read (Healey's work on preattentive processing). A spike of errors in a log of millions of lines is noticed as soon as it enters the screen.
-
-4. **The timeline is a proportional map of the file.** A column of periods (minute, ten minutes, hour, day), each as tall as its volume of lines and split by level: the dense zones show before you reach them by scrolling. The periods are found by binary search, without reading the file.
-
-5. **Multi use, multi platform.** It runs in a terminal (over SSH, for instance) with no graphical interface needed, or in a window on the desktop. It works on Windows, Linux and macOS.
-
-6. **The record length check spots the outliers at a glance.** `Alt+H` counts how many lines have each content length (bytes, line ending excluded) and lays them out in a checkable histogram: the dominant formats first, the out-of-size lines at the bottom, where the eye catches them. Tick the lengths to see and the view is remade with only those lines — in a fixed-record file, the anomalies stand out on their own.
+1. **Memory-mapped I/O and non-blocking indexing.** The file stays on disk, read-only; the kernel loads only the pages the screen asks for. The line index builds in the background and pauses automatically while the user navigates, so it never competes for the disk.
+2. **Atomic saving and piece table.** The edits live in a *piece table* (the same data structure VS Code uses). On save, the new file is written next to the original, flushed to disk and swapped in with an atomic `rename` — the SQLite-style protocol — to prevent corruption.
+3. **Binary search on the timeline.** The time intervals of the timeline are found by binary search directly on the file, without scanning it linearly.
+4. **64-bit offsets.** Past the limits, the tool returns explicit errors instead of silently truncating the data.
+5. **Natively cross-platform (TUI + GUI).** Written in Rust without a garbage collector: it runs in a window on the desktop or over SSH, straight in the terminal.
 
 ## Measurements
 
@@ -84,10 +75,6 @@ A 6.0 GB file (60 million lines), one machine, one hard disk:
 
 The engine is one, `mrp-core` (documents, tabs, search, edits, sessions), with two interfaces: **`mrp-tui`** for the terminal, made for servers and SSH; **`mrp-gui`** for the desktop, with menus, toolbar, dialogs, system clipboard and drag-and-drop. A feature added to the engine is in both.
 
-| `mrp-tui` — in the terminal | `mrp-gui` — in a window |
-|:---:|:---:|
-| <a href="#two-frontends-one-engine"><img src="docs/img/tui-timeline.gif" alt="mrp-tui in motion: the log, the scroll, the timeline that lights up, the level colours" /></a> | <a href="#two-frontends-one-engine"><img src="docs/img/gui-demo.gif" alt="mrp-gui in motion: the coloured log in the window, the scroll" /></a> |
-
 | | `mrp-tui` | `mrp-gui` |
 | --- | --- | --- |
 | **Start it** | `mrp-tui file...` | `mrp-gui file...` |
@@ -95,18 +82,35 @@ The engine is one, `mrp-core` (documents, tabs, search, edits, sessions), with t
 | **Timeline** | `Alt+B`, a column next to the text | the same, or a bar next to the scrollbar |
 | **Menus** | the function keys | real menus, toolbar, status bar, scrollbar |
 
-## Features
+## Main features
 
-- Any file opens instantly; scroll with wheel, scrollbar and page jumps (`Alt+PgUp/PgDn`: 10 pages, Shift 100, Ctrl 1000).
-- Go to a line (`Ctrl+G`) or to a time; follow the end of the file like `tail -f` (`Alt+T`).
-- `grep`-style filters (`Alt+G`), level colours (`Alt+L`), timeline (`Alt+B`), record length check (`Alt+H`).
-- Edit without reloading (`F4`); column mode (`F8` or `Alt`+drag): typing, `Tab`, copy, cut and paste on every row of the block.
-- Find and replace (`Ctrl+F` / `Ctrl+H`) on text, glob and regex, with a preview and one `Ctrl+Z` that undoes the whole thing.
-- Several tabs at once; the session restores tabs, cursors and unsaved edits (on a 100 GB file with a few corrections it weighs a few KB).
-- Encodings: UTF-8/16/32, 53 single-byte code pages, the East-Asian multi-byte ones, beyond RAM.
-- 64-bit offsets, tests above 4 GiB, a loud error instead of silent truncation; memory stays tens of MiB whatever the size.
+### Instant navigation and exploration
 
-It is not a log analyser (the reading aids here are what a viewer needs) and it is not a plugin platform or an IDE.
+- **Zero waiting on huge files:** immediate opening whatever the size (tested above 4 GiB and up to hundreds of GB).
+- **Fast movement:** smooth scrolling, scalable page jumps (`Alt+PgUp/PgDn`: 10 pages, `Shift` 100, `Ctrl` 1000) and a direct jump to a line number (`Ctrl+G`) or a time.
+- **Live monitoring:** `tail -f`-style *follow* mode (`Alt+T`) to keep up with logs in real time.
+- **Several tabs and persistent sessions:** many files at once; after a crash or an accidental close, tabs, cursors and unsaved edits are restored (on a 100 GB file the session weighs a few KB).
+
+### Visual analysis at a glance
+
+- **Preattentive colours (`Alt+L`):** `ERROR`, `WARN`, `INFO`, `DEBUG` levels, dates and times coloured to be caught by the eye before the line is even read.
+- **Proportional timeline (`Alt+B`):** a side map split into time periods (minute, ten minutes, hour, day). The height of each block reflects the volume of lines and the distribution of the levels: error spikes show up before you reach them by scrolling.
+- **Record length check (`Alt+H`):** counts the bytes of every line (line ending excluded) and builds an interactive histogram with percentages. The dominant formats sit on top, the out-of-size lines at the bottom: tick the lengths you want and the view filters instantly. Ideal for spotting corrupted records in fixed-format files.
+- **`grep`-style filters (`Alt+G`):** quickly isolate only the lines you care about.
+
+### Advanced editing (without reloading)
+
+- **In-place editing (`F4`):** from read-only to editing without reloading the file and without copies.
+- **Column mode (`F8` or `Alt`+drag):** select vertical blocks to type, tab, copy, cut or paste on many rows at once.
+- **Find and replace (`Ctrl+F` / `Ctrl+H`):** plain text, *glob* and *regex* with a preview of the changes and **global undo** (one `Ctrl+Z` undoes the whole replacement).
+- **Extended encoding support:** UTF-8, UTF-16, UTF-32, 53 single-byte code pages and the East-Asian multi-byte sets, also on files larger than RAM.
+
+## What it is NOT
+
+To keep the tool fast and focused, some choices are deliberate:
+
+- **It is not a full log analyser:** it offers visual aids for reading and quick debugging, not query engines or aggregation dashboards.
+- **It is not an IDE or a plugin platform:** no third-party extensions or endless configuration; it is a tool ready to use.
 
 ## Get it
 
