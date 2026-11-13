@@ -1,7 +1,8 @@
 //! Il check dei tracciati nelle viste filtrate: INVIO apre la scheda di sola lettura col nome delle lunghezze; dentro una
 //! vista, una nuova selezione rifà il filtro dal file ORIGINALE componendo le condizioni (il testo della vista e le
-//! lunghezze nuove insieme); tutte spuntate in una vista di sole lunghezze non lascia nessuna condizione: si torna al
-//! file, alla riga del cursore. Scritti da ARCH: 24 righe con tre lunghezze (18 da 40, quattro da 41, due da 12), tutte
+//! lunghezze nuove insieme); e il dialogo riaperto nella vista mostra tutte le lunghezze del file originale (istogramma
+//! copiato), con quelle della vista gia' spuntate: spuntarle tutte non lascia nessuna condizione e si torna al file,
+//! alla riga del cursore. Scritti da ARCH: 24 righe con tre lunghezze (18 da 40, quattro da 41, due da 12), tutte
 //! con una "x" nel corpo: gli attesi sono l'aritmetica di questa costruzione.
 
 use mrp_tui::app::{App, AppConfig};
@@ -132,8 +133,14 @@ fn all_checked_in_a_lengths_only_view_goes_back_to_the_file() {
     w.handle_key(k(KeyCode::Enter));
     assert!(w.wait_idle(Duration::from_secs(20)));
     assert!(w.active().is_filter_view());
-    // nella vista (le sue righe sono tutte da 40, tutte spuntate): INVIO non lascia nessuna condizione
+    // nella vista il dialogo mostra tutte le lunghezze del FILE (istogramma copiato dall'originale)
+    // con la 40 gia' spuntata (le condizioni della vista): per tornare al file si spuntano anche le
+    // altre due — 41 e 12, in fondo alla lista (18 da 40, quattro da 41, due da 12) — e INVIO
     apri(&mut w);
+    w.handle_key(k(KeyCode::Down));
+    w.handle_key(k(KeyCode::Char(' ')));
+    w.handle_key(k(KeyCode::Down));
+    w.handle_key(k(KeyCode::Char(' ')));
     w.handle_key(k(KeyCode::Enter));
     assert!(w.wait_idle(Duration::from_secs(20)));
     assert_eq!(w.active_index(), 0, "si torna al file originale");
