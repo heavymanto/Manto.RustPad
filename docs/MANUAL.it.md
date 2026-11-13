@@ -1,8 +1,6 @@
-# Manto.RustPad — Manuale
+# Manto.RustPad — Manuale
 
-> Questo documento descrive cio' che il prodotto fa oggi. La versione inglese (`MANUAL.md`) e' la fonte; questa e' la sua traduzione.
-
-## 0. Come si legge questo documento
+## Come si legge questo documento
 
 | Campo | Significato |
 |---|---|
@@ -19,7 +17,7 @@ Alt come prefisso di escape (la maggior parte lo fa).
 
 > **Due facce sullo stesso motore:** [il terminale (mrp-tui)](img/tui/n01-apre.png) · [la finestra (mrp-gui)](img/manual/n01-apre.png) — le schermate di entrambe sono in ogni carta.
 
-## 1. Il prodotto in una pagina
+## Il prodotto in una pagina
 
 **Tre modi di usare un file.** Si escludono a vicenda: esattamente uno e' acceso.
 
@@ -59,9 +57,9 @@ riga di stato del terminale.
 
 ---
 
-## 2. Le carte delle funzionalita'
+## Le carte delle funzionalita'
 
-### 2.1 Apertura e navigazione
+### Apertura e navigazione
 
 #### N-01 Aprire un file dalla riga di comando
 
@@ -146,7 +144,7 @@ riga di stato del terminale.
 - **Limiti e casi limite:** il tempo che resta si nasconde sopra le 99 ore.
 - **Test automatici:** si' (`avanzamento`).
 
-### 2.2 Modi, modifica e salvataggio
+### Modi, modifica e salvataggio
 
 #### M-01 I tre modi
 - **Ingresso:** `Alt+V` VIEW, `Alt+E` EDIT, `Alt+T` TAIL; `F4` *non* e' un modo (e' Sostituisci). Finestra: tre pulsanti nella barra e le
@@ -212,7 +210,7 @@ riga di stato del terminale.
 - **Limiti e casi limite:** da EDIT senza modifiche passa direttamente a TAIL; un file che si accorcia smette di seguire, con un messaggio.
 - **Test automatici:** si' (`follow`, `modi`).
 
-### 2.3 Tempo, timeline e filtri
+### Tempo, timeline e filtri
 
 #### T-01 Formato dell'orario delle righe (`Alt+O`)
 
@@ -336,7 +334,7 @@ riga di stato del terminale.
 - **Limiti e casi limite:** le lunghezze sono byte di contenuto: le righe CRLF contano senza il `\r`, l'ultima riga senza a-capo e' una riga, una riga vuota ha lunghezza 0. La passata vede le modifiche non salvate (legge la fotografia) e si annulla chiudendo (riparte alla prossima apertura). Nella finestra le caselle sono cliccabili e Inverti / OK / Annulla sono pulsanti.
 - **Test automatici:** si' (`lengths` nel core, `lengths_app`, `lengths_view`).
 
-### 2.4 Codifiche e fine riga
+### Codifiche e fine riga
 
 #### E-01 Codifica: rilevamento e cambio (`F9`)
 
@@ -376,7 +374,7 @@ riga di stato del terminale.
 
 ---
 
-## 3. Sotto il cofano
+## Sotto il cofano
 
 Questi capitoli spiegano come funzionano le parti, dove tengono i loro dati e cosa garantiscono. Le costanti vengono dal sorgente
 e sono controllate dai test dove indicato.
@@ -658,7 +656,7 @@ l'unica cosa "ricordata" di questo capitolo che arriva nel file delle impostazio
 
 ---
 
-## 4. Scheda dei test UX
+## Scheda dei test UX
 
 Una riga per carta. `Terminale` e' l'esito dei giri sul terminale del 7/11/2026 (circa 130 scenari guidati sul programma installato con tasti simulati, poi circa 45 con console vera, tastiera e mouse); `Finestra` e' l'esito dei giri sulla finestra dello stesso giorno: schermate prodotte dagli hook di sviluppo di `mrp-gui`, poi la finestra vera guidata con tastiera e mouse. Un difetto che vale per tutta la finestra: con `--theme light` e un file con orari riconosciuti, il pannello della timeline resta scuro.
 

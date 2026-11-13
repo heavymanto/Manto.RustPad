@@ -1,8 +1,6 @@
-# Manto.RustPad — Manual
+# Manto.RustPad — Manual
 
-> This document describes what the product does today. The English version (`MANUAL.md`) is the source; the Italian one is its translation.
-
-## 0. How to read this document
+## How to read this document
 
 | Field | Meaning |
 |---|---|
@@ -19,7 +17,7 @@ Alt as an escape prefix (most do).
 
 > **Two faces on the same engine:** [the terminal (mrp-tui)](img/tui/n01-apre.png) · [the window (mrp-gui)](img/manual/n01-apre.png) — screenshots of both are in every card.
 
-## 1. The product in one page
+## The product in one page
 
 **Three ways to use a file.** They exclude each other: exactly one is on.
 
@@ -60,9 +58,9 @@ status row as the terminal.
 
 ---
 
-## 2. Feature cards
+## Feature cards
 
-### 2.1 Opening and navigating
+### Opening and navigating
 
 #### N-01 Open a file from the command line
 
@@ -144,7 +142,7 @@ status row as the terminal.
 - **Limits and edge cases:** the ETA is hidden above 99 hours.
 - **Auto tests:** yes (`avanzamento`).
 
-### 2.2 Modes, editing and saving
+### Modes, editing and saving
 
 #### M-01 The three modes
 - **Entry:** `Alt+V` VIEW, `Alt+E` EDIT, `Alt+T` TAIL; `F4` is *not* a mode (it is Replace). Window: three toolbar buttons and the
@@ -207,7 +205,7 @@ status row as the terminal.
 - **Limits and edge cases:** from EDIT without changes it switches straight to TAIL; a file that shrinks stops following with a message.
 - **Auto tests:** yes (`follow`, `modi`).
 
-### 2.3 Time, timeline and filters
+### Time, timeline and filters
 
 #### T-01 Time format of the lines (`Alt+O`)
 
@@ -335,7 +333,7 @@ status row as the terminal.
 - **Limits and edge cases:** the lengths are content bytes: CRLF lines count without the `\r`, the last line without a newline is a line, an empty line has length 0. The pass sees unsaved edits (it reads the snapshot) and is cancelled by closing (it restarts at the next opening). In the window the boxes are clickable and Invert / OK / Cancel are buttons.
 - **Auto tests:** yes (`lengths` in the core, `lengths_app`, `lengths_view`).
 
-### 2.4 Encodings and line endings
+### Encodings and line endings
 
 #### E-01 Encoding: detection and change (`F9`)
 
@@ -363,7 +361,7 @@ status row as the terminal.
 
 ---
 
-## 3. Under the hood
+## Under the hood
 
 These chapters explain how the parts work, where they keep their data and what they guarantee. Constants are from the source
 and are checked by tests where noted.
@@ -641,7 +639,7 @@ only "remembered" item of this chapter that reaches the settings file.
 
 ---
 
-## 4. UX test sheet
+## UX test sheet
 
 One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 (about 130 scenarios driven on the installed program with simulated keys, then about 45 with a real console, keyboard and mouse); `Window` is the result of the window passes of the same day: screenshots produced by the developer hooks of `mrp-gui`, then the real window driven with keyboard and mouse. A defect that applies to the whole window: with `--theme light` and a file with recognised times, the timeline panel stays dark.
 
