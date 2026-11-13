@@ -1,5 +1,7 @@
 # Manto.RustPad — Manuale
 
+[English](MANUAL.md) · **Italiano**
+
 I tasti sono scritti uguali per Windows, Linux e macOS (`Ctrl`, `Alt`). Nel terminale, `Alt+lettera` richiede un terminale che invii
 Alt come prefisso di escape (la maggior parte lo fa).
 

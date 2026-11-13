@@ -1,4 +1,6 @@
-# Manto.RustPad — Manual
+# Manto.RustPad — Manual
+
+**English** · [Italiano](MANUAL.it.md)
 
 ## How to read this document
 
