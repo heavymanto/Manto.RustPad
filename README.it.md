@@ -81,7 +81,7 @@ Per garantire prestazioni elevate e sicurezza dei dati anche su file giganteschi
 <p align="center">
   <img src="docs/img/gui-checkdata.png" alt="Il check dei tracciati nella finestra: l'istogramma spuntabile delle lunghezze con le percentuali" />
 </p>
-<p align="center"><em>Il check dei tracciati (<code>Alt+H</code>): l'istogramma spuntabile delle lunghezze con le percentuali — le righe fuori misura in fondo, dove l'occhio le becca.</em></p>
+<p align="center"><em>Il check dei tracciati (<code>Alt+H</code>): l'istogramma spuntabile delle lunghezze con le percentuali — le righe fuori misura in fondo, sono sempre sospette!</em></p>
 
 ### Editing avanzato (senza ricaricare)
 
