@@ -27,6 +27,14 @@
         <a href="ARCHITECTURE.md"><img src="https://img.shields.io/badge/%E2%9A%99%EF%B8%8F-ARCHITECTURE-007ec6?style=flat-square" alt="Architecture" /></a>
       </p>
     </td>
+    <td width="25%" valign="middle" align="center">
+      <a href="https://github.com/heavymanto">
+        <picture>
+          <source media="(max-width: 767px)" srcset="docs/img/mnt_c1_small.png" />
+          <img src="docs/img/mnt_c1.png" alt="Manto, the author of Manto.RustPad" />
+        </picture>
+      </a>
+    </td>
   </tr>
 </table>
 
