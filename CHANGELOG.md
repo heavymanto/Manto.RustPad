@@ -4,6 +4,11 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-11-24
+
+### Added
+- **The mass record length check from the command line** (terminal): `mrp-tui --check-tracciati "C:\path\*.log"` runs without opening the terminal, walks the folder and every subfolder, and runs the record length pass (the same one as `Alt+H`, streaming, encoding auto-detected per file) on every file whose name matches the glob. The result is a TSV report written in the search root as it goes (one flush per file: interrupting keeps what was done): one row per file and length - full path, bytes, records, length, count, percentage - the dominant formats first and the anomalies at the bottom, readable in Excel at first sight (UTF-8 with BOM, comma decimals). Empty files get their row, unreadable ones get an `ERRORE` row without stopping the run. Seven languages for the help line and the messages. No judgment logic: raw data.
+
 ## [0.1.6] - 2026-11-12
 
 ### Changed

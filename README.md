@@ -13,7 +13,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/v/release/heavymanto/Manto.RustPad?label=version" alt="version" /></a>
-        <img src="https://img.shields.io/badge/tests-1674-brightgreen" alt="1674 tests" />
+        <img src="https://img.shields.io/badge/tests-1682-brightgreen" alt="1682 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -84,6 +84,7 @@ The details — the session that survives crashes, the line index, the encodings
 - **Preattentive colours (`Alt+L`):** `ERROR`, `WARN`, `INFO`, `DEBUG` levels, dates and times coloured to be caught by the eye before the line is even read.
 - **Proportional timeline (`Alt+B`):** a side map split into time periods (minute, ten minutes, hour, day). The height of each block reflects the volume of lines and the distribution of the levels: error spikes show up before you reach them by scrolling.
 - **Record length check (`Alt+H`):** counts the bytes of every line (line ending excluded) and builds an interactive histogram with percentages. The dominant formats sit on top, the out-of-size lines at the bottom: tick the lengths you want and the view filters instantly. Ideal for spotting corrupted records in fixed-format files.
+- **Mass check from the command line:** `mrp-tui --check-tracciati "C:\logs\*.txt"` scans a whole tree (the same pass as `Alt+H`, encoding detected per file) and writes a TSV report in the folder - one row per file and length, with percentages - to open in Excel for a first-sight look at many files at once.
 - **`grep`-style filters (`Alt+G`):** quickly isolate only the lines you care about.
 
 <p align="center">
@@ -139,7 +140,7 @@ A 6.0 GB file (60 million lines), one machine, one hard disk:
 
 ## Get it
 
-Current release: **0.1.6** (November 2026).
+Current release: **0.1.7** (November 2026).
 
 Nothing to install: extract and run. Both programs work right away in portable mode (English embedded, the other six languages in `lang/` next to the programs). If you want them as commands from any folder, each package carries `install.ps1` (Windows) or `install.sh` (Linux, macOS). On Windows, `install.ps1 -Associate` adds mrp-gui to the "Open with" list of `.txt` and `.log` and to Settings > Default apps, for the current user only and without admin: the default itself stays a choice Windows signs. On Linux, `./install.sh --associa` sets the default for text files.
 
@@ -159,9 +160,9 @@ Nothing to install: extract and run. Both programs work right away in portable m
   <a href="https://github.com/heavymanto/Manto.RustPad/stargazers"><img src="https://img.shields.io/github/stars/heavymanto/Manto.RustPad?style=flat-square&label=stars" alt="stars" /></a>
   <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/downloads/heavymanto/Manto.RustPad/total?style=flat-square&label=downloads" alt="downloads" /></a>
   <br/><br/>
-  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.6/manto-rustpad-0.1.6-win-x64.zip"><img src="https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge" alt="Windows x64" /></a>
-  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.6/manto-rustpad-0.1.6-linux-x64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge" alt="Linux x64" /></a>
-  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.6/manto-rustpad-0.1.6-macos-aarch64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge" alt="macOS" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.7/manto-rustpad-0.1.7-win-x64.zip"><img src="https://img.shields.io/badge/%E2%AC%87-Windows%20x64-2ea44f?style=for-the-badge" alt="Windows x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.7/manto-rustpad-0.1.7-linux-x64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-Linux%20x64-2ea44f?style=for-the-badge" alt="Linux x64" /></a>
+  <a href="https://github.com/heavymanto/Manto.RustPad/releases/download/v0.1.7/manto-rustpad-0.1.7-macos-aarch64.tar.gz"><img src="https://img.shields.io/badge/%E2%AC%87-macOS-2ea44f?style=for-the-badge" alt="macOS" /></a>
 </p>
 </details>
 </div>
@@ -187,7 +188,7 @@ No log at hand? Make one, any size, same bytes on every machine:
 
 ## Known limitations
 
-- Early development: 1,674 automated tests, but not yet long sessions of real use. Keep a backup of anything precious.
+- Early development: 1,682 automated tests, but not yet long sessions of real use. Keep a backup of anything precious.
 - Windows first. The terminal editor and the core also run on Linux (Debian, WSL); the CI runs the whole suite on all three systems at every push.
 - The window (`mrp-gui`) has been checked with automated tests and screenshots, not yet with long real keyboard and mouse use.
 - Regex, glob and ignore-case work on UTF-8 documents only; plain-text search works in every encoding.

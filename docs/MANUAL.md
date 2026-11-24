@@ -335,6 +335,14 @@ status row as the terminal.
 - **Limits and edge cases:** the lengths are content bytes: CRLF lines count without the `\r`, the last line without a newline is a line, an empty line has length 0. The pass sees unsaved edits (it reads the snapshot) and is cancelled by closing (it restarts at the next opening). In the window the boxes are clickable and Invert / OK / Cancel are buttons.
 - **Auto tests:** yes (`lengths` in the core, `lengths_app`, `lengths_view`).
 
+#### F-05 Mass record length check (command line)
+
+- **Entry:** `mrp-tui --check-tracciati "C:\logs\*.txt"` (no key: it runs without opening the terminal and exits by itself, code 0; 1 if the folder does not exist or the report cannot be written).
+- **Expected response:** every file matching the glob, in the folder and in every subfolder, gets the same pass as F-04 (the encoding is detected per file); one progress line each, and the TSV report `mrp-check-tracciati_YYYYMMDD_HHMMSSZ.tsv` is born in the search folder, written as it goes (one flush per file: an interruption keeps what was done): one row per file and length - path, bytes, records, length, count, percentage - the dominant formats first and the anomalies at the bottom. It opens in Excel with a double click: UTF-8 with BOM, percentages with the comma decimal separator.
+- **Must not:** load a file into RAM; stop at the first file that cannot be read (it becomes an `ERRORE` row with the reason, the run continues); open the interface.
+- **Limits and edge cases:** the glob looks at the file name only (not the folders), case-sensitive, with `*` `?` `[...]`; symlinks are not followed; an empty file gets its row (empty length and count cells); the time in the report name is UTC; no judgment logic, the raw data is for the reader. Two runs in the same second: the second report gets a `_1` in the name.
+- **Auto tests:** yes (`tracciati` in mrp-tui, `tracciati_glob_matcha` in the core).
+
 ### Encodings and line endings
 
 #### E-01 Encoding: detection and change (`F9`)
@@ -403,6 +411,7 @@ One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 
 | F-02 | Replace | NOTE: switches to EDIT silently; hint cut | DEFECT: after the preview, Enter does not apply; only the button does | yes |
 | F-03 | Line filter | NOTE: raw regex error text | OK | yes |
 | F-04 | Record length check | OK | not tested | yes |
+| F-05 | Mass record length check (command line) | not tested yet | n/a (terminal only) | yes |
 | E-01 | Encoding: detection and change | OK: 28/28 explicit, 21/21 fixed with F9; NOTE: a guess is not flagged | not tested | yes |
 | E-02 | Save as with another encoding | OK: 17/17 byte-exact; NOTE: pre-filled path with `\\?\` | not tested | yes |
 | E-03 | Editing keeps encoding and line ending | OK (CRLF defect fixed) | not tested | yes |

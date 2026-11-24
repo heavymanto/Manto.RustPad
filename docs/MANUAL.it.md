@@ -289,6 +289,13 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
 - **Cosa non deve mai succedere:** modificare l'originale. Con niente spuntato: "no line matches", nessuna scheda. Senza righe: "nothing to count". `Esc` lascia tutto com'era, e la selezione abortita non si ricorda.
 - **Limiti:** le lunghezze sono byte di contenuto: le righe CRLF contano senza il `\r`, l'ultima riga senza a-capo e' una riga, una riga vuota ha lunghezza 0. La passata vede le modifiche non salvate (legge la fotografia) e si annulla chiudendo (riparte alla prossima apertura). Nella finestra le caselle sono cliccabili e Inverti / OK / Annulla sono pulsanti.
 
+#### F-05 Check massivo dei tracciati da riga di comando
+
+- **Tasti:** `mrp-tui --check-tracciati "C:\log\*.txt"` (nessun tasto: gira senza aprire il terminale e esce da solo, codice 0; 1 se la cartella non esiste o il report non si puo' scrivere).
+- **Cosa succede:** tutti i file che matchano il glob, nella cartella e in ogni sottocartella, prendono la stessa passata di F-04 (la codifica si rileva da sola, file per file); per ognuno una riga di avanzamento, e il report TSV `mrp-check-tracciati_AAAAMMGG_HHMMSSZ.tsv` nasce nella cartella della ricerca, scritto man mano (un flush per file: un'interruzione lascia il fatto fin lì): una riga per file e lunghezza — percorso, byte, righe, lunghezza, conteggio, percentuale — i formati dominanti prima e le anomalie in fondo. Si apre in Excel col doppio clic: UTF-8 col BOM, percentuali con la virgola.
+- **Cosa non deve mai succedere:** caricare un file in RAM; fermarsi al primo file che non si legge (diventa una riga `ERRORE` col motivo, il giro continua); aprire l'interfaccia.
+- **Limiti:** il glob guarda il solo nome del file (non le cartelle), distingue le maiuscole, con `*` `?` `[...]`; i symlink non si seguono; il file vuoto ha la sua riga (celle lunghezza e conteggio vuote); l'ora nel nome del report e' UTC; nessuna logica di giudizio, i dati grezzi li guarda chi legge. Due giri nello stesso secondo: il secondo report prende un `_1` nel nome.
+
 ### Codifiche e fine riga
 
 #### E-01 Codifica: rilevamento e cambio (`F9`)
