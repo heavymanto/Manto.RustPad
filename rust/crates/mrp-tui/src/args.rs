@@ -34,6 +34,9 @@ pub struct Args {
     pub dump_colori: bool,
     /// `--keys LISTA` (sviluppatore): i tasti che `--dump` applica uno alla volta.
     pub keys: Option<String>,
+    /// `--check-tracciati PERCORSO`: il check massivo dei tracciati senza terminale (per esempio
+    /// `"c:\log\*.txt"`: la cartella e' la root, il resto il glob sul nome file); il report TSV nasce nella root.
+    pub check_tracciati: Option<PathBuf>,
     /// `-h` / `--help`.
     pub help: bool,
     /// `--list-encodings`: stampa i nomi delle codifiche, uno per riga, ed esce.
@@ -66,6 +69,9 @@ pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> 
             "--dump" => args.dump = Some(testo(&mut resto, "--dump")?),
             "--dump-colori" => args.dump_colori = true,
             "--keys" => args.keys = Some(testo(&mut resto, "--keys")?),
+            "--check-tracciati" => {
+                args.check_tracciati = Some(percorso(&mut resto, "--check-tracciati")?)
+            }
             _ => return Err(arg.to_string_lossy().into_owned()),
         }
     }

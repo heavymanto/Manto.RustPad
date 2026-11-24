@@ -11,5 +11,6 @@ pub mod sessionstore;
 pub mod settings;
 pub mod term;
 pub mod theme;
+pub mod tracciati;
 pub mod ui;
 pub mod workspace;

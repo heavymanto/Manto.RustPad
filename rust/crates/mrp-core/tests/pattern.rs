@@ -795,6 +795,20 @@ fn a_replacement_is_its_own_undo_step_even_without_a_manual_seal() {
 }
 
 #[test]
+fn tracciati_glob_matcha() {
+    // il glob del check massivo (FL58, --check-tracciati): full match sul nome del file, case-sensitive.
+    // Attesi calcolati a mano: `*` qualunque cosa, `?` un carattere solo, `[abc]` una di quelle, la `[` non
+    // chiusa resta letterale (matcha solo la stringa "[")
+    use mrp_core::pattern::file_glob_match;
+    assert!(file_glob_match("*glob*.txt", "xgloby.txt").unwrap());
+    assert!(!file_glob_match("*.txt", "a.log").unwrap());
+    assert!(!file_glob_match("?", "ab").unwrap());
+    assert!(file_glob_match("[abc]*.log", "b1.log").unwrap());
+    assert!(!file_glob_match("*.txt", "a.TXT").unwrap());
+    assert!(!file_glob_match("[", "x").unwrap());
+}
+
+#[test]
 fn literal_occurrences_never_overlap_across_block_boundaries() {
     let (d, f) = doc(&[b'a'; 50]);
     let snap = d.snapshot().unwrap().with_chunk(7);

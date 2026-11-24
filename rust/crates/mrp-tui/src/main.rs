@@ -50,6 +50,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             "cli.help.l4",
             "cli.help.enc",
             "cli.help.eol",
+            "cli.help.trk",
             "cli.help.l5",
         ] {
             println!("{}", cat.t(chiave));
@@ -63,6 +64,31 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             println!("{}", e.name());
         }
         return 0;
+    }
+    // il check massivo dei tracciati (--check-tracciati): gira senza terminale, scrive il report TSV nella root
+    // della ricerca ed esce; gli altri argomenti d'interfaccia non contano
+    if let Some(percorso) = &a.check_tracciati {
+        return match mrp_tui::tracciati::massivo(&cat, percorso) {
+            Ok(esito) => {
+                println!(
+                    "{}",
+                    cat.tf(
+                        "cli.trk.fine",
+                        &[
+                            &esito.file.to_string(),
+                            &esito.righe.to_string(),
+                            &esito.errori.to_string(),
+                            &esito.report.display().to_string()
+                        ]
+                    )
+                );
+                0
+            }
+            Err(msg) => {
+                eprintln!("{msg}");
+                1
+            }
+        };
     }
     // gli errori d'uso, nell'ordine: il file, il tema, la lingua, la codifica, la dimensione del
     // dump, i tasti
@@ -199,7 +225,13 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
 /// La modalita' `--dump`: ridimensiona l'app a W x H, applica i tasti (un `tick` dopo ognuno), aspetta che i
 /// lavori in background finiscano e stampa lo schermo, una riga per riga. Con `--dump-colori` stampa invece ogni cella
 /// come `colonna riga fg bg carattere` (colori RGB in esadecimale), per disegnare lo schermo a colori.
-fn dump_run(app: &mut Workspace, w: u16, h: u16, tasti: &[KeyEvent], colori: bool) -> io::Result<()> {
+fn dump_run(
+    app: &mut Workspace,
+    w: u16,
+    h: u16,
+    tasti: &[KeyEvent],
+    colori: bool,
+) -> io::Result<()> {
     app.resize(w, h);
     for tasto in tasti {
         app.handle_key(*tasto);
@@ -217,19 +249,15 @@ fn dump_run(app: &mut Workspace, w: u16, h: u16, tasti: &[KeyEvent], colori: boo
         for y in 0..g.h {
             for x in 0..g.w {
                 if let Some(c) = g.cella(x, y) {
-                    let s = if c.simbolo.is_empty() { " " } else { c.simbolo.as_str() };
+                    let s = if c.simbolo.is_empty() {
+                        " "
+                    } else {
+                        c.simbolo.as_str()
+                    };
                     writeln!(
                         out,
                         "{} {} {:02x}{:02x}{:02x} {:02x}{:02x}{:02x} {}",
-                        x,
-                        y,
-                        c.fg[0],
-                        c.fg[1],
-                        c.fg[2],
-                        c.bg[0],
-                        c.bg[1],
-                        c.bg[2],
-                        s
+                        x, y, c.fg[0], c.fg[1], c.fg[2], c.bg[0], c.bg[1], c.bg[2], s
                     )?;
                 }
             }

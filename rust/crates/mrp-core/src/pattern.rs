@@ -113,6 +113,39 @@ pub fn glob_to_regex(glob: &str) -> String {
     out
 }
 
+/// Il glob del check massivo (`--check-tracciati`) compilato una volta sola: il match pieno sul nome di un file,
+/// con la stessa grammatica delle ricerche (`*`, `?`, `[...]`, `\` protegge) e le maiuscole che contano. Chi
+/// cammina un albero intero lo costruisce una volta e lo chiede per ogni file.
+pub struct FileGlob {
+    /// La regex del glob, ancorata al nome intero (`^...$`).
+    re: Regex,
+}
+
+impl FileGlob {
+    /// Compila il glob; `Err` se la regex non compila (per come `glob_to_regex` scrive non dovrebbe accadere:
+    /// la via d'uscita resta onesta).
+    pub fn new(glob: &str) -> Result<FileGlob, PatternError> {
+        let re = RegexBuilder::new(&format!("^{}$", glob_to_regex(glob)))
+            .case_insensitive(false)
+            .dot_matches_new_line(false)
+            .size_limit(SIZE_LIMIT)
+            .build()
+            .map_err(|e| PatternError(e.to_string()))?;
+        Ok(FileGlob { re })
+    }
+
+    /// Vero se `nome` (un nome di file, senza cartelle) matcha tutto il glob.
+    pub fn is_match(&self, nome: &str) -> bool {
+        self.re.is_match(nome.as_bytes())
+    }
+}
+
+/// Vero se `nome` matcha tutto il `glob`: il confronto del check massivo, compilato al volo (per un albero
+/// intero c'e' `FileGlob`, una volta sola).
+pub fn file_glob_match(glob: &str, nome: &str) -> Result<bool, PatternError> {
+    Ok(FileGlob::new(glob)?.is_match(nome))
+}
+
 impl Pattern {
     /// Compila `testo` nel modo `mode`; `case` e' vero se le maiuscole contano.
     pub fn new(testo: &str, mode: Mode, case: bool) -> Result<Pattern, PatternError> {
