@@ -65,7 +65,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         }
         return 0;
     }
-    // il check massivo dei tracciati (--check-tracciati): gira senza terminale, scrive il report TSV nella root
+    // il check massivo dei tracciati (--check-tracciati): gira senza terminale, scrive il report CSV nella root
     // della ricerca ed esce; gli altri argomenti d'interfaccia non contano
     if let Some(percorso) = &a.check_tracciati {
         return match mrp_tui::tracciati::massivo(&cat, percorso) {

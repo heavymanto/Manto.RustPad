@@ -1,8 +1,11 @@
 //! Il check massivo dei tracciati (`--check-tracciati`): l'istogramma delle lunghezze delle righe (la passata
-//! di Alt+H) su tutti i file di un albero che matchano un glob, senza aprire il terminale. Il report e' un TSV
-//! nella root della ricerca - una riga per ogni file e lunghezza: percorso, byte, righe, lunghezza, conteggio,
-//! percentuale - scritto man mano (un flush per file: un'interruzione lascia il fatto fin lì). Nessuna logica
-//! di giudizio: i dati grezzi li guarda l'utente.
+//! di Alt+H) su tutti i file di un albero che matchano un glob, senza aprire il terminale. Il report e' un CSV
+//! col separatore `;` (lo apre Excel italiano) nella root della ricerca, in due sezioni: la sintesi in cima -
+//! una riga per file, con la colonna compatta delle lunghezze - una riga vuota, e il dettaglio sotto senza
+//! intestazione, una riga per ogni file e lunghezza: percorso, byte, righe, lunghezza, conteggio, percentuale.
+//! La sintesi si scrive man mano (un flush per file: un'interruzione lascia il fatto fin lì); il dettaglio si
+//! accumula e si scrive alla fine (righe piccole: riassunti, non contenuto). Nessuna logica di giudizio: i
+//! dati grezzi li guarda l'utente.
 
 use mrp_core::docsearch::SearchError;
 use mrp_core::encoding::Encoding;
@@ -18,7 +21,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Il risultato del giro, per il riepilogo che stampa il binario.
 pub struct EsitoMassivo {
-    /// Il report TSV scritto.
+    /// Il report CSV scritto.
     pub report: PathBuf,
     /// Quanti file matchano il glob e si sono letti.
     pub file: u64,
@@ -52,8 +55,8 @@ pub fn massivo(cat: &Catalog, argomento: &Path) -> Result<EsitoMassivo, String> 
         return Err(cat.tf("cli.err.trk_root", &[&root.display().to_string()]));
     }
     // il report: il nome col momento del giro, libero da collisioni (due giri nello stesso secondo non si
-    // mischiano), scritto man mano
-    let report = nome_libero(&root, &format!("mrp-check-tracciati_{}.tsv", adesso_utc()));
+    // mischiano), CSV col separatore ; cosi' Excel italiano lo apre a doppio clic
+    let report = nome_libero(&root, &format!("mrp-check-tracciati_{}.csv", adesso_utc()));
     let file =
         fs::File::create(&report).map_err(|e| cat.tf("cli.err.trk_report", &[&e.to_string()]))?;
     let mut out = BufWriter::new(file);
@@ -61,16 +64,32 @@ pub fn massivo(cat: &Catalog, argomento: &Path) -> Result<EsitoMassivo, String> 
     out.write_all(b"\xef\xbb\xbf")
         .and_then(|_| out.write_all(TESTATA.as_bytes()))
         .map_err(|e| cat.tf("cli.err.trk_report", &[&e.to_string()]))?;
+    let mut dettaglio: Vec<String> = Vec::new();
     let mut stato = Stato {
         cat,
         matcher: &matcher,
         out: &mut out,
         report: &report,
+        dettaglio: &mut dettaglio,
         file: 0,
         righe: 0,
         errori: 0,
     };
     visita(&root, &mut stato)?;
+    // il dettaglio dopo una riga vuota, solo se c'e' stato almeno un file (o un errore): un giro a vuoto
+    // lascia solo l'intestazione
+    if stato.file > 0 || stato.errori > 0 {
+        stato
+            .out
+            .write_all(b"\n")
+            .and_then(|_| {
+                stato
+                    .dettaglio
+                    .iter()
+                    .try_for_each(|r| stato.out.write_all(r.as_bytes()))
+            })
+            .map_err(|e| cat.tf("cli.err.trk_report", &[&e.to_string()]))?;
+    }
     stato
         .out
         .flush()
@@ -84,15 +103,23 @@ pub fn massivo(cat: &Catalog, argomento: &Path) -> Result<EsitoMassivo, String> 
     })
 }
 
-/// La riga di testata del report TSV (le colonne, in italiano come il resto della funzione).
-const TESTATA: &str = "percorso\tbyte\trighe\tlunghezza\tconteggio\tpercentuale\tnota\n";
+/// La riga di testata del report CSV (le colonne della sintesi, in italiano come il resto della funzione): il
+/// dettaglio sotto non la ripete, le sue colonne sono le ultime tre con un campo in piu' alla fine per il
+/// motivo degli errori.
+const TESTATA: &str = "percorso;byte;righe;n.lunghezze;lunghezze\n";
 
-/// Il mondo del giro mentre cammina: il matcher del glob, il report aperto e i fatti contati.
+/// Quante lunghezze al massimo nella colonna compatta della sintesi: oltre, "e altre N" (il dato completo
+/// sta nel dettaglio sotto).
+const TETTO_COMPATTA: usize = 10;
+
+/// Il mondo del giro mentre cammina: il matcher del glob, il report aperto, il dettaglio accumulato e i fatti
+/// contati.
 struct Stato<'a> {
     cat: &'a Catalog,
     matcher: &'a FileGlob,
     out: &'a mut BufWriter<fs::File>,
     report: &'a Path,
+    dettaglio: &'a mut Vec<String>,
     file: u64,
     righe: u64,
     errori: u64,
@@ -132,10 +159,12 @@ fn visita(dir: &Path, stato: &mut Stato) -> Result<(), String> {
     Ok(())
 }
 
-/// Analizza un file che matcha e lo scrive nel report (una riga per lunghezza, i formati dominanti prima);
+/// Analizza un file che matcha e lo scrive nel report: la sintesi subito (con il flush, un'interruzione la
+/// lascia li'), il dettaglio accumulato per la fine (una riga per lunghezza, i formati dominanti prima);
 /// l'avanzamento va su stdout. Un errore di apertura o lettura diventa la riga ERRORE e il giro continua.
 fn analizza_e_scrivi(path: &Path, entry: &fs::DirEntry, stato: &mut Stato) -> Result<(), String> {
     let byte_hint = entry.metadata().ok().map(|m| m.len());
+    let percorso = campo(&path.display().to_string());
     let scritto: std::io::Result<()> = match analizza(path) {
         Ok(a) => {
             stato.file += 1;
@@ -151,28 +180,35 @@ fn analizza_e_scrivi(path: &Path, entry: &fs::DirEntry, stato: &mut Stato) -> Re
                     ]
                 )
             );
+            // la sintesi: una riga per file, le lunghezze compatte (il file vuoto resta: n.lunghezze 0)
+            let sintesi = writeln!(
+                stato.out,
+                "{};{};{};{};{}",
+                percorso,
+                a.byte,
+                a.righe,
+                a.lunghezze.len(),
+                compatta(&a.lunghezze, a.righe)
+            );
+            // il dettaglio: una riga per lunghezza, in coda alla fine del giro
             if a.lunghezze.is_empty() {
-                // il file vuoto compare comunque: il colpo d'occhio lo vuole
-                writeln!(stato.out, "{}\t{}\t0\t\t\t\t", path.display(), a.byte)
+                stato
+                    .dettaglio
+                    .push(format!("{};{};0;;;\n", percorso, a.byte));
             } else {
-                let mut esito_io = Ok(());
-                for (lunghezza, conteggio) in a.lunghezze {
-                    esito_io = writeln!(
-                        stato.out,
-                        "{}\t{}\t{}\t{}\t{}\t{}\t",
-                        path.display(),
+                for (lunghezza, conteggio) in &a.lunghezze {
+                    stato.dettaglio.push(format!(
+                        "{};{};{};{};{};{}\n",
+                        percorso,
                         a.byte,
                         a.righe,
                         lunghezza,
                         conteggio,
-                        percentuale(conteggio, a.righe)
-                    );
-                    if esito_io.is_err() {
-                        break;
-                    }
+                        percentuale(*conteggio, a.righe)
+                    ));
                 }
-                esito_io
             }
+            sintesi
         }
         Err(msg) => {
             stato.errori += 1;
@@ -182,7 +218,18 @@ fn analizza_e_scrivi(path: &Path, entry: &fs::DirEntry, stato: &mut Stato) -> Re
                     .cat
                     .tf("cli.trk.errore", &[&path.display().to_string(), &msg])
             );
-            write!(stato.out, "{}", riga_errore(path, byte_hint, &msg))
+            // la sintesi dice ERRORE al posto del numero, col motivo nella colonna delle lunghezze
+            let sintesi = writeln!(
+                stato.out,
+                "{};{};;ERRORE;{}",
+                percorso,
+                byte_hint.map_or_else(String::new, |b| b.to_string()),
+                campo(&msg)
+            );
+            stato
+                .dettaglio
+                .push(riga_errore(&percorso, byte_hint, &msg));
+            sintesi
         }
     };
     scritto.map_err(|e| stato.cat.tf("cli.err.trk_report", &[&e.to_string()]))?;
@@ -230,15 +277,43 @@ fn analizza(path: &Path) -> Result<Analisi, String> {
     })
 }
 
-/// La riga di un file che non si e' potuto leggere: `ERRORE` al posto della lunghezza, il messaggio in coda.
-fn riga_errore(percorso: &Path, byte: Option<u64>, messaggio: &str) -> String {
+/// La colonna compatta della sintesi: `2×2 (66,67%) · 3×1 (33,33%)`, le dominanti prima (l'ordine e' quello
+/// dell'analisi); oltre il tetto, `· e altre N` (il dato completo sta nel dettaglio). Vuota senza righe.
+fn compatta(lunghezze: &[(u64, u64)], righe: u64) -> String {
+    if lunghezze.is_empty() {
+        return String::new();
+    }
+    let mostrate = lunghezze.len().min(TETTO_COMPATTA);
+    let parti: Vec<String> = lunghezze[..mostrate]
+        .iter()
+        .map(|(l, c)| format!("{l}×{c} ({}%)", percentuale(*c, righe)))
+        .collect();
+    if lunghezze.len() > mostrate {
+        format!(
+            "{} · e altre {}",
+            parti.join(" · "),
+            lunghezze.len() - mostrate
+        )
+    } else {
+        parti.join(" · ")
+    }
+}
+
+/// Il campo CSV protetto: se contiene `;`, virgolette o a-capo si avvolge fra virgolette doppie, con le
+/// virgolette interne raddoppiate (lo standard che capisce Excel); altrimenti resta nudo.
+fn campo(testo: &str) -> String {
+    if testo.contains(';') || testo.contains('"') || testo.contains('\n') || testo.contains('\r') {
+        format!("\"{}\"", testo.replace('"', "\"\""))
+    } else {
+        testo.to_string()
+    }
+}
+
+/// La riga di dettaglio di un file che non si e' potuto leggere: `ERRORE` al posto della lunghezza, il
+/// messaggio nel campo in coda (quello che nella vecchia testata era `nota`).
+fn riga_errore(percorso: &str, byte: Option<u64>, messaggio: &str) -> String {
     let byte = byte.map_or_else(String::new, |b| b.to_string());
-    format!(
-        "{}\t{}\t\tERRORE\t\t\t{}\n",
-        percorso.display(),
-        byte,
-        messaggio
-    )
+    format!("{};{};;ERRORE;;;{}\n", percorso, byte, campo(messaggio))
 }
 
 /// La percentuale del report: virgola decimale, due cifre, arrotondata a meta' con la sola aritmetica intera
@@ -307,14 +382,14 @@ mod tests {
     #[test]
     fn tracciati_nome_libero() {
         let d = dir();
-        let base = "mrp-check-tracciati_prova.tsv";
+        let base = "mrp-check-tracciati_prova.csv";
         std::fs::write(d.join(base), "").unwrap();
         let p1 = nome_libero(&d, base);
-        assert_eq!(p1, d.join("mrp-check-tracciati_prova_1.tsv"));
+        assert_eq!(p1, d.join("mrp-check-tracciati_prova_1.csv"));
         std::fs::write(&p1, "").unwrap();
         assert_eq!(
             nome_libero(&d, base),
-            d.join("mrp-check-tracciati_prova_2.tsv")
+            d.join("mrp-check-tracciati_prova_2.csv")
         );
     }
 
@@ -324,15 +399,53 @@ mod tests {
         // una cartella non e' un file regolare: l'apertura deve fallire (la riga ERRORE del report la scrive
         // chi cammina, su questo errore)
         assert!(analizza(&d).is_err());
-        // la riga ERRORE, calcolata a mano: ERRORE al posto della lunghezza, il messaggio in coda
+        // la riga ERRORE del dettaglio, calcolata a mano: ERRORE al posto della lunghezza, il messaggio in coda
         assert_eq!(
-            riga_errore(Path::new("a/b.log"), Some(10), "boom"),
-            "a/b.log\t10\t\tERRORE\t\t\tboom\n"
+            riga_errore("a/b.log", Some(10), "boom"),
+            "a/b.log;10;;ERRORE;;;boom\n"
         );
-        // senza i byte noti (i metadati mancano) la cella resta vuota
+        // senza i byte noti (i metadati mancano) la cella resta vuota, ma il campo c'e' sempre
+        assert_eq!(riga_errore("c.log", None, "x"), "c.log;;;ERRORE;;;x\n");
+    }
+
+    #[test]
+    fn tracciati_campo_csv() {
+        // il campo innocente resta nudo
+        assert_eq!(campo("abc"), "abc");
+        // il punto e virgola, le virgolette e gli a-capo si proteggono; le virgolette interne si raddoppiano
+        assert_eq!(campo("a;b"), "\"a;b\"");
+        assert_eq!(campo("un \"quote\""), "\"un \"\"quote\"\"\"");
+        assert_eq!(campo("riga\nspezzata"), "\"riga\nspezzata\"");
+        assert_eq!(campo("vecchio\r\n"), "\"vecchio\r\n\"");
+    }
+
+    #[test]
+    fn tracciati_compatta() {
+        // due lunghezze: la compatta le dice tutte e due, con le percentuali
         assert_eq!(
-            riga_errore(Path::new("c.log"), None, "x"),
-            "c.log\t\t\tERRORE\t\t\tx\n"
+            compatta(&[(2, 2), (3, 1)], 3),
+            "2×2 (66,67%) · 3×1 (33,33%)"
+        );
+        // una sola: resta una
+        assert_eq!(compatta(&[(1, 3)], 3), "1×3 (100,00%)");
+        // il vuoto: colonna vuota
+        assert_eq!(compatta(&[], 0), "");
+        // il tetto: dodici lunghezze si fermano a dieci, il conto di quelle che mancano in coda
+        let dodici: Vec<(u64, u64)> = (1..=12).map(|l| (l, 1)).collect();
+        let attesa = (1..=10)
+            .map(|l| format!("{l}×1 (8,33%)"))
+            .collect::<Vec<_>>()
+            .join(" · ")
+            + " · e altre 2";
+        assert_eq!(compatta(&dodici, 12), attesa);
+        // dieci precise: tutte, niente "e altre"
+        let dieci: Vec<(u64, u64)> = (1..=10).map(|l| (l, 1)).collect();
+        assert_eq!(
+            compatta(&dieci, 10),
+            (1..=10)
+                .map(|l| format!("{l}×1 (10,00%)"))
+                .collect::<Vec<_>>()
+                .join(" · ")
         );
     }
 }

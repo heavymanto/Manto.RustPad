@@ -1,7 +1,7 @@
 //! Il check massivo dei tracciati da riga di comando (`--check-tracciati`, FL58): l'istogramma delle lunghezze
-//! (la passata di Alt+H) su tutti i file di un albero che matchano il glob, col report TSV nella root. Scritti
+//! (la passata di Alt+H) su tutti i file di un albero che matchano il glob, col report CSV nella root. Scritti
 //! da ARCH: l'oracolo e' l'albero costruito qui a mano - byte, righe e lunghezze contati a mano nel
-//! PLAN_FL58, mai presi dall'output del programma. I percorsi attesi si costruiscono con `Path::join`
+//! PLAN_FL58c, mai presi dall'output del programma. I percorsi attesi si costruiscono con `Path::join`
 //! (il separatore e' quello del sistema).
 
 use mrp_core::lang::Catalog;
@@ -21,7 +21,7 @@ fn dir() -> PathBuf {
     d
 }
 
-/// Il TSV del report senza BOM (il confronto e' sulle righe).
+/// Il CSV del report senza BOM (il confronto e' sulle righe).
 fn leggi(p: &PathBuf) -> String {
     let mut s = fs::read_to_string(p).unwrap();
     if s.starts_with('\u{feff}') {
@@ -42,15 +42,18 @@ fn tracciati_report_completo() {
     fs::write(r.join("sub").join("c.log"), "abcd\nabcde").unwrap();
     // e.log: "z\nz\nz\n" = 6 byte, 3 righe {1:3}
     fs::write(r.join("sub").join("d").join("e.log"), "z\nz\nz\n").unwrap();
+    // f.log: "xxxxx\nxxxxx\ny\n" = 14 byte, 3 righe {5:2, 1:1}: la lunghezza LUNGA e' la dominante, cosi'
+    // l'ordinamento per conteggio decrescente si distingue da quello per lunghezza crescente
+    fs::write(r.join("sub").join("d").join("f.log"), "xxxxx\nxxxxx\ny\n").unwrap();
     // vuoto.log: 0 byte, 0 righe: una riga sua comunque (il colpo d'occhio lo vuole)
     fs::write(r.join("sub").join("vuoto.log"), "").unwrap();
 
     let esito = massivo(&Catalog::english(), &r.join("*.log")).unwrap();
-    // 4 file matchano (b.txt no), 8 righe in tutto (3+2+3+0), nessun errore
-    assert_eq!(esito.file, 4);
-    assert_eq!(esito.righe, 8);
+    // 5 file matchano (b.txt no), 11 righe in tutto (3+2+3+3+0), nessun errore
+    assert_eq!(esito.file, 5);
+    assert_eq!(esito.righe, 11);
     assert_eq!(esito.errori, 0);
-    // il report sta nella root, col nome che si aspetta
+    // il report sta nella root, col nome che si aspetta (CSV ormai: il ; lo apre Excel italiano)
     assert_eq!(
         esito.report.parent(),
         Some(r.as_path()),
@@ -64,24 +67,37 @@ fn tracciati_report_completo() {
         .to_string_lossy()
         .into_owned();
     assert!(
-        nome.starts_with("mrp-check-tracciati_") && nome.ends_with("Z.tsv"),
+        nome.starts_with("mrp-check-tracciati_") && nome.ends_with("Z.csv"),
         "{}",
         nome
     );
 
     // l'ordine di visita: le entrate di ogni cartella in ordine di nome, in profondita' (a.log, poi in sub:
-    // c.log, d/e.log, vuoto.log); le lunghezze per conteggio decrescente, a parita' la piu' corta
+    // c.log, d/e.log, d/f.log, vuoto.log); le lunghezze per conteggio decrescente, a parita' la piu' corta
+    // (f.log e' la prova che conta l'ordine dei CONTEGGI: la 5 sta prima della 1).
+    // Prima la sintesi (una riga per file, le lunghezze compatte col tetto di dieci), riga vuota, poi il
+    // dettaglio senza intestazione (una riga per file e lunghezza). Le percentuali a mano: 2/3 = 66,67,
+    // 1/3 = 33,33, 1/2 = 50,00, 3/3 = 100,00.
     let atteso = format!(
-        "percorso\tbyte\trighe\tlunghezza\tconteggio\tpercentuale\tnota\n\
-         {a}\t13\t3\t2\t2\t66,67\t\n\
-         {a}\t13\t3\t3\t1\t33,33\t\n\
-         {c}\t10\t2\t4\t1\t50,00\t\n\
-         {c}\t10\t2\t5\t1\t50,00\t\n\
-         {e}\t6\t3\t1\t3\t100,00\t\n\
-         {v}\t0\t0\t\t\t\t\n",
+        "percorso;byte;righe;n.lunghezze;lunghezze\n\
+         {a};13;3;2;2×2 (66,67%) · 3×1 (33,33%)\n\
+         {c};10;2;2;4×1 (50,00%) · 5×1 (50,00%)\n\
+         {e};6;3;1;1×3 (100,00%)\n\
+         {f};14;3;2;5×2 (66,67%) · 1×1 (33,33%)\n\
+         {v};0;0;0;\n\
+         \n\
+         {a};13;3;2;2;66,67\n\
+         {a};13;3;3;1;33,33\n\
+         {c};10;2;4;1;50,00\n\
+         {c};10;2;5;1;50,00\n\
+         {e};6;3;1;3;100,00\n\
+         {f};14;3;5;2;66,67\n\
+         {f};14;3;1;1;33,33\n\
+         {v};0;0;;;\n",
         a = r.join("a.log").display(),
         c = r.join("sub").join("c.log").display(),
         e = r.join("sub").join("d").join("e.log").display(),
+        f = r.join("sub").join("d").join("f.log").display(),
         v = r.join("sub").join("vuoto.log").display(),
     );
     assert_eq!(leggi(&esito.report), atteso);
@@ -99,32 +115,90 @@ fn tracciati_glob_sul_nome_non_sul_percorso() {
 
     let esito = massivo(&Catalog::english(), &r.join("a*.log")).unwrap();
     assert_eq!(esito.file, 2, "solo a.log e sub/alfa.log");
-    let tsv = leggi(&esito.report);
-    let righe: Vec<&str> = tsv.lines().collect();
-    assert_eq!(righe.len(), 3, "{}", tsv); // testata + 2
+    let csv = leggi(&esito.report);
+    let righe: Vec<&str> = csv.lines().collect();
+    // intestazione + 2 di sintesi + la riga vuota + 2 di dettaglio
+    assert_eq!(righe.len(), 6, "{}", csv);
     assert!(
         righe[1].starts_with(&format!("{}", r.join("a.log").display())),
         "{}",
-        tsv
+        csv
     );
     assert!(
         righe[2].starts_with(&format!("{}", r.join("sub").join("alfa.log").display())),
         "{}",
-        tsv
+        csv
     );
-    assert!(!tsv.contains("b.log\t"), "{}", tsv);
+    assert!(!csv.contains("b.log;"), "{}", csv);
 }
 
 #[test]
 fn tracciati_il_report_non_si_analizza() {
     let r = dir();
-    // col glob *.tsv l'unico tsv della cartella e' il report che sta nascendo: non deve analizzare se'
+    // col glob *.csv l'unico csv della cartella e' il report che sta nascendo: non deve analizzare se'
     // stesso (una riga sua nel report sarebbe un finto file vuoto)
-    let esito = massivo(&Catalog::english(), &r.join("*.tsv")).unwrap();
+    let esito = massivo(&Catalog::english(), &r.join("*.csv")).unwrap();
     assert_eq!(esito.file, 0);
     assert_eq!(esito.errori, 0);
-    let tsv = leggi(&esito.report);
-    assert_eq!(tsv.lines().count(), 1, "{}", tsv); // solo la testata
+    let csv = leggi(&esito.report);
+    assert_eq!(csv.lines().count(), 1, "{}", csv); // solo la testata: niente riga vuota senza file
+}
+
+#[test]
+fn tracciati_colonna_compatta_tetto_dieci() {
+    let r = dir();
+    // 12 righe di lunghezza crescente 1..12: 12 lunghezze da 1 riga ciascuna (78 + 12 a-capo = 90 byte).
+    // La compatta si ferma a dieci e dice quante mancano; 1/12 = (10000+6)/12 = 833 -> 8,33.
+    let mut testo = String::new();
+    for lunghezza in 1..=12u64 {
+        for _ in 0..lunghezza {
+            testo.push('a');
+        }
+        testo.push('\n');
+    }
+    fs::write(r.join("tante.log"), &testo).unwrap();
+    let esito = massivo(&Catalog::english(), &r.join("*.log")).unwrap();
+    assert_eq!(esito.file, 1);
+    assert_eq!(esito.righe, 12);
+    let csv = leggi(&esito.report);
+    let p = r.join("tante.log").display().to_string();
+    let attesa_sintesi = format!(
+        "{p};90;12;12;{}",
+        (1..=10)
+            .map(|l| format!("{l}×1 (8,33%)"))
+            .collect::<Vec<_>>()
+            .join(" · ")
+    ) + " · e altre 2";
+    assert_eq!(csv.lines().nth(1), Some(attesa_sintesi.as_str()), "{}", csv);
+    // il dettaglio sotto e' completo: tutte e dodici le lunghezze, la piu' corta prima (a parita' di conteggio)
+    let dettaglio: Vec<&str> = csv.lines().skip(3).collect();
+    assert_eq!(dettaglio.len(), 12, "{}", csv);
+    assert_eq!(dettaglio[0], format!("{p};90;12;1;1;8,33"), "{}", csv);
+    assert_eq!(dettaglio[11], format!("{p};90;12;12;1;8,33"), "{}", csv);
+}
+
+#[test]
+fn tracciati_percorso_col_punto_e_virgola() {
+    let r = dir();
+    // un nome file col punto e virgola: il campo si avvolge fra virgolette CSV (le virgolette interne
+    // si raddoppiano), senno' Excel spezzerebbe la riga
+    fs::write(r.join("con;ptv.log"), "z\nz\nz\n").unwrap();
+    let esito = massivo(&Catalog::english(), &r.join("*.log")).unwrap();
+    assert_eq!(esito.file, 1);
+    let csv = leggi(&esito.report);
+    let p = format!("\"{}\"", r.join("con;ptv.log").display());
+    assert_eq!(
+        csv.lines().nth(1),
+        Some(format!("{p};6;3;1;1×3 (100,00%)").as_str()),
+        "{}",
+        csv
+    );
+    assert_eq!(
+        csv.lines().nth(3),
+        Some(format!("{p};6;3;1;3;100,00").as_str()),
+        "{}",
+        csv
+    );
 }
 
 /// Il binario vero: `--check-tracciati` gira senza aprire il terminale, esce 0 col riepilogo e 1 se la root
@@ -160,11 +234,12 @@ fn tracciati_dal_binario() {
                 .unwrap_or(false)
         })
         .expect("il report nella root");
-    let tsv = leggi(&report);
+    let csv = leggi(&report);
+    // la seconda riga e' la sintesi di x.log: 6 byte, 2 righe, una lunghezza (2) per 2 righe, 100,00
     assert_eq!(
-        tsv.lines().nth(1),
-        Some(format!("{}\t6\t2\t2\t2\t100,00\t", r.join("x.log").display()).as_str()),
-        "{tsv}"
+        csv.lines().nth(1),
+        Some(format!("{};6;2;1;2×2 (100,00%)", r.join("x.log").display()).as_str()),
+        "{csv}"
     );
     // la root che non esiste: uscita 1 e il messaggio dice quale
     let male = Command::new(env!("CARGO_BIN_EXE_mrp-tui"))
@@ -211,9 +286,19 @@ fn tracciati_file_generato_a_flusso() {
     assert_eq!(esito.file, 1);
     assert_eq!(esito.righe, 50_000);
     assert_eq!(esito.errori, 0);
-    // la testata e una riga sola: lunghezza 6, conteggio 50_000, 100,00 per cento
-    let tsv = leggi(&esito.report);
-    assert_eq!(tsv.lines().count(), 2, "{}", tsv);
-    let riga = format!("{}\t350000\t50000\t6\t50000\t100,00\t", p.display());
-    assert_eq!(tsv.lines().nth(1), Some(riga.as_str()), "{}", tsv);
+    // quattro righe: testata, la sintesi (una lunghezza sola: 6 per 50_000, 100,00), la vuota, il dettaglio
+    let csv = leggi(&esito.report);
+    assert_eq!(csv.lines().count(), 4, "{}", csv);
+    assert_eq!(
+        csv.lines().nth(1),
+        Some(format!("{};350000;50000;1;6×50000 (100,00%)", p.display()).as_str()),
+        "{}",
+        csv
+    );
+    assert_eq!(
+        csv.lines().nth(3),
+        Some(format!("{};350000;50000;6;50000;100,00", p.display()).as_str()),
+        "{}",
+        csv
+    );
 }

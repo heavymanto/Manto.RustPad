@@ -13,7 +13,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/v/release/heavymanto/Manto.RustPad?label=version" alt="version" /></a>
-        <img src="https://img.shields.io/badge/tests-1682-brightgreen" alt="1682 tests" />
+        <img src="https://img.shields.io/badge/tests-1686-brightgreen" alt="1686 tests" />
         <img src="https://img.shields.io/badge/frontends-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui and mrp-gui" />
         <img src="https://img.shields.io/badge/languages-7-blue" alt="seven languages" />
         <img src="https://img.shields.io/badge/license-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -84,7 +84,7 @@ The details — the session that survives crashes, the line index, the encodings
 - **Preattentive colours (`Alt+L`):** `ERROR`, `WARN`, `INFO`, `DEBUG` levels, dates and times coloured to be caught by the eye before the line is even read.
 - **Proportional timeline (`Alt+B`):** a side map split into time periods (minute, ten minutes, hour, day). The height of each block reflects the volume of lines and the distribution of the levels: error spikes show up before you reach them by scrolling.
 - **Record length check (`Alt+H`):** counts the bytes of every line (line ending excluded) and builds an interactive histogram with percentages. The dominant formats sit on top, the out-of-size lines at the bottom: tick the lengths you want and the view filters instantly. Ideal for spotting corrupted records in fixed-format files.
-- **Mass check from the command line:** `mrp-tui --check-tracciati "C:\logs\*.txt"` scans a whole tree (the same pass as `Alt+H`, encoding detected per file) and writes a TSV report in the folder - one row per file and length, with percentages - to open in Excel for a first-sight look at many files at once.
+- **Mass check from the command line:** `mrp-tui --check-tracciati "C:\logs\*.txt"` scans a whole tree (the same pass as `Alt+H`, encoding detected per file) and writes a semicolon-separated CSV report in the folder, in two sections: a summary on top - one row per file with its number of lengths and a compact `129×229 (34,13%) · 168×221 (32,94%)` column - and the per-length detail below. It opens in Excel with a double click, for a first-sight look at many files at once.
 - **`grep`-style filters (`Alt+G`):** quickly isolate only the lines you care about.
 
 <p align="center">

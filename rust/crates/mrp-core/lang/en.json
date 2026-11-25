@@ -36,7 +36,7 @@
   "menu.encoding.title": "ENCODING",
   "cli.help.enc": "  --encoding NAME  auto | utf-8 | windows-1252 | ... (see --list-encodings)",
   "cli.help.eol": "  --eol STYLE      lf | crlf | cr (what Enter writes; existing lines stay as they are)",
-  "cli.help.trk": "  --check-tracciati PATH  mass record length check on every matching file (e.g. \"dir\\*.log\"), TSV report in the folder",
+  "cli.help.trk": "  --check-tracciati PATH  mass record length check on every matching file (e.g. \"dir\\*.log\"), CSV report in the folder",
   "cli.err.trk_pattern": "--check-tracciati wants a path with a file-name pattern (for example \"dir\\*.log\")",
   "cli.err.trk_root": "the --check-tracciati folder does not exist or is not a folder: {}",
   "cli.err.trk_report": "the report cannot be written: {}",

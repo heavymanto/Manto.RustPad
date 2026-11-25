@@ -13,7 +13,7 @@
       <p>
         <a href="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml"><img src="https://github.com/heavymanto/Manto.RustPad/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
         <a href="https://github.com/heavymanto/Manto.RustPad/releases"><img src="https://img.shields.io/github/v/release/heavymanto/Manto.RustPad?label=versione" alt="versione" /></a>
-        <img src="https://img.shields.io/badge/test-1682-brightgreen" alt="1682 test" />
+        <img src="https://img.shields.io/badge/test-1686-brightgreen" alt="1686 test" />
         <img src="https://img.shields.io/badge/frontend-mrp--tui%20%C2%B7%20mrp--gui-blue" alt="mrp-tui e mrp-gui" />
         <img src="https://img.shields.io/badge/lingue-7-blue" alt="sette lingue" />
         <img src="https://img.shields.io/badge/licenza-AGPL--3.0-brightgreen" alt="AGPL-3.0" />
@@ -84,7 +84,7 @@ I dettagli — la sessione che sopravvive ai crash, l'indice delle righe, le cod
 - **Colori preattentivi (`Alt+L`):** livelli `ERROR`, `WARN`, `INFO`, `DEBUG`, date e orari colorati per essere intercettati dall'occhio prima ancora di leggere la riga.
 - **Timeline proporzionale (`Alt+B`):** una mappa laterale suddivisa per intervalli temporali (minuto, dieci minuti, ora, giorno). L'altezza di ogni blocco riflette il volume delle righe e la distribuzione dei livelli: i picchi di errore saltano fuori prima ancora di arrivarci con lo scroll.
 - **Check dei tracciati (`Alt+H`):** conta i byte di ogni riga (a-capo escluso) e genera un istogramma interattivo con le percentuali. I formati dominanti stanno in alto, le righe fuori misura in fondo: spuntando le lunghezze desiderate filtri la vista all'istante. Ideale per scovare record corrotti nei file a tracciato fisso.
-- **Check massivo da riga di comando:** `mrp-tui --check-tracciati "C:\log\*.txt"` analizza un albero intero (la stessa passata di `Alt+H`, la codifica si rileva da sola file per file) e scrive nella cartella un report TSV — una riga per file e lunghezza, con percentuali — da aprire in Excel per il colpo d'occhio su tanti file insieme.
+- **Check massivo da riga di comando:** `mrp-tui --check-tracciati "C:\log\*.txt"` analizza un albero intero (la stessa passata di `Alt+H`, la codifica si rileva da sola file per file) e scrive nella cartella un report CSV col separatore `;` in due sezioni: la sintesi in cima - una riga per file con quante lunghezze e la colonna compatta `129×229 (34,13%) · 168×221 (32,94%)` - e sotto il dettaglio per lunghezza. Si apre in Excel col doppio clic, per il colpo d'occhio su tanti file insieme.
 - **Filtri stile `grep` (`Alt+G`):** isola rapidamente solo le righe che ti interessano.
 
 <p align="center">

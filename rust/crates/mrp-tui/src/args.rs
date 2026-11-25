@@ -35,7 +35,7 @@ pub struct Args {
     /// `--keys LISTA` (sviluppatore): i tasti che `--dump` applica uno alla volta.
     pub keys: Option<String>,
     /// `--check-tracciati PERCORSO`: il check massivo dei tracciati senza terminale (per esempio
-    /// `"c:\log\*.txt"`: la cartella e' la root, il resto il glob sul nome file); il report TSV nasce nella root.
+    /// `"c:\log\*.txt"`: la cartella e' la root, il resto il glob sul nome file); il report CSV nasce nella root.
     pub check_tracciati: Option<PathBuf>,
     /// `-h` / `--help`.
     pub help: bool,
