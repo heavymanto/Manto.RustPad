@@ -53,7 +53,7 @@ fn tracciati_report_completo() {
     assert_eq!(esito.file, 5);
     assert_eq!(esito.righe, 11);
     assert_eq!(esito.errori, 0);
-    // il report sta nella root, col nome che si aspetta (CSV ormai: il ; lo apre Excel italiano)
+    // il report sta nella root, col nome che si aspetta (CSV: il ; lo apre Excel italiano)
     assert_eq!(
         esito.report.parent(),
         Some(r.as_path()),
@@ -75,17 +75,18 @@ fn tracciati_report_completo() {
     // l'ordine di visita: le entrate di ogni cartella in ordine di nome, in profondita' (a.log, poi in sub:
     // c.log, d/e.log, d/f.log, vuoto.log); le lunghezze per conteggio decrescente, a parita' la piu' corta
     // (f.log e' la prova che conta l'ordine dei CONTEGGI: la 5 sta prima della 1).
-    // UNA riga per file (il report e' una tabella CSV sola, senza righe vuote ne' dettaglio), le lunghezze
-    // compatte col tetto di dieci. Le percentuali a mano: 2/3 = 66.67, 1/3 = 33.33, 1/2 = 50.00,
-    // 3/3 = 100.00 — col PUNTO decimale: nel file non ci devono essere virgole, cosi' nessun foglio a
-    // calcolo puo' spezzare una riga. Le righe finiscono col CRLF di Windows.
+    // UNA RIGA PER FILE E LUNGHEZZA (filtrabile in Excel: colonna lunghezza e colonna conteggio), il file
+    // vuoto ha la sua riga con le celle vuote. Le righe finiscono col CRLF di Windows.
     let atteso = format!(
-        "percorso;byte;righe;n.lunghezze;lunghezze\r\n\
-         {a};13;3;2;2x2 (66.67%) | 3x1 (33.33%)\r\n\
-         {c};10;2;2;4x1 (50.00%) | 5x1 (50.00%)\r\n\
-         {e};6;3;1;1x3 (100.00%)\r\n\
-         {f};14;3;2;5x2 (66.67%) | 1x1 (33.33%)\r\n\
-         {v};0;0;0;\r\n",
+        "percorso;byte;righe;lunghezza;conteggio\r\n\
+         {a};13;3;2;2\r\n\
+         {a};13;3;3;1\r\n\
+         {c};10;2;4;1\r\n\
+         {c};10;2;5;1\r\n\
+         {e};6;3;1;3\r\n\
+         {f};14;3;5;2\r\n\
+         {f};14;3;1;1\r\n\
+         {v};0;0;;\r\n",
         a = r.join("a.log").display(),
         c = r.join("sub").join("c.log").display(),
         e = r.join("sub").join("d").join("e.log").display(),
@@ -109,7 +110,7 @@ fn tracciati_glob_sul_nome_non_sul_percorso() {
     assert_eq!(esito.file, 2, "solo a.log e sub/alfa.log");
     let csv = leggi(&esito.report);
     let righe: Vec<&str> = csv.lines().collect();
-    // intestazione + 2 file: la tabella e' una sola, niente righe vuote
+    // intestazione + 2 righe (una lunghezza sola per file)
     assert_eq!(righe.len(), 3, "{}", csv);
     assert!(
         righe[1].starts_with(&format!("{}", r.join("a.log").display())),
@@ -154,10 +155,10 @@ fn tracciati_glob_case_insensitive() {
 }
 
 #[test]
-fn tracciati_colonna_compatta_tetto_dieci() {
+fn tracciati_tante_lunghezze_una_riga_per_una() {
     let r = dir();
     // 12 righe di lunghezza crescente 1..12: 12 lunghezze da 1 riga ciascuna (78 + 12 a-capo = 90 byte).
-    // La compatta si ferma a dieci e dice quante mancano; 1/12 = (10000+6)/12 = 833 -> 8.33.
+    // Nel report una riga per lunghezza: 12 righe, a parita' di conteggio la piu' corta prima.
     let mut testo = String::new();
     for lunghezza in 1..=12u64 {
         for _ in 0..lunghezza {
@@ -171,16 +172,11 @@ fn tracciati_colonna_compatta_tetto_dieci() {
     assert_eq!(esito.righe, 12);
     let csv = leggi(&esito.report);
     let p = r.join("tante.log").display().to_string();
-    let attesa_sintesi = format!(
-        "{p};90;12;12;{}",
-        (1..=10)
-            .map(|l| format!("{l}x1 (8.33%)"))
-            .collect::<Vec<_>>()
-            .join(" | ")
-    ) + " | e altre 2";
-    assert_eq!(csv.lines().nth(1), Some(attesa_sintesi.as_str()), "{}", csv);
-    // la tabella e' una riga per file: due righe in tutto (testata + questa)
-    assert_eq!(csv.lines().count(), 2, "{}", csv);
+    let righe: Vec<&str> = csv.lines().collect();
+    assert_eq!(righe.len(), 13, "{}", csv); // testata + 12
+    for (i, lunghezza) in (1..=12u64).enumerate() {
+        assert_eq!(righe[i + 1], format!("{p};90;12;{lunghezza};1"), "{}", csv);
+    }
 }
 
 #[test]
@@ -195,7 +191,7 @@ fn tracciati_percorso_col_punto_e_virgola() {
     let p = format!("\"{}\"", r.join("con;ptv.log").display());
     assert_eq!(
         csv.lines().nth(1),
-        Some(format!("{p};6;3;1;1x3 (100.00%)").as_str()),
+        Some(format!("{p};6;3;1;3").as_str()),
         "{}",
         csv
     );
@@ -235,10 +231,10 @@ fn tracciati_dal_binario() {
         })
         .expect("il report nella root");
     let csv = leggi(&report);
-    // la seconda riga e' x.log: 6 byte, 2 righe, una lunghezza (2) per 2 righe, 100.00
+    // la seconda riga e' x.log: 6 byte, 2 righe, la lunghezza 2 per 2
     assert_eq!(
         csv.lines().nth(1),
-        Some(format!("{};6;2;1;2x2 (100.00%)", r.join("x.log").display()).as_str()),
+        Some(format!("{};6;2;2;2", r.join("x.log").display()).as_str()),
         "{csv}"
     );
     // la root che non esiste: uscita 1 e il messaggio dice quale
@@ -286,12 +282,12 @@ fn tracciati_file_generato_a_flusso() {
     assert_eq!(esito.file, 1);
     assert_eq!(esito.righe, 50_000);
     assert_eq!(esito.errori, 0);
-    // due righe: testata e la riga del file (una lunghezza sola: 6 per 50_000, 100.00)
+    // due righe: testata e la riga dell file (lunghezza 6 per 50_000)
     let csv = leggi(&esito.report);
     assert_eq!(csv.lines().count(), 2, "{}", csv);
     assert_eq!(
         csv.lines().nth(1),
-        Some(format!("{};350000;50000;1;6x50000 (100.00%)", p.display()).as_str()),
+        Some(format!("{};350000;50000;6;50000", p.display()).as_str()),
         "{}",
         csv
     );
