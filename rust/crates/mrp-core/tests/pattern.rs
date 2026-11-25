@@ -796,7 +796,8 @@ fn a_replacement_is_its_own_undo_step_even_without_a_manual_seal() {
 
 #[test]
 fn tracciati_glob_matcha() {
-    // il glob del check massivo (FL58, --check-tracciati): full match sul nome del file, case-sensitive.
+    // il glob del check massivo (FL58, --check-tracciati): full match sul nome del file, senza badare alle
+    // maiuscole (scelta dell'utente del 25 nov 2026: `*.txt` deve prendere anche `datiepc.TXT`).
     // Attesi calcolati a mano: `*` qualunque cosa, `?` un carattere solo, `[abc]` una di quelle, la `[` non
     // chiusa resta letterale (matcha solo la stringa "[")
     use mrp_core::pattern::file_glob_match;
@@ -804,7 +805,8 @@ fn tracciati_glob_matcha() {
     assert!(!file_glob_match("*.txt", "a.log").unwrap());
     assert!(!file_glob_match("?", "ab").unwrap());
     assert!(file_glob_match("[abc]*.log", "b1.log").unwrap());
-    assert!(!file_glob_match("*.txt", "a.TXT").unwrap());
+    assert!(file_glob_match("*.txt", "a.TXT").unwrap());
+    assert!(file_glob_match("*.TXT", "a.txt").unwrap());
     assert!(!file_glob_match("[", "x").unwrap());
 }
 

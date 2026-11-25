@@ -114,7 +114,8 @@ pub fn glob_to_regex(glob: &str) -> String {
 }
 
 /// Il glob del check massivo (`--check-tracciati`) compilato una volta sola: il match pieno sul nome di un file,
-/// con la stessa grammatica delle ricerche (`*`, `?`, `[...]`, `\` protegge) e le maiuscole che contano. Chi
+/// con la stessa grammatica delle ricerche (`*`, `?`, `[...]`, `\` protegge) e le maiuscole che NON contano
+/// (scelta dell'utente, 25 nov 2026: su Windows `*.txt` deve prendere anche `datiepc.TXT`). Chi
 /// cammina un albero intero lo costruisce una volta e lo chiede per ogni file.
 pub struct FileGlob {
     /// La regex del glob, ancorata al nome intero (`^...$`).
@@ -126,7 +127,7 @@ impl FileGlob {
     /// la via d'uscita resta onesta).
     pub fn new(glob: &str) -> Result<FileGlob, PatternError> {
         let re = RegexBuilder::new(&format!("^{}$", glob_to_regex(glob)))
-            .case_insensitive(false)
+            .case_insensitive(true)
             .dot_matches_new_line(false)
             .size_limit(SIZE_LIMIT)
             .build()

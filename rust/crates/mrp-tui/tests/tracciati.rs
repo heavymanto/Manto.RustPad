@@ -75,25 +75,17 @@ fn tracciati_report_completo() {
     // l'ordine di visita: le entrate di ogni cartella in ordine di nome, in profondita' (a.log, poi in sub:
     // c.log, d/e.log, d/f.log, vuoto.log); le lunghezze per conteggio decrescente, a parita' la piu' corta
     // (f.log e' la prova che conta l'ordine dei CONTEGGI: la 5 sta prima della 1).
-    // Prima la sintesi (una riga per file, le lunghezze compatte col tetto di dieci), riga vuota, poi il
-    // dettaglio senza intestazione (una riga per file e lunghezza). Le percentuali a mano: 2/3 = 66,67,
-    // 1/3 = 33,33, 1/2 = 50,00, 3/3 = 100,00.
+    // UNA riga per file (il report e' una tabella CSV sola, senza righe vuote ne' dettaglio), le lunghezze
+    // compatte col tetto di dieci. Le percentuali a mano: 2/3 = 66.67, 1/3 = 33.33, 1/2 = 50.00,
+    // 3/3 = 100.00 — col PUNTO decimale: nel file non ci devono essere virgole, cosi' nessun foglio a
+    // calcolo puo' spezzare una riga. Le righe finiscono col CRLF di Windows.
     let atteso = format!(
-        "percorso;byte;righe;n.lunghezze;lunghezze\n\
-         {a};13;3;2;2×2 (66,67%) · 3×1 (33,33%)\n\
-         {c};10;2;2;4×1 (50,00%) · 5×1 (50,00%)\n\
-         {e};6;3;1;1×3 (100,00%)\n\
-         {f};14;3;2;5×2 (66,67%) · 1×1 (33,33%)\n\
-         {v};0;0;0;\n\
-         \n\
-         {a};13;3;2;2;66,67\n\
-         {a};13;3;3;1;33,33\n\
-         {c};10;2;4;1;50,00\n\
-         {c};10;2;5;1;50,00\n\
-         {e};6;3;1;3;100,00\n\
-         {f};14;3;5;2;66,67\n\
-         {f};14;3;1;1;33,33\n\
-         {v};0;0;;;\n",
+        "percorso;byte;righe;n.lunghezze;lunghezze\r\n\
+         {a};13;3;2;2x2 (66.67%) | 3x1 (33.33%)\r\n\
+         {c};10;2;2;4x1 (50.00%) | 5x1 (50.00%)\r\n\
+         {e};6;3;1;1x3 (100.00%)\r\n\
+         {f};14;3;2;5x2 (66.67%) | 1x1 (33.33%)\r\n\
+         {v};0;0;0;\r\n",
         a = r.join("a.log").display(),
         c = r.join("sub").join("c.log").display(),
         e = r.join("sub").join("d").join("e.log").display(),
@@ -117,8 +109,8 @@ fn tracciati_glob_sul_nome_non_sul_percorso() {
     assert_eq!(esito.file, 2, "solo a.log e sub/alfa.log");
     let csv = leggi(&esito.report);
     let righe: Vec<&str> = csv.lines().collect();
-    // intestazione + 2 di sintesi + la riga vuota + 2 di dettaglio
-    assert_eq!(righe.len(), 6, "{}", csv);
+    // intestazione + 2 file: la tabella e' una sola, niente righe vuote
+    assert_eq!(righe.len(), 3, "{}", csv);
     assert!(
         righe[1].starts_with(&format!("{}", r.join("a.log").display())),
         "{}",
@@ -141,14 +133,31 @@ fn tracciati_il_report_non_si_analizza() {
     assert_eq!(esito.file, 0);
     assert_eq!(esito.errori, 0);
     let csv = leggi(&esito.report);
-    assert_eq!(csv.lines().count(), 1, "{}", csv); // solo la testata: niente riga vuota senza file
+    assert_eq!(csv.lines().count(), 1, "{}", csv); // solo la testata
+}
+
+#[test]
+fn tracciati_glob_case_insensitive() {
+    let r = dir();
+    // il caso vero dell'utente (25 nov 2026): i file si chiamano .TXT maiuscolo e il glob e' *.txt minuscolo
+    // (o viceversa) - il glob non deve badare alle maiuscole, come il filesystem di Windows
+    fs::create_dir_all(r.join("2026-11-10")).unwrap();
+    fs::write(r.join("2026-11-10").join("datiepc_01166.TXT"), "aa\nbb\n").unwrap();
+    let esito = massivo(&Catalog::english(), &r.join("*.txt")).unwrap();
+    assert_eq!(esito.file, 1, "il glob prende anche il .TXT maiuscolo");
+    assert_eq!(esito.righe, 2);
+    // e anche al contrario: il glob maiuscolo prende il file minuscolo
+    let r2 = dir();
+    fs::write(r2.join("basso.txt"), "xx\n").unwrap();
+    let esito2 = massivo(&Catalog::english(), &r2.join("*.TXT")).unwrap();
+    assert_eq!(esito2.file, 1, "il glob prende anche il .txt minuscolo");
 }
 
 #[test]
 fn tracciati_colonna_compatta_tetto_dieci() {
     let r = dir();
     // 12 righe di lunghezza crescente 1..12: 12 lunghezze da 1 riga ciascuna (78 + 12 a-capo = 90 byte).
-    // La compatta si ferma a dieci e dice quante mancano; 1/12 = (10000+6)/12 = 833 -> 8,33.
+    // La compatta si ferma a dieci e dice quante mancano; 1/12 = (10000+6)/12 = 833 -> 8.33.
     let mut testo = String::new();
     for lunghezza in 1..=12u64 {
         for _ in 0..lunghezza {
@@ -165,16 +174,13 @@ fn tracciati_colonna_compatta_tetto_dieci() {
     let attesa_sintesi = format!(
         "{p};90;12;12;{}",
         (1..=10)
-            .map(|l| format!("{l}×1 (8,33%)"))
+            .map(|l| format!("{l}x1 (8.33%)"))
             .collect::<Vec<_>>()
-            .join(" · ")
-    ) + " · e altre 2";
+            .join(" | ")
+    ) + " | e altre 2";
     assert_eq!(csv.lines().nth(1), Some(attesa_sintesi.as_str()), "{}", csv);
-    // il dettaglio sotto e' completo: tutte e dodici le lunghezze, la piu' corta prima (a parita' di conteggio)
-    let dettaglio: Vec<&str> = csv.lines().skip(3).collect();
-    assert_eq!(dettaglio.len(), 12, "{}", csv);
-    assert_eq!(dettaglio[0], format!("{p};90;12;1;1;8,33"), "{}", csv);
-    assert_eq!(dettaglio[11], format!("{p};90;12;12;1;8,33"), "{}", csv);
+    // la tabella e' una riga per file: due righe in tutto (testata + questa)
+    assert_eq!(csv.lines().count(), 2, "{}", csv);
 }
 
 #[test]
@@ -189,13 +195,7 @@ fn tracciati_percorso_col_punto_e_virgola() {
     let p = format!("\"{}\"", r.join("con;ptv.log").display());
     assert_eq!(
         csv.lines().nth(1),
-        Some(format!("{p};6;3;1;1×3 (100,00%)").as_str()),
-        "{}",
-        csv
-    );
-    assert_eq!(
-        csv.lines().nth(3),
-        Some(format!("{p};6;3;1;3;100,00").as_str()),
+        Some(format!("{p};6;3;1;1x3 (100.00%)").as_str()),
         "{}",
         csv
     );
@@ -235,10 +235,10 @@ fn tracciati_dal_binario() {
         })
         .expect("il report nella root");
     let csv = leggi(&report);
-    // la seconda riga e' la sintesi di x.log: 6 byte, 2 righe, una lunghezza (2) per 2 righe, 100,00
+    // la seconda riga e' x.log: 6 byte, 2 righe, una lunghezza (2) per 2 righe, 100.00
     assert_eq!(
         csv.lines().nth(1),
-        Some(format!("{};6;2;1;2×2 (100,00%)", r.join("x.log").display()).as_str()),
+        Some(format!("{};6;2;1;2x2 (100.00%)", r.join("x.log").display()).as_str()),
         "{csv}"
     );
     // la root che non esiste: uscita 1 e il messaggio dice quale
@@ -286,18 +286,12 @@ fn tracciati_file_generato_a_flusso() {
     assert_eq!(esito.file, 1);
     assert_eq!(esito.righe, 50_000);
     assert_eq!(esito.errori, 0);
-    // quattro righe: testata, la sintesi (una lunghezza sola: 6 per 50_000, 100,00), la vuota, il dettaglio
+    // due righe: testata e la riga del file (una lunghezza sola: 6 per 50_000, 100.00)
     let csv = leggi(&esito.report);
-    assert_eq!(csv.lines().count(), 4, "{}", csv);
+    assert_eq!(csv.lines().count(), 2, "{}", csv);
     assert_eq!(
         csv.lines().nth(1),
-        Some(format!("{};350000;50000;1;6×50000 (100,00%)", p.display()).as_str()),
-        "{}",
-        csv
-    );
-    assert_eq!(
-        csv.lines().nth(3),
-        Some(format!("{};350000;50000;6;50000;100,00", p.display()).as_str()),
+        Some(format!("{};350000;50000;1;6x50000 (100.00%)", p.display()).as_str()),
         "{}",
         csv
     );
