@@ -105,6 +105,7 @@ fn the_known_commands_have_the_known_keys() {
         (Cmd::ModeMenu, Some(k(KeyCode::Char('m'), ALT)), "Alt+M"),
         (Cmd::Undo, Some(k(KeyCode::Char('z'), CTRL)), "Ctrl+Z"),
         (Cmd::Redo, Some(k(KeyCode::Char('y'), CTRL)), "Ctrl+Y"),
+        (Cmd::DeleteLine, Some(k(KeyCode::Char('k'), CTRL)), "Ctrl+K"),
         (Cmd::Cut, Some(k(KeyCode::Char('x'), CTRL)), "Ctrl+X"),
         (Cmd::Copy, Some(k(KeyCode::Char('c'), CTRL)), "Ctrl+C"),
         (Cmd::Paste, Some(k(KeyCode::Char('v'), CTRL)), "Ctrl+V"),

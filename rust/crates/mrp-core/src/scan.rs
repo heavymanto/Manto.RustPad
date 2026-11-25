@@ -143,6 +143,16 @@ pub fn crlf_at(doc: &Document, off: u64) -> bool {
     b.len() == 2 * unit && b[..unit] == *nl.cr_bytes() && nl.is_newline(&b[unit..])
 }
 
+/// I confini della riga VERA che contiene `pos` (non il pezzo visuale): l'inizio e la fine dell'a-capo
+/// ESCLUSO, letti a blocchi come sempre ma senza il tetto delle righe visuali. Per un comando esplicito
+/// dell'utente che lavora sulla riga intera (FL59: Ctrl+K cancella la riga); la navigazione continua a
+/// usare il tetto, per non bloccare l'interfaccia su un file di una riga sola da 1 GB.
+pub fn true_row_bounds(doc: &Document, pos: u64) -> (u64, u64) {
+    let inizio = row_start(doc, pos, u64::MAX).0;
+    let fine = row_end(doc, inizio, u64::MAX);
+    (inizio, fine)
+}
+
 /// Dove sta il cursore a fine riga: come `row_end`, ma in un file CRLF prima del `\r` (il `\r\n` e' un solo a-capo e il
 /// testo si scrive prima di lui, non fra i due).
 pub fn cursor_end(doc: &Document, pos: u64, max_scan: u64) -> u64 {

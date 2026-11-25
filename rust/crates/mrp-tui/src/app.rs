@@ -971,6 +971,9 @@ pub struct App {
     find_text: String,
     /// L'ultimo testo cercato: F3 e Maiusc+F3 lo cercano di nuovo, senza prompt.
     last_find: Option<String>,
+    /// Vero quando l'ultima ricerca ha finito SENZA trovare: F3 allora riapre la maschera (col testo di
+    /// nuovo dentro) invece di ripetere una ricerca che non trova niente (il difetto U-16).
+    find_vuota: bool,
     /// Come si legge il testo cercato (testo, glob, regex) e se le maiuscole contano: vale per la ricerca e per Sostituisci.
     search_mode: Mode,
     search_case: bool,
@@ -1213,6 +1216,7 @@ impl App {
             save_enc_bom: false,
             find_text: String::new(),
             last_find: None,
+            find_vuota: false,
             search_mode: Mode::Text,
             search_case: true,
             rep_find: String::new(),
@@ -1362,6 +1366,8 @@ impl App {
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl && !shift => self.undo(),
             KeyCode::Char('z') | KeyCode::Char('Z') if ctrl => self.redo(),
             KeyCode::Char('y') | KeyCode::Char('Y') if ctrl => self.redo(),
+            // Ctrl+K cancella la riga VERA intera (anche oltre il tetto delle righe visuali, X-09)
+            KeyCode::Char('k') | KeyCode::Char('K') if ctrl => self.kill_line(),
             // Ctrl+Maiusc+S: salva con nome (con Maiusc arriva anche la 'S' maiuscola)
             KeyCode::Char('s') | KeyCode::Char('S') if ctrl && shift => {
                 self.open_dialog(DialogKind::SaveAs)
@@ -3318,6 +3324,13 @@ impl App {
                 return;
             }
         }
+        // senza un testo cercato - o quando l'ultima ricerca non ha trovato niente - F3 apre la maschera:
+        // ripetere una ricerca che non trova non serve a nessuno (U-16)
+        let apre_maschera = self.last_find.is_none() || self.find_vuota;
+        if apre_maschera {
+            self.open_dialog(DialogKind::Find);
+            return;
+        }
         let Some(testo) = self.last_find.clone() else {
             self.open_dialog(DialogKind::Find);
             return;
@@ -3399,11 +3412,13 @@ impl App {
             {
                 let ago = job.needle.clone();
                 self.search_job = None;
+                self.find_vuota = true;
                 self.flash = Some(self.cat.tf("flash.not_found", &[&ago]));
             }
             Ok(SearchOutcome::Found(inizio, lunga, giro_completo)) => {
                 let fine = inizio + lunga;
                 self.search_job = None;
+                self.find_vuota = false;
                 self.goto_move(inizio);
                 if giro_completo {
                     self.flash = Some(self.cat.t("flash.find_wrapped").to_string());
@@ -3414,6 +3429,7 @@ impl App {
                 let ago = job.needle.clone();
                 self.search_job = None;
                 // Anche un errore di lettura vale come "non trovato": il cursore non si muove.
+                self.find_vuota = true;
                 self.flash = Some(self.cat.tf("flash.not_found", &[&ago]));
             }
             Ok(SearchOutcome::Cancelled) => {
@@ -5710,6 +5726,38 @@ impl App {
 
     /// Ctrl+Z: annulla l'ultimo passo della storia (solo in modifica). Il cursore va a `pos +
     /// max(delta, 0)` con `pos` restituito dal core e delta = lunghezza dopo meno lunghezza prima.
+    /// Ctrl+K: cancella la riga VERA che contiene il cursore, dall'inizio all'a-capo compreso — anche
+    /// quando la riga e' oltre il tetto delle righe visuali (il record mostruoso del difetto X-09: la
+    /// selezione e il tasto Canc lavorano sul pezzo da 128 KiB, qui si prende la riga intera). Vale in
+    /// modifica; in lettura rifiuta come Ctrl+Z. La selezione in corso si butta: il testo sotto e' cambiato.
+    fn kill_line(&mut self) {
+        if !self.edit {
+            self.refuse_write();
+            return;
+        }
+        self.anchor = None;
+        self.block = None;
+        let Some(doc) = self.doc.as_mut() else {
+            return;
+        };
+        let (inizio, fine) = scan::true_row_bounds(doc, self.cursor);
+        let unit = doc.newline().unit() as u64;
+        // la riga col suo a-capo: se dopo la fine c'e' ancora documento, l'a-capo va via con la riga
+        // (la riga dopo prende il suo posto); se la riga e' l'ultima, si cancella fino alla fine
+        let fine_con_nl = if fine < doc.len() { fine + unit } else { fine };
+        if fine_con_nl <= inizio {
+            return; // documento vuoto: niente da cancellare
+        }
+        match doc.delete(inizio, fine_con_nl - inizio) {
+            Ok(()) => {
+                self.cursor = inizio;
+                self.remember_col();
+                self.scroll_adjust();
+            }
+            Err(_) => self.refuse_write(),
+        }
+    }
+
     fn undo(&mut self) {
         if !self.edit {
             self.refuse_write();

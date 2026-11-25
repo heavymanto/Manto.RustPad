@@ -31,7 +31,7 @@ fn schermo(a: &mut App, w: u16, h: u16) -> String {
 
 #[test]
 fn the_help_lists_every_key_that_was_missing() {
-    // alto abbastanza per vederle tutte: 25 righe + bordo + la riga che chiude = 28
+    // alto abbastanza per vederle tutte: 26 righe + bordo + la riga che chiude = 29
     let (mut a, p) = app("uno\n", 100, 40);
     a.handle_key(k(KeyCode::F(1)));
     let s = schermo(&mut a, 100, 40);
@@ -62,22 +62,23 @@ fn on_a_short_screen_the_help_scrolls_and_always_shows_how_to_close() {
     let (mut a, p) = app("uno\n", 100, 24);
     a.handle_key(k(KeyCode::F(1)));
     assert_eq!(a.dialog_kind(), Some(DialogKind::Help));
-    // in cima: le prime 21 righe (fino ad Alt+H, il check dei tracciati), non le ultime; in fondo come si chiude e che si scorre
+    // in cima: le prime 21 righe (fino ad Alt+G, il filtro), non le ultime; in fondo come si chiude e che si scorre
     let s = schermo(&mut a, 100, 24);
     assert!(s.contains("Arrows PgUp PgDn Home End"), "{s}");
-    assert!(s.contains("Alt+H"), "{s}");
+    assert!(s.contains("Alt+G"), "{s}");
+    assert!(!s.contains("Alt+H"), "{s}");
     assert!(!s.contains("Alt+I / Alt+O"), "{s}");
     assert!(!s.contains("Ctrl+R"), "{s}");
     assert!(!s.contains("timeline: the file in time"), "{s}");
     assert!(s.contains("Esc closes"), "{s}");
     assert!(s.contains("Up/Down scroll"), "{s}");
-    // Giu: una riga in piu' in fondo (Alt+I / Alt+O), la prima sparisce
+    // Giu: una riga in piu' in fondo (Alt+H, il check dei tracciati), la prima sparisce
     a.handle_key(k(KeyCode::Down));
     let s = schermo(&mut a, 100, 24);
     assert!(!s.contains("Arrows PgUp PgDn Home End"), "{s}");
     assert!(s.contains("Ctrl+Home / Ctrl+End"), "{s}");
-    assert!(s.contains("Alt+I / Alt+O"), "{s}");
-    assert!(!s.contains("timeline: the file in time"), "{s}");
+    assert!(s.contains("Alt+H"), "{s}");
+    assert!(!s.contains("Alt+I / Alt+O"), "{s}");
     assert!(!s.contains("Ctrl+R"), "{s}");
     // Su: com'era
     a.handle_key(k(KeyCode::Up));
@@ -228,7 +229,7 @@ fn the_descriptions_in_the_help_start_all_at_the_same_column() {
         let byte = riga.find(&descrizione).unwrap();
         colonne.push((riga[..byte].chars().count(), tasti));
     }
-    assert_eq!(colonne.len(), 28);
+    assert_eq!(colonne.len(), 29);
     let prima = colonne[0].0;
     for (c, tasti) in &colonne {
         assert_eq!(

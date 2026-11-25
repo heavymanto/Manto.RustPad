@@ -59,6 +59,7 @@ const MODIFICA: &[Option<Cmd>] = &[
     None,
     Some(Cmd::Undo),
     Some(Cmd::Redo),
+    Some(Cmd::DeleteLine),
     None,
     Some(Cmd::Cut),
     Some(Cmd::Copy),

@@ -170,12 +170,12 @@ status row as the terminal.
 - **Must not:** touch the file on disk before a save. In VIEW, typing is refused with the hint **"read-only: press Alt+E to edit"**.
 - **Auto tests:** yes (`app_edit`, `app_select`, `app_multibyte`).
 
-#### M-04 Undo and redo
-- **Entry:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Shift+Z`); window: Edit menu, toolbar.
-- **Expected response:** the text goes back/forward by whole steps.
+#### M-04 Undo, redo and delete line
+- **Entry:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Shift+Z`); `Ctrl+K` deletes the line; window: Edit menu, toolbar (undo/redo).
+- **Expected response:** the text goes back/forward by whole steps. `Ctrl+K` removes the WHOLE line the cursor is on, from its start through its newline, in one shot: even a huge line the terminal shows in pieces (rows beyond 128 KiB are "visual rows": selection and the Delete key work on the piece, `Ctrl+K` takes the whole line). The cursor stays where the line began.
 - **Must not:** work in VIEW (refused with the same hint as typing, "read-only: press Alt+E to edit"); survive a save (after a save the history is empty).
-- **Limits and edge cases:** the history is not kept in the session: a restored tab can be saved but not undone ([*Autosave and session*](../ARCHITECTURE.md#autosave-and-session-how-unsaved-work-survives)).
-- **Auto tests:** yes (`app_edit`, `commands`).
+- **Limits and edge cases:** the history is not kept in the session: a restored tab can be saved but not undone ([*Autosave and session*](../ARCHITECTURE.md#autosave-and-session-how-unsaved-work-survives)). The cursor past the last newline sits on the final empty line: there `Ctrl+K` has nothing to remove.
+- **Auto tests:** yes (`app_edit`, `app_killline`, `commands`).
 
 #### M-05 Save and Save as
 - **Entry:** `F2` / `Ctrl+S`; `Ctrl+Shift+S` Save as (asks the name, then the encoding). Both work in VIEW too when there are changes.
@@ -292,9 +292,9 @@ status row as the terminal.
 
 ![The Find prompt](img/manual/f01-cerca.png)
 ![The Find prompt](img/tui/f01-cerca.png)
-- **Entry:** `Ctrl+F` opens the prompt (prefilled with the last text); `F3` repeats forwards, `Shift+F3` backwards (or opens the prompt if there is no search yet).
+- **Entry:** `Ctrl+F` opens the prompt (prefilled with the last text); `F3` repeats forwards, `Shift+F3` backwards (or opens the prompt if there is no search yet, and also when the last search finished without finding anything: repeating a search that finds nothing is pointless, the prompt reopens with the previous text).
   With a selection, `F3` searches the selection itself, literal and match case, without any prompt; the selection that is the match just found
-  does not count — `F3` continues the previous search (a regex, a case-insensitive one) as before.
+  does not count - `F3` continues the previous search (a regex, a case-insensitive one) as before.
 - **Expected response:** a prompt "text to search for (exact bytes)" with `mode: text | match case  (Alt+M, Alt+C)`; the cursor
   goes to the next match; past the end it wraps with a notice. On a big file a progress bar after 2 s and `Esc` cancels ("cancelled", cursor unmoved).
 - **Must not:** freeze on a huge file; hang on any regular expression (the engine has no backtracking and a size limit of 8 MiB).

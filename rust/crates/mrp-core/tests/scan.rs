@@ -3,7 +3,8 @@
 
 use mrp_core::newline::Newline;
 use mrp_core::scan::{
-    crlf_at, cursor_end, next_row, prev_row_start, row_end, row_start, Next, DEFAULT_MAX_SCAN,
+    crlf_at, cursor_end, next_row, prev_row_start, row_end, row_start, true_row_bounds, Next,
+    DEFAULT_MAX_SCAN,
 };
 use mrp_core::Document;
 use std::path::PathBuf;
@@ -357,4 +358,57 @@ fn cursor_end_stops_before_the_cr_of_a_crlf_pair() {
     assert!(!crlf_at(&u, 4));
     assert_eq!(row_end(&u, 0, DEFAULT_MAX_SCAN), 4);
     assert_eq!(cursor_end(&u, 0, DEFAULT_MAX_SCAN), 2);
+}
+
+// ---------- i confini della riga VERA (FL59: Ctrl+K cancella la riga intera) ----------
+
+/// I confini della riga VERA che contiene `pos`: senza il tetto delle righe visuali.
+/// Oracoli contati a mano sul contenuto del file.
+#[test]
+fn true_row_bounds_una_riga_normale() {
+    let d = TestDir::new();
+    let doc = d.open(b"ab\ncd\n");
+    assert_eq!(true_row_bounds(&doc, 0), (0, 2));
+    // in mezzo alla prima riga: la riga vera e' sempre quella
+    assert_eq!(true_row_bounds(&doc, 1), (0, 2));
+    // il cursore SULL'a-capo appartiene alla riga che chiude
+    assert_eq!(true_row_bounds(&doc, 2), (0, 2));
+    // la seconda riga
+    assert_eq!(true_row_bounds(&doc, 3), (3, 5));
+}
+
+/// Il caso del difetto X-09: il record oltre il tetto delle righe visuali (17 MiB contro 128 KiB).
+#[test]
+fn true_row_bounds_la_riga_mostruosa() {
+    let d = TestDir::new();
+    let mut dati = b"a\n".to_vec();
+    dati.extend(std::iter::repeat_n(b'x', 17 * 1024 * 1024));
+    dati.extend_from_slice(b"\nb\n");
+    let doc = d.open(&dati);
+    let inizio = 2u64;
+    let fine = 2 + 17 * 1024 * 1024;
+    // col cursore in mezzo al record: la riga VERA e' tutto il record, dal primo x all'ultimo
+    assert_eq!(true_row_bounds(&doc, 9 * 1024 * 1024), (inizio, fine));
+    assert_eq!(true_row_bounds(&doc, inizio), (inizio, fine));
+    assert_eq!(true_row_bounds(&doc, fine - 1), (inizio, fine));
+    // la riga dopo il record ("b\n": la riga "b" finisce prima del suo a-capo)
+    assert_eq!(
+        true_row_bounds(&doc, dati.len() as u64 - 1),
+        (fine + 1, fine + 2)
+    );
+}
+
+#[test]
+fn true_row_bounds_casi_limite() {
+    let d = TestDir::new();
+    // documento vuoto
+    let vuoto = d.open(b"");
+    assert_eq!(true_row_bounds(&vuoto, 0), (0, 0));
+    // ultima riga senza a-capo: la riga finisce col documento
+    let doc = d.open(b"ab\ncd");
+    assert_eq!(true_row_bounds(&doc, 4), (3, 5));
+    // CRLF: il \r sta DENTRO la riga (il modello del progetto), l'a-capo e' il \n
+    let crlf = d.open(b"ab\r\ncd\r\n");
+    assert_eq!(true_row_bounds(&crlf, 0), (0, 3));
+    assert_eq!(true_row_bounds(&crlf, 5), (4, 7));
 }

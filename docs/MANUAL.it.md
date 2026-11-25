@@ -153,11 +153,11 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
   venivano scartati: `a@b{c}[d]` dava `abcd`.
 - **Cosa non deve mai succedere:** toccare il file su disco prima di un salvataggio. In VIEW, digitare e' rifiutato col suggerimento **"read-only: press Alt+E to edit"**.
 
-#### M-04 Annulla e ripeti
-- **Tasti:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Maiusc+Z`).
-- **Cosa succede:** il testo torna/avanza a passi interi.
+#### M-04 Annulla, ripeti e cancella la riga
+- **Tasti:** `Ctrl+Z`, `Ctrl+Y` (`Ctrl+Maiusc+Z`); `Ctrl+K` cancella la riga.
+- **Cosa succede:** il testo torna/avanza a passi interi. `Ctrl+K` toglie la riga VERA del cursore, dall'inizio all'a-capo compreso, in un colpo solo: anche una riga mostruosa che il terminale mostra a pezzetti (le righe oltre 128 KiB sono "righe visuali": la selezione e il tasto Canc lavorano sul pezzo, `Ctrl+K` prende la riga intera). Il cursore resta dove cominciava la riga.
 - **Cosa non deve mai succedere:** funzionare in VIEW (rifiutato col suggerimento di digitare, "read-only: press Alt+E to edit"); sopravvivere a un salvataggio (dopo un salvataggio la storia e' vuota).
-- **Limiti:** la storia non si tiene nella sessione: una scheda ripristinata si puo' salvare ma non annullare ([*Salvataggio automatico e sessione*](../ARCHITECTURE.it.md#salvataggio-automatico-e-sessione-come-sopravvive-il-lavoro-non-salvato)).
+- **Limiti:** la storia non si tiene nella sessione: una scheda ripristinata si puo' salvare ma non annullare ([*Salvataggio automatico e sessione*](../ARCHITECTURE.it.md#salvataggio-automatico-e-sessione-come-sopravvive-il-lavoro-non-salvato)). Il cursore oltre l'ultimo a-capo sta sulla riga vuota finale: li' `Ctrl+K` non ha nulla da togliere.
 
 #### M-05 Salva e Salva con nome
 - **Tasti:** `F2` / `Ctrl+S`; `Ctrl+Maiusc+S` Salva con nome (chiede il nome, poi la codifica). Entrambi funzionano anche in VIEW quando ci sono modifiche.
@@ -250,7 +250,7 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
 #### F-01 Cerca (`F3` / `Ctrl+F`)
 
 ![Il prompt Cerca](img/tui/f01-cerca.png)
-- **Tasti:** `Ctrl+F` apre il prompt (precompilato col testo dell'ultima volta); `F3` ripete in avanti, `Maiusc+F3` indietro (o apre il prompt se non c'e' ancora una ricerca).
+- **Tasti:** `Ctrl+F` apre il prompt (precompilato col testo dell'ultima volta); `F3` ripete in avanti, `Maiusc+F3` indietro (o apre il prompt se non c'e' ancora una ricerca, e anche quando l'ultima ricerca ha finito senza trovare niente: ripetere una ricerca che non trova non serve, il prompt si riapre col testo di prima).
   Con una selezione, `F3` cerca la selezione stessa, letterale e distinguendo le maiuscole, senza prompt; la selezione che e' la corrispondenza appena trovata
   non conta — `F3` continua la ricerca precedente (una regex, una senza maiuscole) come prima.
 - **Cosa succede:** un prompt "text to search for (exact bytes)" con `mode: text | match case  (Alt+M, Alt+C)`; il cursore

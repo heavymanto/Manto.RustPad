@@ -24,6 +24,8 @@ pub enum Cmd {
     ModeMenu,
     Undo,
     Redo,
+    /// Cancella la riga VERA intera, anche oltre il tetto delle righe visuali (FL59, il difetto X-09).
+    DeleteLine,
     Cut,
     Copy,
     Paste,
@@ -183,6 +185,13 @@ pub const COMMANDS: &[Command] = &[
         tasto(KeyCode::Char('y'), CTRL),
         "Ctrl+Y",
         "redo",
+    ),
+    comando(
+        Cmd::DeleteLine,
+        "gui.delete_line",
+        tasto(KeyCode::Char('k'), CTRL),
+        "Ctrl+K",
+        "delete_line",
     ),
     comando(
         Cmd::Cut,
@@ -450,6 +459,7 @@ pub fn enabled(ws: &Workspace, cmd: Cmd) -> bool {
         Cmd::Revert => a.is_modified() && !a.is_untitled(),
         Cmd::Undo => a.is_edit() && a.can_undo(),
         Cmd::Redo => a.is_edit() && a.can_redo(),
+        Cmd::DeleteLine => a.is_edit(),
         Cmd::Copy => a.has_selection(),
         Cmd::Cut => a.is_edit() && a.has_selection(),
         Cmd::Paste => a.is_edit(),
