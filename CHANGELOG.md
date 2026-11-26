@@ -7,7 +7,7 @@ Format inspired by "Keep a Changelog".
 ## [0.1.8] - 2026-11-26
 
 ### Added
-- **`--version` (or `-V`) on the command line** (terminal): prints `Manto.RustPad 0.1.8` and exits - who runs the mass record length check without a terminal can finally tell which binary is running (the number was already in the help's info tab and in the window title).
+- **`--version` (or `-V`) on the command line** (terminal): prints `Manto.RustPad 0.1.8` and exits, and the `--help` text lists it - who runs the mass record length check without a terminal can finally tell which binary is running (the number was already in the help's info tab and in the window title).
 - **Delete line (`Ctrl+K`)** (terminal and window): removes the WHOLE line the cursor is on, from its start through its newline, in one shot - even a huge line the terminal shows in pieces. Rows longer than 128 KiB are cut into "visual rows" so a one-line 1 GB file cannot block the interface, but that made a monstrous record practically undeletable (selecting and deleting worked on the 128 KiB piece, and after saving the record looked untouched - the X-09 census). `Ctrl+K` reads the true line bounds in 64 KiB chunks and deletes it whole; it works in edit mode only, it is undoable, and it is in the Edit menu of the window.
 - **F3 reopens the search prompt after a no-match** (terminal and window): until now, after the first search `F3` repeated it forever and the only way to change the pattern was `Ctrl+F`; now, when the last search finished without finding anything, `F3` reopens the prompt with the previous text already in it (the U-16 census). When the last search found something, `F3` still repeats it.
 

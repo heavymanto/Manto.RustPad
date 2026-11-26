@@ -57,6 +57,7 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
             "cli.help.enc",
             "cli.help.eol",
             "cli.help.trk",
+            "cli.help.ver",
             "cli.help.l5",
         ] {
             println!("{}", cat.t(chiave));

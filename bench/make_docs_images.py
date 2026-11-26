@@ -75,6 +75,13 @@ def percorso_impostazioni():
 
 def scatta(nome, azioni, extra, attesa, cartella):
     """One screenshot: MRPG_SCREENSHOT saves it and exits after a few frames."""
+    # the settings file is RESET before every shot: the program writes the state of the toggles
+    # (timeline, jump bar...) to it, and without the reset each shot would start from what the
+    # previous one left - the toggle chain scrambled the screenshots (FL59c)
+    try:
+        os.remove(percorso_impostazioni())
+    except OSError:
+        pass
     file = [scompatta('epoch', cartella)] + [scompatta(e, cartella) for e in extra]
     env = ambiente(MRPG_SCREENSHOT=os.path.join(MANUALE, nome + '.png'))
     if attesa:
@@ -98,6 +105,11 @@ def filmato(cartella):
     """The README GIF: MRPG_FILM shoots the frames of a scroll, PIL assembles them."""
     from PIL import Image
     quadri = tempfile.mkdtemp(prefix='mrp_film_')
+    # come gli scatti: impostazioni azzerate, la GIF parte dai default di fabbrica
+    try:
+        os.remove(percorso_impostazioni())
+    except OSError:
+        pass
     env = ambiente(
         MRPG_FILM=quadri,
         MRPG_FILM_N='30',

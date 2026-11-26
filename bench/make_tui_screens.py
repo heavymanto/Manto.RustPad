@@ -24,10 +24,11 @@ COLONNE = 120
 RIGHE = 30
 
 # (nome, chiavi --keys, descrizione breve per il log)
+# n05-salti: chiavi vuote (il Ctrl+B prepended e' gia' il suo tasto - due toggle spegnerebbero la barra)
 SCATTI = [
     ('n01-apre', '', 'il file aperto nel terminale'),
     ('n04-vai', 'F5', 'il prompt Vai a'),
-    ('n05-salti', 'Ctrl+B', 'la barra dei salti'),
+    ('n05-salti', '', 'la barra dei salti'),
     ('m02-modi', 'Alt+M', 'il menu dei modi'),
     ('t01-formato', 'Alt+O', 'la finestra del formato'),
     ('t03-intervallo', 'Alt+I', 'la finestra del tempo'),
@@ -52,7 +53,14 @@ def scompatta(nome, cartella):
 
 def dump(chiavi, file):
     """Una corsa di --dump-colori: lo schermo come celle, ognuna con colonna, riga, colore di primo piano e di
-    sfondo (esadecimale) e carattere. Ctrl+B sempre per primo, cosi' la barra dei salti si vede in ogni scatto."""
+    sfondo (esadecimale) e carattere. Ctrl+B sempre per primo, cosi' la barra dei salti si vede in ogni scatto.
+    Il file delle impostazioni si AZZERA prima di ogni scatto: il programma ci scrive lo stato dei toggle
+    (Ctrl+B, la timeline...) e senza azzeramento ogni scatto partirebbe da quello che ha lasciato il precedente
+    - la catena dei toggle sfalsava le schermate (FL59c)."""
+    try:
+        os.remove(SETTINGS)
+    except OSError:
+        pass
     cmd = [EXE, '--dump', f'{COLONNE}x{RIGHE}', '--theme', 'dark', '--settings', SETTINGS, '--dump-colori', file]
     if chiavi:
         cmd += ['--keys', f'Ctrl+B,{chiavi}']

@@ -68,12 +68,12 @@ status row as the terminal.
 
 ![The log open in the window: the coloured text, the status row, the footer](img/manual/n01-apre.png)
 ![The log open in the terminal: the coloured text, the status row, the footer](img/tui/n01-apre.png)
-- **Entry:** `mrp-tui FILE` / `mrp-gui FILE`. With no file, the last session comes back (see [*Autosave and session*](../ARCHITECTURE.md#autosave-and-session-how-unsaved-work-survives)); with none, an empty "Untitled 1".
+- **Entry:** `mrp-tui FILE` / `mrp-gui FILE`. With no file, the last session comes back (see [*Autosave and session*](../ARCHITECTURE.md#autosave-and-session-how-unsaved-work-survives)); with none, an empty "Untitled 1". `mrp-tui --version` (or `-V`) prints the version and exits: handy to know which binary is running, before any test.
 - **Expected response:** first screen immediately, mode `VIEW`, position `Ln 1  Col 1  byte 0  0%`, file name and size on the right.
   While the index is being built: `indexing N%` on the right, `Ln ?` on the left, and a blank line-number gutter *(observed on a 6 GB file)*.
 - **Must not:** load the whole file; freeze the screen while indexing; ask anything.
 - **Limits and edge cases:** **on Windows, while a file is open here, other programs can append to it, rename it or delete it, but cannot truncate it** (opening it for writing with truncation, or shrinking it, fails with a system error: the file is memory-mapped). A service that restarts its log from zero will get that error while someone is viewing the log; appending, rotating by rename and deleting are fine (tested). A missing file gives an error and no window; an empty file opens with 0 lines; a file that is one single
-  huge line still scrolls (rows are cut at 128 KiB); a file of 64 MiB or more shows a progress bar after 2 s (N-08).
+  huge line still scrolls (rows are cut at 128 KiB - but `Ctrl+K` deletes the WHOLE true line, see M-04); a file of 64 MiB or more shows a progress bar after 2 s (N-08).
 - **Auto tests:** yes (`app_view`, `cli`, `pausa_indice`, `utf16_core`...).
 
 #### N-02 Open another file, new document

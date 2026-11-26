@@ -141,6 +141,7 @@
   "cli.help.l3": "  --lang CÓDIGO  idioma da interface (en, it, ...)",
   "cli.help.l4": "  --theme NOME   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     este texto",
+  "cli.help.ver": "  -V, --version  imprime o número de versão e sai",
   "cli.err.open": "não foi possível abrir {}: {}",
   "cli.err.lang": "idioma desconhecido: {}",
   "cli.err.theme": "tema desconhecido: {}",

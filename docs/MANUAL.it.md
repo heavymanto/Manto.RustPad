@@ -60,12 +60,12 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
 #### N-01 Aprire un file dalla riga di comando
 
 ![Il log aperto nel terminale: il testo colorato, la riga di stato, il footer](img/tui/n01-apre.png)
-- **Tasti:** `mrp-tui FILE`. Senza file, torna l'ultima sessione (vedi [*Salvataggio automatico e sessione*](../ARCHITECTURE.it.md#salvataggio-automatico-e-sessione-come-sopravvive-il-lavoro-non-salvato)); senza sessione, un "Untitled 1" vuoto.
+- **Tasti:** `mrp-tui FILE`. Senza file, torna l'ultima sessione (vedi [*Salvataggio automatico e sessione*](../ARCHITECTURE.it.md#salvataggio-automatico-e-sessione-come-sopravvive-il-lavoro-non-salvato)); senza sessione, un "Untitled 1" vuoto. `mrp-tui --version` (o `-V`) stampa la versione e esce: comodo per sapere che binario gira, prima di ogni prova.
 - **Cosa succede:** prima schermata immediata, modo `VIEW`, posizione `Ln 1  Col 1  byte 0  0%`, nome e dimensione del file a destra.
   Mentre l'indice si costruisce: `indexing N%` a destra, `Ln ?` a sinistra, e il margine dei numeri di riga vuoto.
 - **Cosa non deve mai succedere:** caricare il file intero; bloccare lo schermo durante l'indicizzazione; chiedere alcunche'.
 - **Limiti:** **su Windows, mentre un file e' aperto qui, altri programmi possono aggiungerci dati, rinominarlo o cancellarlo, ma non troncarlo** (aprirlo in scrittura con troncamento, o accorciarlo, fallisce con un errore di sistema: il file e' memory-mappato). Un servizio che azzera il suo log ricevera' quell'errore mentre qualcuno lo sta guardando; aggiungere, ruotare con un rename e cancellare vanno bene (testato). Un file mancante da' un errore e nessuna finestra; un file vuoto si apre con 0 righe; un file che e' una sola
-  riga enorme scorre lo stesso (le righe si tagliano a 128 KiB); un file di 64 MiB o piu' mostra una barra di avanzamento dopo 2 s (N-08).
+  riga enorme scorre lo stesso (le righe si tagliano a 128 KiB — ma `Ctrl+K` cancella la riga VERA intera, vedi M-04); un file di 64 MiB o piu' mostra una barra di avanzamento dopo 2 s (N-08).
 
 #### N-02 Aprire un altro file, documento nuovo
 

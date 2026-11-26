@@ -141,6 +141,7 @@
   "cli.help.l3": "  --lang 代码    界面语言 (en, it, ...)",
   "cli.help.l4": "  --theme 名称   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     本帮助",
+  "cli.help.ver": "  -V, --version  打印版本号并退出",
   "cli.err.open": "无法打开 {}: {}",
   "cli.err.lang": "未知语言: {}",
   "cli.err.theme": "未知主题: {}",

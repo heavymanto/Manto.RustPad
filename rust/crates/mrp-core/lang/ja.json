@@ -141,6 +141,7 @@
   "cli.help.l3": "  --lang コード  インターフェースの言語 (en, it, ...)",
   "cli.help.l4": "  --theme 名前   night | debian | console | minimal",
   "cli.help.l5": "  -h, --help     このテキスト",
+  "cli.help.ver": "  -V, --version  バージョン番号を表示して終了する",
   "cli.err.open": "{} を開けません: {}",
   "cli.err.lang": "不明な言語: {}",
   "cli.err.theme": "不明なテーマ: {}",
