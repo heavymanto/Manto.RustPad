@@ -4,12 +4,17 @@ Format inspired by "Keep a Changelog".
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-11-26
+
+### Added
+- **`--version` (or `-V`) on the command line** (terminal): prints `Manto.RustPad 0.1.8` and exits - who runs the mass record length check without a terminal can finally tell which binary is running (the number was already in the help's info tab and in the window title).
+- **Delete line (`Ctrl+K`)** (terminal and window): removes the WHOLE line the cursor is on, from its start through its newline, in one shot - even a huge line the terminal shows in pieces. Rows longer than 128 KiB are cut into "visual rows" so a one-line 1 GB file cannot block the interface, but that made a monstrous record practically undeletable (selecting and deleting worked on the 128 KiB piece, and after saving the record looked untouched - the X-09 census). `Ctrl+K` reads the true line bounds in 64 KiB chunks and deletes it whole; it works in edit mode only, it is undoable, and it is in the Edit menu of the window.
+- **F3 reopens the search prompt after a no-match** (terminal and window): until now, after the first search `F3` repeated it forever and the only way to change the pattern was `Ctrl+F`; now, when the last search finished without finding anything, `F3` reopens the prompt with the previous text already in it (the U-16 census). When the last search found something, `F3` still repeats it.
+
 ## [0.1.7] - 2026-11-24
 
 ### Added
 - **The mass record length check from the command line** (terminal): `mrp-tui --check-tracciati "C:\path\*.log"` runs without opening the terminal, walks the folder and every subfolder, and runs the record length pass (the same one as `Alt+H`, streaming, encoding auto-detected per file) on every file whose name matches the glob (case-insensitive, like Windows itself: `*.txt` also picks `datiepc.TXT`). The result is a **CSV report** in the search root: one table, one header, **one row per file and length** - full path, bytes, records, length, count - so in Excel you filter by length and sort by count (the one-record anomalies float up on their own). The dominant formats come first within each file. Semicolon separator, CRLF line endings, UTF-8 with BOM, no commas in the file at all (no spreadsheet can tear a row), fields with semicolons, quotes or newlines are CSV-quoted. Written as it goes (one flush per file: interrupting keeps what was done). Empty files get their row, unreadable ones get an `ERRORE` row with the reason without stopping the run. Seven languages for the help line and the messages. No judgment logic: raw data.
-- **Delete line (`Ctrl+K`)** (terminal and window): removes the WHOLE line the cursor is on, from its start through its newline, in one shot - even a huge line the terminal shows in pieces. Rows longer than 128 KiB are cut into "visual rows" so a one-line 1 GB file cannot block the interface, but that made a monstrous record practically undeletable (selecting and deleting worked on the 128 KiB piece, and after saving the record looked untouched - the X-09 census). `Ctrl+K` reads the true line bounds in 64 KiB chunks and deletes it whole; it works in edit mode only, it is undoable, and it is in the Edit menu of the window.
-- **F3 reopens the search prompt after a no-match** (terminal and window): until now, after the first search `F3` repeated it forever and the only way to change the pattern was `Ctrl+F`; now, when the last search finished without finding anything, `F3` reopens the prompt with the previous text already in it (the U-16 census). When the last search found something, `F3` still repeats it.
 
 ## [0.1.6] - 2026-11-12
 

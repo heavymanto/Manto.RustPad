@@ -39,6 +39,8 @@ pub struct Args {
     pub check_tracciati: Option<PathBuf>,
     /// `-h` / `--help`.
     pub help: bool,
+    /// `-V` / `--version`: stampa la versione ed esce.
+    pub version: bool,
     /// `--list-encodings`: stampa i nomi delle codifiche, uno per riga, ed esce.
     pub list_encodings: bool,
     /// I file da aprire, uno per scheda, nell'ordine dato.
@@ -59,6 +61,7 @@ pub fn parse<I: IntoIterator<Item = OsString>>(argv: I) -> Result<Args, String> 
         // le opzioni sono testo: un byte strano non puo' matchare nessuna opzione nota
         match arg.to_string_lossy().as_ref() {
             "-h" | "--help" => args.help = true,
+            "-V" | "--version" => args.version = true,
             "--lang" => args.lang = Some(testo(&mut resto, "--lang")?),
             "--theme" => args.theme = Some(testo(&mut resto, "--theme")?),
             "--encoding" => args.encoding = Some(testo(&mut resto, "--encoding")?),

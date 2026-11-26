@@ -81,6 +81,20 @@ fn help_lists_the_options() {
 }
 
 #[test]
+fn version_prints_the_number_and_exits() {
+    // l'oracolo e' la versione del crate stesso: chi lancia il check massivo senza terminale deve poter
+    // sapere che binario gira (il numero si vede anche nell'info tab dell'aiuto e nel titolo della finestra)
+    let atteso = format!("Manto.RustPad {}", env!("CARGO_PKG_VERSION"));
+    let o = run(&["--version"]);
+    assert_eq!(o.code, 0);
+    assert_eq!(o.stdout.trim(), atteso, "--version");
+    // la forma corta vale lo stesso
+    let o = run(&["-V"]);
+    assert_eq!(o.code, 0);
+    assert_eq!(o.stdout.trim(), atteso, "-V");
+}
+
+#[test]
 fn help_speaks_the_chosen_language() {
     let o = run(&["--lang-dir", &lang_dir(), "--lang", "it", "--help"]);
     assert_eq!(o.code, 0);

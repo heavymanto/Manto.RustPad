@@ -41,6 +41,12 @@ fn run<I: IntoIterator<Item = OsString>>(argv: I) -> i32 {
         Ok(Some(l)) => Catalog::with(l.clone()),
         Ok(None) | Err(_) => Catalog::english(),
     };
+    // la versione viene prima di tutto (come l'aiuto): chi lancia il check massivo senza terminale deve
+    // poter sapere che binario sta girando
+    if a.version {
+        println!("Manto.RustPad {}", env!("CARGO_PKG_VERSION"));
+        return 0;
+    }
     // l'aiuto viene prima di ogni controllo: il testo e' nella lingua scelta
     if a.help {
         for chiave in [
