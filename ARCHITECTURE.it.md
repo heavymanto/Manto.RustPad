@@ -115,7 +115,9 @@ su un file da 8 GiB lo controlla). L'uscita, lo spegnimento dell'indice o un lav
 
 **Finche' non e' pronto.** I numeri di riga sono ignoti: il margine e' vuoto, la riga di stato mostra `Ln ?`, e vai a una *riga* dice di
 aspettare; vai a per byte (`@`) o percentuale (`%`) funziona subito. Senza indice, il movimento cammina le **righe visive**: una riga visiva
-e' una riga vera o un pezzo da 128 KiB di una riga troppo lunga, quindi una riga unica da 1 GB non blocca mai lo schermo.
+e' una riga vera o un pezzo da 128 KiB di una riga troppo lunga, quindi una riga unica da 1 GB non blocca mai lo schermo. I comandi che
+lavorano sulla riga intera (`Ctrl+K`, cancella la riga) non guardano i pezzi: leggono i confini della riga vera a blocchi di 64 KiB, senza
+tetto, e agiscono su quella.
 
 **Quando riparte.** Dopo ogni salvataggio riuscito (il file e' cambiato), quando cambia la forma dell'a-capo (per esempio una codifica nuova)
 e quando riaccendi l'indice. In TAIL un file cresciuto *estende* l'indice sui byte nuovi invece di ricostruirlo.

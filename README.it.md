@@ -100,6 +100,7 @@ I dettagli — la sessione che sopravvive ai crash, l'indice delle righe, le cod
 ### Editing avanzato (senza ricaricare)
 
 - **Modifica in-place (`F4`):** passa dalla sola lettura alla modifica senza ricaricare il file e senza copie.
+- **Cancella la riga (`Ctrl+K`):** toglie la riga intera col suo a-capo, anche una riga mostruosa che lo schermo mostra a pezzetti: un colpo solo, annullabile.
 - **Modalita' colonna (`F8` o `Alt`+trascinamento):** seleziona blocchi verticali per digitare, tabulare, copiare, tagliare o incollare contemporaneamente su piu' righe.
 - **Trova e sostituisci (`Ctrl+F` / `Ctrl+H`):** testo semplice, *glob* e *regex* con anteprima delle modifiche e **annullamento globale** (un solo `Ctrl+Z` annulla l'intera sostituzione).
 - **Supporto codifiche esteso:** UTF-8, UTF-16, UTF-32, 53 codifiche a byte singolo e set multi-byte dell'Asia orientale, anche su file piu' grandi della RAM.

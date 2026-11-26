@@ -100,6 +100,7 @@ The details — the session that survives crashes, the line index, the encodings
 ### Advanced editing (without reloading)
 
 - **In-place editing (`F4`):** from read-only to editing without reloading the file and without copies.
+- **Delete line (`Ctrl+K`):** removes the whole line with its newline, even a monstrous line the screen shows in pieces: one shot, undoable.
 - **Column mode (`F8` or `Alt`+drag):** select vertical blocks to type, tab, copy, cut or paste on many rows at once.
 - **Find and replace (`Ctrl+F` / `Ctrl+H`):** plain text, *glob* and *regex* with a preview of the changes and **global undo** (one `Ctrl+Z` undoes the whole replacement).
 - **Extended encoding support:** UTF-8, UTF-16, UTF-32, 53 single-byte code pages and the East-Asian multi-byte sets, also on files larger than RAM.

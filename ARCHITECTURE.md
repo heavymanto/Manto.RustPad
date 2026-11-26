@@ -117,7 +117,8 @@ Exit, turning the index off, or a new job cancels it between blocks.
 
 **Until it is ready.** Line numbers are unknown: the gutter is blank, the status row shows `Ln ?`, and go to a *line* says to wait;
 go to by byte (`@`) or percentage (`%`) works at once. Without the index, movement walks **visual rows**: a row is a real line or a
-128 KiB piece of a line that is too long, so a 1 GB single line never blocks the screen.
+128 KiB piece of a line that is too long, so a 1 GB single line never blocks the screen. The commands that work on the whole line
+(`Ctrl+K`, delete line) do not look at the pieces: they read the true line bounds in 64 KiB chunks, with no cap, and act on that.
 
 **When it restarts.** After every successful save (the file changed), when the newline shape changes (for instance a new
 encoding) and when you turn the index back on. In TAIL mode a grown file *extends* the index over the new bytes instead of rebuilding it.
