@@ -13,6 +13,7 @@ Alt come prefisso di escape (la maggior parte lo fa).
   - [Modi, modifica e salvataggio](#modi-modifica-e-salvataggio)
   - [Tempo, timeline e filtri](#tempo-timeline-e-filtri)
   - [Codifiche e fine riga](#codifiche-e-fine-riga)
+- **[Funzioni a riga di comando](#funzioni-a-riga-di-comando)**
 - **[Parte seconda — La finestra (GUI)](#parte-seconda--la-finestra-gui)**
   - [Apertura e navigazione](#apertura-e-navigazione-1)
   - [Modi, modifica e salvataggio](#modi-modifica-e-salvataggio-1)
@@ -121,8 +122,7 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
 - **Cosa non deve mai succedere:** chiudere in silenzio una scheda modificata senza sessione (con la sessione le modifiche restano, vedi [*Salvataggio automatico e sessione*](../ARCHITECTURE.it.md#salvataggio-automatico-e-sessione-come-sopravvive-il-lavoro-non-salvato)).
 
 #### N-08 Avanzamento dei lavori lunghi sui file grandi
-- **Tasti:** nessuno: parte da solo per indicizzazione, ricerca e salvataggio.
-- **Cosa succede:** da 60 colonne `indexing 61% #######.....`; da 90 anche `0:01 left`; da 140 anche
+- **Cosa succede:** parte da solo, per indicizzazione, ricerca e salvataggio. Da 60 colonne `indexing 61% #######.....`; da 90 anche `0:01 left`; da 140 anche
   `3.45 GiB / 5.59 GiB  1.67 GiB/s`. Sotto i 2 s, o sotto i 64 MiB, solo la percentuale. La barra e' a spettro
   (temi a colori) *(osservato nei codici di escape)*.
 - **Cosa non deve mai succedere:** bloccare lo schermo; mostrare una stima assurda (resta in silenzio quando il lavoro e' in pausa o non ha ancora una velocita').
@@ -287,14 +287,7 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
 - **Cosa succede:** mentre la passata conta il dialogo dice la percentuale; poi la lista, scorrevole, risponde subito a `SPAZIO`/`A`: ogni riga dice conteggio, barra e percentuale sul totale, e in fondo il totale (`2,202 records · 3 lengths`); `Invio` apre la vista con un messaggio come
   `2 lines: Enter on a line goes to it in the file` (e `Invio` su una riga della vista porta a quella riga nell'originale, come in F-03).
 - **Cosa non deve mai succedere:** modificare l'originale. Con niente spuntato: "no line matches", nessuna scheda. Senza righe: "nothing to count". `Esc` lascia tutto com'era, e la selezione abortita non si ricorda.
-- **Limiti:** le lunghezze sono byte di contenuto: le righe CRLF contano senza il `\r`, l'ultima riga senza a-capo e' una riga, una riga vuota ha lunghezza 0. La passata vede le modifiche non salvate (legge la fotografia) e si annulla chiudendo (riparte alla prossima apertura). Nella finestra le caselle sono cliccabili e Inverti / OK / Annulla sono pulsanti.
-
-#### F-05 Check massivo dei tracciati da riga di comando
-
-- **Tasti:** `mrp-tui --check-tracciati "C:\log\*.txt"` (nessun tasto: gira senza aprire il terminale e esce da solo, codice 0; 1 se la cartella non esiste o il report non si puo' scrivere).
-- **Cosa succede:** tutti i file che matchano il glob, nella cartella e in ogni sottocartella, prendono la stessa passata di F-04 (la codifica si rileva da sola, file per file); per ognuno una riga di avanzamento, e il report CSV `mrp-check-tracciati_AAAAMMGG_HHMMSSZ.csv` nasce nella cartella della ricerca: **una tabella sola, una riga per file e lunghezza** — percorso, byte, righe, lunghezza, conteggio — i formati dominanti prima, scritto man mano (un flush per file: un'interruzione lascia il fatto fin lì). Si apre in Excel col doppio clic: separatore `;`, fine riga CRLF, UTF-8 col BOM, nessuna virgola nel file (nessun foglio a calcolo puo' spezzare una riga); in Excel si filtra per lunghezza e si ordina per conteggio (le anomalie col record solo salgono da sole); i campi con `;`, virgolette o a-capo si proteggono con le virgolette CSV.
-- **Cosa non deve mai succedere:** caricare un file in RAM; fermarsi al primo file che non si legge (diventa una riga `ERRORE` col motivo in coda, il giro continua); aprire l'interfaccia.
-- **Limiti:** il glob guarda il solo nome del file (non le cartelle) e non bada alle maiuscole (come Windows: `*.txt` prende anche `datiepc.TXT`), con `*` `?` `[...]`; i symlink non si seguono; il file vuoto ha la sua riga (celle lunghezza e conteggio vuote); l'ora nel nome del report e' UTC; nessuna logica di giudizio, i dati grezzi li guarda chi legge. Due giri nello stesso secondo: il secondo report prende un `_1` nel nome.
+- **Limiti:** le lunghezze sono byte di contenuto: le righe CRLF contano senza il `\r`, l'ultima riga senza a-capo e' una riga, una riga vuota ha lunghezza 0. La passata vede le modifiche non salvate (legge la fotografia) e si annulla chiudendo (riparte alla prossima apertura). Nella finestra le caselle sono cliccabili e Inverti / OK / Annulla sono pulsanti. La versione massiva, su un albero intero, sta nella sezione [Funzioni a riga di comando](#funzioni-a-riga-di-comando) (C-01).
 
 ### Codifiche e fine riga
 
@@ -321,7 +314,6 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
   con l'errore grezzo di sistema 123).
 
 #### E-03 La modifica mantiene la codifica e il fine riga
-- **Tasti:** nessuno: e' automatico.
 - **Cosa succede:** osservato: digitare `é`, `ж`, `あ`, `好`, `가` in file windows-1252, windows-1251, UTF-16, Shift-JIS, GBK ed EUC-KR e salvare ha dato esattamente i byte
   giusti; un BOM e i byte UTF-8 non validi restano; digitare un carattere che la codifica non puo' contenere e' rifiutato subito ("cannot write '日' in windows-1252") e niente
   viene inserito.
@@ -329,6 +321,19 @@ terminale, le stesse tre righe chiudono la tabella dei tasti: versione, AGPL-3.0
 - **CRLF (corretto l'8/11/2026):** in un file CRLF (UTF-8, UTF-16 LE/BE, UTF-32) lo `\r\n` e' un fine riga solo: `Fine` e `Maiusc+Fine` si fermano prima del `\r`, digitare e
   `Invio` a fine riga vanno prima di lui, `Destra`/`Sinistra`/`Backspace`/`Canc` scavalcano la coppia come un carattere solo, e `Giu` da fine riga arriva a fine riga
   successiva. Prima della correzione il cursore poteva stare fra `\r` e `\n` e digitare li' salvava `ab\rX\ncd\r\n`.
+
+---
+
+## Funzioni a riga di comando
+
+Funzioni che vivono fuori dall'interfaccia: si lanciano dal terminale, fanno il lavoro ed escono. Non hanno tasti: hanno un comando.
+
+#### C-01 Check massivo dei tracciati
+
+- **Comando:** `mrp-tui --check-tracciati "C:\log\*.txt"`. Gira senza aprire il terminale ed esce da solo: codice 0 a fine giro, 1 se la cartella non esiste o il report non si puo' scrivere.
+- **Cosa succede:** tutti i file che matchano il glob, nella cartella e in ogni sottocartella, prendono la stessa passata di F-04 (la codifica si rileva da sola, file per file); per ognuno una riga di avanzamento, e il report CSV `mrp-check-tracciati_AAAAMMGG_HHMMSSZ.csv` nasce nella cartella della ricerca: **una tabella sola, una riga per file e lunghezza** — percorso, byte, righe, lunghezza, conteggio — i formati dominanti prima, scritto man mano (un flush per file: un'interruzione lascia il fatto fin lì). Si apre in Excel col doppio clic: separatore `;`, fine riga CRLF, UTF-8 col BOM, nessuna virgola nel file (nessun foglio a calcolo puo' spezzare una riga); in Excel si filtra per lunghezza e si ordina per conteggio (le anomalie col record solo salgono da sole); i campi con `;`, virgolette o a-capo si proteggono con le virgolette CSV.
+- **Cosa non deve mai succedere:** caricare un file in RAM; fermarsi al primo file che non si legge (diventa una riga `ERRORE` col motivo in coda, il giro continua); aprire l'interfaccia.
+- **Limiti:** il glob guarda il solo nome del file (non le cartelle) e non bada alle maiuscole (come Windows: `*.txt` prende anche `datiepc.TXT`), con `*` `?` `[...]`; i symlink non si seguono; il file vuoto ha la sua riga (celle lunghezza e conteggio vuote); l'ora nel nome del report e' UTC; nessuna logica di giudizio, i dati grezzi li guarda chi legge. Due giri nello stesso secondo: il secondo report prende un `_1` nel nome.
 
 ---
 

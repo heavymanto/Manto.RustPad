@@ -7,6 +7,7 @@
 | Field | Meaning |
 |---|---|
 | **Entry** | How you reach it: key, menu, click. *Terminal* and *Window* when they differ. |
+| **Command** | The command line that runs it (the functions that live outside the interface, in their own section). |
 | **Expected response** | What the interface must show or do. This is what a tester checks. |
 | **Must not** | What must never happen (data loss, freezes, a wrong mode...). |
 | **Limits and edge cases** | Big files, missing permissions, unsaved changes, narrow screens. |
@@ -333,15 +334,7 @@ status row as the terminal.
 - **Expected response:** while the pass counts the dialog says the percentage; then the list, scrollable, answers `SPACE`/`A` at once: each row says its count, bar and percentage of the total, and at the bottom the total (`2,202 records · 3 lengths`); `Enter` opens the view with a message like `2 lines: Enter on a line goes to it in the file` (and `Enter` on a line of the view goes to it in the original, as in F-03).
 - **Must not:** modify the original. With nothing ticked: "no line matches", no tab. With no lines at all: "nothing to count". `Esc` leaves everything as it was, and the aborted selection is not remembered.
 - **Limits and edge cases:** the lengths are content bytes: CRLF lines count without the `\r`, the last line without a newline is a line, an empty line has length 0. The pass sees unsaved edits (it reads the snapshot) and is cancelled by closing (it restarts at the next opening). In the window the boxes are clickable and Invert / OK / Cancel are buttons.
-- **Auto tests:** yes (`lengths` in the core, `lengths_app`, `lengths_view`).
-
-#### F-05 Mass record length check (command line)
-
-- **Entry:** `mrp-tui --check-tracciati "C:\logs\*.txt"` (no key: it runs without opening the terminal and exits by itself, code 0; 1 if the folder does not exist or the report cannot be written).
-- **Expected response:** every file matching the glob, in the folder and in every subfolder, gets the same pass as F-04 (the encoding is detected per file); one progress line each, and the **CSV report** `mrp-check-tracciati_YYYYMMDD_HHMMSSZ.csv` is born in the search folder: **one table, one row per file and length** - path, bytes, records, length, count - the dominant formats first, written as it goes (one flush per file: an interruption keeps what was done). It opens in Excel with a double click: semicolon separator, CRLF line endings, UTF-8 with BOM, no commas in the file at all (no spreadsheet can tear a row); in Excel you filter by length and sort by count (the one-record anomalies float up on their own); fields with semicolons, quotes or newlines are CSV-quoted.
-- **Must not:** load a file into RAM; stop at the first file that cannot be read (it becomes an `ERRORE` row with the reason at the end, the run continues); open the interface.
-- **Limits and edge cases:** the glob looks at the file name only (not the folders) and ignores letter case (like Windows: `*.txt` picks `datiepc.TXT` too), with `*` `?` `[...]`; symlinks are not followed; an empty file gets its row (empty length and count cells); the time in the report name is UTC; no judgment logic, the raw data is for the reader. Two runs in the same second: the second report gets a `_1` in the name.
-- **Auto tests:** yes (`tracciati` in mrp-tui, `tracciati_glob_matcha` in the core).
+- **Auto tests:** yes (`lengths` in the core, `lengths_app`, `lengths_view`). The mass version, over a whole tree, is in the [Command-line functions](#command-line-functions) section (C-01).
 
 ### Encodings and line endings
 
@@ -371,6 +364,18 @@ status row as the terminal.
 
 ---
 
+
+## Command-line functions
+
+Functions that live outside the interface: you launch them from the terminal, they do the job and exit. They have no keys: they have a command.
+
+#### C-01 Mass record length check
+
+- **Command:** `mrp-tui --check-tracciati "C:\logs\*.txt"`. It runs without opening the terminal and exits by itself: code 0 when done, 1 if the folder does not exist or the report cannot be written.
+- **Expected response:** every file matching the glob, in the folder and in every subfolder, gets the same pass as F-04 (the encoding is detected per file); one progress line each, and the **CSV report** `mrp-check-tracciati_YYYYMMDD_HHMMSSZ.csv` is born in the search folder: **one table, one row per file and length** - path, bytes, records, length, count - the dominant formats first, written as it goes (one flush per file: an interruption keeps what was done). It opens in Excel with a double click: semicolon separator, CRLF line endings, UTF-8 with BOM, no commas in the file at all (no spreadsheet can tear a row); in Excel you filter by length and sort by count (the one-record anomalies float up on their own); fields with semicolons, quotes or newlines are CSV-quoted.
+- **Must not:** load a file into RAM; stop at the first file that cannot be read (it becomes an `ERRORE` row with the reason at the end, the run continues); open the interface.
+- **Limits and edge cases:** the glob looks at the file name only (not the folders) and ignores letter case (like Windows: `*.txt` picks `datiepc.TXT` too), with `*` `?` `[...]`; symlinks are not followed; an empty file gets its row (empty length and count cells); the time in the report name is UTC; no judgment logic, the raw data is for the reader. Two runs in the same second: the second report gets a `_1` in the name.
+- **Auto tests:** yes (`tracciati` in mrp-tui, `tracciati_glob_matcha` in the core).
 
 ## Under the hood
 
@@ -411,7 +416,7 @@ One row per card. `Terminal` is the result of the terminal passes of 2026-11-07 
 | F-02 | Replace | NOTE: switches to EDIT silently; hint cut | DEFECT: after the preview, Enter does not apply; only the button does | yes |
 | F-03 | Line filter | NOTE: raw regex error text | OK | yes |
 | F-04 | Record length check | OK | not tested | yes |
-| F-05 | Mass record length check (command line) | not tested yet | n/a (terminal only) | yes |
+| C-01 | Mass record length check (command line) | not tested yet | n/a (terminal only) | yes |
 | E-01 | Encoding: detection and change | OK: 28/28 explicit, 21/21 fixed with F9; NOTE: a guess is not flagged | not tested | yes |
 | E-02 | Save as with another encoding | OK: 17/17 byte-exact; NOTE: pre-filled path with `\\?\` | not tested | yes |
 | E-03 | Editing keeps encoding and line ending | OK (CRLF defect fixed) | not tested | yes |
